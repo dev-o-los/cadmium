@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import '../models/song_item.dart';
@@ -15,25 +16,34 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final TextEditingController _searchController = TextEditingController();
   final MusicService _musicService = MusicService();
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final TextEditingController _searchController = TextEditingController();
+
+  int _currentTabIndex = 0; // 0: Listen Now, 1: Browse, 2: Radio, 3: Library, 4: Search
 
   HomeData? _homeData;
   bool _isLoadingHome = true;
   String? _homeError;
 
-  String _selectedCategory = 'All';
-  List<SongItem> _categoryTracks = [];
-  bool _isLoadingCategory = false;
-
+  // Search tab state
   List<SongItem> _searchResults = [];
   bool _isSearching = false;
   String? _searchError;
   bool _hasSearched = false;
 
+  // Current playing track
   SongItem? _currentSong;
   bool _isResolvingStream = false;
+
+  // Play history
+  final List<SongItem> _recentlyPlayed = [];
+
+  // Apple Music accent colors
+  static const Color appleRed = Color(0xFFFA243C);
+  static const Color appleDarkSurface = Color(0xFF1C1C1E);
+  static const Color appleDarkSurfaceHigh = Color(0xFF2C2C2E);
+  static const Color appleSecondaryText = Color(0xFF8E8E93);
 
   @override
   void initState() {
@@ -89,96 +99,12 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       setState(() {
         _isLoadingHome = false;
-        _homeError = 'Failed to load trending music: ${e.toString()}';
+        _homeError = 'Failed to load music: ${e.toString()}';
       });
     }
   }
 
-  Future<void> _selectCategory(String category) async {
-    if (_selectedCategory == category && !_hasSearched) return;
-
-    FocusScope.of(context).unfocus();
-    _searchController.clear();
-
-    setState(() {
-      _selectedCategory = category;
-      _hasSearched = false;
-      _searchResults.clear();
-      _isLoadingCategory = category != 'All';
-    });
-
-    if (category == 'All') {
-      return;
-    }
-
-    try {
-      final tracks = await _musicService.searchSongs('$category top songs');
-      if (!mounted) return;
-      setState(() {
-        _categoryTracks = tracks;
-        _isLoadingCategory = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isLoadingCategory = false;
-      });
-      _showSnackBar('Could not load $category tracks.');
-    }
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    _audioPlayer.dispose();
-    _musicService.dispose();
-    super.dispose();
-  }
-
-  /// Executes search query
-  Future<void> _handleSearch() async {
-    final query = _searchController.text.trim();
-
-    if (query.isEmpty) {
-      _showSnackBar('Please enter a song title or artist name.');
-      return;
-    }
-
-    FocusScope.of(context).unfocus();
-
-    setState(() {
-      _isSearching = true;
-      _searchError = null;
-      _hasSearched = true;
-      _selectedCategory = 'Search';
-    });
-
-    try {
-      final results = await _musicService.searchSongs(query);
-      if (!mounted) return;
-
-      setState(() {
-        _searchResults = results;
-        _isSearching = false;
-      });
-    } on SocketException {
-      if (!mounted) return;
-      setState(() {
-        _isSearching = false;
-        _searchError = 'No internet connection. Please check your network.';
-      });
-      _showSnackBar('Network error: Unable to reach YouTube Music.');
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isSearching = false;
-        _searchError = 'Search failed: ${e.toString()}';
-      });
-      _showSnackBar('An error occurred during search. Please try again.');
-    }
-  }
-
-  /// Handles song selection, resolves verified stream URL, and triggers playback
+  /// Handles song selection, stream resolution, and playback
   Future<void> _onSongSelected(SongItem song) async {
     if (_currentSong?.id == song.id) {
       _togglePlayPause();
@@ -188,6 +114,10 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _currentSong = song;
       _isResolvingStream = true;
+      if (!_recentlyPlayed.any((s) => s.id == song.id)) {
+        _recentlyPlayed.insert(0, song);
+        if (_recentlyPlayed.length > 20) _recentlyPlayed.removeLast();
+      }
     });
 
     try {
@@ -231,173 +161,187 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _handleSearch([String? customQuery]) async {
+    final query = (customQuery ?? _searchController.text).trim();
+    if (query.isEmpty) return;
+
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      _isSearching = true;
+      _searchError = null;
+      _hasSearched = true;
+      _currentTabIndex = 4; // Switch to Search tab
+    });
+
+    try {
+      final results = await _musicService.searchSongs(query);
+      if (!mounted) return;
+
+      setState(() {
+        _searchResults = results;
+        _isSearching = false;
+      });
+    } on SocketException {
+      if (!mounted) return;
+      setState(() {
+        _isSearching = false;
+        _searchError = 'No internet connection.';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isSearching = false;
+        _searchError = 'Search failed: ${e.toString()}';
+      });
+    }
+  }
+
   void _showSnackBar(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(message, style: const TextStyle(color: Colors.white)),
+        backgroundColor: appleDarkSurfaceHigh,
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+  void dispose() {
+    _searchController.dispose();
+    _audioPlayer.dispose();
+    _musicService.dispose();
+    super.dispose();
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Icon(Icons.graphic_eq_rounded, color: colorScheme.primary, size: 28),
-            const SizedBox(width: 8),
-            const Text(
-              'Wavify',
-              style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: -0.5),
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // Active Tab Page View
+          SafeArea(
+            bottom: false,
+            child: IndexedStack(
+              index: _currentTabIndex,
+              children: [
+                _buildListenNowTab(),
+                _buildBrowseTab(),
+                _buildRadioTab(),
+                _buildLibraryTab(),
+                _buildSearchTab(),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Refresh Feed',
-            onPressed: () => _loadHomeData(refresh: true),
+          ),
+
+          // Floating Player + Translucent Bottom Navigation Bar Dock
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Apple Music Floating Mini Player
+                PlayerControls(
+                  currentSong: _currentSong,
+                  audioPlayer: _audioPlayer,
+                  isResolvingStream: _isResolvingStream,
+                  onTogglePlayPause: _togglePlayPause,
+                  onSkipNext: () {
+                    final trending = _homeData?.trendingTracks ?? [];
+                    if (trending.isNotEmpty) {
+                      final nextIndex = (_currentSong != null)
+                          ? (trending.indexWhere((s) => s.id == _currentSong!.id) + 1) % trending.length
+                          : 0;
+                      _onSongSelected(trending[nextIndex]);
+                    }
+                  },
+                ),
+
+                // Frosted Glass Bottom Navigation Bar
+                _buildAppleBottomNavigationBar(),
+              ],
+            ),
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Search Bar
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: SearchBar(
-              controller: _searchController,
-              hintText: 'Search songs, artists, or genres...',
-              leading: const Icon(Icons.search),
-              trailing: [
-                if (_searchController.text.isNotEmpty || _hasSearched)
-                  IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () {
-                      _searchController.clear();
-                      setState(() {
-                        _hasSearched = false;
-                        _searchResults.clear();
-                        _selectedCategory = 'All';
-                      });
-                    },
-                  ),
-                IconButton(
-                  icon: const Icon(Icons.arrow_forward_rounded),
-                  tooltip: 'Submit Search',
-                  onPressed: _handleSearch,
+    );
+  }
+
+  /// Apple Music 5-Tab Navigation Bar with Frosted Glass Blur
+  Widget _buildAppleBottomNavigationBar() {
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xEB161618),
+            border: Border(
+              top: BorderSide(
+                color: Colors.white.withValues(alpha: 0.12),
+                width: 0.5,
+              ),
+            ),
+          ),
+          child: SafeArea(
+            top: false,
+            child: BottomNavigationBar(
+              currentIndex: _currentTabIndex,
+              onTap: (index) {
+                setState(() {
+                  _currentTabIndex = index;
+                });
+              },
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.play_circle_fill_rounded),
+                  label: 'Listen Now',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.grid_view_rounded),
+                  label: 'Browse',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.sensors_rounded),
+                  label: 'Radio',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.library_music_rounded),
+                  label: 'Library',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.search_rounded),
+                  label: 'Search',
                 ),
               ],
-              onSubmitted: (_) => _handleSearch(),
-              onChanged: (_) => setState(() {}),
             ),
           ),
-
-          // Horizontal Category Chips
-          _buildCategoryFilterBar(colorScheme),
-
-          const SizedBox(height: 6),
-
-          // Main Scrollable Content
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: () => _loadHomeData(refresh: true),
-              child: _buildMainBody(theme, colorScheme),
-            ),
-          ),
-
-          // Persistent Player Controls
-          PlayerControls(
-            currentSong: _currentSong,
-            audioPlayer: _audioPlayer,
-            isResolvingStream: _isResolvingStream,
-            onTogglePlayPause: _togglePlayPause,
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Horizontal scrolling chips for quick genre/category selection
-  Widget _buildCategoryFilterBar(ColorScheme colorScheme) {
-    final quickCategories = [
-      'All',
-      'Trending',
-      'Pop',
-      'Chill',
-      'Bollywood',
-      'Hip-Hop',
-      'Rock',
-      'Electronic',
-      'Workout',
-      'Party',
-    ];
-
-    return SizedBox(
-      height: 42,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: quickCategories.length,
-        separatorBuilder: (_, index) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final cat = quickCategories[index];
-          final isSelected = _selectedCategory == cat;
-
-          return FilterChip(
-            label: Text(cat),
-            selected: isSelected,
-            onSelected: (_) => _selectCategory(cat),
-            showCheckmark: false,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildMainBody(ThemeData theme, ColorScheme colorScheme) {
-    // 1. If actively searching, show search results
-    if (_isSearching) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Searching music...'),
-          ],
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    if (_hasSearched) {
-      return _buildSearchResultsView(theme, colorScheme);
-    }
-
-    // 2. If a specific category filter is chosen (not 'All')
-    if (_selectedCategory != 'All') {
-      return _buildCategoryTracksView(theme, colorScheme);
-    }
-
-    // 3. Home Feed loading or error states
+  // =========================================================================
+  // TAB 1: LISTEN NOW (Exact Apple Music Style from uploaded screenshot)
+  // =========================================================================
+  Widget _buildListenNowTab() {
     if (_isLoadingHome) {
       return const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(),
+            CircularProgressIndicator(color: appleRed),
             SizedBox(height: 16),
-            Text('Loading trending music & genres...'),
+            Text(
+              'Loading music...',
+              style: TextStyle(color: appleSecondaryText, fontSize: 14),
+            ),
           ],
         ),
       );
@@ -410,18 +354,18 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline_rounded, size: 52, color: colorScheme.error),
+              const Icon(Icons.error_outline_rounded, size: 52, color: appleRed),
               const SizedBox(height: 12),
               Text(
                 _homeError!,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.error),
+                style: const TextStyle(color: Colors.white, fontSize: 15),
               ),
               const SizedBox(height: 16),
-              FilledButton.tonalIcon(
+              FilledButton.tonal(
                 onPressed: () => _loadHomeData(refresh: true),
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
+                style: FilledButton.styleFrom(backgroundColor: appleDarkSurfaceHigh),
+                child: const Text('Try Again', style: TextStyle(color: Colors.white)),
               ),
             ],
           ),
@@ -429,239 +373,480 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // 4. Default Rich Homepage UI
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(bottom: 24),
-      children: [
-        // Section: Trending Now
-        _buildSectionHeader(
-          title: '🔥 Trending Now',
-          subtitle: 'Top charts & most played tracks',
-          theme: theme,
-          colorScheme: colorScheme,
-        ),
-        _buildTrendingList(theme, colorScheme),
+    final trending = _homeData?.trendingTracks ?? [];
+    final quickPicks = _homeData?.quickPicks ?? [];
+    final moods = _homeData?.moods ?? [];
+    final genres = _homeData?.genres ?? [];
 
-        const SizedBox(height: 20),
-
-        // Section: Quick Picks / Highlights
-        if (_homeData?.quickPicks.isNotEmpty ?? false) ...[
-          _buildSectionHeader(
-            title: '✨ Quick Picks',
-            subtitle: 'Recommended hits for you',
-            theme: theme,
-            colorScheme: colorScheme,
-          ),
-          _buildHorizontalSongCards(_homeData!.quickPicks, theme, colorScheme),
-          const SizedBox(height: 20),
-        ],
-
-        // Section: Moods & Moments
-        if (_homeData?.moods.isNotEmpty ?? false) ...[
-          _buildSectionHeader(
-            title: '🌈 Moods & Moments',
-            subtitle: 'Music for how you feel',
-            theme: theme,
-            colorScheme: colorScheme,
-          ),
-          _buildCategoryGrid(_homeData!.moods, theme, colorScheme),
-          const SizedBox(height: 20),
-        ],
-
-        // Section: Explore Genres
-        if (_homeData?.genres.isNotEmpty ?? false) ...[
-          _buildSectionHeader(
-            title: '🎸 Popular Genres',
-            subtitle: 'Explore sounds by genre',
-            theme: theme,
-            colorScheme: colorScheme,
-          ),
-          _buildCategoryGrid(_homeData!.genres.take(16).toList(), theme, colorScheme),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildSectionHeader({
-    required String title,
-    required String subtitle,
-    required ThemeData theme,
-    required ColorScheme colorScheme,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return RefreshIndicator(
+      color: appleRed,
+      backgroundColor: appleDarkSurface,
+      onRefresh: () => _loadHomeData(refresh: true),
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(0, 12, 0, 140),
         children: [
-          Text(
-            title,
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.3,
+          // Top Header: "Listen Now" + Profile Avatar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Listen Now',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 34,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -1.2,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () {
+                    _showSnackBar('Signed in as Music Listener');
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: const CircleAvatar(
+                      radius: 17,
+                      backgroundColor: appleDarkSurfaceHigh,
+                      child: Icon(Icons.person, color: Colors.white70, size: 20),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            subtitle,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colorScheme.onSurfaceVariant,
+          const SizedBox(height: 16),
+
+          // Section 1: "Top Picks" (Hero Cards Carousel from the screenshot)
+          _buildTopPicksHeroSection(trending),
+
+          const SizedBox(height: 24),
+
+          // Section 2: "Recently Played >"
+          if (_recentlyPlayed.isNotEmpty) ...[
+            _buildSectionHeaderWithChevron(
+              title: 'Recently Played',
+              onTap: () {},
             ),
+            const SizedBox(height: 12),
+            _buildHorizontalSquareCards(_recentlyPlayed),
+            const SizedBox(height: 24),
+          ],
+
+          // Section 3: "Trending Songs >"
+          _buildSectionHeaderWithChevron(
+            title: 'Trending Tracks',
+            onTap: () {},
           ),
+          const SizedBox(height: 12),
+          _buildHorizontalSquareCards(trending.skip(3).toList()),
+
+          const SizedBox(height: 24),
+
+          // Section 4: "Quick Picks >"
+          if (quickPicks.isNotEmpty) ...[
+            _buildSectionHeaderWithChevron(
+              title: 'Quick Picks',
+              onTap: () {},
+            ),
+            const SizedBox(height: 12),
+            _buildHorizontalSquareCards(quickPicks),
+            const SizedBox(height: 24),
+          ],
+
+          // Section 5: "Moods & Moments"
+          if (moods.isNotEmpty) ...[
+            _buildSectionHeaderWithChevron(
+              title: 'Moods & Activities',
+              onTap: () {},
+            ),
+            const SizedBox(height: 12),
+            _buildMoodsGrid(moods),
+            const SizedBox(height: 24),
+          ],
+
+          // Section 6: "Popular Genres"
+          if (genres.isNotEmpty) ...[
+            _buildSectionHeaderWithChevron(
+              title: 'Browse by Genre',
+              onTap: () {},
+            ),
+            const SizedBox(height: 12),
+            _buildGenresList(genres),
+          ],
         ],
       ),
     );
   }
 
-  /// Trending ranked tracks list
-  Widget _buildTrendingList(ThemeData theme, ColorScheme colorScheme) {
-    final trending = _homeData?.trendingTracks ?? [];
-    if (trending.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text('No trending tracks available right now.'),
-      );
-    }
-
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: trending.length > 10 ? 10 : trending.length,
-      itemBuilder: (context, index) {
-        final song = trending[index];
-        final rank = index + 1;
-        final isSelected = _currentSong?.id == song.id;
-
-        return ListTile(
-          selected: isSelected,
-          selectedTileColor: colorScheme.primaryContainer.withValues(alpha: 0.25),
-          leading: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 24,
-                child: Text(
-                  '$rank',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: rank <= 3 ? colorScheme.primary : colorScheme.outline,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+  /// Section Header with ">" chevron just like Apple Music
+  Widget _buildSectionHeaderWithChevron({
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                letterSpacing: -0.6,
               ),
-              const SizedBox(width: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: song.thumbnailUrl != null
-                    ? Image.network(
-                        song.thumbnailUrl!,
-                        width: 48,
-                        height: 48,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => _fallbackThumbnail(colorScheme),
-                      )
-                    : _fallbackThumbnail(colorScheme),
-              ),
-            ],
-          ),
-          title: Text(
-            song.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-              color: isSelected ? colorScheme.primary : null,
             ),
-          ),
-          subtitle: Text(
-            song.durationSeconds != null && song.durationSeconds! > 0
-                ? '${song.artist} • ${song.formattedDuration}'
-                : song.artist,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          trailing: isSelected
-              ? Icon(Icons.equalizer_rounded, color: colorScheme.primary)
-              : IconButton(
-                  icon: const Icon(Icons.play_circle_outline_rounded),
-                  tooltip: 'Play',
-                  onPressed: () => _onSongSelected(song),
-                ),
-          onTap: () => _onSongSelected(song),
-        );
-      },
+            const SizedBox(width: 4),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: appleSecondaryText,
+              size: 24,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  /// Horizontal scrolling card list for Quick Picks
-  Widget _buildHorizontalSongCards(List<SongItem> songs, ThemeData theme, ColorScheme colorScheme) {
-    return SizedBox(
-      height: 190,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: songs.length > 10 ? 10 : songs.length,
-        separatorBuilder: (_, index) => const SizedBox(width: 12),
-        itemBuilder: (context, index) {
-          final song = songs[index];
-          final isSelected = _currentSong?.id == song.id;
+  /// Hero Carousel for "Top Picks" (matches the large R&B Now / Giveon card in screenshot)
+  Widget _buildTopPicksHeroSection(List<SongItem> songs) {
+    if (songs.isEmpty) return const SizedBox.shrink();
 
-          return InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () => _onSongSelected(song),
-            child: SizedBox(
-              width: 130,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: song.thumbnailUrl != null
-                            ? Image.network(
-                                song.thumbnailUrl!,
-                                width: 130,
-                                height: 130,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => _fallbackThumbnail(colorScheme, size: 130),
-                              )
-                            : _fallbackThumbnail(colorScheme, size: 130),
-                      ),
-                      Positioned(
-                        right: 6,
-                        bottom: 6,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.65),
-                            shape: BoxShape.circle,
-                          ),
-                          padding: const EdgeInsets.all(4),
-                          child: Icon(
-                            isSelected ? Icons.equalizer_rounded : Icons.play_arrow_rounded,
-                            color: isSelected ? colorScheme.primary : Colors.white,
-                            size: 20,
-                          ),
-                        ),
+    final heroItems = songs.take(5).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Top Picks',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: -0.6,
+                ),
+              ),
+              SizedBox(height: 2),
+              Text(
+                'JUST UPDATED',
+                style: TextStyle(
+                  color: appleSecondaryText,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Large Horizontal Hero Cards
+        SizedBox(
+          height: 340,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: heroItems.length,
+            separatorBuilder: (_, index) => const SizedBox(width: 14),
+            itemBuilder: (context, index) {
+              final song = heroItems[index];
+              final isCurrent = _currentSong?.id == song.id;
+
+              // Distinct gradient themes for top picks cards
+              final gradients = [
+                const [Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)],
+                const [Color(0xFF8A2387), Color(0xFFE94057), Color(0xFFF27121)],
+                const [Color(0xFF1F4037), Color(0xFF99F2C8)],
+                const [Color(0xFF3A1C71), Color(0xFFD76D77), Color(0xFFFFAF7B)],
+                const [Color(0xFF232526), Color(0xFF414345)],
+              ];
+              final gradient = gradients[index % gradients.length];
+
+              return GestureDetector(
+                onTap: () => _onSongSelected(song),
+                child: Container(
+                  width: 280,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: LinearGradient(
+                      colors: gradient,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        blurRadius: 14,
+                        offset: const Offset(0, 6),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Stack(
+                      children: [
+                        // Background Artist Cover Artwork
+                        Positioned.fill(
+                          child: song.thumbnailUrl != null
+                              ? Image.network(
+                                  song.thumbnailUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      _fallbackHeroArt(),
+                                )
+                              : _fallbackHeroArt(),
+                        ),
+
+                        // Shaded Gradient for legibility
+                        Positioned.fill(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.black.withValues(alpha: 0.3),
+                                  Colors.transparent,
+                                  Colors.black.withValues(alpha: 0.85),
+                                ],
+                                stops: const [0.0, 0.4, 1.0],
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Top Apple Music Badge
+                        Positioned(
+                          top: 14,
+                          right: 14,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.apple, color: Colors.white70, size: 14),
+                              const SizedBox(width: 2),
+                              Text(
+                                'Music',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.85),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Top Tag / Category Label
+                        Positioned(
+                          top: 14,
+                          left: 16,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.4),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'FEATURED',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Bottom Floating Information Card (Matches R&B Now footer)
+                        Positioned(
+                          left: 12,
+                          right: 12,
+                          bottom: 12,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(14),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xCC1C1C1E),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.12),
+                                    width: 0.5,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            song.title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                              letterSpacing: -0.3,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            song.artist,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: Color(0xFF8E8E93),
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color: isCurrent ? appleRed : Colors.white,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      padding: const EdgeInsets.all(8),
+                                      child: Icon(
+                                        isCurrent ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                                        color: isCurrent ? Colors.white : Colors.black,
+                                        size: 20,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _fallbackHeroArt() {
+    return Container(
+      color: appleDarkSurfaceHigh,
+      child: const Center(
+        child: Icon(Icons.music_note_rounded, color: Colors.white24, size: 64),
+      ),
+    );
+  }
+
+  /// Horizontal scrolling cards for tracks (Recently Played, Trending, Quick Picks)
+  Widget _buildHorizontalSquareCards(List<SongItem> songs) {
+    if (songs.isEmpty) return const SizedBox.shrink();
+
+    return SizedBox(
+      height: 200,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: songs.length > 12 ? 12 : songs.length,
+        separatorBuilder: (_, index) => const SizedBox(width: 14),
+        itemBuilder: (context, index) {
+          final song = songs[index];
+          final isCurrent = _currentSong?.id == song.id;
+
+          return GestureDetector(
+            onTap: () => _onSongSelected(song),
+            child: SizedBox(
+              width: 140,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Square Artwork with Subtle Border & Radius
+                  Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: song.thumbnailUrl != null
+                            ? Image.network(
+                                song.thumbnailUrl!,
+                                width: 140,
+                                height: 140,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    _fallbackSquareArt(),
+                              )
+                            : _fallbackSquareArt(),
+                      ),
+                      if (isCurrent)
+                        Positioned(
+                          right: 8,
+                          bottom: 8,
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              color: appleRed,
+                              shape: BoxShape.circle,
+                            ),
+                            padding: const EdgeInsets.all(6),
+                            child: const Icon(
+                              Icons.equalizer_rounded,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Song Title
                   Text(
                     song.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                      color: isSelected ? colorScheme.primary : null,
+                    style: TextStyle(
+                      color: isCurrent ? appleRed : Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.2,
                     ),
                   ),
+                  const SizedBox(height: 2),
+
+                  // Artist
                   Text(
                     song.artist,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
+                    style: const TextStyle(
+                      color: appleSecondaryText,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
                     ),
                   ),
                 ],
@@ -673,40 +858,100 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Colorful grid for Moods & Genres
-  Widget _buildCategoryGrid(List<MusicCategory> categories, ThemeData theme, ColorScheme colorScheme) {
+  Widget _fallbackSquareArt() {
+    return Container(
+      width: 140,
+      height: 140,
+      color: appleDarkSurfaceHigh,
+      child: const Icon(Icons.music_note_rounded, color: Colors.white30, size: 36),
+    );
+  }
+
+  /// Moods & Activities Grid
+  Widget _buildMoodsGrid(List<MusicCategory> moods) {
+    return SizedBox(
+      height: 110,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: moods.length,
+        separatorBuilder: (_, index) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final mood = moods[index];
+          final color = mood.colorValue != null
+              ? Color(mood.colorValue!).withValues(alpha: 0.85)
+              : const Color(0xFF3A3A3C);
+
+          return GestureDetector(
+            onTap: () {
+              _searchController.text = mood.title;
+              _handleSearch(mood.title);
+            },
+            child: Container(
+              width: 150,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                gradient: LinearGradient(
+                  colors: [color, color.withValues(alpha: 0.6)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Icon(Icons.bubble_chart_rounded, color: Colors.white70, size: 24),
+                  Text(
+                    mood.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Genres List Chips
+  Widget _buildGenresList(List<MusicCategory> genres) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
-        children: categories.map((cat) {
-          final color = cat.colorValue != null
-              ? Color(cat.colorValue!).withValues(alpha: 0.85)
-              : colorScheme.primaryContainer;
-
-          return Material(
-            color: color,
-            borderRadius: BorderRadius.circular(10),
-            elevation: 0.5,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: () => _selectCategory(cat.title),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      cat.title,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Colors.white70),
-                  ],
+        children: genres.take(12).map((genre) {
+          return GestureDetector(
+            onTap: () {
+              _searchController.text = genre.title;
+              _handleSearch(genre.title);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: appleDarkSurface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  width: 0.6,
+                ),
+              ),
+              child: Text(
+                genre.title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
@@ -716,179 +961,423 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// View when a category is selected (e.g. Chill, Pop, Bollywood)
-  Widget _buildCategoryTracksView(ThemeData theme, ColorScheme colorScheme) {
-    if (_isLoadingCategory) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 16),
-            Text('Loading $_selectedCategory tracks...'),
-          ],
-        ),
-      );
-    }
+  // =========================================================================
+  // TAB 2: BROWSE
+  // =========================================================================
+  Widget _buildBrowseTab() {
+    final genres = _homeData?.genres ?? [];
+    final trending = _homeData?.trendingTracks ?? [];
 
-    if (_categoryTracks.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.music_off_rounded, size: 52, color: colorScheme.outline),
-            const SizedBox(height: 12),
-            Text('No tracks found for "$_selectedCategory"'),
-            const SizedBox(height: 12),
-            FilledButton.tonal(
-              onPressed: () => _selectCategory('All'),
-              child: const Text('Back to Home'),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 140),
+      children: [
+        const Text(
+          'Browse',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 34,
+            fontWeight: FontWeight.bold,
+            letterSpacing: -1.2,
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Music by Genre',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: genres.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 2.3,
+          ),
+          itemBuilder: (context, index) {
+            final g = genres[index];
+            final color = g.colorValue != null
+                ? Color(g.colorValue!).withValues(alpha: 0.85)
+                : appleDarkSurfaceHigh;
+
+            return GestureDetector(
+              onTap: () {
+                _searchController.text = g.title;
+                _handleSearch(g.title);
+              },
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  color: color,
+                ),
+                alignment: Alignment.bottomLeft,
+                child: Text(
+                  g.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 24),
+        const Text(
+          'Global Charts',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...trending.take(8).map((track) => _buildSongRow(track)),
+      ],
+    );
+  }
+
+  // =========================================================================
+  // TAB 3: RADIO
+  // =========================================================================
+  Widget _buildRadioTab() {
+    final stations = [
+      {'title': 'Apple Music 1', 'desc': 'The new music that matters.'},
+      {'title': 'Apple Music Hits', 'desc': 'Songs you know and love.'},
+      {'title': 'Apple Music Country', 'desc': 'Where country lives.'},
+      {'title': 'Chill Station', 'desc': 'Relaxing acoustic & lofi vibes.'},
+      {'title': 'Dance Radio', 'desc': 'Club energy, nonstop.'},
+      {'title': 'Pop Station', 'desc': 'Today’s biggest hits.'},
+    ];
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 140),
+      children: [
+        const Text(
+          'Radio',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 34,
+            fontWeight: FontWeight.bold,
+            letterSpacing: -1.2,
+          ),
+        ),
+        const SizedBox(height: 16),
+        ...stations.map((st) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: appleDarkSurface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
-          ],
-        ),
-      );
-    }
+            child: Row(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: appleRed.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.radio_rounded, color: appleRed, size: 28),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        st['title']!,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        st['desc']!,
+                        style: const TextStyle(
+                          color: appleSecondaryText,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.play_circle_fill, color: appleRed, size: 36),
+                  onPressed: () {
+                    _handleSearch(st['title']!);
+                  },
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
 
+  // =========================================================================
+  // TAB 4: LIBRARY
+  // =========================================================================
+  Widget _buildLibraryTab() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 140),
+      children: [
+        const Text(
+          'Library',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 34,
+            fontWeight: FontWeight.bold,
+            letterSpacing: -1.2,
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildLibraryActionTile(Icons.playlist_play_rounded, 'Playlists'),
+        _buildLibraryActionTile(Icons.music_note_rounded, 'Songs'),
+        _buildLibraryActionTile(Icons.album_rounded, 'Albums'),
+        _buildLibraryActionTile(Icons.person_rounded, 'Artists'),
+        _buildLibraryActionTile(Icons.download_done_rounded, 'Downloaded'),
+        const SizedBox(height: 24),
+        const Text(
+          'Recently Added',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (_recentlyPlayed.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Text(
+              'No songs played yet. Tap any track to begin.',
+              style: TextStyle(color: appleSecondaryText),
+            ),
+          )
+        else
+          ..._recentlyPlayed.map((song) => _buildSongRow(song)),
+      ],
+    );
+  }
+
+  Widget _buildLibraryActionTile(IconData icon, String title) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: appleRed, size: 26),
+      title: Text(
+        title,
+        style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w500),
+      ),
+      trailing: const Icon(Icons.chevron_right_rounded, color: appleSecondaryText),
+      onTap: () {},
+    );
+  }
+
+  // =========================================================================
+  // TAB 5: SEARCH
+  // =========================================================================
+  Widget _buildSearchTab() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '$_selectedCategory Tracks',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              TextButton(
-                onPressed: () => _selectCategory('All'),
-                child: const Text('View All'),
-              ),
-            ],
+        // Apple Music Search Header
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 12, 20, 10),
+          child: Text(
+            'Search',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 34,
+              fontWeight: FontWeight.bold,
+              letterSpacing: -1.2,
+            ),
           ),
         ),
-        Expanded(
-          child: ListView.separated(
-            itemCount: _categoryTracks.length,
-            separatorBuilder: (_, index) => const Divider(height: 1, indent: 72),
-            itemBuilder: (context, index) {
-              final song = _categoryTracks[index];
-              return _buildSongListTile(song, theme, colorScheme);
-            },
+
+        // Apple Style Search Capsule Bar
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+          child: Container(
+            height: 42,
+            decoration: BoxDecoration(
+              color: appleDarkSurfaceHigh,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Row(
+              children: [
+                const Icon(Icons.search_rounded, color: appleSecondaryText, size: 22),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                    cursorColor: appleRed,
+                    decoration: const InputDecoration(
+                      hintText: 'Artists, Songs, Lyrics, and More',
+                      hintStyle: TextStyle(color: appleSecondaryText, fontSize: 15),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    onSubmitted: (_) => _handleSearch(),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                if (_searchController.text.isNotEmpty)
+                  GestureDetector(
+                    onTap: () {
+                      _searchController.clear();
+                      setState(() {
+                        _searchResults.clear();
+                        _hasSearched = false;
+                      });
+                    },
+                    child: const Icon(Icons.cancel_rounded, color: appleSecondaryText, size: 18),
+                  ),
+              ],
+            ),
           ),
+        ),
+        const SizedBox(height: 10),
+
+        // Search Content or Exploration
+        Expanded(
+          child: _isSearching
+              ? const Center(
+                  child: CircularProgressIndicator(color: appleRed),
+                )
+              : _hasSearched
+                  ? _buildSearchResultsList()
+                  : _buildSearchExploration(),
         ),
       ],
     );
   }
 
-  /// View for search results
-  Widget _buildSearchResultsView(ThemeData theme, ColorScheme colorScheme) {
+  Widget _buildSearchResultsList() {
     if (_searchError != null) {
       return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.error_outline_rounded, size: 48, color: colorScheme.error),
-              const SizedBox(height: 12),
-              Text(
-                _searchError!,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.error),
-              ),
-              const SizedBox(height: 16),
-              FilledButton.tonalIcon(
-                onPressed: _handleSearch,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
+        child: Text(_searchError!, style: const TextStyle(color: appleRed)),
       );
     }
 
     if (_searchResults.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.search_off_rounded, size: 56, color: colorScheme.outline),
-            const SizedBox(height: 12),
-            const Text('No results found'),
-            const SizedBox(height: 4),
-            Text(
-              'Try searching with different keywords.',
-              style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.outline),
-            ),
-          ],
-        ),
+      return const Center(
+        child: Text('No results found.', style: TextStyle(color: appleSecondaryText)),
       );
     }
 
     return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 140),
       itemCount: _searchResults.length,
-      separatorBuilder: (_, index) => const Divider(height: 1, indent: 72),
+      separatorBuilder: (_, index) => const Divider(
+        color: Color(0xFF2C2C2E),
+        height: 1,
+        indent: 62,
+      ),
       itemBuilder: (context, index) {
         final song = _searchResults[index];
-        return _buildSongListTile(song, theme, colorScheme);
+        return _buildSongRow(song);
       },
     );
   }
 
-  Widget _buildSongListTile(SongItem song, ThemeData theme, ColorScheme colorScheme) {
+  Widget _buildSearchExploration() {
+    final genres = _homeData?.genres ?? [];
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 140),
+      children: [
+        const Text(
+          'Browse Categories',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: genres.take(16).map((g) {
+            return GestureDetector(
+              onTap: () {
+                _searchController.text = g.title;
+                _handleSearch(g.title);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: appleDarkSurface,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                ),
+                child: Text(
+                  g.title,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSongRow(SongItem song) {
     final isSelected = _currentSong?.id == song.id;
 
     return ListTile(
-      selected: isSelected,
-      selectedTileColor: colorScheme.primaryContainer.withValues(alpha: 0.25),
+      contentPadding: EdgeInsets.zero,
       leading: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(6),
         child: song.thumbnailUrl != null
             ? Image.network(
                 song.thumbnailUrl!,
                 width: 48,
                 height: 48,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => _fallbackThumbnail(colorScheme),
+                errorBuilder: (context, error, stackTrace) => _fallbackSquareArt(),
               )
-            : _fallbackThumbnail(colorScheme),
+            : _fallbackSquareArt(),
       ),
       title: Text(
         song.title,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: theme.textTheme.bodyLarge?.copyWith(
+        style: TextStyle(
+          color: isSelected ? appleRed : Colors.white,
+          fontSize: 16,
           fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-          color: isSelected ? colorScheme.primary : null,
         ),
       ),
       subtitle: Text(
-        song.durationSeconds != null && song.durationSeconds! > 0
-            ? '${song.artist} • ${song.formattedDuration}'
-            : song.artist,
+        song.artist,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: appleSecondaryText, fontSize: 13),
       ),
       trailing: isSelected
-          ? Icon(Icons.equalizer_rounded, color: colorScheme.primary)
-          : null,
+          ? const Icon(Icons.equalizer_rounded, color: appleRed)
+          : const Icon(Icons.more_horiz_rounded, color: appleSecondaryText),
       onTap: () => _onSongSelected(song),
-    );
-  }
-
-  Widget _fallbackThumbnail(ColorScheme colorScheme, {double size = 48}) {
-    return Container(
-      width: size,
-      height: size,
-      color: colorScheme.surfaceContainerHighest,
-      child: Icon(
-        Icons.music_note,
-        color: colorScheme.onSurfaceVariant,
-        size: size * 0.5,
-      ),
     );
   }
 }

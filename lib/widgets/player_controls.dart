@@ -1,15 +1,17 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import '../models/song_item.dart';
 
-/// Minimal Material 3 Player Controls Widget.
-/// Displays currently playing song metadata, playback status,
-/// and a unified play/pause/loading action button.
+/// Apple Music styled Floating Frosted Mini Player.
+/// Floats right above the bottom navigation bar with translucent blur,
+/// album artwork, smooth play/pause, skip controls, and progress tracking.
 class PlayerControls extends StatelessWidget {
   final SongItem? currentSong;
   final AudioPlayer audioPlayer;
   final bool isResolvingStream;
   final VoidCallback onTogglePlayPause;
+  final VoidCallback? onSkipNext;
 
   const PlayerControls({
     super.key,
@@ -17,6 +19,7 @@ class PlayerControls extends StatelessWidget {
     required this.audioPlayer,
     required this.isResolvingStream,
     required this.onTogglePlayPause,
+    this.onSkipNext,
   });
 
   @override
@@ -25,8 +28,7 @@ class PlayerControls extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    const appleMusicRed = Color(0xFFFA243C);
 
     return StreamBuilder<PlayerState>(
       stream: audioPlayer.playerStateStream,
@@ -41,129 +43,164 @@ class PlayerControls extends StatelessWidget {
 
         final isCompleted = processingState == ProcessingState.completed;
 
-        // Determine human-readable status text
-        String statusLabel;
-        if (isResolvingStream) {
-          statusLabel = 'Fetching stream...';
-        } else if (processingState == ProcessingState.loading) {
-          statusLabel = 'Loading...';
-        } else if (processingState == ProcessingState.buffering) {
-          statusLabel = 'Buffering...';
-        } else if (isCompleted) {
-          statusLabel = 'Finished';
-        } else if (isPlaying) {
-          statusLabel = 'Playing';
-        } else {
-          statusLabel = 'Paused';
-        }
-
-        return Container(
-          decoration: BoxDecoration(
-            color: colorScheme.surfaceContainerHighest,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.15),
-                blurRadius: 10,
-                offset: const Offset(0, -2),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: SafeArea(
-            top: false,
-            child: Row(
-              children: [
-                // Song Thumbnail or Music Icon
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: currentSong!.thumbnailUrl != null
-                      ? Image.network(
-                          currentSong!.thumbnailUrl!,
-                          width: 48,
-                          height: 48,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => _fallbackArtwork(colorScheme),
-                        )
-                      : _fallbackArtwork(colorScheme),
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+              child: Container(
+                height: 60,
+                decoration: BoxDecoration(
+                  color: const Color(0xDC252528),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.14),
+                    width: 0.6,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-
-                // Song Title & Artist + Playback State Label
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        currentSong!.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
+                child: Stack(
+                  children: [
+                    // Main Content: Artwork, Metadata & Playback Controls
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Row(
                         children: [
+                          // Album Artwork
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: currentSong!.thumbnailUrl != null
+                                ? Image.network(
+                                    currentSong!.thumbnailUrl!,
+                                    width: 44,
+                                    height: 44,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) => _fallbackArtwork(),
+                                  )
+                                : _fallbackArtwork(),
+                          ),
+                          const SizedBox(width: 12),
+
+                          // Song Title & Artist
                           Expanded(
-                            child: Text(
-                              currentSong!.artist,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                              ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  currentSong!.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: -0.3,
+                                  ),
+                                ),
+                                const SizedBox(height: 1),
+                                Text(
+                                  isResolvingStream
+                                      ? 'Connecting to stream...'
+                                      : currentSong!.artist,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: isResolvingStream
+                                        ? appleMusicRed
+                                        : const Color(0xFF8E8E93),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isPlaying
-                                  ? colorScheme.primaryContainer
-                                  : colorScheme.surfaceContainerHigh,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              statusLabel,
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: isPlaying
-                                    ? colorScheme.onPrimaryContainer
-                                    : colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w500,
-                              ),
+
+                          // Play / Pause Button
+                          IconButton(
+                            onPressed: onTogglePlayPause,
+                            iconSize: 28,
+                            padding: const EdgeInsets.all(4),
+                            constraints: const BoxConstraints(),
+                            splashRadius: 22,
+                            icon: isBuffering
+                                ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Icon(
+                                    (isPlaying && !isCompleted)
+                                        ? Icons.pause_rounded
+                                        : Icons.play_arrow_rounded,
+                                    color: Colors.white,
+                                    size: 30,
+                                  ),
+                          ),
+                          const SizedBox(width: 4),
+
+                          // Skip Next Button (Apple Music style)
+                          IconButton(
+                            onPressed: onSkipNext ?? onTogglePlayPause,
+                            iconSize: 26,
+                            padding: const EdgeInsets.all(4),
+                            constraints: const BoxConstraints(),
+                            splashRadius: 22,
+                            icon: const Icon(
+                              Icons.fast_forward_rounded,
+                              color: Colors.white,
+                              size: 26,
                             ),
                           ),
+                          const SizedBox(width: 4),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
+                    ),
 
-                // Single Unified Play/Pause/Loading Button
-                IconButton.filled(
-                  onPressed: isBuffering ? null : onTogglePlayPause,
-                  iconSize: 28,
-                  icon: isBuffering
-                      ? SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: colorScheme.onPrimary,
-                          ),
-                        )
-                      : Icon(
-                          (isPlaying && !isCompleted)
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
-                        ),
+                    // Subtle hairline progress bar at bottom of the pill
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: StreamBuilder<Duration>(
+                        stream: audioPlayer.positionStream,
+                        builder: (context, posSnapshot) {
+                          final position = posSnapshot.data ?? Duration.zero;
+                          final total = audioPlayer.duration ??
+                              Duration(seconds: currentSong?.durationSeconds ?? 1);
+
+                          final double progress = (total.inMilliseconds > 0)
+                              ? (position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0)
+                              : 0.0;
+
+                          return ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                              bottom: Radius.circular(14),
+                            ),
+                            child: LinearProgressIndicator(
+                              value: progress,
+                              minHeight: 2.0,
+                              backgroundColor: Colors.white.withValues(alpha: 0.08),
+                              valueColor: const AlwaysStoppedAnimation<Color>(appleMusicRed),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         );
@@ -171,16 +208,16 @@ class PlayerControls extends StatelessWidget {
     );
   }
 
-  Widget _fallbackArtwork(ColorScheme colorScheme) {
+  Widget _fallbackArtwork() {
     return Container(
-      width: 48,
-      height: 48,
-      color: colorScheme.primaryContainer,
-      child: Icon(
+      width: 44,
+      height: 44,
+      color: const Color(0xFF3A3A3C),
+      child: const Icon(
         Icons.music_note_rounded,
-        color: colorScheme.onPrimaryContainer,
+        color: Colors.white70,
+        size: 24,
       ),
     );
   }
 }
-
