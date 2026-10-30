@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+
 import '../models/song_item.dart';
 import '../models/music_category.dart';
 import '../models/home_data.dart';
@@ -144,7 +146,9 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _isResolvingStream = false;
       });
-      _showSnackBar('Unable to stream "${song.title}": Stream unavailable or restricted.');
+      _showSnackBar(
+        'Unable to stream "${song.title}": Stream unavailable or restricted.',
+      );
       debugPrint('Stream extraction error: $e');
     }
   }
@@ -383,7 +387,11 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline_rounded, size: 52, color: appleRed),
+              const Icon(
+                Icons.error_outline_rounded,
+                size: 52,
+                color: appleRed,
+              ),
               const SizedBox(height: 12),
               Text(
                 _homeError!,
@@ -393,8 +401,13 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 16),
               FilledButton.tonal(
                 onPressed: () => _loadHomeData(refresh: true),
-                style: FilledButton.styleFrom(backgroundColor: appleDarkSurfaceHigh),
-                child: const Text('Try Again', style: TextStyle(color: Colors.white)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: appleDarkSurfaceHigh,
+                ),
+                child: const Text(
+                  'Try Again',
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ],
           ),
@@ -444,7 +457,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: const CircleAvatar(
                       radius: 17,
                       backgroundColor: appleDarkSurfaceHigh,
-                      child: Icon(Icons.person, color: Colors.white70, size: 20),
+                      child: Icon(
+                        Icons.person,
+                        color: Colors.white70,
+                        size: 20,
+                      ),
                     ),
                   ),
                 ),
@@ -481,10 +498,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
           // Section 4: "Quick Picks >"
           if (quickPicks.isNotEmpty) ...[
-            _buildSectionHeaderWithChevron(
-              title: 'Quick Picks',
-              onTap: () {},
-            ),
+            _buildSectionHeaderWithChevron(title: 'Quick Picks', onTap: () {}),
             const SizedBox(height: 12),
             _buildHorizontalSquareCards(quickPicks),
             const SizedBox(height: 24),
@@ -660,7 +674,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.apple, color: Colors.white70, size: 14),
+                              const Icon(
+                                Icons.apple,
+                                color: Colors.white70,
+                                size: 14,
+                              ),
                               const SizedBox(width: 2),
                               Text(
                                 'Music',
@@ -677,7 +695,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           top: 14,
                           left: 16,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.black.withValues(alpha: 0.4),
                               borderRadius: BorderRadius.circular(6),
@@ -715,7 +736,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   children: [
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Text(
@@ -745,13 +767,19 @@ class _HomeScreenState extends State<HomeScreen> {
                                     const SizedBox(width: 8),
                                     Container(
                                       decoration: BoxDecoration(
-                                        color: isCurrent ? appleRed : Colors.white,
+                                        color: isCurrent
+                                            ? appleRed
+                                            : Colors.white,
                                         shape: BoxShape.circle,
                                       ),
                                       padding: const EdgeInsets.all(8),
                                       child: Icon(
-                                        isCurrent ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                                        color: isCurrent ? Colors.white : Colors.black,
+                                        isCurrent
+                                            ? Icons.pause_rounded
+                                            : Icons.play_arrow_rounded,
+                                        color: isCurrent
+                                            ? Colors.white
+                                            : Colors.black,
                                         size: 20,
                                       ),
                                     ),
@@ -874,7 +902,11 @@ class _HomeScreenState extends State<HomeScreen> {
       width: 140,
       height: 140,
       color: appleDarkSurfaceHigh,
-      child: const Icon(Icons.music_note_rounded, color: Colors.white30, size: 36),
+      child: const Icon(
+        Icons.music_note_rounded,
+        color: Colors.white30,
+        size: 36,
+      ),
     );
   }
 
@@ -912,7 +944,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Icon(Icons.bubble_chart_rounded, color: Colors.white70, size: 24),
+                  const Icon(
+                    Icons.bubble_chart_rounded,
+                    color: Colors.white70,
+                    size: 24,
+                  ),
                   Text(
                     mood.title,
                     maxLines: 1,
@@ -1106,9 +1142,16 @@ class _HomeScreenState extends State<HomeScreen> {
       leading: Icon(icon, color: appleRed, size: 26),
       title: Text(
         title,
-        style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w500),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 17,
+          fontWeight: FontWeight.w500,
+        ),
       ),
-      trailing: const Icon(Icons.chevron_right_rounded, color: appleSecondaryText),
+      trailing: const Icon(
+        Icons.chevron_right_rounded,
+        color: appleSecondaryText,
+      ),
       onTap: () {},
     );
   }
@@ -1143,7 +1186,11 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Row(
               children: [
-                const Icon(Icons.search_rounded, color: appleSecondaryText, size: 22),
+                const Icon(
+                  Icons.search_rounded,
+                  color: appleSecondaryText,
+                  size: 22,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: TextField(
@@ -1152,7 +1199,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     cursorColor: appleRed,
                     decoration: const InputDecoration(
                       hintText: 'Artists, Songs, Lyrics, and More',
-                      hintStyle: TextStyle(color: appleSecondaryText, fontSize: 15),
+                      hintStyle: TextStyle(
+                        color: appleSecondaryText,
+                        fontSize: 15,
+                      ),
                       border: InputBorder.none,
                       isDense: true,
                       contentPadding: EdgeInsets.zero,
@@ -1170,7 +1220,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         _hasSearched = false;
                       });
                     },
-                    child: const Icon(Icons.cancel_rounded, color: appleSecondaryText, size: 18),
+                    child: const Icon(
+                      Icons.cancel_rounded,
+                      color: appleSecondaryText,
+                      size: 18,
+                    ),
                   ),
               ],
             ),
@@ -1179,12 +1233,10 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 10),
         Expanded(
           child: _isSearching
-              ? const Center(
-                  child: CircularProgressIndicator(color: appleRed),
-                )
+              ? const Center(child: CircularProgressIndicator(color: appleRed))
               : _hasSearched
-                  ? _buildSearchResultsList()
-                  : _buildSearchExploration(),
+              ? _buildSearchResultsList()
+              : _buildSearchExploration(),
         ),
       ],
     );
@@ -1199,18 +1251,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (_searchResults.isEmpty) {
       return const Center(
-        child: Text('No results found.', style: TextStyle(color: appleSecondaryText)),
+        child: Text(
+          'No results found.',
+          style: TextStyle(color: appleSecondaryText),
+        ),
       );
     }
 
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 140),
       itemCount: _searchResults.length,
-      separatorBuilder: (context, index) => const Divider(
-        color: Color(0xFF2C2C2E),
-        height: 1,
-        indent: 62,
-      ),
+      separatorBuilder: (context, index) =>
+          const Divider(color: Color(0xFF2C2C2E), height: 1, indent: 62),
       itemBuilder: (context, index) {
         final song = _searchResults[index];
         return _buildSongRow(song);
@@ -1243,15 +1295,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 _handleSearch(g.title);
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: appleDarkSurface,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.1),
+                  ),
                 ),
                 child: Text(
                   g.title,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             );
@@ -1274,7 +1334,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: 48,
                 height: 48,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => _fallbackSquareArt(),
+                errorBuilder: (context, error, stackTrace) =>
+                    _fallbackSquareArt(),
               )
             : _fallbackSquareArt(),
       ),
