@@ -23,6 +23,13 @@ void main() {
       expect(firstTrack.artist.toLowerCase(), contains('charlie puth'));
     });
 
+    test('getHomeData returns trending tracks, moods, and genres', () async {
+      final homeData = await musicService.getHomeData();
+      expect(homeData.trendingTracks, isNotEmpty);
+      expect(homeData.moods, isNotEmpty);
+      expect(homeData.genres, isNotEmpty);
+    });
+
     test('resolveAudioStream returns working stream info with headers', () async {
       // 1. Search for Attention
       final results = await musicService.searchSongs('Attention Charlie Puth');

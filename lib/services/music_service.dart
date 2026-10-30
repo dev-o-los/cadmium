@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:dart_ytmusic_api/types.dart';
+import 'package:dart_ytmusic_api/utils/traverse.dart';
 import 'package:dart_ytmusic_api/yt_music.dart';
 import '../models/song_item.dart';
+import '../models/music_category.dart';
+import '../models/home_data.dart';
 
 /// Resolved audio stream data containing direct stream URL, matching User-Agent headers,
 /// bitrate, and media format specifications.
@@ -37,7 +40,8 @@ class _InnerTubeClientConfig {
 
 /// MusicService uses `dart_ytmusic_api` to:
 /// 1. Search tracks and query metadata (`searchSongs`)
-/// 2. Extract and resolve robust, unthrottled streaming URLs using multi-client
+/// 2. Gather Home feed information: Trending tracks, Genres, Moods, and Quick picks (`getHomeData`)
+/// 3. Extract and resolve robust, unthrottled streaming URLs using multi-client
 ///    InnerTube rotation (VISIONOS -> ANDROID_VR -> ANDROID -> IOS) with BitChord-style
 ///    stream validation and header dressing.
 class MusicService {
@@ -46,6 +50,9 @@ class MusicService {
 
   // Cached streams to prevent duplicate Innertube player requests (5 min TTL)
   final Map<String, ({AudioStreamInfo info, DateTime timestamp})> _streamCache = {};
+
+  // Cached home feed data
+  HomeData? _cachedHomeData;
 
   // Client tiers ordered by reliability and lack of PoToken/throttling barriers
   static const List<_InnerTubeClientConfig> _clientTiers = [
@@ -76,11 +83,138 @@ class MusicService {
     ),
   ];
 
+  static const List<MusicCategory> _defaultMoods = [
+    MusicCategory(title: 'Chill', colorValue: 0xFF4A90E2),
+    MusicCategory(title: 'Energize', colorValue: 0xFFFF9500),
+    MusicCategory(title: 'Feel Good', colorValue: 0xFF34C759),
+    MusicCategory(title: 'Focus', colorValue: 0xFF5856D6),
+    MusicCategory(title: 'Workout', colorValue: 0xFFFF2D55),
+    MusicCategory(title: 'Party', colorValue: 0xFFAF52DE),
+    MusicCategory(title: 'Romance', colorValue: 0xFFFF3B30),
+    MusicCategory(title: 'Sleep', colorValue: 0xFF1C1C1E),
+  ];
+
+  static const List<MusicCategory> _defaultGenres = [
+    MusicCategory(title: 'Pop', colorValue: 0xFFFF2D55),
+    MusicCategory(title: 'Hip-Hop', colorValue: 0xFFFF9500),
+    MusicCategory(title: 'Rock', colorValue: 0xFFE02424),
+    MusicCategory(title: 'Bollywood', colorValue: 0xFFFF5722),
+    MusicCategory(title: 'Electronic', colorValue: 0xFF00C7BE),
+    MusicCategory(title: 'R&B / Soul', colorValue: 0xFFAF52DE),
+    MusicCategory(title: 'Indie & Alt', colorValue: 0xFF34C759),
+    MusicCategory(title: 'Acoustic', colorValue: 0xFF8E8E93),
+  ];
+
   /// Initializes the YouTube Music API client.
   Future<void> initialize() async {
     if (_isInitialized) return;
     await _ytMusic.initialize();
     _isInitialized = true;
+  }
+
+  /// Gathers all information for the home screen:
+  /// - Trending songs
+  /// - Quick picks / popular tracks
+  /// - Moods and moments
+  /// - Diverse music genres
+  Future<HomeData> getHomeData({bool refresh = false}) async {
+    if (!refresh && _cachedHomeData != null) {
+      return _cachedHomeData!;
+    }
+
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    // Run parallel queries for maximum responsiveness
+    final results = await Future.wait([
+      _fetchTrendingTracks(),
+      _fetchQuickPicks(),
+      _fetchMoodsAndGenres(),
+    ]);
+
+    final trendingTracks = results[0] as List<SongItem>;
+    final quickPicks = results[1] as List<SongItem>;
+    final categories = results[2] as ({List<MusicCategory> moods, List<MusicCategory> genres});
+
+    final homeData = HomeData(
+      trendingTracks: trendingTracks,
+      quickPicks: quickPicks,
+      moods: categories.moods,
+      genres: categories.genres,
+    );
+
+    _cachedHomeData = homeData;
+    return homeData;
+  }
+
+  Future<List<SongItem>> _fetchTrendingTracks() async {
+    try {
+      final songs = await searchSongs('Trending top hits');
+      if (songs.isNotEmpty) return songs;
+    } catch (_) {}
+    return searchSongs('Top hits');
+  }
+
+  Future<List<SongItem>> _fetchQuickPicks() async {
+    try {
+      final songs = await searchSongs('Billboard Hot 100');
+      if (songs.isNotEmpty) return songs;
+    } catch (_) {}
+    return [];
+  }
+
+  Future<({List<MusicCategory> moods, List<MusicCategory> genres})> _fetchMoodsAndGenres() async {
+    try {
+      final moodRes = await _ytMusic.constructRequest(
+        'browse',
+        body: {'browseId': 'FEmusic_moods_and_genres'},
+      );
+
+      if (moodRes is! Map) {
+        return (moods: _defaultMoods, genres: _defaultGenres);
+      }
+
+      final tabs = traverseList(moodRes, ['contents', 'singleColumnBrowseResultsRenderer', 'tabs']);
+      final sectionContents = tabs.firstOrNull?['tabRenderer']?['content']?['sectionListRenderer']?['contents'] as List? ?? [];
+
+      final List<MusicCategory> parsedMoods = [];
+      final List<MusicCategory> parsedGenres = [];
+
+      for (final section in sectionContents) {
+        final title = traverseString(section, ['gridRenderer', 'header', 'gridHeaderRenderer', 'title', 'runs']) ??
+            traverseString(section, ['musicCarouselShelfRenderer', 'header', 'musicCarouselShelfBasicHeaderRenderer', 'title', 'runs']) ??
+            '';
+
+        final items = (section['gridRenderer']?['items'] as List?) ??
+            (section['musicCarouselShelfRenderer']?['contents'] as List?) ??
+            [];
+
+        for (final it in items) {
+          final btn = it['musicNavigationButtonRenderer'];
+          if (btn == null) continue;
+          final textRuns = btn['buttonText']?['runs'] as List? ?? [];
+          final text = textRuns.isNotEmpty ? textRuns.first['text'] as String? ?? '' : '';
+          final color = (btn['solid']?['leftStripeColor'] as num?)?.toInt();
+
+          if (text.isNotEmpty) {
+            final cat = MusicCategory(title: text, colorValue: color);
+            if (title.toLowerCase().contains('mood') || title.toLowerCase().contains('moment')) {
+              parsedMoods.add(cat);
+            } else {
+              parsedGenres.add(cat);
+            }
+          }
+        }
+      }
+
+      return (
+        moods: parsedMoods.isNotEmpty ? parsedMoods : _defaultMoods,
+        genres: parsedGenres.isNotEmpty ? parsedGenres : _defaultGenres,
+      );
+    } catch (_) {
+      return (moods: _defaultMoods, genres: _defaultGenres);
+    }
   }
 
   /// Searches for songs by query string.
@@ -261,5 +395,6 @@ class MusicService {
 
   void dispose() {
     _streamCache.clear();
+    _cachedHomeData = null;
   }
 }
