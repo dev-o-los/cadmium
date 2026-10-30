@@ -7,6 +7,7 @@ import '../models/music_category.dart';
 import '../models/home_data.dart';
 import '../services/music_service.dart';
 import '../widgets/player_controls.dart';
+import 'player_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,7 +21,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final AudioPlayer _audioPlayer = AudioPlayer();
   final TextEditingController _searchController = TextEditingController();
 
-  int _currentTabIndex = 0; // 0: Listen Now, 1: Browse, 2: Radio, 3: Library, 4: Search
+  // 4 tabs: 0: Home, 1: Explore, 2: Library, 3: Search
+  int _currentTabIndex = 0;
 
   HomeData? _homeData;
   bool _isLoadingHome = true;
@@ -116,7 +118,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _isResolvingStream = true;
       if (!_recentlyPlayed.any((s) => s.id == song.id)) {
         _recentlyPlayed.insert(0, song);
-        if (_recentlyPlayed.length > 20) _recentlyPlayed.removeLast();
+        if (_recentlyPlayed.length > 25) _recentlyPlayed.removeLast();
       }
     });
 
@@ -161,6 +163,45 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _skipNextTrack() {
+    final trending = _homeData?.trendingTracks ?? [];
+    if (trending.isNotEmpty && _currentSong != null) {
+      final currentIndex = trending.indexWhere((s) => s.id == _currentSong!.id);
+      final nextIndex = (currentIndex + 1) % trending.length;
+      _onSongSelected(trending[nextIndex]);
+    }
+  }
+
+  void _skipPreviousTrack() {
+    final trending = _homeData?.trendingTracks ?? [];
+    if (trending.isNotEmpty && _currentSong != null) {
+      final currentIndex = trending.indexWhere((s) => s.id == _currentSong!.id);
+      final prevIndex = (currentIndex - 1 + trending.length) % trending.length;
+      _onSongSelected(trending[prevIndex]);
+    }
+  }
+
+  void _openPlayerScreen() {
+    if (_currentSong == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      useSafeArea: false,
+      builder: (context) {
+        return PlayerScreen(
+          song: _currentSong!,
+          audioPlayer: _audioPlayer,
+          isResolvingStream: _isResolvingStream,
+          onTogglePlayPause: _togglePlayPause,
+          onSkipNext: _skipNextTrack,
+          onSkipPrevious: _skipPreviousTrack,
+        );
+      },
+    );
+  }
+
   Future<void> _handleSearch([String? customQuery]) async {
     final query = (customQuery ?? _searchController.text).trim();
     if (query.isEmpty) return;
@@ -171,7 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _isSearching = true;
       _searchError = null;
       _hasSearched = true;
-      _currentTabIndex = 4; // Switch to Search tab
+      _currentTabIndex = 3; // Switch to Search tab
     });
 
     try {
@@ -230,9 +271,8 @@ class _HomeScreenState extends State<HomeScreen> {
             child: IndexedStack(
               index: _currentTabIndex,
               children: [
-                _buildListenNowTab(),
-                _buildBrowseTab(),
-                _buildRadioTab(),
+                _buildHomeTab(),
+                _buildExploreTab(),
                 _buildLibraryTab(),
                 _buildSearchTab(),
               ],
@@ -253,18 +293,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   audioPlayer: _audioPlayer,
                   isResolvingStream: _isResolvingStream,
                   onTogglePlayPause: _togglePlayPause,
-                  onSkipNext: () {
-                    final trending = _homeData?.trendingTracks ?? [];
-                    if (trending.isNotEmpty) {
-                      final nextIndex = (_currentSong != null)
-                          ? (trending.indexWhere((s) => s.id == _currentSong!.id) + 1) % trending.length
-                          : 0;
-                      _onSongSelected(trending[nextIndex]);
-                    }
-                  },
+                  onSkipNext: _skipNextTrack,
+                  onTap: _openPlayerScreen,
                 ),
 
-                // Frosted Glass Bottom Navigation Bar
+                // 4-Tab Frosted Bottom Navigation Bar (Home, Explore, Library, Search)
                 _buildAppleBottomNavigationBar(),
               ],
             ),
@@ -274,7 +307,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Apple Music 5-Tab Navigation Bar with Frosted Glass Blur
+  /// Apple Music 4-Tab Navigation Bar: Home, Explore, Library, Search
   Widget _buildAppleBottomNavigationBar() {
     return ClipRect(
       child: BackdropFilter(
@@ -300,16 +333,12 @@ class _HomeScreenState extends State<HomeScreen> {
               },
               items: const [
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.play_circle_fill_rounded),
-                  label: 'Listen Now',
+                  icon: Icon(Icons.home_rounded),
+                  label: 'Home',
                 ),
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.grid_view_rounded),
-                  label: 'Browse',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.sensors_rounded),
-                  label: 'Radio',
+                  icon: Icon(Icons.explore_rounded),
+                  label: 'Explore',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.library_music_rounded),
@@ -328,9 +357,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // =========================================================================
-  // TAB 1: LISTEN NOW (Exact Apple Music Style from uploaded screenshot)
+  // TAB 1: HOME (Apple Music "Listen Now" Feed from screenshot)
   // =========================================================================
-  Widget _buildListenNowTab() {
+  Widget _buildHomeTab() {
     if (_isLoadingHome) {
       return const Center(
         child: Column(
@@ -486,7 +515,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Section Header with ">" chevron just like Apple Music
   Widget _buildSectionHeaderWithChevron({
     required String title,
     required VoidCallback onTap,
@@ -519,7 +547,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Hero Carousel for "Top Picks" (matches the large R&B Now / Giveon card in screenshot)
+  /// Hero Carousel for "Top Picks"
   Widget _buildTopPicksHeroSection(List<SongItem> songs) {
     if (songs.isEmpty) return const SizedBox.shrink();
 
@@ -557,19 +585,17 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 12),
 
-        // Large Horizontal Hero Cards
         SizedBox(
           height: 340,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
             itemCount: heroItems.length,
-            separatorBuilder: (_, index) => const SizedBox(width: 14),
+            separatorBuilder: (context, index) => const SizedBox(width: 14),
             itemBuilder: (context, index) {
               final song = heroItems[index];
               final isCurrent = _currentSong?.id == song.id;
 
-              // Distinct gradient themes for top picks cards
               final gradients = [
                 const [Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)],
                 const [Color(0xFF8A2387), Color(0xFFE94057), Color(0xFFF27121)],
@@ -602,7 +628,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     borderRadius: BorderRadius.circular(20),
                     child: Stack(
                       children: [
-                        // Background Artist Cover Artwork
                         Positioned.fill(
                           child: song.thumbnailUrl != null
                               ? Image.network(
@@ -613,8 +638,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                 )
                               : _fallbackHeroArt(),
                         ),
-
-                        // Shaded Gradient for legibility
                         Positioned.fill(
                           child: Container(
                             decoration: BoxDecoration(
@@ -631,8 +654,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                         ),
-
-                        // Top Apple Music Badge
                         Positioned(
                           top: 14,
                           right: 14,
@@ -652,8 +673,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                           ),
                         ),
-
-                        // Top Tag / Category Label
                         Positioned(
                           top: 14,
                           left: 16,
@@ -674,8 +693,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                         ),
-
-                        // Bottom Floating Information Card (Matches R&B Now footer)
                         Positioned(
                           left: 12,
                           right: 12,
@@ -765,7 +782,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Horizontal scrolling cards for tracks (Recently Played, Trending, Quick Picks)
   Widget _buildHorizontalSquareCards(List<SongItem> songs) {
     if (songs.isEmpty) return const SizedBox.shrink();
 
@@ -775,7 +791,7 @@ class _HomeScreenState extends State<HomeScreen> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         itemCount: songs.length > 12 ? 12 : songs.length,
-        separatorBuilder: (_, index) => const SizedBox(width: 14),
+        separatorBuilder: (context, index) => const SizedBox(width: 14),
         itemBuilder: (context, index) {
           final song = songs[index];
           final isCurrent = _currentSong?.id == song.id;
@@ -787,7 +803,6 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Square Artwork with Subtle Border & Radius
                   Stack(
                     children: [
                       ClipRRect(
@@ -823,8 +838,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                   const SizedBox(height: 8),
-
-                  // Song Title
                   Text(
                     song.title,
                     maxLines: 1,
@@ -837,8 +850,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(height: 2),
-
-                  // Artist
                   Text(
                     song.artist,
                     maxLines: 1,
@@ -867,7 +878,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Moods & Activities Grid
   Widget _buildMoodsGrid(List<MusicCategory> moods) {
     return SizedBox(
       height: 110,
@@ -875,7 +885,7 @@ class _HomeScreenState extends State<HomeScreen> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         itemCount: moods.length,
-        separatorBuilder: (_, index) => const SizedBox(width: 10),
+        separatorBuilder: (context, index) => const SizedBox(width: 10),
         itemBuilder: (context, index) {
           final mood = moods[index];
           final color = mood.colorValue != null
@@ -923,7 +933,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Genres List Chips
   Widget _buildGenresList(List<MusicCategory> genres) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -962,9 +971,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // =========================================================================
-  // TAB 2: BROWSE
+  // TAB 2: EXPLORE (Replaces Browse, holds genres, charts, releases)
   // =========================================================================
-  Widget _buildBrowseTab() {
+  Widget _buildExploreTab() {
     final genres = _homeData?.genres ?? [];
     final trending = _homeData?.trendingTracks ?? [];
 
@@ -972,7 +981,7 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 140),
       children: [
         const Text(
-          'Browse',
+          'Explore',
           style: TextStyle(
             color: Colors.white,
             fontSize: 34,
@@ -982,7 +991,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 16),
         const Text(
-          'Music by Genre',
+          'Genres & Categories',
           style: TextStyle(
             color: Colors.white,
             fontSize: 20,
@@ -1032,7 +1041,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 24),
         const Text(
-          'Global Charts',
+          'Global Charts & Hits',
           style: TextStyle(
             color: Colors.white,
             fontSize: 20,
@@ -1040,97 +1049,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        ...trending.take(8).map((track) => _buildSongRow(track)),
+        ...trending.take(10).map((track) => _buildSongRow(track)),
       ],
     );
   }
 
   // =========================================================================
-  // TAB 3: RADIO
-  // =========================================================================
-  Widget _buildRadioTab() {
-    final stations = [
-      {'title': 'Apple Music 1', 'desc': 'The new music that matters.'},
-      {'title': 'Apple Music Hits', 'desc': 'Songs you know and love.'},
-      {'title': 'Apple Music Country', 'desc': 'Where country lives.'},
-      {'title': 'Chill Station', 'desc': 'Relaxing acoustic & lofi vibes.'},
-      {'title': 'Dance Radio', 'desc': 'Club energy, nonstop.'},
-      {'title': 'Pop Station', 'desc': 'Today’s biggest hits.'},
-    ];
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 140),
-      children: [
-        const Text(
-          'Radio',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 34,
-            fontWeight: FontWeight.bold,
-            letterSpacing: -1.2,
-          ),
-        ),
-        const SizedBox(height: 16),
-        ...stations.map((st) {
-          return Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: appleDarkSurface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: appleRed.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.radio_rounded, color: appleRed, size: 28),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        st['title']!,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        st['desc']!,
-                        style: const TextStyle(
-                          color: appleSecondaryText,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.play_circle_fill, color: appleRed, size: 36),
-                  onPressed: () {
-                    _handleSearch(st['title']!);
-                  },
-                ),
-              ],
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
-  // =========================================================================
-  // TAB 4: LIBRARY
+  // TAB 3: LIBRARY
   // =========================================================================
   Widget _buildLibraryTab() {
     return ListView(
@@ -1165,7 +1090,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
             child: Text(
-              'No songs played yet. Tap any track to begin.',
+              'No songs played yet. Tap any track to begin listening.',
               style: TextStyle(color: appleSecondaryText),
             ),
           )
@@ -1189,13 +1114,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // =========================================================================
-  // TAB 5: SEARCH
+  // TAB 4: SEARCH
   // =========================================================================
   Widget _buildSearchTab() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Apple Music Search Header
         const Padding(
           padding: EdgeInsets.fromLTRB(20, 12, 20, 10),
           child: Text(
@@ -1208,8 +1132,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
-
-        // Apple Style Search Capsule Bar
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
           child: Container(
@@ -1255,8 +1177,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const SizedBox(height: 10),
-
-        // Search Content or Exploration
         Expanded(
           child: _isSearching
               ? const Center(
@@ -1286,7 +1206,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 140),
       itemCount: _searchResults.length,
-      separatorBuilder: (_, index) => const Divider(
+      separatorBuilder: (context, index) => const Divider(
         color: Color(0xFF2C2C2E),
         height: 1,
         indent: 62,
