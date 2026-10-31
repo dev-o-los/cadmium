@@ -80,9 +80,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
   }
 
   void _showAudioRouteModal() {
-    final playerState = ref.read(playerProvider);
     final notifier = ref.read(playerProvider.notifier);
-    double localVolume = playerState.volume;
+    notifier.refreshAudioDevices();
 
     showModalBottomSheet(
       context: context,
@@ -91,60 +90,88 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: Colors.white24,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'AirPlay & Bluetooth',
-                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 20),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const AnimatedCupertinoIcon(icon: CupertinoIcons.headphones, color: Colors.white, size: 28),
-                      title: const Text('iBall Musiwave', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                      subtitle: const Text('Connected • Spatial Audio Ready', style: TextStyle(color: appleSecondaryText)),
-                      trailing: const Icon(CupertinoIcons.checkmark_circle_fill, color: appleRed),
-                    ),
-                    const Divider(color: Color(0xFF2C2C2E)),
-                    const SizedBox(height: 8),
-                    Row(
+        return Consumer(
+          builder: (context, ref, _) {
+            final playerState = ref.watch(playerProvider);
+            double localVolume = playerState.volume;
+            final devices = playerState.availableAudioDevices.isNotEmpty
+                ? playerState.availableAudioDevices
+                : [playerState.connectedDevice];
+
+            return StatefulBuilder(
+              builder: (context, setModalState) {
+                return SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(CupertinoIcons.volume_mute, color: appleSecondaryText, size: 20),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: AppleMusicSlider(
-                            value: localVolume,
-                            min: 0.0,
-                            max: 1.0,
-                            showTimestamps: false,
-                            onChanged: (v) {
-                              setModalState(() => localVolume = v);
-                              notifier.setVolume(v);
-                            },
+                        Container(
+                          width: 36,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(3),
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        const Icon(CupertinoIcons.volume_up, color: appleSecondaryText, size: 20),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'Audio Output',
+                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 16),
+                        ...devices.map((device) {
+                          final isCurrent = device.id == playerState.connectedDevice.id;
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: AnimatedCupertinoIcon(
+                              icon: device.icon,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                            title: Text(
+                              device.name,
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: Text(
+                              device.subtitle,
+                              style: const TextStyle(color: appleSecondaryText),
+                            ),
+                            trailing: isCurrent
+                                ? const Icon(CupertinoIcons.checkmark_circle_fill, color: appleRed)
+                                : null,
+                            onTap: () {
+                              notifier.selectAudioDevice(device);
+                            },
+                          );
+                        }),
+                        const Divider(color: Color(0xFF2C2C2E)),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(CupertinoIcons.volume_mute, color: appleSecondaryText, size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: AppleMusicSlider(
+                                value: localVolume,
+                                min: 0.0,
+                                max: 1.0,
+                                showTimestamps: false,
+                                onChanged: (v) {
+                                  setModalState(() => localVolume = v);
+                                  notifier.setVolume(v);
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            const Icon(CupertinoIcons.volume_up, color: appleSecondaryText, size: 20),
+                          ],
+                        ),
                       ],
                     ),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             );
           },
         );
@@ -687,18 +714,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
               _buildActionDock(playerState),
               const SizedBox(height: 8),
 
-              // Audio Output Route Label (iBall Musiwave)
+              // Audio Output Route Label (Dynamic Connected Audio Device)
               GestureDetector(
                 onTap: _showAudioRouteModal,
                 behavior: HitTestBehavior.opaque,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(CupertinoIcons.headphones, color: appleSecondaryText, size: 14),
+                    Icon(
+                      playerState.connectedDevice.icon,
+                      color: appleSecondaryText,
+                      size: 14,
+                    ),
                     const SizedBox(width: 6),
-                    const Text(
-                      'iBall Musiwave',
-                      style: TextStyle(
+                    Text(
+                      playerState.connectedDevice.name,
+                      style: const TextStyle(
                         color: appleSecondaryText,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
@@ -841,17 +872,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
               const SizedBox(height: 20),
               _buildActionDock(playerState),
               const SizedBox(height: 8),
+              // Audio Output Route Label (Dynamic Connected Audio Device)
               GestureDetector(
                 onTap: _showAudioRouteModal,
                 behavior: HitTestBehavior.opaque,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(CupertinoIcons.headphones, color: appleSecondaryText, size: 14),
+                    Icon(
+                      playerState.connectedDevice.icon,
+                      color: appleSecondaryText,
+                      size: 14,
+                    ),
                     const SizedBox(width: 6),
-                    const Text(
-                      'iBall Musiwave',
-                      style: TextStyle(
+                    Text(
+                      playerState.connectedDevice.name,
+                      style: const TextStyle(
                         color: appleSecondaryText,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
@@ -1329,9 +1365,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
           ),
         ),
 
-        // Headphones / Audio Output Route Button
+        // Audio Output Route Button (reflects actual device icon: headphones vs speaker)
         IconButton(
-          icon: const AnimatedCupertinoIcon(icon: CupertinoIcons.headphones, color: Colors.white60, size: 24),
+          icon: AnimatedCupertinoIcon(
+            icon: playerState.connectedDevice.icon,
+            color: Colors.white60,
+            size: 24,
+          ),
           onPressed: _showAudioRouteModal,
         ),
 

@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wavify/models/audio_device_item.dart';
 import 'package:wavify/models/lyric_line.dart';
 import 'package:wavify/models/song_item.dart';
 import 'package:wavify/providers/music_service_provider.dart';
@@ -157,6 +158,73 @@ void main() {
 
     // Verify it responds instantly to show pause icon
     expect(find.byIcon(CupertinoIcons.pause_fill), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    container.dispose();
+  });
+
+  testWidgets('PlayerScreen dynamically displays the actual connected audio output device',
+      (WidgetTester tester) async {
+    const testSong = SongItem(
+      id: 'test_dev_1',
+      title: 'Me Too',
+      artist: 'SoFaygo',
+      durationSeconds: 200,
+    );
+
+    const bluetoothDevice = AudioDeviceItem(
+      id: 'bt_headphones',
+      name: 'AirPods Pro',
+      category: OutputDeviceCategory.bluetooth,
+      isSelected: true,
+    );
+
+    const speakerDevice = AudioDeviceItem(
+      id: 'speaker',
+      name: 'Phone Speaker',
+      category: OutputDeviceCategory.speaker,
+      isSelected: false,
+    );
+
+    final container = ProviderContainer();
+
+    // 1. Seed player with active Bluetooth headphones device
+    container.read(playerProvider.notifier).state = PlayerStateModel(
+      currentSong: testSong,
+      isPlaying: true,
+      connectedDevice: bluetoothDevice,
+      availableAudioDevices: const [bluetoothDevice, speakerDevice],
+      duration: const Duration(seconds: 200),
+      position: const Duration(seconds: 15),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: Scaffold(
+            body: PlayerScreen(),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Verify the actual connected Bluetooth device name is displayed
+    expect(find.text('AirPods Pro'), findsOneWidget);
+    expect(find.byIcon(CupertinoIcons.headphones), findsWidgets);
+
+    // 2. Simulate switching to Phone Speaker
+    container.read(playerProvider.notifier).state = container.read(playerProvider).copyWith(
+          connectedDevice: speakerDevice.copyWith(isSelected: true),
+        );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Verify the label now displays Phone Speaker
+    expect(find.text('Phone Speaker'), findsOneWidget);
+    expect(find.byIcon(CupertinoIcons.speaker_2_fill), findsWidgets);
 
     await tester.pumpWidget(const SizedBox.shrink());
     container.dispose();

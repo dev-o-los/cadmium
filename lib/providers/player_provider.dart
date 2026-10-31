@@ -1,7 +1,11 @@
+// ignore_for_file: experimental_member_use
+
 import 'dart:async';
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
+import '../models/audio_device_item.dart';
 import '../models/song_item.dart';
 import '../models/lyric_line.dart';
 import 'music_service_provider.dart';
@@ -23,6 +27,9 @@ class PlayerStateModel {
   final List<LyricLine> lyrics;
   final bool isLoadingLyrics;
   final int activeLyricIndex;
+  final AudioDeviceItem connectedDevice;
+  final String? selectedDeviceId;
+  final List<AudioDeviceItem> availableAudioDevices;
 
   const PlayerStateModel({
     this.currentSong,
@@ -40,6 +47,21 @@ class PlayerStateModel {
     this.lyrics = const [],
     this.isLoadingLyrics = false,
     this.activeLyricIndex = -1,
+    this.connectedDevice = const AudioDeviceItem(
+      id: 'speaker',
+      name: 'Phone Speaker',
+      category: OutputDeviceCategory.speaker,
+      isSelected: true,
+    ),
+    this.selectedDeviceId,
+    this.availableAudioDevices = const [
+      AudioDeviceItem(
+        id: 'speaker',
+        name: 'Phone Speaker',
+        category: OutputDeviceCategory.speaker,
+        isSelected: true,
+      ),
+    ],
   });
 
   PlayerStateModel copyWith({
@@ -59,6 +81,9 @@ class PlayerStateModel {
     List<LyricLine>? lyrics,
     bool? isLoadingLyrics,
     int? activeLyricIndex,
+    AudioDeviceItem? connectedDevice,
+    String? selectedDeviceId,
+    List<AudioDeviceItem>? availableAudioDevices,
   }) {
     return PlayerStateModel(
       currentSong: currentSong ?? this.currentSong,
@@ -76,6 +101,9 @@ class PlayerStateModel {
       lyrics: lyrics ?? this.lyrics,
       isLoadingLyrics: isLoadingLyrics ?? this.isLoadingLyrics,
       activeLyricIndex: activeLyricIndex ?? this.activeLyricIndex,
+      connectedDevice: connectedDevice ?? this.connectedDevice,
+      selectedDeviceId: selectedDeviceId ?? this.selectedDeviceId,
+      availableAudioDevices: availableAudioDevices ?? this.availableAudioDevices,
     );
   }
 }
@@ -90,9 +118,13 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<Duration?>? _durationSub;
   StreamSubscription<PlaybackEvent>? _playbackEventSub;
+  StreamSubscription<Set<AudioDevice>>? _devicesSub;
+  StreamSubscription<void>? _becomingNoisySub;
+  AudioSession? _audioSession;
 
   PlayerNotifier(this._ref) : super(const PlayerStateModel()) {
     _initAudioListeners();
+    _initAudioSession();
   }
 
   AudioPlayer get audioPlayer => _audioPlayer;
@@ -198,6 +230,9 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
 
     // Fetch lyrics asynchronously in background
     _fetchLyrics(song.id);
+
+    // Refresh currently connected audio output device (Bluetooth, headphones, speaker)
+    refreshAudioDevices();
 
     try {
       final musicService = _ref.read(musicServiceProvider);
@@ -374,12 +409,194 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     state = state.copyWith(clearErrorMessage: true);
   }
 
+  Future<void> _initAudioSession() async {
+    try {
+      final session = await AudioSession.instance;
+      _audioSession = session;
+
+      await session.configure(const AudioSessionConfiguration.music());
+
+      final devices = await session.getDevices(includeOutputs: true, includeInputs: false);
+      _updateAudioDevices(devices);
+
+      _devicesSub = session.devicesStream.listen((devices) {
+        _updateAudioDevices(devices);
+      });
+
+      _becomingNoisySub = session.becomingNoisyEventStream.listen((_) {
+        refreshAudioDevices();
+      });
+    } catch (e) {
+      debugPrint('AudioSession init error: $e');
+    }
+  }
+
+  Future<void> refreshAudioDevices() async {
+    try {
+      if (_audioSession != null) {
+        final devices = await _audioSession!.getDevices(includeOutputs: true, includeInputs: false);
+        _updateAudioDevices(devices);
+      }
+    } catch (_) {}
+  }
+
+  void _updateAudioDevices(Set<AudioDevice> rawDevices) {
+    if (!mounted) return;
+
+    final outputDevices = rawDevices.where((d) => d.isOutput).toList();
+    final List<AudioDeviceItem> mappedDevices = [];
+
+    for (final dev in outputDevices) {
+      final formattedName = _formatDeviceName(dev);
+      if (!mappedDevices.any((d) => d.name == formattedName)) {
+        mappedDevices.add(AudioDeviceItem(
+          id: dev.id,
+          name: formattedName,
+          category: _mapCategory(dev.type),
+        ));
+      }
+    }
+
+    // Always ensure "Phone Speaker" is present in available devices list
+    if (!mappedDevices.any((d) => d.isSpeaker)) {
+      mappedDevices.add(const AudioDeviceItem(
+        id: 'speaker',
+        name: 'Phone Speaker',
+        category: OutputDeviceCategory.speaker,
+      ));
+    }
+
+    AudioDeviceItem? activeDevice;
+
+    // Check if user previously manually selected a device that is still connected
+    final currentSelectedId = state.selectedDeviceId;
+    if (currentSelectedId != null) {
+      for (final d in mappedDevices) {
+        if (d.id == currentSelectedId) {
+          activeDevice = d;
+          break;
+        }
+      }
+    }
+
+    if (activeDevice == null) {
+      // 1. Bluetooth devices (A2DP, LE, SCO)
+      for (final d in mappedDevices) {
+        if (d.isBluetooth) {
+          activeDevice = d;
+          break;
+        }
+      }
+
+      // 2. Wired headphones / USB audio
+      if (activeDevice == null) {
+        for (final d in mappedDevices) {
+          if (d.isHeadphones) {
+            activeDevice = d;
+            break;
+          }
+        }
+      }
+
+      // 3. Speaker
+      if (activeDevice == null) {
+        for (final d in mappedDevices) {
+          if (d.isSpeaker) {
+            activeDevice = d;
+            break;
+          }
+        }
+      }
+
+      activeDevice ??= mappedDevices.firstOrNull ??
+          const AudioDeviceItem(
+            id: 'speaker',
+            name: 'Phone Speaker',
+            category: OutputDeviceCategory.speaker,
+          );
+    }
+
+    final updatedList = mappedDevices.map((d) {
+      return d.copyWith(isSelected: d.id == activeDevice!.id);
+    }).toList();
+
+    state = state.copyWith(
+      connectedDevice: activeDevice.copyWith(isSelected: true),
+      availableAudioDevices: updatedList,
+    );
+  }
+
+  OutputDeviceCategory _mapCategory(AudioDeviceType type) {
+    switch (type) {
+      case AudioDeviceType.bluetoothA2dp:
+      case AudioDeviceType.bluetoothLe:
+      case AudioDeviceType.bluetoothSco:
+      case AudioDeviceType.hearingAid:
+        return OutputDeviceCategory.bluetooth;
+      case AudioDeviceType.wiredHeadphones:
+      case AudioDeviceType.wiredHeadset:
+        return OutputDeviceCategory.headphones;
+      case AudioDeviceType.usbAudio:
+        return OutputDeviceCategory.usb;
+      case AudioDeviceType.builtInSpeaker:
+      case AudioDeviceType.builtInSpeakerSafe:
+      case AudioDeviceType.builtInEarpiece:
+        return OutputDeviceCategory.speaker;
+      default:
+        return OutputDeviceCategory.other;
+    }
+  }
+
+  String _formatDeviceName(AudioDevice device) {
+    final rawName = device.name.trim();
+    if (rawName.isNotEmpty &&
+        rawName.toLowerCase() != 'speaker' &&
+        rawName.toLowerCase() != 'built-in speaker' &&
+        rawName.toLowerCase() != 'built-in earpiece' &&
+        rawName.toLowerCase() != 'audio_device') {
+      return rawName;
+    }
+
+    switch (device.type) {
+      case AudioDeviceType.bluetoothA2dp:
+      case AudioDeviceType.bluetoothLe:
+      case AudioDeviceType.bluetoothSco:
+        return rawName.isNotEmpty ? rawName : 'Bluetooth Audio';
+      case AudioDeviceType.wiredHeadphones:
+      case AudioDeviceType.wiredHeadset:
+        return 'Headphones';
+      case AudioDeviceType.usbAudio:
+        return rawName.isNotEmpty ? rawName : 'USB Audio';
+      case AudioDeviceType.builtInSpeaker:
+      case AudioDeviceType.builtInSpeakerSafe:
+        return 'Phone Speaker';
+      case AudioDeviceType.builtInEarpiece:
+        return 'Phone Earpiece';
+      default:
+        return rawName.isNotEmpty ? rawName : 'Phone Speaker';
+    }
+  }
+
+  void selectAudioDevice(AudioDeviceItem device) {
+    final updatedList = state.availableAudioDevices.map((d) {
+      return d.copyWith(isSelected: d.id == device.id);
+    }).toList();
+
+    state = state.copyWith(
+      connectedDevice: device.copyWith(isSelected: true),
+      selectedDeviceId: device.id,
+      availableAudioDevices: updatedList,
+    );
+  }
+
   @override
   void dispose() {
     _playerStateSub?.cancel();
     _positionSub?.cancel();
     _durationSub?.cancel();
     _playbackEventSub?.cancel();
+    _devicesSub?.cancel();
+    _becomingNoisySub?.cancel();
     _audioPlayer.dispose();
     super.dispose();
   }
