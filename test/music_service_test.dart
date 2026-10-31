@@ -1,7 +1,12 @@
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wavify/services/music_service.dart';
 
 void main() {
+  setUpAll(() {
+    HttpOverrides.global = null;
+  });
+
   group('MusicService Integration Tests', () {
     late MusicService musicService;
 
@@ -23,11 +28,16 @@ void main() {
       expect(firstTrack.artist.toLowerCase(), contains('charlie puth'));
     });
 
-    test('getHomeData returns trending tracks, moods, and genres', () async {
+    test('getHomeData returns heroCards, recents, quickPicks, moods, albums, and videos', () async {
       final homeData = await musicService.getHomeData();
-      expect(homeData.trendingTracks, isNotEmpty);
+      expect(homeData.heroCards, isNotEmpty);
+      expect(homeData.recents, isNotEmpty);
+      expect(homeData.quickPicks, isNotEmpty);
       expect(homeData.moods, isNotEmpty);
       expect(homeData.genres, isNotEmpty);
+      expect(homeData.albumsAndSingles, isNotEmpty);
+      expect(homeData.musicVideos, isNotEmpty);
+      expect(homeData.trendingSongs, isNotEmpty);
     });
 
     test('resolveAudioStream returns working stream info with headers', () async {
@@ -46,4 +56,3 @@ void main() {
     });
   });
 }
-

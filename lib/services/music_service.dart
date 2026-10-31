@@ -1,9 +1,13 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:dart_ytmusic_api/types.dart';
 import 'package:dart_ytmusic_api/utils/traverse.dart';
 import 'package:dart_ytmusic_api/yt_music.dart';
 import '../models/song_item.dart';
+import '../models/album_item.dart';
+import '../models/video_item.dart';
+import '../models/hero_card_item.dart';
 import '../models/music_category.dart';
 import '../models/home_data.dart';
 
@@ -112,11 +116,15 @@ class MusicService {
     _isInitialized = true;
   }
 
-  /// Gathers all information for the home screen:
-  /// - Trending songs
-  /// - Quick picks / popular tracks
-  /// - Moods and moments
-  /// - Diverse music genres
+  /// Gathers all information for the home screen matching Apple Music layout:
+  /// - Top picks hero cards
+  /// - Recents / Listen again (4-row column batches)
+  /// - Find Your Mood
+  /// - Albums & singles
+  /// - Music videos (16:9 widescreen)
+  /// - Quick picks (4-row column batches)
+  /// - Your daily discover
+  /// - Trending songs for you
   Future<HomeData> getHomeData({bool refresh = false}) async {
     if (!refresh && _cachedHomeData != null) {
       return _cachedHomeData!;
@@ -128,24 +136,131 @@ class MusicService {
 
     // Run parallel queries for maximum responsiveness
     final results = await Future.wait([
-      _fetchTrendingTracks(),
+      _fetchHeroCards(),
+      _fetchRecents(),
       _fetchQuickPicks(),
       _fetchMoodsAndGenres(),
+      _fetchAlbumsAndSingles(),
+      _fetchMusicVideos(),
+      _fetchDailyDiscover(),
+      _fetchTrendingTracks(),
     ]);
 
-    final trendingTracks = results[0] as List<SongItem>;
-    final quickPicks = results[1] as List<SongItem>;
-    final categories = results[2] as ({List<MusicCategory> moods, List<MusicCategory> genres});
+    final heroCards = results[0] as List<HeroCardItem>;
+    final recents = results[1] as List<SongItem>;
+    final quickPicks = results[2] as List<SongItem>;
+    final categories = results[3] as ({List<MusicCategory> moods, List<MusicCategory> genres});
+    final albumsAndSingles = results[4] as List<AlbumItem>;
+    final musicVideos = results[5] as List<VideoItem>;
+    final dailyDiscover = results[6] as List<SongItem>;
+    final trendingSongs = results[7] as List<SongItem>;
 
     final homeData = HomeData(
-      trendingTracks: trendingTracks,
+      heroCards: heroCards,
+      recents: recents,
       quickPicks: quickPicks,
       moods: categories.moods,
       genres: categories.genres,
+      albumsAndSingles: albumsAndSingles,
+      musicVideos: musicVideos,
+      dailyDiscover: dailyDiscover,
+      trendingSongs: trendingSongs,
     );
 
     _cachedHomeData = homeData;
     return homeData;
+  }
+
+  Future<List<HeroCardItem>> _fetchHeroCards() async {
+    try {
+      final aujlaSongs = await searchSongs('Karan Aujla');
+      final shubhSongs = await searchSongs('Shubh');
+      final weekndSongs = await searchSongs('The Weeknd');
+
+      final aujlaTrack = aujlaSongs.isNotEmpty ? aujlaSongs.first : null;
+      final shubhTrack = shubhSongs.isNotEmpty ? shubhSongs.first : null;
+      final weekndTrack = weekndSongs.isNotEmpty ? weekndSongs.first : null;
+
+      return [
+        HeroCardItem(
+          id: 'hero_aujla',
+          title: 'AUJLA SZN 1',
+          subtitle: 'New from Karan Aujla',
+          caption: 'EP • 2026',
+          imageUrl: aujlaTrack?.thumbnailUrl ??
+              'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
+          primaryColor: 0xFF2A2825,
+          playTrack: aujlaTrack,
+        ),
+        HeroCardItem(
+          id: 'hero_shubh',
+          title: 'Shubh & Similar',
+          subtitle: 'Featuring Shubh',
+          caption: 'Top Punjabi Wave',
+          imageUrl: shubhTrack?.thumbnailUrl,
+          primaryColor: 0xFF1D64F2,
+          playTrack: shubhTrack,
+        ),
+        HeroCardItem(
+          id: 'hero_weeknd',
+          title: 'After Hours & Dawn',
+          subtitle: 'Featuring The Weeknd',
+          caption: 'Spatial Audio • Hit Mix',
+          imageUrl: weekndTrack?.thumbnailUrl,
+          primaryColor: 0xFF7928CA,
+          playTrack: weekndTrack,
+        ),
+      ];
+    } catch (_) {
+      return const [
+        HeroCardItem(
+          id: 'hero_default_1',
+          title: 'AUJLA SZN 1',
+          subtitle: 'New from Karan Aujla',
+          caption: 'EP • 2026',
+          primaryColor: 0xFF2A2825,
+        ),
+        HeroCardItem(
+          id: 'hero_default_2',
+          title: 'Shubh & Similar',
+          subtitle: 'Featuring Shubh',
+          caption: 'Top Punjabi Wave',
+          primaryColor: 0xFF1D64F2,
+        ),
+      ];
+    }
+  }
+
+  Future<List<SongItem>> _fetchRecents() async {
+    try {
+      final songs = await searchSongs('Ken Carson SoFaygo Gunna');
+      if (songs.isNotEmpty) return songs;
+    } catch (_) {}
+    return searchSongs('Hip Hop');
+  }
+
+  Future<List<AlbumItem>> _fetchAlbumsAndSingles() async {
+    try {
+      final albums = await searchAlbums('Hits 2026');
+      if (albums.isNotEmpty) return albums;
+    } catch (_) {}
+    return searchAlbums('Trending Albums');
+  }
+
+  Future<List<VideoItem>> _fetchMusicVideos() async {
+    try {
+      final videos = await searchVideos('Official Music Video 2026');
+      if (videos.isNotEmpty) return videos;
+    } catch (_) {}
+    return searchVideos('Official Music Video');
+  }
+
+  Future<List<SongItem>> _fetchDailyDiscover() async {
+    try {
+      final songs = await searchSongs('Daily Discover');
+      if (songs.isNotEmpty) return songs;
+    } catch (_) {}
+    return searchSongs('Top Discover Weekly');
   }
 
   Future<List<SongItem>> _fetchTrendingTracks() async {
@@ -162,6 +277,71 @@ class MusicService {
       if (songs.isNotEmpty) return songs;
     } catch (_) {}
     return [];
+  }
+
+  Future<List<AlbumItem>> searchAlbums(String query) async {
+    final trimmedQuery = query.trim();
+    if (trimmedQuery.isEmpty) return [];
+
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    try {
+      final results = await _ytMusic.searchAlbums(trimmedQuery);
+      return results
+          .where((a) => a.albumId.isNotEmpty)
+          .map((a) {
+            String? thumb;
+            if (a.thumbnails.isNotEmpty) {
+              thumb = a.thumbnails.last.url;
+            }
+            return AlbumItem(
+              id: a.albumId,
+              title: a.name.isNotEmpty ? a.name : 'Untitled Album',
+              artist: a.artist.name.isNotEmpty ? a.artist.name : 'Unknown Artist',
+              thumbnailUrl: thumb,
+              type: a.type.isNotEmpty ? a.type : 'Album',
+              year: a.year,
+            );
+          })
+          .toList();
+    } catch (e) {
+      debugPrint('searchAlbums error: $e');
+      return [];
+    }
+  }
+
+  Future<List<VideoItem>> searchVideos(String query) async {
+    final trimmedQuery = query.trim();
+    if (trimmedQuery.isEmpty) return [];
+
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    try {
+      final results = await _ytMusic.searchVideos(trimmedQuery);
+      return results
+          .where((v) => v.videoId.isNotEmpty)
+          .map((v) {
+            String? thumb;
+            if (v.thumbnails.isNotEmpty) {
+              thumb = v.thumbnails.last.url;
+            }
+            return VideoItem(
+              id: v.videoId,
+              title: v.name.isNotEmpty ? v.name : 'Untitled Video',
+              artist: v.artist.name.isNotEmpty ? v.artist.name : 'Unknown Artist',
+              thumbnailUrl: thumb,
+              durationSeconds: v.duration,
+            );
+          })
+          .toList();
+    } catch (e) {
+      debugPrint('searchVideos error: $e');
+      return [];
+    }
   }
 
   Future<({List<MusicCategory> moods, List<MusicCategory> genres})> _fetchMoodsAndGenres() async {
