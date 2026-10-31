@@ -4,6 +4,7 @@ class SongItem {
   final String id;
   final String title;
   final String artist;
+  final String? album;
   final String? thumbnailUrl;
   final int? durationSeconds;
 
@@ -11,6 +12,7 @@ class SongItem {
     required this.id,
     required this.title,
     required this.artist,
+    this.album,
     this.thumbnailUrl,
     this.durationSeconds,
   });

@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -51,14 +52,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _onSongSelected(SongItem song, {List<SongItem>? contextQueue}) {
-    ref.read(playerProvider.notifier).playSong(song, contextQueue: contextQueue);
+    ref
+        .read(playerProvider.notifier)
+        .playSong(song, contextQueue: contextQueue);
   }
 
   void _openPlayerScreen() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      useSafeArea: true, // Guarantees player content stays within safe area below the notch
+      useSafeArea:
+          false, // Extends player to whole screen up behind the status bar
       backgroundColor: Colors.transparent,
       builder: (context) => const PlayerScreen(),
     );
@@ -140,29 +144,50 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     song.artist,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: appleSecondaryText, fontSize: 13),
+                    style: const TextStyle(
+                      color: appleSecondaryText,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
                 const Divider(color: Color(0xFF2C2C2E)),
                 ListTile(
-                  leading: const Icon(Icons.playlist_play_rounded, color: Colors.white),
-                  title: const Text('Play Next', style: TextStyle(color: Colors.white)),
+                  leading: const Icon(
+                    Icons.playlist_play_rounded,
+                    color: Colors.white,
+                  ),
+                  title: const Text(
+                    'Play Next',
+                    style: TextStyle(color: Colors.white),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     _showSnackBar('Added "${song.title}" to play next');
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.queue_music_rounded, color: Colors.white),
-                  title: const Text('Add to Queue', style: TextStyle(color: Colors.white)),
+                  leading: const Icon(
+                    Icons.queue_music_rounded,
+                    color: Colors.white,
+                  ),
+                  title: const Text(
+                    'Add to Queue',
+                    style: TextStyle(color: Colors.white),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     _showSnackBar('Added "${song.title}" to queue');
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.favorite_border_rounded, color: Colors.white),
-                  title: const Text('Add to Favorites', style: TextStyle(color: Colors.white)),
+                  leading: const Icon(
+                    Icons.favorite_border_rounded,
+                    color: Colors.white,
+                  ),
+                  title: const Text(
+                    'Add to Favorites',
+                    style: TextStyle(color: Colors.white),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     _showSnackBar('Saved "${song.title}" to your favorites');
@@ -170,7 +195,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.share_rounded, color: Colors.white),
-                  title: const Text('Share Song', style: TextStyle(color: Colors.white)),
+                  title: const Text(
+                    'Share Song',
+                    style: TextStyle(color: Colors.white),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     _showSnackBar('Sharing link for "${song.title}"');
@@ -199,7 +227,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     // Listen for audio stream resolution errors
-    ref.listen<String?>(playerProvider.select((s) => s.errorMessage), (prev, error) {
+    ref.listen<String?>(playerProvider.select((s) => s.errorMessage), (
+      prev,
+      error,
+    ) {
       if (error != null) {
         _showSnackBar(error);
         ref.read(playerProvider.notifier).clearErrorMessage();
@@ -237,9 +268,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Floating Liquid Glass Mini Player (watches playerProvider)
-                    PlayerControls(
-                      onTap: _openPlayerScreen,
-                    ),
+                    PlayerControls(onTap: _openPlayerScreen),
 
                     const SizedBox(height: 4),
 
@@ -373,10 +402,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const SizedBox(height: 28),
 
           // Section 2: "Recents" (4-item vertical column horizontal paging)
-          _build4ItemColumnsSection(
-            title: 'Recents',
-            songs: data.recents,
-          ),
+          _build4ItemColumnsSection(title: 'Recents', songs: data.recents),
           const SizedBox(height: 28),
 
           // Section 3: "Find Your Mood" with "Show all"
@@ -505,7 +531,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   child: Container(
                     decoration: const BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Color(0xFF2575FC), Color(0xFF1D64F2), Color(0xFF0D47A1)],
+                        colors: [
+                          Color(0xFF2575FC),
+                          Color(0xFF1D64F2),
+                          Color(0xFF0D47A1),
+                        ],
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                       ),
@@ -521,7 +551,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             height: 110,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.3),
+                                width: 2,
+                              ),
                               image: hero.imageUrl != null
                                   ? DecorationImage(
                                       image: NetworkImage(hero.imageUrl!),
@@ -531,7 +564,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               color: const Color(0xFF333333),
                             ),
                             child: hero.imageUrl == null
-                                ? const Icon(Icons.person, color: Colors.white70, size: 50)
+                                ? const Icon(
+                                    Icons.person,
+                                    color: Colors.white70,
+                                    size: 50,
+                                  )
                                 : null,
                           ),
                         ),
@@ -543,10 +580,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             height: 80,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.3),
+                                width: 2,
+                              ),
                               color: const Color(0xFF222222),
                             ),
-                            child: const Icon(Icons.person, color: Colors.white70, size: 40),
+                            child: const Icon(
+                              Icons.person,
+                              color: Colors.white70,
+                              size: 40,
+                            ),
                           ),
                         ),
                       ],
@@ -848,14 +892,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           const Positioned(
                             top: 10,
                             right: 10,
-                            child: WavifyLogo(
-                              size: 16,
-                              color: Colors.white70,
-                            ),
+                            child: WavifyLogo(size: 16, color: Colors.white70),
                           ),
-                          Center(
-                            child: _buildMoodIcon(mood.icon),
-                          ),
+                          Center(child: _buildMoodIcon(mood.icon)),
                         ],
                       ),
                     ),
@@ -887,13 +926,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       case 'vortex':
         return const VortexRingsIcon(size: 56, color: Colors.white);
       case 'workout':
-        return const Icon(Icons.fitness_center_rounded, size: 48, color: Colors.white);
+        return const Icon(
+          Icons.fitness_center_rounded,
+          size: 48,
+          color: Colors.white,
+        );
       case 'focus':
-        return const Icon(Icons.center_focus_strong_rounded, size: 48, color: Colors.white);
+        return const Icon(
+          Icons.center_focus_strong_rounded,
+          size: 48,
+          color: Colors.white,
+        );
       case 'party':
-        return const Icon(Icons.celebration_rounded, size: 48, color: Colors.white);
+        return const Icon(
+          Icons.celebration_rounded,
+          size: 48,
+          color: Colors.white,
+        );
       default:
-        return const Icon(Icons.music_note_rounded, size: 48, color: Colors.white);
+        return const Icon(
+          Icons.music_note_rounded,
+          size: 48,
+          color: Colors.white,
+        );
     }
   }
 
@@ -1039,17 +1094,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                     width: 250,
                                     height: 140,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) =>
-                                        Container(
-                                          width: 250,
-                                          height: 140,
-                                          color: appleDarkSurfaceHigh,
-                                          child: const Icon(
-                                            Icons.video_library_rounded,
-                                            color: Colors.white24,
-                                            size: 40,
-                                          ),
-                                        ),
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            Container(
+                                              width: 250,
+                                              height: 140,
+                                              color: appleDarkSurfaceHigh,
+                                              child: const Icon(
+                                                Icons.video_library_rounded,
+                                                color: Colors.white24,
+                                                size: 40,
+                                              ),
+                                            ),
                                   )
                                 : Container(
                                     width: 250,
@@ -1167,8 +1223,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                     width: 140,
                                     height: 140,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) =>
-                                        _fallbackSquareArt(),
+                                    errorBuilder: (
+                                      context,
+                                      error,
+                                      stackTrace,
+                                    ) => _fallbackSquareArt(),
                                   )
                                 : _fallbackSquareArt(),
                           ),
@@ -1327,7 +1386,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // TAB 3: LIBRARY
   // =========================================================================
   Widget _buildLibraryTab() {
-    final recentlyPlayed = ref.watch(playerProvider.select((s) => s.recentlyPlayed));
+    final recentlyPlayed = ref.watch(
+      playerProvider.select((s) => s.recentlyPlayed),
+    );
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 160),
@@ -1468,10 +1529,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         const SizedBox(height: 10),
         Expanded(
           child: _isSearching
-              ? const Center(child: CircularProgressIndicator(color: Colors.white))
+              ? const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                )
               : _hasSearched
-                  ? _buildSearchResultsList()
-                  : _buildSearchExploration(),
+              ? _buildSearchResultsList()
+              : _buildSearchExploration(),
         ),
       ],
     );
@@ -1598,7 +1661,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           if (isSelected)
             const Icon(Icons.equalizer_rounded, color: appleRed, size: 20),
           IconButton(
-            icon: const Icon(Icons.more_vert_rounded, color: appleSecondaryText, size: 20),
+            icon: const Icon(
+              Icons.more_vert_rounded,
+              color: appleSecondaryText,
+              size: 20,
+            ),
             onPressed: () => _showTrackOptions(song),
           ),
         ],

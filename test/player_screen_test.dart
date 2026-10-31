@@ -59,7 +59,9 @@ void main() {
     final lyricsButton = find.byIcon(Icons.chat_bubble_outline_rounded);
     expect(lyricsButton, findsOneWidget);
     await tester.tap(lyricsButton);
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
 
     // Verify "No lyrics available right now" requirement is met when lyrics are empty
     expect(find.text('No lyrics available right now'), findsOneWidget);
@@ -68,7 +70,9 @@ void main() {
     final queueButton = find.byIcon(Icons.format_list_bulleted_rounded);
     expect(queueButton, findsOneWidget);
     await tester.tap(queueButton);
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
 
     // Verify Queue view rendered with upcoming tracks
     expect(find.text('Queue'), findsOneWidget);

@@ -476,6 +476,7 @@ class MusicService {
             id: song.videoId,
             title: song.name.isNotEmpty ? song.name : 'Untitled Track',
             artist: artistName,
+            album: song.album?.name,
             thumbnailUrl: thumbUrl,
             durationSeconds: song.duration,
           );
