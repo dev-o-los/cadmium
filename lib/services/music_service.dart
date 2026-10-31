@@ -9,6 +9,7 @@ import '../models/album_item.dart';
 import '../models/video_item.dart';
 import '../models/hero_card_item.dart';
 import '../models/music_category.dart';
+import '../models/lyric_line.dart';
 import '../models/home_data.dart';
 
 /// Resolved audio stream data containing direct stream URL, matching User-Agent headers,
@@ -395,6 +396,55 @@ class MusicService {
     } catch (_) {
       return (moods: _defaultMoods, genres: _defaultGenres);
     }
+  }
+
+  /// Fetches synchronized timed lyrics (or fallback plain lyrics) for a song.
+  Future<List<LyricLine>> getLyrics(String videoId) async {
+    final trimmedId = videoId.trim();
+    if (trimmedId.isEmpty) return [];
+
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    // 1. Try timed lyrics first for synchronized karaoke scrolling
+    try {
+      final timed = await _ytMusic.getTimedLyrics(trimmedId);
+      if (timed != null && timed.timedLyricsData.isNotEmpty) {
+        final parsed = timed.timedLyricsData
+            .map((item) {
+              final line = item.lyricLine?.trim() ?? '';
+              return LyricLine(
+                text: line,
+                startTimeMs: item.cueRange?.startTimeMilliseconds,
+                endTimeMs: item.cueRange?.endTimeMilliseconds,
+              );
+            })
+            .where((l) => l.text.isNotEmpty)
+            .toList();
+
+        if (parsed.isNotEmpty) return parsed;
+      }
+    } catch (e) {
+      debugPrint('getTimedLyrics fallback: $e');
+    }
+
+    // 2. Fallback to plain text lyrics
+    try {
+      final plain = await _ytMusic.getLyrics(trimmedId);
+      if (plain != null && plain.trim().isNotEmpty) {
+        return plain
+            .split('\n')
+            .map((l) => l.trim())
+            .where((l) => l.isNotEmpty)
+            .map((l) => LyricLine(text: l))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('getLyrics error: $e');
+    }
+
+    return [];
   }
 
   /// Searches for songs by query string.

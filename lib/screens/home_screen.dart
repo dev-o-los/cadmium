@@ -1,7 +1,6 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:just_audio/just_audio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/song_item.dart';
 import '../models/album_item.dart';
@@ -9,43 +8,35 @@ import '../models/video_item.dart';
 import '../models/hero_card_item.dart';
 import '../models/music_category.dart';
 import '../models/home_data.dart';
-import '../services/music_service.dart';
+import '../providers/music_service_provider.dart';
+import '../providers/home_data_provider.dart';
+import '../providers/player_provider.dart';
 import '../widgets/player_controls.dart';
 import '../widgets/liquid_glass_bottom_bar.dart';
 import '../widgets/wavify_logo.dart';
 import 'player_screen.dart';
 
-class HomeScreen extends StatefulWidget {
+/// Main Home Screen featuring Apple Music-inspired dark theme UI,
+/// multi-section home feed from YouTube Music, floating liquid glass dock,
+/// and reactive Riverpod state management.
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  final MusicService _musicService = MusicService();
-  final AudioPlayer _audioPlayer = AudioPlayer();
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   // 4 tabs: 0: Home, 1: Explore, 2: Library, 3: Search
   int _currentTabIndex = 0;
-
-  HomeData? _homeData;
-  bool _isLoadingHome = true;
-  String? _homeError;
 
   // Search tab state
   List<SongItem> _searchResults = [];
   bool _isSearching = false;
   String? _searchError;
   bool _hasSearched = false;
-
-  // Current playing track
-  SongItem? _currentSong;
-  bool _isResolvingStream = false;
-
-  // Play history
-  final List<SongItem> _recentlyPlayed = [];
 
   // Accent & Surface Colors
   static const Color appleRed = Color(0xFFFA243C);
@@ -54,159 +45,22 @@ class _HomeScreenState extends State<HomeScreen> {
   static const Color appleSecondaryText = Color(0xFF8E8E93);
 
   @override
-  void initState() {
-    super.initState();
-    _initServices();
-    _setupAudioListeners();
-    _loadHomeData();
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
-  void _setupAudioListeners() {
-    _audioPlayer.playbackEventStream.listen(
-      (_) {},
-      onError: (Object e, StackTrace st) {
-        debugPrint('Playback stream error: $e');
-        if (mounted) {
-          setState(() {
-            _isResolvingStream = false;
-          });
-          _showSnackBar('Playback error: Unable to buffer audio stream.');
-        }
-      },
-    );
-  }
-
-  Future<void> _initServices() async {
-    try {
-      await _musicService.initialize();
-    } catch (e) {
-      debugPrint('MusicService pre-init warning: $e');
-    }
-  }
-
-  Future<void> _loadHomeData({bool refresh = false}) async {
-    setState(() {
-      _isLoadingHome = true;
-      _homeError = null;
-    });
-
-    try {
-      final data = await _musicService.getHomeData(refresh: refresh);
-      if (!mounted) return;
-      setState(() {
-        _homeData = data;
-        _isLoadingHome = false;
-      });
-    } on SocketException {
-      if (!mounted) return;
-      setState(() {
-        _isLoadingHome = false;
-        _homeError = 'No internet connection. Please verify your network.';
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isLoadingHome = false;
-        _homeError = 'Failed to load music: ${e.toString()}';
-      });
-    }
-  }
-
-  /// Handles song selection, stream resolution, and playback
-  Future<void> _onSongSelected(SongItem song) async {
-    if (_currentSong?.id == song.id) {
-      _togglePlayPause();
-      return;
-    }
-
-    setState(() {
-      _currentSong = song;
-      _isResolvingStream = true;
-      if (!_recentlyPlayed.any((s) => s.id == song.id)) {
-        _recentlyPlayed.insert(0, song);
-        if (_recentlyPlayed.length > 25) _recentlyPlayed.removeLast();
-      }
-    });
-
-    try {
-      final streamInfo = await _musicService.resolveAudioStream(song.id);
-
-      if (!mounted) return;
-
-      final audioSource = AudioSource.uri(
-        Uri.parse(streamInfo.url),
-        headers: streamInfo.headers,
-      );
-
-      await _audioPlayer.setAudioSource(audioSource, preload: true);
-      await _audioPlayer.play();
-
-      if (!mounted) return;
-      setState(() {
-        _isResolvingStream = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isResolvingStream = false;
-      });
-      _showSnackBar(
-        'Unable to stream "${song.title}": Stream unavailable or restricted.',
-      );
-    }
-  }
-
-  void _togglePlayPause() {
-    if (_audioPlayer.playing) {
-      _audioPlayer.pause();
-    } else {
-      _audioPlayer.play();
-    }
-  }
-
-  void _skipNextTrack() {
-    final quickPicks = _homeData?.quickPicks ?? [];
-    if (quickPicks.isNotEmpty) {
-      final currentIndex =
-          quickPicks.indexWhere((s) => s.id == _currentSong?.id);
-      final nextIndex = (currentIndex + 1) % quickPicks.length;
-      _onSongSelected(quickPicks[nextIndex]);
-    } else if (_recentlyPlayed.isNotEmpty) {
-      final currentIndex =
-          _recentlyPlayed.indexWhere((s) => s.id == _currentSong?.id);
-      final nextIndex = (currentIndex + 1) % _recentlyPlayed.length;
-      _onSongSelected(_recentlyPlayed[nextIndex]);
-    }
-  }
-
-  void _skipPreviousTrack() {
-    if (_recentlyPlayed.length > 1) {
-      final currentIndex =
-          _recentlyPlayed.indexWhere((s) => s.id == _currentSong?.id);
-      final prevIndex =
-          (currentIndex - 1 + _recentlyPlayed.length) % _recentlyPlayed.length;
-      _onSongSelected(_recentlyPlayed[prevIndex]);
-    } else {
-      _audioPlayer.seek(Duration.zero);
-    }
+  void _onSongSelected(SongItem song, {List<SongItem>? contextQueue}) {
+    ref.read(playerProvider.notifier).playSong(song, contextQueue: contextQueue);
   }
 
   void _openPlayerScreen() {
-    if (_currentSong == null) return;
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      useSafeArea: false,
+      useSafeArea: true, // Guarantees player content stays within safe area below the notch
       backgroundColor: Colors.transparent,
-      builder: (context) => PlayerScreen(
-        song: _currentSong!,
-        audioPlayer: _audioPlayer,
-        isResolvingStream: _isResolvingStream,
-        onTogglePlayPause: _togglePlayPause,
-        onSkipNext: _skipNextTrack,
-        onSkipPrevious: _skipPreviousTrack,
-      ),
+      builder: (context) => const PlayerScreen(),
     );
   }
 
@@ -222,7 +76,8 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      final results = await _musicService.searchSongs(query);
+      final musicService = ref.read(musicServiceProvider);
+      final results = await musicService.searchSongs(query);
       if (!mounted) return;
       setState(() {
         _searchResults = results;
@@ -266,7 +121,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             width: 50,
                             height: 50,
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => _fallbackSquareArt(),
+                            errorBuilder: (context, error, stackTrace) =>
+                                _fallbackSquareArt(),
                           )
                         : _fallbackSquareArt(),
                   ),
@@ -341,15 +197,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
-  void dispose() {
-    _searchController.dispose();
-    _audioPlayer.dispose();
-    _musicService.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    // Listen for audio stream resolution errors
+    ref.listen<String?>(playerProvider.select((s) => s.errorMessage), (prev, error) {
+      if (error != null) {
+        _showSnackBar(error);
+        ref.read(playerProvider.notifier).clearErrorMessage();
+      }
+    });
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -380,13 +236,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Floating Liquid Glass Mini Player
+                    // Floating Liquid Glass Mini Player (watches playerProvider)
                     PlayerControls(
-                      currentSong: _currentSong,
-                      audioPlayer: _audioPlayer,
-                      isResolvingStream: _isResolvingStream,
-                      onTogglePlayPause: _togglePlayPause,
-                      onSkipNext: _skipNextTrack,
                       onTap: _openPlayerScreen,
                     ),
 
@@ -415,8 +266,10 @@ class _HomeScreenState extends State<HomeScreen> {
   // TAB 1: HOME (Exact match with reference screenshots)
   // =========================================================================
   Widget _buildHomeTab() {
-    if (_isLoadingHome) {
-      return const Center(
+    final homeDataAsync = ref.watch(homeDataProvider);
+
+    return homeDataAsync.when(
+      loading: () => const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -428,11 +281,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-      );
-    }
-
-    if (_homeError != null) {
-      return Center(
+      ),
+      error: (err, stack) => Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -445,13 +295,13 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                _homeError!,
+                'Failed to load music: $err',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.white, fontSize: 15),
               ),
               const SizedBox(height: 16),
               FilledButton.tonal(
-                onPressed: () => _loadHomeData(refresh: true),
+                onPressed: () => ref.read(homeDataProvider.notifier).refresh(),
                 style: FilledButton.styleFrom(
                   backgroundColor: appleDarkSurfaceHigh,
                 ),
@@ -463,16 +313,18 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-      );
-    }
+      ),
+      data: (data) => _buildHomeContent(data),
+    );
+  }
 
-    final data = _homeData;
-    if (data == null) return const SizedBox.shrink();
+  Widget _buildHomeContent(HomeData data) {
+    final playerState = ref.watch(playerProvider);
 
     return RefreshIndicator(
       color: Colors.white,
       backgroundColor: appleDarkSurface,
-      onRefresh: () => _loadHomeData(refresh: true),
+      onRefresh: () => ref.read(homeDataProvider.notifier).refresh(),
       child: ListView(
         padding: const EdgeInsets.fromLTRB(0, 10, 0, 160),
         children: [
@@ -539,12 +391,12 @@ class _HomeScreenState extends State<HomeScreen> {
           _buildMusicVideosSection(data.musicVideos),
           const SizedBox(height: 28),
 
-          // Section 6: "Listen again" (if user has listening history)
-          if (_recentlyPlayed.isNotEmpty) ...[
+          // Section 6: "Listen again" (listening history from playerProvider)
+          if (playerState.recentlyPlayed.isNotEmpty) ...[
             _build4ItemColumnsSection(
               title: 'Listen again',
               subtitle: 'UTKARSH',
-              songs: _recentlyPlayed,
+              songs: playerState.recentlyPlayed,
             ),
             const SizedBox(height: 28),
           ],
@@ -833,7 +685,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: MediaQuery.of(context).size.width * 0.86,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: columnSongs.map((song) => _build4ItemRow(song)).toList(),
+                  children: columnSongs
+                      .map((song) => _build4ItemRow(song, contextQueue: songs))
+                      .toList(),
                 ),
               );
             },
@@ -843,13 +697,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _build4ItemRow(SongItem song) {
-    final isSelected = _currentSong?.id == song.id;
+  Widget _build4ItemRow(SongItem song, {List<SongItem>? contextQueue}) {
+    final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
+    final isSelected = currentSong?.id == song.id;
 
     return SizedBox(
       height: 64,
       child: InkWell(
-        onTap: () => _onSongSelected(song),
+        onTap: () => _onSongSelected(song, contextQueue: contextQueue),
         borderRadius: BorderRadius.circular(10),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),
@@ -864,7 +719,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         width: 48,
                         height: 48,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => _fallbackSquareArt(),
+                        errorBuilder: (context, error, stackTrace) =>
+                            _fallbackSquareArt(),
                       )
                     : _fallbackSquareArt(),
               ),
@@ -1265,6 +1121,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }) {
     if (songs.isEmpty) return const SizedBox.shrink();
 
+    final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1290,10 +1148,10 @@ class _HomeScreenState extends State<HomeScreen> {
             separatorBuilder: (context, index) => const SizedBox(width: 14),
             itemBuilder: (context, index) {
               final song = songs[index];
-              final isCurrent = _currentSong?.id == song.id;
+              final isCurrent = currentSong?.id == song.id;
 
               return GestureDetector(
-                onTap: () => _onSongSelected(song),
+                onTap: () => _onSongSelected(song, contextQueue: songs),
                 child: SizedBox(
                   width: 140,
                   child: Column(
@@ -1384,8 +1242,9 @@ class _HomeScreenState extends State<HomeScreen> {
   // TAB 2: EXPLORE (Genres, Moods, Global Hits)
   // =========================================================================
   Widget _buildExploreTab() {
-    final genres = _homeData?.genres ?? [];
-    final trending = _homeData?.trendingSongs ?? [];
+    final homeDataAsync = ref.watch(homeDataProvider);
+    final genres = homeDataAsync.valueOrNull?.genres ?? [];
+    final trending = homeDataAsync.valueOrNull?.trendingSongs ?? [];
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 160),
@@ -1468,6 +1327,8 @@ class _HomeScreenState extends State<HomeScreen> {
   // TAB 3: LIBRARY
   // =========================================================================
   Widget _buildLibraryTab() {
+    final recentlyPlayed = ref.watch(playerProvider.select((s) => s.recentlyPlayed));
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 160),
       children: [
@@ -1496,7 +1357,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        if (_recentlyPlayed.isEmpty)
+        if (recentlyPlayed.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
             child: Text(
@@ -1505,7 +1366,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           )
         else
-          ..._recentlyPlayed.map((song) => _buildSongRow(song)),
+          ...recentlyPlayed.map((song) => _buildSongRow(song)),
       ],
     );
   }
@@ -1645,7 +1506,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSearchExploration() {
-    final genres = _homeData?.genres ?? [];
+    final homeDataAsync = ref.watch(homeDataProvider);
+    final genres = homeDataAsync.valueOrNull?.genres ?? [];
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 160),
@@ -1696,7 +1558,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSongRow(SongItem song) {
-    final isSelected = _currentSong?.id == song.id;
+    final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
+    final isSelected = currentSong?.id == song.id;
 
     return ListTile(
       contentPadding: EdgeInsets.zero,
