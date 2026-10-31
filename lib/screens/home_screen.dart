@@ -1,6 +1,8 @@
 import 'dart:io';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/song_item.dart';
@@ -12,6 +14,7 @@ import '../models/home_data.dart';
 import '../providers/music_service_provider.dart';
 import '../providers/home_data_provider.dart';
 import '../providers/player_provider.dart';
+import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/player_controls.dart';
 import '../widgets/liquid_glass_bottom_bar.dart';
 import '../widgets/wavify_logo.dart';
@@ -33,6 +36,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // 4 tabs: 0: Home, 1: Explore, 2: Library, 3: Search
   int _currentTabIndex = 0;
 
+  // Crawl / Minimization state for floating mini player and bottom bar
+  bool _isMiniPlayerCrawled = false;
+  double _accumulatedScrollDelta = 0.0;
+
   // Search tab state
   List<SongItem> _searchResults = [];
   bool _isSearching = false;
@@ -44,6 +51,44 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   static const Color appleDarkSurface = Color(0xFF1C1C1E);
   static const Color appleDarkSurfaceHigh = Color(0xFF2C2C2E);
   static const Color appleSecondaryText = Color(0xFF8E8E93);
+
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification.metrics.axis != Axis.vertical) {
+      return false;
+    }
+
+    final pixels = notification.metrics.pixels;
+    if (pixels <= 25) {
+      if (_isMiniPlayerCrawled) {
+        setState(() => _isMiniPlayerCrawled = false);
+      }
+      _accumulatedScrollDelta = 0;
+      return false;
+    }
+
+    if (notification is UserScrollNotification) {
+      if (notification.direction == ScrollDirection.reverse && !_isMiniPlayerCrawled) {
+        setState(() => _isMiniPlayerCrawled = true);
+      } else if (notification.direction == ScrollDirection.forward && _isMiniPlayerCrawled) {
+        setState(() => _isMiniPlayerCrawled = false);
+      }
+    } else if (notification is ScrollUpdateNotification) {
+      final delta = notification.scrollDelta ?? 0.0;
+      if (delta > 0) {
+        _accumulatedScrollDelta = (_accumulatedScrollDelta > 0 ? _accumulatedScrollDelta : 0) + delta;
+        if (_accumulatedScrollDelta > 20 && !_isMiniPlayerCrawled) {
+          setState(() => _isMiniPlayerCrawled = true);
+        }
+      } else if (delta < 0) {
+        _accumulatedScrollDelta = (_accumulatedScrollDelta < 0 ? _accumulatedScrollDelta : 0) + delta;
+        if (_accumulatedScrollDelta < -12 && _isMiniPlayerCrawled) {
+          setState(() => _isMiniPlayerCrawled = false);
+        }
+      }
+    }
+
+    return false;
+  }
 
   @override
   void dispose() {
@@ -153,7 +198,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 const Divider(color: Color(0xFF2C2C2E)),
                 ListTile(
                   leading: const Icon(
-                    Icons.playlist_play_rounded,
+                    CupertinoIcons.text_badge_plus,
                     color: Colors.white,
                   ),
                   title: const Text(
@@ -167,7 +212,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
                 ListTile(
                   leading: const Icon(
-                    Icons.queue_music_rounded,
+                    CupertinoIcons.list_bullet_indent,
                     color: Colors.white,
                   ),
                   title: const Text(
@@ -181,7 +226,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
                 ListTile(
                   leading: const Icon(
-                    Icons.favorite_border_rounded,
+                    CupertinoIcons.heart,
                     color: Colors.white,
                   ),
                   title: const Text(
@@ -194,7 +239,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.share_rounded, color: Colors.white),
+                  leading: const Icon(CupertinoIcons.share, color: Colors.white),
                   title: const Text(
                     'Share Song',
                     style: TextStyle(color: Colors.white),
@@ -241,17 +286,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Active Tab Page View
+          // Active Tab Page View with Scroll-driven Crawl Observer
           SafeArea(
             bottom: false,
-            child: IndexedStack(
-              index: _currentTabIndex,
-              children: [
-                _buildHomeTab(),
-                _buildExploreTab(),
-                _buildLibraryTab(),
-                _buildSearchTab(),
-              ],
+            child: NotificationListener<ScrollNotification>(
+              onNotification: _handleScrollNotification,
+              child: IndexedStack(
+                index: _currentTabIndex,
+                children: [
+                  _buildHomeTab(),
+                  _buildExploreTab(),
+                  _buildLibraryTab(),
+                  _buildSearchTab(),
+                ],
+              ),
             ),
           ),
 
@@ -267,17 +315,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Floating Liquid Glass Mini Player (watches playerProvider)
-                    PlayerControls(onTap: _openPlayerScreen),
+                    // Floating Liquid Glass Mini Player with smooth animated downside crawl
+                    AnimatedSlide(
+                      duration: const Duration(milliseconds: 320),
+                      curve: Curves.easeInOutCubic,
+                      offset: _isMiniPlayerCrawled ? const Offset(0, 1.35) : Offset.zero,
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 240),
+                        curve: Curves.easeOut,
+                        opacity: _isMiniPlayerCrawled ? 0.0 : 1.0,
+                        child: IgnorePointer(
+                          ignoring: _isMiniPlayerCrawled,
+                          child: PlayerControls(onTap: _openPlayerScreen),
+                        ),
+                      ),
+                    ),
 
-                    const SizedBox(height: 4),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOutCubic,
+                      height: _isMiniPlayerCrawled ? 0 : 4,
+                    ),
 
                     // Floating Liquid Glass Navigation Dock matching photos
                     LiquidGlassBottomBar(
                       currentIndex: _currentTabIndex,
+                      isCrawled: _isMiniPlayerCrawled,
                       onTabSelected: (index) {
                         setState(() {
                           _currentTabIndex = index;
+                          _isMiniPlayerCrawled = false;
                         });
                       },
                     ),
@@ -318,7 +385,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(
-                Icons.error_outline_rounded,
+                CupertinoIcons.exclamationmark_circle,
                 size: 52,
                 color: appleRed,
               ),
@@ -385,9 +452,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       radius: 18,
                       backgroundColor: appleDarkSurfaceHigh,
                       child: Icon(
-                        Icons.person_rounded,
+                        CupertinoIcons.person_crop_circle_fill,
                         color: Colors.white,
-                        size: 22,
+                        size: 24,
                       ),
                     ),
                   ),
@@ -565,7 +632,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ),
                             child: hero.imageUrl == null
                                 ? const Icon(
-                                    Icons.person,
+                                    CupertinoIcons.person_crop_circle,
                                     color: Colors.white70,
                                     size: 50,
                                   )
@@ -587,7 +654,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               color: const Color(0xFF222222),
                             ),
                             child: const Icon(
-                              Icons.person,
+                              CupertinoIcons.person_crop_circle,
                               color: Colors.white70,
                               size: 40,
                             ),
@@ -804,10 +871,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
               // 3-dots Menu Icon
               IconButton(
-                icon: const Icon(
-                  Icons.more_vert_rounded,
+                icon: const AnimatedCupertinoIcon(
+                  icon: CupertinoIcons.ellipsis_vertical,
                   color: appleSecondaryText,
-                  size: 20,
+                  size: 18,
                 ),
                 onPressed: () => _showTrackOptions(song),
               ),
@@ -920,32 +987,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _buildMoodIcon(String iconType) {
     switch (iconType) {
       case 'lightning':
-        return const Icon(Icons.bolt_rounded, size: 58, color: Colors.white);
+        return const Icon(CupertinoIcons.bolt_fill, size: 58, color: Colors.white);
       case 'zen':
         return const ZenStonesIcon(size: 56, color: Colors.white);
       case 'vortex':
         return const VortexRingsIcon(size: 56, color: Colors.white);
       case 'workout':
         return const Icon(
-          Icons.fitness_center_rounded,
+          CupertinoIcons.flame_fill,
           size: 48,
           color: Colors.white,
         );
       case 'focus':
         return const Icon(
-          Icons.center_focus_strong_rounded,
+          CupertinoIcons.scope,
           size: 48,
           color: Colors.white,
         );
       case 'party':
         return const Icon(
-          Icons.celebration_rounded,
+          CupertinoIcons.sparkles,
           size: 48,
           color: Colors.white,
         );
       default:
         return const Icon(
-          Icons.music_note_rounded,
+          CupertinoIcons.music_note,
           size: 48,
           color: Colors.white,
         );
@@ -1101,7 +1168,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                               height: 140,
                                               color: appleDarkSurfaceHigh,
                                               child: const Icon(
-                                                Icons.video_library_rounded,
+                                                CupertinoIcons.play_rectangle_fill,
                                                 color: Colors.white24,
                                                 size: 40,
                                               ),
@@ -1112,7 +1179,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                     height: 140,
                                     color: appleDarkSurfaceHigh,
                                     child: const Icon(
-                                      Icons.video_library_rounded,
+                                      CupertinoIcons.play_rectangle_fill,
                                       color: Colors.white24,
                                       size: 40,
                                     ),
@@ -1127,9 +1194,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Icon(
-                                  Icons.play_arrow_rounded,
+                                  CupertinoIcons.play_fill,
                                   color: Colors.white,
-                                  size: 18,
+                                  size: 16,
                                 ),
                               ),
                             ),
@@ -1242,7 +1309,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 ),
                                 padding: const EdgeInsets.all(6),
                                 child: const Icon(
-                                  Icons.equalizer_rounded,
+                                  CupertinoIcons.waveform,
                                   color: Colors.white,
                                   size: 16,
                                 ),
@@ -1290,7 +1357,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       height: 48,
       color: appleDarkSurfaceHigh,
       child: const Icon(
-        Icons.music_note_rounded,
+        CupertinoIcons.music_note,
         color: Colors.white30,
         size: 24,
       ),
@@ -1403,11 +1470,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        _buildLibraryActionTile(Icons.playlist_play_rounded, 'Playlists'),
-        _buildLibraryActionTile(Icons.music_note_rounded, 'Songs'),
-        _buildLibraryActionTile(Icons.album_rounded, 'Albums'),
-        _buildLibraryActionTile(Icons.person_rounded, 'Artists'),
-        _buildLibraryActionTile(Icons.download_done_rounded, 'Downloaded'),
+        _buildLibraryActionTile(CupertinoIcons.music_note_list, 'Playlists'),
+        _buildLibraryActionTile(CupertinoIcons.music_note, 'Songs'),
+        _buildLibraryActionTile(CupertinoIcons.music_albums, 'Albums'),
+        _buildLibraryActionTile(CupertinoIcons.person_2_fill, 'Artists'),
+        _buildLibraryActionTile(CupertinoIcons.arrow_down_circle_fill, 'Downloaded'),
         const SizedBox(height: 24),
         const Text(
           'Recently Added',
@@ -1445,8 +1512,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ),
       trailing: const Icon(
-        Icons.chevron_right_rounded,
+        CupertinoIcons.chevron_right,
         color: appleSecondaryText,
+        size: 16,
       ),
       onTap: () {},
     );
@@ -1483,9 +1551,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: Row(
               children: [
                 const Icon(
-                  Icons.search_rounded,
+                  CupertinoIcons.search,
                   color: appleSecondaryText,
-                  size: 22,
+                  size: 20,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1516,8 +1584,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         _hasSearched = false;
                       });
                     },
-                    child: const Icon(
-                      Icons.cancel_rounded,
+                    child: const AnimatedCupertinoIcon(
+                      icon: CupertinoIcons.clear_thick_circled,
                       color: appleSecondaryText,
                       size: 18,
                     ),
@@ -1659,12 +1727,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (isSelected)
-            const Icon(Icons.equalizer_rounded, color: appleRed, size: 20),
+            const Icon(CupertinoIcons.waveform, color: appleRed, size: 20),
           IconButton(
-            icon: const Icon(
-              Icons.more_vert_rounded,
+            icon: const AnimatedCupertinoIcon(
+              icon: CupertinoIcons.ellipsis_vertical,
               color: appleSecondaryText,
-              size: 20,
+              size: 18,
             ),
             onPressed: () => _showTrackOptions(song),
           ),

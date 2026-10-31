@@ -1,18 +1,24 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+
+import 'animated_cupertino_icon.dart';
 
 /// Floating Liquid Glass Bottom Navigation Dock inspired by Apple design
 /// matching the exact layout in the reference images:
 /// - Main Capsule: [Home] (with illuminated glass pill indicator), [Explore], [Library]
 /// - Standalone Circular Button: [Search]
+/// - Animated Cupertino Icons with fluid spring feedback
 class LiquidGlassBottomBar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTabSelected;
+  final bool isCrawled;
 
   const LiquidGlassBottomBar({
     super.key,
     required this.currentIndex,
     required this.onTabSelected,
+    this.isCrawled = false,
   });
 
   @override
@@ -24,38 +30,45 @@ class LiquidGlassBottomBar extends StatelessWidget {
         children: [
           // Main Liquid Glass Navigation Dock (Home, Explore, Library)
           Expanded(
-            child: GlassContainer(
-              useOwnLayer: true,
-              height: 60,
-              shape: const LiquidRoundedSuperellipse(borderRadius: 32),
-              color: const Color(0x331E1E22),
-              settings: const LiquidGlassSettings(
-                thickness: 24,
-                blur: 24,
-                refractiveIndex: 1.15,
-                lightIntensity: 0.45,
-                specularSharpness: GlassSpecularSharpness.sharp,
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildNavItem(
-                    index: 0,
-                    icon: Icons.home_rounded,
-                    label: 'Home',
-                  ),
-                  _buildNavItem(
-                    index: 1,
-                    icon: Icons.grid_view_rounded,
-                    label: 'Explore',
-                  ),
-                  _buildNavItem(
-                    index: 2,
-                    icon: Icons.folder_copy_rounded,
-                    label: 'Library',
-                  ),
-                ],
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              height: isCrawled ? 52 : 60,
+              child: GlassContainer(
+                useOwnLayer: true,
+                shape: const LiquidRoundedSuperellipse(borderRadius: 32),
+                color: const Color(0x331E1E22),
+                settings: const LiquidGlassSettings(
+                  thickness: 24,
+                  blur: 24,
+                  refractiveIndex: 1.15,
+                  lightIntensity: 0.45,
+                  specularSharpness: GlassSpecularSharpness.sharp,
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildNavItem(
+                      index: 0,
+                      selectedIcon: CupertinoIcons.house_fill,
+                      unselectedIcon: CupertinoIcons.house,
+                      label: 'Home',
+                    ),
+                    _buildNavItem(
+                      index: 1,
+                      selectedIcon: CupertinoIcons.compass_fill,
+                      unselectedIcon: CupertinoIcons.compass,
+                      label: 'Explore',
+                    ),
+                    _buildNavItem(
+                      index: 2,
+                      selectedIcon: CupertinoIcons.square_stack_3d_up_fill,
+                      unselectedIcon: CupertinoIcons.square_stack_3d_up,
+                      label: 'Library',
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -66,26 +79,30 @@ class LiquidGlassBottomBar extends StatelessWidget {
           GestureDetector(
             onTap: () => onTabSelected(3),
             behavior: HitTestBehavior.opaque,
-            child: GlassContainer(
-              useOwnLayer: true,
-              width: 60,
-              height: 60,
-              shape: const LiquidOval(),
-              color: currentIndex == 3
-                  ? const Color(0x55FFFFFF)
-                  : const Color(0x331E1E22),
-              settings: const LiquidGlassSettings(
-                thickness: 24,
-                blur: 24,
-                refractiveIndex: 1.15,
-                lightIntensity: 0.5,
-                specularSharpness: GlassSpecularSharpness.sharp,
-              ),
-              child: Center(
-                child: Icon(
-                  Icons.search_rounded,
-                  color: currentIndex == 3 ? Colors.white : const Color(0xFF8E8E93),
-                  size: 26,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              width: isCrawled ? 52 : 60,
+              height: isCrawled ? 52 : 60,
+              child: GlassContainer(
+                useOwnLayer: true,
+                shape: const LiquidOval(),
+                color: currentIndex == 3
+                    ? const Color(0x55FFFFFF)
+                    : const Color(0x331E1E22),
+                settings: const LiquidGlassSettings(
+                  thickness: 24,
+                  blur: 24,
+                  refractiveIndex: 1.15,
+                  lightIntensity: 0.5,
+                  specularSharpness: GlassSpecularSharpness.sharp,
+                ),
+                child: Center(
+                  child: AnimatedCupertinoIcon(
+                    icon: CupertinoIcons.search,
+                    color: currentIndex == 3 ? Colors.white : const Color(0xFF8E8E93),
+                    size: 24,
+                  ),
                 ),
               ),
             ),
@@ -97,7 +114,8 @@ class LiquidGlassBottomBar extends StatelessWidget {
 
   Widget _buildNavItem({
     required int index,
-    required IconData icon,
+    required IconData selectedIcon,
+    required IconData unselectedIcon,
     required String label,
   }) {
     final isSelected = currentIndex == index;
@@ -109,7 +127,7 @@ class LiquidGlassBottomBar extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          padding: EdgeInsets.symmetric(horizontal: 8, vertical: isCrawled ? 2 : 4),
           decoration: BoxDecoration(
             color: isSelected
                 ? Colors.white.withValues(alpha: 0.18)
@@ -135,22 +153,24 @@ class LiquidGlassBottomBar extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                icon,
-                size: 22,
+              AnimatedCupertinoIcon(
+                icon: isSelected ? selectedIcon : unselectedIcon,
+                size: 20,
                 color: isSelected ? Colors.white : const Color(0xFF8E8E93),
               ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                maxLines: 1,
-                style: TextStyle(
-                  color: isSelected ? Colors.white : const Color(0xFF8E8E93),
-                  fontSize: 10,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  letterSpacing: -0.2,
+              if (!isCrawled) ...[
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  maxLines: 1,
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : const Color(0xFF8E8E93),
+                    fontSize: 10,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                    letterSpacing: -0.2,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),

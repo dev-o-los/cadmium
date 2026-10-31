@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wavify/main.dart';
@@ -17,7 +17,7 @@ void main() {
     expect(find.text('Home'), findsOneWidget);
     expect(find.text('Explore'), findsOneWidget);
     expect(find.text('Library'), findsOneWidget);
-    expect(find.byIcon(Icons.search_rounded), findsWidgets);
+    expect(find.byIcon(CupertinoIcons.search), findsWidgets);
     expect(find.text('Radio'), findsNothing);
   });
 }

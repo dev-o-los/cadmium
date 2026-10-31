@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -75,7 +76,7 @@ void main() {
     expect(find.byType(Slider), findsOneWidget);
 
     // Switch to Lyrics View
-    final lyricsButton = find.byIcon(Icons.chat_bubble_outline_rounded);
+    final lyricsButton = find.byIcon(CupertinoIcons.quote_bubble);
     expect(lyricsButton, findsOneWidget);
     await tester.tap(lyricsButton);
     await tester.pump();
@@ -86,7 +87,7 @@ void main() {
     expect(find.text('No lyrics available right now'), findsOneWidget);
 
     // Switch to Queue View
-    final queueButton = find.byIcon(Icons.format_list_bulleted_rounded);
+    final queueButton = find.byIcon(CupertinoIcons.list_bullet);
     expect(queueButton, findsOneWidget);
     await tester.tap(queueButton);
     await tester.pump();
@@ -139,21 +140,23 @@ void main() {
     );
 
     // Initial render: playing state active, pause icon shown
-    expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
+    expect(find.byIcon(CupertinoIcons.pause_fill), findsOneWidget);
 
     // Tap pause button on first render
-    await tester.tap(find.byIcon(Icons.pause_rounded));
+    await tester.tap(find.byIcon(CupertinoIcons.pause_fill));
     await tester.pump();
+    await tester.pumpAndSettle();
 
     // Verify it responds instantly on first render to show play icon
-    expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+    expect(find.byIcon(CupertinoIcons.play_fill), findsOneWidget);
 
     // Tap play button
-    await tester.tap(find.byIcon(Icons.play_arrow_rounded));
+    await tester.tap(find.byIcon(CupertinoIcons.play_fill));
     await tester.pump();
+    await tester.pumpAndSettle();
 
     // Verify it responds instantly to show pause icon
-    expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
+    expect(find.byIcon(CupertinoIcons.pause_fill), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     container.dispose();

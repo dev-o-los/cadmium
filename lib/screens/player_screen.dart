@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,7 @@ import 'package:just_audio/just_audio.dart';
 
 import '../models/song_item.dart';
 import '../providers/player_provider.dart';
+import '../widgets/animated_cupertino_icon.dart';
 
 enum PlayerViewMode {
   nowPlaying,
@@ -112,16 +114,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                     const SizedBox(height: 20),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.headphones_rounded, color: Colors.white, size: 28),
+                      leading: const AnimatedCupertinoIcon(icon: CupertinoIcons.headphones, color: Colors.white, size: 28),
                       title: const Text('iBall Musiwave', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
                       subtitle: const Text('Connected • Spatial Audio Ready', style: TextStyle(color: appleSecondaryText)),
-                      trailing: const Icon(Icons.check_circle_rounded, color: appleRed),
+                      trailing: const Icon(CupertinoIcons.checkmark_circle_fill, color: appleRed),
                     ),
                     const Divider(color: Color(0xFF2C2C2E)),
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Icon(Icons.volume_mute_rounded, color: appleSecondaryText, size: 20),
+                        const Icon(CupertinoIcons.volume_mute, color: appleSecondaryText, size: 20),
                         Expanded(
                           child: SliderTheme(
                             data: SliderTheme.of(context).copyWith(
@@ -141,7 +143,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                             ),
                           ),
                         ),
-                        const Icon(Icons.volume_up_rounded, color: appleSecondaryText, size: 20),
+                        const Icon(CupertinoIcons.volume_up, color: appleSecondaryText, size: 20),
                       ],
                     ),
                   ],
@@ -204,12 +206,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                 ),
                 const Divider(color: Color(0xFF2C2C2E)),
                 ListTile(
-                  leading: const Icon(Icons.playlist_add_rounded, color: Colors.white),
+                  leading: const Icon(CupertinoIcons.text_badge_plus, color: Colors.white),
                   title: const Text('Add to a Playlist...', style: TextStyle(color: Colors.white)),
                   onTap: () => Navigator.pop(context),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.album_rounded, color: Colors.white),
+                  leading: const Icon(CupertinoIcons.music_albums, color: Colors.white),
                   title: Text(
                     (song.album != null && song.album!.isNotEmpty) ? 'View Album (${song.album})' : 'View Album',
                     style: const TextStyle(color: Colors.white),
@@ -217,12 +219,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                   onTap: () => Navigator.pop(context),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.person_rounded, color: Colors.white),
+                  leading: const Icon(CupertinoIcons.person_fill, color: Colors.white),
                   title: Text('Go to Artist (${song.artist})', style: const TextStyle(color: Colors.white)),
                   onTap: () => Navigator.pop(context),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.share_rounded, color: Colors.white),
+                  leading: const Icon(CupertinoIcons.share, color: Colors.white),
                   title: const Text('Share Song...', style: TextStyle(color: Colors.white)),
                   onTap: () => Navigator.pop(context),
                 ),
@@ -575,15 +577,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                         shape: BoxShape.circle,
                         color: Colors.white.withValues(alpha: 0.14),
                       ),
-                      child: AnimatedScale(
-                        scale: _isFavorite ? 1.15 : 1.0,
-                        duration: const Duration(milliseconds: 160),
-                        curve: Curves.easeOutBack,
-                        child: Icon(
-                          _isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
-                          color: _isFavorite ? appleRed : Colors.white,
-                          size: 22,
-                        ),
+                      child: AnimatedCupertinoIcon(
+                        icon: _isFavorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
+                        color: _isFavorite ? appleRed : Colors.white,
+                        size: 22,
                       ),
                     ),
                   ),
@@ -600,10 +597,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                         shape: BoxShape.circle,
                         color: Colors.white.withValues(alpha: 0.14),
                       ),
-                      child: const Icon(
-                        Icons.more_horiz_rounded,
+                      child: const AnimatedCupertinoIcon(
+                        icon: CupertinoIcons.ellipsis,
                         color: Colors.white,
-                        size: 22,
+                        size: 20,
                       ),
                     ),
                   ),
@@ -619,7 +616,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     children: [
-                      const Icon(Icons.music_note_rounded, color: Colors.white70, size: 18),
+                      const AnimatedCupertinoIcon(icon: CupertinoIcons.music_note, color: Colors.white70, size: 18),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -633,7 +630,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                           ),
                         ),
                       ),
-                      const Icon(Icons.chevron_right_rounded, color: appleSecondaryText, size: 20),
+                      const Icon(CupertinoIcons.chevron_right, color: appleSecondaryText, size: 16),
                     ],
                   ),
                 ),
@@ -659,7 +656,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.headphones_rounded, color: appleSecondaryText, size: 14),
+                    const Icon(CupertinoIcons.headphones, color: appleSecondaryText, size: 14),
                     const SizedBox(width: 6),
                     const Text(
                       'iBall Musiwave',
@@ -770,15 +767,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                     ),
                   ),
                   IconButton(
-                    icon: Icon(
-                      _isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
+                    icon: AnimatedCupertinoIcon(
+                      icon: _isFavorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
                       color: _isFavorite ? appleRed : Colors.white70,
                       size: 24,
                     ),
                     onPressed: () => setState(() => _isFavorite = !_isFavorite),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.more_horiz_rounded, color: Colors.white70, size: 24),
+                    icon: const AnimatedCupertinoIcon(icon: CupertinoIcons.ellipsis, color: Colors.white70, size: 22),
                     onPressed: () => _showSongOptionsSheet(song),
                   ),
                 ],
@@ -812,7 +809,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.headphones_rounded, color: appleSecondaryText, size: 14),
+                    const Icon(CupertinoIcons.headphones, color: appleSecondaryText, size: 14),
                     const SizedBox(width: 6),
                     const Text(
                       'iBall Musiwave',
@@ -864,7 +861,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                   color: Colors.white.withValues(alpha: 0.08),
                 ),
                 child: const Icon(
-                  Icons.lyrics_outlined,
+                  CupertinoIcons.quote_bubble,
                   color: appleSecondaryText,
                   size: 36,
                 ),
@@ -924,7 +921,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                       shape: BoxShape.circle,
                       color: Colors.white.withValues(alpha: 0.1),
                     ),
-                    child: const Icon(Icons.language_rounded, color: Colors.white70, size: 16),
+                    child: const Icon(CupertinoIcons.globe, color: Colors.white70, size: 16),
                   ),
                   const SizedBox(width: 8),
                   Container(
@@ -934,7 +931,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                       shape: BoxShape.circle,
                       color: Colors.white.withValues(alpha: 0.1),
                     ),
-                    child: const Icon(Icons.translate_rounded, color: Colors.white70, size: 16),
+                    child: const Icon(CupertinoIcons.textformat, color: Colors.white70, size: 16),
                   ),
                 ],
               ),
@@ -1028,7 +1025,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
               maxLines: 1,
               style: const TextStyle(color: appleSecondaryText, fontSize: 13),
             ),
-            trailing: const Icon(Icons.equalizer_rounded, color: appleRed, size: 24),
+            trailing: const Icon(CupertinoIcons.waveform, color: appleRed, size: 22),
           ),
           const Divider(color: Color(0xFF2C2C2E), height: 24),
 
@@ -1058,14 +1055,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                           alignment: Alignment.centerRight,
                           padding: const EdgeInsets.only(right: 16),
                           color: Colors.redAccent,
-                          child: const Icon(Icons.delete_outline, color: Colors.white),
+                          child: const Icon(CupertinoIcons.trash, color: Colors.white),
                         ),
                         child: ListTile(
                           contentPadding: EdgeInsets.zero,
                           leading: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.drag_handle_rounded, color: appleSecondaryText, size: 20),
+                              const Icon(CupertinoIcons.bars, color: appleSecondaryText, size: 20),
                               const SizedBox(width: 8),
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(6),
@@ -1104,7 +1101,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                             style: const TextStyle(color: appleSecondaryText, fontSize: 12),
                           ),
                           trailing: IconButton(
-                            icon: const Icon(Icons.close_rounded, color: appleSecondaryText, size: 18),
+                            icon: const Icon(CupertinoIcons.xmark, color: appleSecondaryText, size: 16),
                             onPressed: () {
                               ref.read(playerProvider.notifier).removeFromQueue(index);
                             },
@@ -1191,7 +1188,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         children: [
           // Previous Track
           IconButton(
-            icon: const Icon(Icons.fast_rewind_rounded, color: Colors.white, size: 44),
+            icon: const AnimatedCupertinoIcon(icon: CupertinoIcons.backward_fill, color: Colors.white, size: 40),
             onPressed: () => notifier.skipPrevious(),
             splashRadius: 30,
           ),
@@ -1204,10 +1201,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
               width: 72,
               height: 72,
               child: Center(
-                child: Icon(
-                  showPauseIcon ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                child: AnimatedCupertinoIcon(
+                  icon: showPauseIcon ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
                   color: Colors.white,
-                  size: showPauseIcon ? 56 : 60,
+                  size: 52,
                 ),
               ),
             ),
@@ -1215,7 +1212,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
 
           // Next Track
           IconButton(
-            icon: const Icon(Icons.fast_forward_rounded, color: Colors.white, size: 44),
+            icon: const AnimatedCupertinoIcon(icon: CupertinoIcons.forward_fill, color: Colors.white, size: 40),
             onPressed: () => notifier.skipNext(),
             splashRadius: 30,
           ),
@@ -1233,8 +1230,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           IconButton(
-            icon: Icon(
-              Icons.chat_bubble_outline_rounded,
+            icon: AnimatedCupertinoIcon(
+              icon: CupertinoIcons.quote_bubble,
               color: Colors.white.withValues(alpha: 0.6),
               size: 22,
             ),
@@ -1252,28 +1249,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  icon: Icon(
-                    Icons.shuffle_rounded,
+                  icon: AnimatedCupertinoIcon(
+                    icon: CupertinoIcons.shuffle,
                     color: playerState.isShuffle ? Colors.white : Colors.white38,
                     size: 22,
                   ),
                   onPressed: () => notifier.toggleShuffle(),
                 ),
                 IconButton(
-                  icon: Icon(
-                    playerState.loopMode == LoopMode.one
-                        ? Icons.repeat_one_rounded
-                        : playerState.loopMode == LoopMode.all
-                            ? Icons.repeat_rounded
-                            : Icons.repeat_rounded,
+                  icon: AnimatedCupertinoIcon(
+                    icon: playerState.loopMode == LoopMode.one
+                        ? CupertinoIcons.repeat_1
+                        : CupertinoIcons.repeat,
                     color: playerState.loopMode != LoopMode.off ? Colors.white : Colors.white38,
                     size: 22,
                   ),
                   onPressed: () => notifier.cycleLoopMode(),
                 ),
                 IconButton(
-                  icon: const Icon(
-                    Icons.all_inclusive_rounded,
+                  icon: const AnimatedCupertinoIcon(
+                    icon: CupertinoIcons.infinite,
                     color: Colors.white,
                     size: 22,
                   ),
@@ -1290,7 +1285,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
-              icon: const Icon(Icons.format_list_bulleted_rounded, color: Colors.white, size: 22),
+              icon: const AnimatedCupertinoIcon(icon: CupertinoIcons.list_bullet, color: Colors.white, size: 22),
               onPressed: () => setState(() => _currentMode = PlayerViewMode.nowPlaying),
             ),
           ),
@@ -1311,8 +1306,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
             borderRadius: BorderRadius.circular(12),
           ),
           child: IconButton(
-            icon: Icon(
-              Icons.chat_bubble_outline_rounded,
+            icon: AnimatedCupertinoIcon(
+              icon: isLyricsActive ? CupertinoIcons.quote_bubble_fill : CupertinoIcons.quote_bubble,
               color: isLyricsActive ? Colors.white : Colors.white60,
               size: 24,
             ),
@@ -1326,13 +1321,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
 
         // Headphones / Audio Output Route Button
         IconButton(
-          icon: const Icon(Icons.headphones_rounded, color: Colors.white60, size: 24),
+          icon: const AnimatedCupertinoIcon(icon: CupertinoIcons.headphones, color: Colors.white60, size: 24),
           onPressed: _showAudioRouteModal,
         ),
 
         // Queue Toggle Button
         IconButton(
-          icon: const Icon(Icons.format_list_bulleted_rounded, color: Colors.white60, size: 24),
+          icon: const AnimatedCupertinoIcon(icon: CupertinoIcons.list_bullet, color: Colors.white60, size: 24),
           onPressed: () => setState(() => _currentMode = PlayerViewMode.queue),
         ),
       ],
@@ -1362,7 +1357,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
       width: 40,
       height: 40,
       color: const Color(0xFF2C2C2E),
-      child: const Icon(Icons.music_note_rounded, color: Colors.white38, size: 22),
+      child: const Icon(CupertinoIcons.music_note, color: Colors.white38, size: 22),
     );
   }
 }

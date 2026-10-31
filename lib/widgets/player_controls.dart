@@ -1,11 +1,13 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../providers/player_provider.dart';
+import 'animated_cupertino_icon.dart';
 
 /// Floating Liquid Glass Mini Player inspired by Apple Music.
-/// Uses Riverpod for reactive playback state management and zero-lag controls.
+/// Uses Riverpod for reactive playback state management, Cupertino icons, and zero-lag controls.
 class PlayerControls extends ConsumerWidget {
   final VoidCallback? onTap;
 
@@ -120,7 +122,7 @@ class PlayerControls extends ConsumerWidget {
 
                   const SizedBox(width: 6),
 
-                  // Play / Pause Button: Dedicated gesture target with immediate response on first render
+                  // Play / Pause Button: Dedicated gesture target with immediate animated response
                   GestureDetector(
                     onTap: () {
                       ref.read(playerProvider.notifier).togglePlayPause();
@@ -130,12 +132,12 @@ class PlayerControls extends ConsumerWidget {
                       width: 44,
                       height: 44,
                       alignment: Alignment.center,
-                      child: Icon(
-                        isPlaying
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
+                      child: AnimatedCupertinoIcon(
+                        icon: isPlaying
+                            ? CupertinoIcons.pause_fill
+                            : CupertinoIcons.play_fill,
                         color: Colors.white,
-                        size: 32,
+                        size: 28,
                       ),
                     ),
                   ),
@@ -151,10 +153,10 @@ class PlayerControls extends ConsumerWidget {
                       width: 40,
                       height: 44,
                       alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.fast_forward_rounded,
+                      child: const AnimatedCupertinoIcon(
+                        icon: CupertinoIcons.forward_fill,
                         color: Colors.white,
-                        size: 26,
+                        size: 24,
                       ),
                     ),
                   ),
@@ -196,9 +198,9 @@ class PlayerControls extends ConsumerWidget {
       color: const Color(0xFF2C2C2E),
       child: const Center(
         child: Icon(
-          Icons.music_note_rounded,
+          CupertinoIcons.music_note,
           color: Colors.white38,
-          size: 24,
+          size: 22,
         ),
       ),
     );
