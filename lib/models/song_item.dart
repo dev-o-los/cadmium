@@ -53,5 +53,49 @@ class SongItem {
 
   /// Returns high-resolution artwork URL for full-screen and crisp player displays
   String? get highResThumbnailUrl => upgradeThumbnail(thumbnailUrl, size: 1000);
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'artist': artist,
+        'album': album,
+        'thumbnailUrl': thumbnailUrl,
+        'durationSeconds': durationSeconds,
+      };
+
+  factory SongItem.fromJson(Map<String, dynamic> json) => SongItem(
+        id: json['id'] as String,
+        title: json['title'] as String,
+        artist: json['artist'] as String,
+        album: json['album'] as String?,
+        thumbnailUrl: json['thumbnailUrl'] as String?,
+        durationSeconds: json['durationSeconds'] as int?,
+      );
+
+  SongItem copyWith({
+    String? id,
+    String? title,
+    String? artist,
+    String? album,
+    String? thumbnailUrl,
+    int? durationSeconds,
+  }) {
+    return SongItem(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      artist: artist ?? this.artist,
+      album: album ?? this.album,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      durationSeconds: durationSeconds ?? this.durationSeconds,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SongItem && runtimeType == other.runtimeType && id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 }
 

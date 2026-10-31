@@ -14,10 +14,12 @@ import '../models/home_data.dart';
 import '../providers/music_service_provider.dart';
 import '../providers/home_data_provider.dart';
 import '../providers/player_provider.dart';
+import '../providers/favorites_provider.dart';
 import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/player_controls.dart';
 import '../widgets/liquid_glass_bottom_bar.dart';
 import '../widgets/wavify_logo.dart';
+import '../widgets/apple_pressable.dart';
 import 'player_screen.dart';
 
 /// Main Home Screen featuring Apple Music-inspired dark theme UI,
@@ -148,6 +150,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _showTrackOptions(SongItem song) {
+    final isFav = ref.read(favoritesProvider.notifier).isFavorite(song.id);
+
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1C1C1E),
@@ -225,17 +229,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(
-                    CupertinoIcons.heart,
-                    color: Colors.white,
+                  leading: Icon(
+                    isFav ? CupertinoIcons.star_fill : CupertinoIcons.star,
+                    color: isFav ? appleRed : Colors.white,
                   ),
-                  title: const Text(
-                    'Add to Favorites',
-                    style: TextStyle(color: Colors.white),
+                  title: Text(
+                    isFav ? 'Remove from Favorites' : 'Add to Favorites',
+                    style: const TextStyle(color: Colors.white),
                   ),
                   onTap: () {
                     Navigator.pop(context);
-                    _showSnackBar('Saved "${song.title}" to your favorites');
+                    ref.read(favoritesProvider.notifier).toggleFavorite(song);
+                    _showSnackBar(isFav
+                        ? 'Removed "${song.title}" from favorites'
+                        : 'Saved "${song.title}" to favorites');
                   },
                 ),
                 ListTile(
@@ -793,11 +800,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return SizedBox(
       height: 64,
-      child: InkWell(
+      child: ApplePressable(
         onTap: () => _onSongSelected(song, contextQueue: contextQueue),
         borderRadius: BorderRadius.circular(10),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
           child: Row(
             children: [
               // Artwork
@@ -1435,6 +1442,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final recentlyPlayed = ref.watch(
       playerProvider.select((s) => s.recentlyPlayed),
     );
+    final favorites = ref.watch(favoritesProvider);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 160),
@@ -1449,18 +1457,81 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
         const SizedBox(height: 16),
+        _buildLibraryActionTile(
+          CupertinoIcons.star_fill,
+          'Favorite Songs',
+          iconColor: appleRed,
+          trailingText: '${favorites.length}',
+        ),
         _buildLibraryActionTile(CupertinoIcons.music_note_list, 'Playlists'),
         _buildLibraryActionTile(CupertinoIcons.music_note, 'Songs'),
         _buildLibraryActionTile(CupertinoIcons.music_albums, 'Albums'),
         _buildLibraryActionTile(CupertinoIcons.person_2_fill, 'Artists'),
         _buildLibraryActionTile(CupertinoIcons.arrow_down_circle_fill, 'Downloaded'),
-        const SizedBox(height: 24),
+        const SizedBox(height: 28),
+
+        // Section: Favorite Songs (Saved locally on device)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Favorite Songs',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                letterSpacing: -0.6,
+              ),
+            ),
+            if (favorites.isNotEmpty)
+              Text(
+                '${favorites.length} songs',
+                style: const TextStyle(color: appleSecondaryText, fontSize: 13),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (favorites.isEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF141416),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Row(
+              children: [
+                Icon(CupertinoIcons.star, color: appleSecondaryText, size: 26),
+                SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'No Favorite Songs Yet',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Tap the star icon on any song to save it locally on your device.',
+                        style: TextStyle(color: appleSecondaryText, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ...favorites.map((song) => _buildSongRow(song, contextQueue: favorites)),
+
+        const SizedBox(height: 28),
         const Text(
           'Recently Added',
           style: TextStyle(
             color: Colors.white,
-            fontSize: 20,
+            fontSize: 22,
             fontWeight: FontWeight.bold,
+            letterSpacing: -0.6,
           ),
         ),
         const SizedBox(height: 12),
@@ -1478,24 +1549,47 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildLibraryActionTile(IconData icon, String title) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, color: Colors.white, size: 26),
-      title: Text(
-        title,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 17,
-          fontWeight: FontWeight.w500,
+  Widget _buildLibraryActionTile(
+    IconData icon,
+    String title, {
+    Color iconColor = Colors.white,
+    String? trailingText,
+    VoidCallback? onTap,
+  }) {
+    return ApplePressable(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        child: Row(
+          children: [
+            Icon(icon, color: iconColor, size: 24),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            if (trailingText != null) ...[
+              Text(
+                trailingText,
+                style: const TextStyle(color: appleSecondaryText, fontSize: 14),
+              ),
+              const SizedBox(width: 6),
+            ],
+            const Icon(
+              CupertinoIcons.chevron_right,
+              color: appleSecondaryText,
+              size: 16,
+            ),
+          ],
         ),
       ),
-      trailing: const Icon(
-        CupertinoIcons.chevron_right,
-        color: appleSecondaryText,
-        size: 16,
-      ),
-      onTap: () {},
     );
   }
 
@@ -1667,57 +1761,71 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildSongRow(SongItem song) {
+  Widget _buildSongRow(SongItem song, {List<SongItem>? contextQueue}) {
     final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
     final isSelected = currentSong?.id == song.id;
 
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: song.thumbnailUrl != null
-            ? Image.network(
-                song.thumbnailUrl!,
-                width: 48,
-                height: 48,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    _fallbackSquareArt(),
-              )
-            : _fallbackSquareArt(),
-      ),
-      title: Text(
-        song.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: isSelected ? appleRed : Colors.white,
-          fontSize: 16,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+    return ApplePressable(
+      onTap: () => _onSongSelected(song, contextQueue: contextQueue),
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: song.thumbnailUrl != null
+                  ? Image.network(
+                      song.thumbnailUrl!,
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          _fallbackSquareArt(),
+                    )
+                  : _fallbackSquareArt(),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isSelected ? appleRed : Colors.white,
+                      fontSize: 16,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    song.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: appleSecondaryText, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected) ...[
+              const Icon(CupertinoIcons.waveform, color: appleRed, size: 20),
+              const SizedBox(width: 6),
+            ],
+            IconButton(
+              icon: const AnimatedCupertinoIcon(
+                icon: CupertinoIcons.ellipsis_vertical,
+                color: appleSecondaryText,
+                size: 18,
+              ),
+              onPressed: () => _showTrackOptions(song),
+            ),
+          ],
         ),
       ),
-      subtitle: Text(
-        song.artist,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(color: appleSecondaryText, fontSize: 13),
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (isSelected)
-            const Icon(CupertinoIcons.waveform, color: appleRed, size: 20),
-          IconButton(
-            icon: const AnimatedCupertinoIcon(
-              icon: CupertinoIcons.ellipsis_vertical,
-              color: appleSecondaryText,
-              size: 18,
-            ),
-            onPressed: () => _showTrackOptions(song),
-          ),
-        ],
-      ),
-      onTap: () => _onSongSelected(song),
     );
   }
 }

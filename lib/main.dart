@@ -40,6 +40,13 @@ class WavifyApp extends StatelessWidget {
         brightness: Brightness.dark,
         scaffoldBackgroundColor: appleDarkBackground,
         primaryColor: appleMusicRed,
+        splashFactory: NoSplash.splashFactory,
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        hoverColor: Colors.transparent,
+        listTileTheme: const ListTileThemeData(
+          enableFeedback: false,
+        ),
         colorScheme: const ColorScheme.dark(
           primary: appleMusicRed,
           onPrimary: Colors.white,

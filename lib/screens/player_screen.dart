@@ -7,9 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../models/song_item.dart';
+import '../providers/favorites_provider.dart';
 import '../providers/player_provider.dart';
 import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/apple_music_slider.dart';
+import '../widgets/apple_pressable.dart';
 
 enum PlayerViewMode {
   nowPlaying,
@@ -45,9 +47,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
   // Scrubber drag state (local UI interaction only)
   bool _isDraggingSlider = false;
   double _dragSliderValue = 0.0;
-
-  // Favorite toggle (local UI state)
-  bool _isFavorite = false;
 
   final ScrollController _lyricsScrollController = ScrollController();
 
@@ -180,6 +179,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
   }
 
   void _showSongOptionsSheet(SongItem song) {
+    final isFav = ref.read(favoritesProvider.notifier).isFavorite(song.id);
+
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1C1C1E),
@@ -228,6 +229,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                   subtitle: Text(song.artist, maxLines: 1, style: const TextStyle(color: appleSecondaryText)),
                 ),
                 const Divider(color: Color(0xFF2C2C2E)),
+                ListTile(
+                  leading: Icon(
+                    isFav ? CupertinoIcons.star_fill : CupertinoIcons.star,
+                    color: isFav ? appleRed : Colors.white,
+                  ),
+                  title: Text(
+                    isFav ? 'Remove from Favorites' : 'Add to Favorites',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    ref.read(favoritesProvider.notifier).toggleFavorite(song);
+                  },
+                ),
                 ListTile(
                   leading: const Icon(CupertinoIcons.text_badge_plus, color: Colors.white),
                   title: const Text('Add to a Playlist...', style: TextStyle(color: Colors.white)),
@@ -280,6 +295,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
       );
     }
 
+    final isFavorite = ref.watch(favoritesProvider.select((list) => list.any((s) => s.id == song.id)));
+
     // Scroll lyrics smoothly when active line updates
     ref.listen<int>(playerProvider.select((s) => s.activeLyricIndex), (previous, activeIndex) {
       _scrollToActiveLyric(activeIndex);
@@ -315,8 +332,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                 switchInCurve: Curves.easeOutCubic,
                 switchOutCurve: Curves.easeInCubic,
                 child: _currentMode == PlayerViewMode.nowPlaying
-                    ? _buildNowPlayingOverlay(song, playerState, topPadding, bottomPadding)
-                    : _buildAlternateModeView(song, playerState, topPadding, bottomPadding),
+                    ? _buildNowPlayingOverlay(song, playerState, topPadding, bottomPadding, isFavorite)
+                    : _buildAlternateModeView(song, playerState, topPadding, bottomPadding, isFavorite),
               ),
             ],
           ),
@@ -533,6 +550,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     PlayerStateModel playerState,
     double topPadding,
     double bottomPadding,
+    bool isFavorite,
   ) {
     final activeLyric = playerState.activeLyricIndex >= 0 &&
             playerState.activeLyricIndex < playerState.lyrics.length
@@ -632,9 +650,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                   ),
 
                   // Circular Star Button
-                  GestureDetector(
-                    onTap: () => setState(() => _isFavorite = !_isFavorite),
-                    behavior: HitTestBehavior.opaque,
+                  ApplePressable(
+                    onTap: () => ref.read(favoritesProvider.notifier).toggleFavorite(song),
+                    borderRadius: BorderRadius.circular(21),
                     child: Container(
                       width: 42,
                       height: 42,
@@ -643,8 +661,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                         color: Colors.white.withValues(alpha: 0.14),
                       ),
                       child: AnimatedCupertinoIcon(
-                        icon: _isFavorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
-                        color: _isFavorite ? appleRed : Colors.white,
+                        icon: isFavorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
+                        color: isFavorite ? appleRed : Colors.white,
                         size: 22,
                       ),
                     ),
@@ -652,9 +670,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                   const SizedBox(width: 10),
 
                   // Circular 3-dots Button
-                  GestureDetector(
+                  ApplePressable(
                     onTap: () => _showSongOptionsSheet(song),
-                    behavior: HitTestBehavior.opaque,
+                    borderRadius: BorderRadius.circular(21),
                     child: Container(
                       width: 42,
                       height: 42,
@@ -753,6 +771,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     PlayerStateModel playerState,
     double topPadding,
     double bottomPadding,
+    bool isFavorite,
   ) {
     return Column(
       key: ValueKey('mode_${_currentMode.name}'),
@@ -837,11 +856,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                   ),
                   IconButton(
                     icon: AnimatedCupertinoIcon(
-                      icon: _isFavorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
-                      color: _isFavorite ? appleRed : Colors.white70,
+                      icon: isFavorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
+                      color: isFavorite ? appleRed : Colors.white70,
                       size: 24,
                     ),
-                    onPressed: () => setState(() => _isFavorite = !_isFavorite),
+                    onPressed: () => ref.read(favoritesProvider.notifier).toggleFavorite(song),
                   ),
                   IconButton(
                     icon: const AnimatedCupertinoIcon(icon: CupertinoIcons.ellipsis, color: Colors.white70, size: 22),
