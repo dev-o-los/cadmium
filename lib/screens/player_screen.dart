@@ -9,6 +9,7 @@ import 'package:just_audio/just_audio.dart';
 import '../models/song_item.dart';
 import '../providers/player_provider.dart';
 import '../widgets/animated_cupertino_icon.dart';
+import '../widgets/apple_music_slider.dart';
 
 enum PlayerViewMode {
   nowPlaying,
@@ -124,25 +125,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                     Row(
                       children: [
                         const Icon(CupertinoIcons.volume_mute, color: appleSecondaryText, size: 20),
+                        const SizedBox(width: 10),
                         Expanded(
-                          child: SliderTheme(
-                            data: SliderTheme.of(context).copyWith(
-                              activeTrackColor: Colors.white,
-                              inactiveTrackColor: Colors.white24,
-                              thumbColor: Colors.white,
-                              trackHeight: 4,
-                            ),
-                            child: Slider(
-                              value: localVolume,
-                              min: 0.0,
-                              max: 1.0,
-                              onChanged: (v) {
-                                setModalState(() => localVolume = v);
-                                notifier.setVolume(v);
-                              },
-                            ),
+                          child: AppleMusicSlider(
+                            value: localVolume,
+                            min: 0.0,
+                            max: 1.0,
+                            showTimestamps: false,
+                            onChanged: (v) {
+                              setModalState(() => localVolume = v);
+                              notifier.setVolume(v);
+                            },
                           ),
                         ),
+                        const SizedBox(width: 10),
                         const Icon(CupertinoIcons.volume_up, color: appleSecondaryText, size: 20),
                       ],
                     ),
@@ -323,12 +319,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
               Container(color: Colors.black),
 
               if (_currentMode == PlayerViewMode.nowPlaying) ...[
-                // Soft Ambient Bloom behind artwork for realistic lighting
+                // Layer 1: Ambient Bloom extending across upper & mid canvas for warm realistic lighting
                 Positioned(
-                  top: -40,
-                  left: -40,
-                  right: -40,
-                  height: screenHeight * 0.72,
+                  top: -30,
+                  left: -30,
+                  right: -30,
+                  height: screenHeight * 0.78,
                   child: ShaderMask(
                     shaderCallback: (bounds) => const LinearGradient(
                       begin: Alignment.topCenter,
@@ -336,13 +332,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                       colors: [
                         Colors.black,
                         Colors.black,
+                        Colors.black,
                         Colors.transparent,
                       ],
-                      stops: [0.0, 0.50, 1.0],
+                      stops: [0.0, 0.40, 0.72, 1.0],
                     ).createShader(bounds),
                     blendMode: BlendMode.dstIn,
                     child: ImageFiltered(
-                      imageFilter: ui.ImageFilter.blur(sigmaX: 45, sigmaY: 45),
+                      imageFilter: ui.ImageFilter.blur(sigmaX: 48, sigmaY: 48),
                       child: Image.network(
                         song.highResThumbnailUrl ?? song.thumbnailUrl!,
                         fit: BoxFit.cover,
@@ -354,13 +351,51 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                   ),
                 ),
 
-                // Sharp edge-to-edge Album Artwork extending from y=0
-                // Dissolves downward into pure OLED black matching reference screenshot
+                // Layer 2: Blurred Artwork Transition Layer ("artwork at the end blurred with darkness")
+                // Creates the signature Apple Music diffused bokeh blur as artwork approaches the player controls
+                Positioned(
+                  top: 0,
+                  left: -10,
+                  right: -10,
+                  height: screenHeight * 0.74,
+                  child: ShaderMask(
+                    shaderCallback: (bounds) => const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0x00FFFFFF),
+                        Color(0x99FFFFFF),
+                        Color(0xFFFFFFFF),
+                        Color(0xEEFFFFFF),
+                        Color(0x66FFFFFF),
+                        Color(0x00FFFFFF),
+                      ],
+                      stops: [0.0, 0.26, 0.44, 0.64, 0.84, 1.0],
+                    ).createShader(bounds),
+                    blendMode: BlendMode.dstIn,
+                    child: Transform.scale(
+                      scale: scale,
+                      alignment: Alignment.center,
+                      child: ImageFiltered(
+                        imageFilter: ui.ImageFilter.blur(sigmaX: 36, sigmaY: 36),
+                        child: Image.network(
+                          song.highResThumbnailUrl ?? song.thumbnailUrl!,
+                          fit: BoxFit.cover,
+                          alignment: Alignment.topCenter,
+                          filterQuality: FilterQuality.medium,
+                          errorBuilder: (context, error, stackTrace) => const SizedBox(),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Layer 3: Crisp Edge-to-Edge Artwork (starts sharp at top, dissolves into the blurred layer)
                 Positioned(
                   top: 0,
                   left: 0,
                   right: 0,
-                  height: screenHeight * 0.68,
+                  height: screenHeight * 0.62,
                   child: ShaderMask(
                     shaderCallback: (bounds) {
                       return const LinearGradient(
@@ -369,11 +404,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                         colors: [
                           Color(0xFFFFFFFF),
                           Color(0xFFFFFFFF),
-                          Color(0xD9FFFFFF),
-                          Color(0x66FFFFFF),
+                          Color(0xDDFFFFFF),
+                          Color(0x77FFFFFF),
                           Color(0x00FFFFFF),
                         ],
-                        stops: [0.0, 0.40, 0.65, 0.85, 1.0],
+                        stops: [0.0, 0.35, 0.50, 0.72, 1.0],
                       ).createShader(bounds);
                     },
                     blendMode: BlendMode.dstIn,
@@ -391,7 +426,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                   ),
                 ),
 
-                // Status Bar Shadow Gradient (ensures status icons & header text are 100% crisp)
+                // Layer 4: Multi-stop Darkness Overlay - mixes rich darkness into the blurred artwork
+                // and transitions smoothly into pure OLED black behind the metadata, scrubber & controls
+                Positioned(
+                  top: screenHeight * 0.30,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.18),
+                          Colors.black.withValues(alpha: 0.52),
+                          Colors.black.withValues(alpha: 0.85),
+                          Colors.black.withValues(alpha: 0.96),
+                          Colors.black,
+                        ],
+                        stops: const [0.0, 0.22, 0.44, 0.66, 0.86, 1.0],
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Layer 5: Status Bar Top Shadow Gradient (ensures status icons & header text are 100% crisp)
                 Positioned(
                   top: 0,
                   left: 0,
@@ -408,29 +469,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                           Colors.transparent,
                         ],
                         stops: const [0.0, 0.5, 1.0],
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Lower Screen Gradient Wash behind metadata and controls
-                Positioned(
-                  top: screenHeight * 0.45,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.35),
-                          Colors.black.withValues(alpha: 0.85),
-                          Colors.black,
-                        ],
-                        stops: const [0.0, 0.25, 0.60, 1.0],
                       ),
                     ),
                   ),
@@ -1131,48 +1169,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         ? _dragSliderValue
         : playerState.position.inMilliseconds.toDouble().clamp(0.0, totalMs);
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            trackHeight: 3.5,
-            activeTrackColor: Colors.white,
-            inactiveTrackColor: Colors.white.withValues(alpha: 0.18),
-            thumbColor: Colors.white,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 4.5),
-            overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
-            trackShape: const RoundedRectSliderTrackShape(),
-          ),
-          child: Slider(
-            min: 0.0,
-            max: totalMs,
-            value: currentMs.clamp(0.0, totalMs),
-            onChangeStart: (_) => setState(() => _isDraggingSlider = true),
-            onChanged: (val) => setState(() => _dragSliderValue = val),
-            onChangeEnd: (val) {
-              setState(() => _isDraggingSlider = false);
-              ref.read(playerProvider.notifier).seek(Duration(milliseconds: val.toInt()));
-            },
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                _formatDuration(Duration(milliseconds: currentMs.toInt())),
-                style: const TextStyle(color: appleSecondaryText, fontSize: 12, fontWeight: FontWeight.w500),
-              ),
-              Text(
-                '-${_formatDuration(Duration(milliseconds: (totalMs - currentMs).toInt()))}',
-                style: const TextStyle(color: appleSecondaryText, fontSize: 12, fontWeight: FontWeight.w500),
-              ),
-            ],
-          ),
-        ),
-      ],
+    final elapsedStr = _formatDuration(Duration(milliseconds: currentMs.toInt()));
+    final remainingStr = '-${_formatDuration(Duration(milliseconds: (totalMs - currentMs).toInt()))}';
+
+    return AppleMusicSlider(
+      value: currentMs,
+      max: totalMs,
+      elapsedText: elapsedStr,
+      remainingText: remainingStr,
+      onChangeStart: (_) => setState(() => _isDraggingSlider = true),
+      onChanged: (val) => setState(() => _dragSliderValue = val),
+      onChangeEnd: (val) {
+        setState(() => _isDraggingSlider = false);
+        ref.read(playerProvider.notifier).seek(Duration(milliseconds: val.toInt()));
+      },
     );
   }
 

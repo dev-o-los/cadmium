@@ -8,6 +8,8 @@ import 'animated_cupertino_icon.dart';
 
 /// Floating Liquid Glass Mini Player inspired by Apple Music.
 /// Uses Riverpod for reactive playback state management, Cupertino icons, and zero-lag controls.
+/// Adapts seamlessly between expanded floating mini-player and inline capsule inside
+/// [GlassTabBar.minimizable] dock when scrolling.
 class PlayerControls extends ConsumerWidget {
   final VoidCallback? onTap;
 
@@ -34,154 +36,156 @@ class PlayerControls extends ConsumerWidget {
 
     final highResArt = currentSong.highResThumbnailUrl ?? currentSong.thumbnailUrl;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-      child: GlassContainer(
-        useOwnLayer: true,
-        height: 62,
-        shape: const LiquidRoundedSuperellipse(borderRadius: 26),
-        color: const Color(0x3D1A1A1E),
-        settings: const LiquidGlassSettings(
-          thickness: 24,
-          blur: 24,
-          refractiveIndex: 1.15,
-          lightIntensity: 0.45,
-          specularSharpness: GlassSpecularSharpness.sharp,
-        ),
-        child: Stack(
+    // Detect whether we are rendering inline inside minimized GlassTabBar or expanded
+    final placement = GlassTabBarAccessoryPlacementScope.of(context);
+    final isInline = placement == GlassTabBarAccessoryPlacement.inline;
+
+    if (isInline) {
+      return _buildInlinePlayer(
+        context: context,
+        ref: ref,
+        title: currentSong.title,
+        artist: currentSong.artist,
+        highResArt: highResArt,
+        isPlaying: isPlaying,
+        isResolvingStream: playerState.isResolvingStream,
+        appleMusicRed: appleMusicRed,
+      );
+    }
+
+    return _buildExpandedPlayer(
+      context: context,
+      ref: ref,
+      title: currentSong.title,
+      artist: currentSong.artist,
+      highResArt: highResArt,
+      isPlaying: isPlaying,
+      isResolvingStream: playerState.isResolvingStream,
+      progress: progress,
+      appleMusicRed: appleMusicRed,
+    );
+  }
+
+  /// Compact inline music player capsule fitting between collapsed tab circle and search pill
+  /// matching the exact reference layout in the liquid_glass_widgets specifications.
+  Widget _buildInlinePlayer({
+    required BuildContext context,
+    required WidgetRef ref,
+    required String title,
+    required String artist,
+    required String? highResArt,
+    required bool isPlaying,
+    required bool isResolvingStream,
+    required Color appleMusicRed,
+  }) {
+    return GlassContainer(
+      useOwnLayer: true,
+      height: 52,
+      shape: const LiquidRoundedSuperellipse(borderRadius: 26),
+      color: const Color(0x3D1A1A1E),
+      settings: const LiquidGlassSettings(
+        thickness: 24,
+        blur: 24,
+        refractiveIndex: 1.15,
+        lightIntensity: 0.45,
+        specularSharpness: GlassSpecularSharpness.sharp,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
           children: [
-            // Main Content: Artwork, Metadata & Playback Controls
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Row(
-                children: [
-                  // Tappable song info (Artwork + Title + Artist) to open full player screen
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: onTap,
-                      behavior: HitTestBehavior.opaque,
-                      child: Row(
-                        children: [
-                          // Album Artwork with High-Res Upgrade & bicubic filtering
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: highResArt != null
-                                ? Image.network(
-                                    highResArt,
-                                    width: 44,
-                                    height: 44,
-                                    fit: BoxFit.cover,
-                                    filterQuality: FilterQuality.medium,
-                                    cacheWidth: 132,
-                                    cacheHeight: 132,
-                                    errorBuilder: (context, error, stackTrace) => _fallbackArtwork(),
-                                  )
-                                : _fallbackArtwork(),
-                          ),
-                          const SizedBox(width: 12),
+            // Album Artwork (Compact 34x34 with rounded corners)
+            GestureDetector(
+              onTap: onTap,
+              behavior: HitTestBehavior.opaque,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: highResArt != null
+                    ? Image.network(
+                        highResArt,
+                        width: 34,
+                        height: 34,
+                        fit: BoxFit.cover,
+                        filterQuality: FilterQuality.medium,
+                        cacheWidth: 102,
+                        cacheHeight: 102,
+                        errorBuilder: (context, error, stackTrace) => _fallbackArtwork(size: 34),
+                      )
+                    : _fallbackArtwork(size: 34),
+              ),
+            ),
+            const SizedBox(width: 8),
 
-                          // Song Title & Artist
-                          Expanded(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  currentSong.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: -0.3,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  playerState.isResolvingStream
-                                      ? 'Connecting...'
-                                      : currentSong.artist,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: playerState.isResolvingStream
-                                        ? appleMusicRed
-                                        : const Color(0xFF8E8E93),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w400,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(width: 6),
-
-                  // Play / Pause Button: Dedicated gesture target with immediate animated response
-                  GestureDetector(
-                    onTap: () {
-                      ref.read(playerProvider.notifier).togglePlayPause();
-                    },
-                    behavior: HitTestBehavior.opaque,
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      alignment: Alignment.center,
-                      child: AnimatedCupertinoIcon(
-                        icon: isPlaying
-                            ? CupertinoIcons.pause_fill
-                            : CupertinoIcons.play_fill,
+            // Tappable Title & Artist metadata
+            Expanded(
+              child: GestureDetector(
+                onTap: onTap,
+                behavior: HitTestBehavior.opaque,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
                         color: Colors.white,
-                        size: 28,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 4),
-
-                  // Skip Next Button (Fast Forward)
-                  GestureDetector(
-                    onTap: () {
-                      ref.read(playerProvider.notifier).skipNext();
-                    },
-                    behavior: HitTestBehavior.opaque,
-                    child: Container(
-                      width: 40,
-                      height: 44,
-                      alignment: Alignment.center,
-                      child: const AnimatedCupertinoIcon(
-                        icon: CupertinoIcons.forward_fill,
-                        color: Colors.white,
-                        size: 24,
+                    const SizedBox(height: 1),
+                    Text(
+                      isResolvingStream ? 'Connecting...' : artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isResolvingStream ? appleMusicRed : const Color(0xFF8E8E93),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                ],
+                  ],
+                ),
               ),
             ),
 
-            // Subtle hairline progress bar at bottom of the pill
-            Positioned(
-              left: 12,
-              right: 12,
-              bottom: 0,
-              child: ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(26),
-                  bottomRight: Radius.circular(26),
+            const SizedBox(width: 4),
+
+            // Play / Pause Button with instant responsive tap
+            GestureDetector(
+              onTap: () {
+                ref.read(playerProvider.notifier).togglePlayPause();
+              },
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                width: 32,
+                height: 34,
+                alignment: Alignment.center,
+                child: AnimatedCupertinoIcon(
+                  icon: isPlaying ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
+                  color: Colors.white,
+                  size: 20,
                 ),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  minHeight: 2.0,
-                  backgroundColor: Colors.transparent,
-                  valueColor: const AlwaysStoppedAnimation<Color>(
-                    Color(0x99FFFFFF),
-                  ),
+              ),
+            ),
+
+            // Skip Next Button
+            GestureDetector(
+              onTap: () {
+                ref.read(playerProvider.notifier).skipNext();
+              },
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                width: 28,
+                height: 34,
+                alignment: Alignment.center,
+                child: const AnimatedCupertinoIcon(
+                  icon: CupertinoIcons.forward_fill,
+                  color: Colors.white,
+                  size: 18,
                 ),
               ),
             ),
@@ -191,16 +195,181 @@ class PlayerControls extends ConsumerWidget {
     );
   }
 
-  Widget _fallbackArtwork() {
+  /// Full-width floating mini player resting above the bottom tab bar
+  Widget _buildExpandedPlayer({
+    required BuildContext context,
+    required WidgetRef ref,
+    required String title,
+    required String artist,
+    required String? highResArt,
+    required bool isPlaying,
+    required bool isResolvingStream,
+    required double progress,
+    required Color appleMusicRed,
+  }) {
+    return GlassContainer(
+      useOwnLayer: true,
+      height: 52,
+      shape: const LiquidRoundedSuperellipse(borderRadius: 26),
+      color: const Color(0x3D1A1A1E),
+      settings: const LiquidGlassSettings(
+        thickness: 24,
+        blur: 24,
+        refractiveIndex: 1.15,
+        lightIntensity: 0.45,
+        specularSharpness: GlassSpecularSharpness.sharp,
+      ),
+      child: Stack(
+        children: [
+          // Main Content: Artwork, Metadata & Playback Controls
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Row(
+              children: [
+                // Tappable song info (Artwork + Title + Artist) to open full player screen
+                Expanded(
+                  child: GestureDetector(
+                    onTap: onTap,
+                    behavior: HitTestBehavior.opaque,
+                    child: Row(
+                      children: [
+                        // Album Artwork with High-Res Upgrade & bicubic filtering
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: highResArt != null
+                              ? Image.network(
+                                  highResArt,
+                                  width: 40,
+                                  height: 40,
+                                  fit: BoxFit.cover,
+                                  filterQuality: FilterQuality.medium,
+                                  cacheWidth: 120,
+                                  cacheHeight: 120,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      _fallbackArtwork(size: 40),
+                                )
+                              : _fallbackArtwork(size: 40),
+                        ),
+                        const SizedBox(width: 10),
+
+                        // Song Title & Artist
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                isResolvingStream ? 'Connecting...' : artist,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: isResolvingStream
+                                      ? appleMusicRed
+                                      : const Color(0xFF8E8E93),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 6),
+
+                // Play / Pause Button: Dedicated gesture target with immediate animated response
+                GestureDetector(
+                  onTap: () {
+                    ref.read(playerProvider.notifier).togglePlayPause();
+                  },
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    width: 40,
+                    height: 44,
+                    alignment: Alignment.center,
+                    child: AnimatedCupertinoIcon(
+                      icon: isPlaying
+                          ? CupertinoIcons.pause_fill
+                          : CupertinoIcons.play_fill,
+                      color: Colors.white,
+                      size: 26,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+
+                // Skip Next Button (Fast Forward)
+                GestureDetector(
+                  onTap: () {
+                    ref.read(playerProvider.notifier).skipNext();
+                  },
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    width: 36,
+                    height: 44,
+                    alignment: Alignment.center,
+                    child: const AnimatedCupertinoIcon(
+                      icon: CupertinoIcons.forward_fill,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+              ],
+            ),
+          ),
+
+          // Subtle hairline progress bar at bottom of the pill
+          Positioned(
+            left: 14,
+            right: 14,
+            bottom: 0,
+            child: ClipRRect(
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(26),
+                bottomRight: Radius.circular(26),
+              ),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 2.0,
+                backgroundColor: Colors.transparent,
+                valueColor: const AlwaysStoppedAnimation<Color>(
+                  Color(0x99FFFFFF),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _fallbackArtwork({double size = 40}) {
     return Container(
-      width: 44,
-      height: 44,
+      width: size,
+      height: size,
       color: const Color(0xFF2C2C2E),
-      child: const Center(
+      child: Center(
         child: Icon(
           CupertinoIcons.music_note,
           color: Colors.white38,
-          size: 22,
+          size: size * 0.5,
         ),
       ),
     );

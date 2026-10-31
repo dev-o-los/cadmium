@@ -271,6 +271,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final playerState = ref.watch(playerProvider);
+
     // Listen for audio stream resolution errors
     ref.listen<String?>(playerProvider.select((s) => s.errorMessage), (
       prev,
@@ -310,46 +312,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             bottom: 0,
             child: SafeArea(
               top: false,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Floating Liquid Glass Mini Player with smooth animated downside crawl
-                    AnimatedSlide(
-                      duration: const Duration(milliseconds: 320),
-                      curve: Curves.easeInOutCubic,
-                      offset: _isMiniPlayerCrawled ? const Offset(0, 1.35) : Offset.zero,
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 240),
-                        curve: Curves.easeOut,
-                        opacity: _isMiniPlayerCrawled ? 0.0 : 1.0,
-                        child: IgnorePointer(
-                          ignoring: _isMiniPlayerCrawled,
-                          child: PlayerControls(onTap: _openPlayerScreen),
-                        ),
-                      ),
-                    ),
-
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOutCubic,
-                      height: _isMiniPlayerCrawled ? 0 : 4,
-                    ),
-
-                    // Floating Liquid Glass Navigation Dock matching photos
-                    LiquidGlassBottomBar(
-                      currentIndex: _currentTabIndex,
-                      isCrawled: _isMiniPlayerCrawled,
-                      onTabSelected: (index) {
-                        setState(() {
-                          _currentTabIndex = index;
-                          _isMiniPlayerCrawled = false;
-                        });
-                      },
-                    ),
-                  ],
-                ),
+              child: LiquidGlassBottomBar(
+                currentIndex: _currentTabIndex,
+                isCrawled: _isMiniPlayerCrawled,
+                onTabSelected: (index) {
+                  setState(() {
+                    _currentTabIndex = index;
+                    _isMiniPlayerCrawled = false;
+                  });
+                },
+                onExpand: () {
+                  setState(() {
+                    _isMiniPlayerCrawled = false;
+                  });
+                },
+                bottomAccessory: playerState.currentSong != null
+                    ? PlayerControls(onTap: _openPlayerScreen)
+                    : null,
               ),
             ),
           ),
