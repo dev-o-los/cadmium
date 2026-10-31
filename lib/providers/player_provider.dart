@@ -104,6 +104,12 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       final isBuffering = processing == ProcessingState.buffering ||
           processing == ProcessingState.loading;
 
+      // Do not overwrite optimistic playing state while audio stream is still resolving
+      if (state.isResolvingStream && state.isPlaying) {
+        state = state.copyWith(isBuffering: isBuffering);
+        return;
+      }
+
       state = state.copyWith(
         isPlaying: isPlaying,
         isBuffering: isBuffering,
@@ -157,8 +163,8 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   }
 
   /// Selects and plays a song, automatically resolving its stream and fetching synced lyrics.
-  Future<void> playSong(SongItem song, {List<SongItem>? contextQueue}) async {
-    if (state.currentSong?.id == song.id) {
+  Future<void> playSong(SongItem song, {List<SongItem>? contextQueue, bool forceReload = false}) async {
+    if (state.currentSong?.id == song.id && !forceReload && _audioPlayer.audioSource != null) {
       togglePlayPause();
       return;
     }
@@ -197,12 +203,25 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       final musicService = _ref.read(musicServiceProvider);
       final streamInfo = await musicService.resolveAudioStream(song.id);
 
+      // Guard: User might have paused or changed track while resolving stream
+      if (state.currentSong?.id != song.id || !state.isPlaying) {
+        state = state.copyWith(isResolvingStream: false);
+        return;
+      }
+
       final audioSource = AudioSource.uri(
         Uri.parse(streamInfo.url),
         headers: streamInfo.headers,
       );
 
       await _audioPlayer.setAudioSource(audioSource, preload: true);
+
+      // Guard: User might have paused while setting audio source
+      if (state.currentSong?.id != song.id || !state.isPlaying) {
+        state = state.copyWith(isResolvingStream: false);
+        return;
+      }
+
       await _audioPlayer.play();
 
       state = state.copyWith(
@@ -210,11 +229,13 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         isPlaying: true,
       );
     } catch (e) {
-      state = state.copyWith(
-        isResolvingStream: false,
-        isPlaying: false,
-        errorMessage: 'Unable to stream "${song.title}": Restricted or unavailable.',
-      );
+      if (state.currentSong?.id == song.id) {
+        state = state.copyWith(
+          isResolvingStream: false,
+          isPlaying: false,
+          errorMessage: 'Unable to stream "${song.title}": Restricted or unavailable.',
+        );
+      }
     }
   }
 
@@ -235,7 +256,34 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   }
 
   void togglePlayPause() {
-    if (_audioPlayer.playing) {
+    // 1. If currently resolving stream, handle instant responsive toggle
+    if (state.isResolvingStream) {
+      if (state.isPlaying) {
+        // User tapped pause while connecting: immediately cancel and update state
+        _audioPlayer.stop();
+        state = state.copyWith(
+          isPlaying: false,
+          isResolvingStream: false,
+        );
+      } else {
+        // User tapped play while paused: resume resolving or play
+        state = state.copyWith(isPlaying: true);
+        if (state.currentSong != null) {
+          playSong(state.currentSong!, forceReload: true);
+        }
+      }
+      return;
+    }
+
+    // 2. If no audio source is currently loaded, but we have a selected song:
+    if (_audioPlayer.audioSource == null && state.currentSong != null) {
+      playSong(state.currentSong!, forceReload: true);
+      return;
+    }
+
+    // 3. Normal playback state toggle: check both player.playing and state.isPlaying
+    final isCurrentlyActive = _audioPlayer.playing || state.isPlaying;
+    if (isCurrentlyActive) {
       _audioPlayer.pause();
       state = state.copyWith(isPlaying: false);
     } else {

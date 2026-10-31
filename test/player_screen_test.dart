@@ -1,9 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wavify/models/lyric_line.dart';
 import 'package:wavify/models/song_item.dart';
+import 'package:wavify/providers/music_service_provider.dart';
 import 'package:wavify/providers/player_provider.dart';
 import 'package:wavify/screens/player_screen.dart';
+import 'package:wavify/services/music_service.dart';
+import 'package:wavify/widgets/player_controls.dart';
+
+class MockMusicService extends MusicService {
+  @override
+  Future<AudioStreamInfo> resolveAudioStream(String videoId) async {
+    return const AudioStreamInfo(
+      url: 'https://example.com/audio.mp3',
+      headers: {},
+      bitrate: 128000,
+      mimeType: 'audio/mp4',
+    );
+  }
+
+  @override
+  Future<List<LyricLine>> getLyrics(String videoId) async => const [];
+}
 
 void main() {
   testWidgets('PlayerScreen mounts and transitions modes with Riverpod without setState errors', (WidgetTester tester) async {
@@ -80,6 +99,62 @@ void main() {
     expect(find.text('Another One'), findsOneWidget);
 
     // Clean unmount
+    await tester.pumpWidget(const SizedBox.shrink());
+    container.dispose();
+  });
+
+  testWidgets('Play/Pause button responds immediately on first render', (tester) async {
+    final container = ProviderContainer(
+      overrides: [
+        musicServiceProvider.overrideWithValue(MockMusicService()),
+      ],
+    );
+    const testSong = SongItem(
+      id: 'test_song_first_render',
+      title: 'Me Too',
+      artist: 'SoFaygo',
+      album: 'Pink Heartz',
+      thumbnailUrl: 'https://yt3.googleusercontent.com/test=w120-h120',
+      durationSeconds: 192,
+    );
+
+    // Seed state directly to simulate active track resolving/playing on first render
+    container.read(playerProvider.notifier).state = const PlayerStateModel(
+      currentSong: testSong,
+      isPlaying: true,
+      isResolvingStream: true,
+      duration: Duration(seconds: 192),
+      position: Duration(seconds: 10),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: Scaffold(
+            body: PlayerControls(),
+          ),
+        ),
+      ),
+    );
+
+    // Initial render: playing state active, pause icon shown
+    expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
+
+    // Tap pause button on first render
+    await tester.tap(find.byIcon(Icons.pause_rounded));
+    await tester.pump();
+
+    // Verify it responds instantly on first render to show play icon
+    expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+
+    // Tap play button
+    await tester.tap(find.byIcon(Icons.play_arrow_rounded));
+    await tester.pump();
+
+    // Verify it responds instantly to show pause icon
+    expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
+
     await tester.pumpWidget(const SizedBox.shrink());
     container.dispose();
   });

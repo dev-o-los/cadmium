@@ -477,7 +477,7 @@ class MusicService {
             title: song.name.isNotEmpty ? song.name : 'Untitled Track',
             artist: artistName,
             album: song.album?.name,
-            thumbnailUrl: thumbUrl,
+            thumbnailUrl: SongItem.upgradeThumbnail(thumbUrl, size: 800),
             durationSeconds: song.duration,
           );
         })

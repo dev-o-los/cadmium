@@ -183,10 +183,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                     borderRadius: BorderRadius.circular(6),
                     child: song.thumbnailUrl != null
                         ? Image.network(
-                            song.thumbnailUrl!,
+                            song.highResThumbnailUrl ?? song.thumbnailUrl!,
                             width: 44,
                             height: 44,
                             fit: BoxFit.cover,
+                            filterQuality: FilterQuality.medium,
+                            cacheWidth: 132,
+                            cacheHeight: 132,
                             errorBuilder: (context, error, stackTrace) => _fallbackMiniArt(),
                           )
                         : _fallbackMiniArt(),
@@ -339,9 +342,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                     child: ImageFiltered(
                       imageFilter: ui.ImageFilter.blur(sigmaX: 45, sigmaY: 45),
                       child: Image.network(
-                        song.thumbnailUrl!,
+                        song.highResThumbnailUrl ?? song.thumbnailUrl!,
                         fit: BoxFit.cover,
                         alignment: Alignment.topCenter,
+                        filterQuality: FilterQuality.low,
                         errorBuilder: (context, error, stackTrace) => const SizedBox(),
                       ),
                     ),
@@ -375,9 +379,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                       scale: scale,
                       alignment: Alignment.center,
                       child: Image.network(
-                        song.thumbnailUrl!,
+                        song.highResThumbnailUrl ?? song.thumbnailUrl!,
                         fit: BoxFit.cover,
                         alignment: Alignment.topCenter,
+                        filterQuality: FilterQuality.high,
                         errorBuilder: (context, error, stackTrace) => Container(color: Colors.black),
                       ),
                     ),
@@ -434,7 +439,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                   child: ImageFiltered(
                     imageFilter: ui.ImageFilter.blur(sigmaX: 55, sigmaY: 55),
                     child: Image.network(
-                      song.thumbnailUrl!,
+                      song.highResThumbnailUrl ?? song.thumbnailUrl!,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) => Container(color: Colors.black),
                     ),
@@ -715,10 +720,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                     borderRadius: BorderRadius.circular(8),
                     child: song.thumbnailUrl != null
                         ? Image.network(
-                            song.thumbnailUrl!,
+                            song.highResThumbnailUrl ?? song.thumbnailUrl!,
                             width: 42,
                             height: 42,
                             fit: BoxFit.cover,
+                            filterQuality: FilterQuality.medium,
+                            cacheWidth: 126,
+                            cacheHeight: 126,
                             errorBuilder: (context, error, stackTrace) => _fallbackMiniArt(),
                           )
                         : _fallbackMiniArt(),
@@ -990,10 +998,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
               borderRadius: BorderRadius.circular(8),
               child: song.thumbnailUrl != null
                   ? Image.network(
-                      song.thumbnailUrl!,
+                      song.highResThumbnailUrl ?? song.thumbnailUrl!,
                       width: 44,
                       height: 44,
                       fit: BoxFit.cover,
+                      filterQuality: FilterQuality.medium,
+                      cacheWidth: 132,
+                      cacheHeight: 132,
                       errorBuilder: (context, error, stackTrace) => _fallbackMiniArt(),
                     )
                   : _fallbackMiniArt(),
@@ -1060,10 +1071,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                                 borderRadius: BorderRadius.circular(6),
                                 child: item.thumbnailUrl != null
                                     ? Image.network(
-                                        item.thumbnailUrl!,
+                                        item.highResThumbnailUrl ?? item.thumbnailUrl!,
                                         width: 40,
                                         height: 40,
                                         fit: BoxFit.cover,
+                                        filterQuality: FilterQuality.medium,
+                                        cacheWidth: 120,
+                                        cacheHeight: 120,
                                         errorBuilder: (context, error, stackTrace) => _fallbackMiniArt(),
                                       )
                                     : _fallbackMiniArt(),
@@ -1167,7 +1181,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
 
   Widget _buildTransportControls(PlayerStateModel playerState) {
     final notifier = ref.read(playerProvider.notifier);
-    final showPauseIcon = playerState.isPlaying || playerState.isResolvingStream;
+    final showPauseIcon = playerState.isPlaying;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
