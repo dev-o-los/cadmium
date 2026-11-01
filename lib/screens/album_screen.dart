@@ -13,6 +13,7 @@ import '../providers/library_provider.dart';
 import '../providers/music_service_provider.dart';
 import '../providers/navigation_provider.dart';
 import '../providers/player_provider.dart';
+import '../services/song_metrics_cache_service.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/apple_pressable.dart';
@@ -153,6 +154,14 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         }
         _isLoading = false;
       });
+
+      // Pre-cache metrics and streams for the first 3 tracks of the album
+      if (details.tracks.isNotEmpty) {
+        SongMetricsCacheService.instance.precacheTracks(
+          details.tracks.take(3).toList(),
+          musicService,
+        );
+      }
 
       // Update persisted album in saved albums if it exists
       if (_resolvedArtwork != null && _resolvedArtwork!.isNotEmpty) {

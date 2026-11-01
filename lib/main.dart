@@ -5,6 +5,7 @@ import 'screens/home_screen.dart';
 import 'services/artwork_cache_service.dart';
 import 'services/audio_cache_service.dart';
 import 'services/home_cache_service.dart';
+import 'services/song_metrics_cache_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +22,7 @@ void main() async {
   // Initialize persistent caches asynchronously so app launch and playback are instant
   ArtworkCacheService.instance.init();
   AudioCacheService.instance.init();
+  SongMetricsCacheService.instance.init();
   HomeCacheService.instance.loadHomeData();
 
   runApp(

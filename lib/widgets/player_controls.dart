@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -27,6 +28,7 @@ class PlayerControls extends ConsumerWidget {
     }
 
     final isPlaying = playerState.isPlaying;
+    final isLoading = (playerState.isResolvingStream || playerState.isBuffering) && isPlaying;
 
     final progress = playerState.duration.inMilliseconds > 0
         ? (playerState.position.inMilliseconds /
@@ -36,6 +38,7 @@ class PlayerControls extends ConsumerWidget {
 
     final highResArt =
         currentSong.highResThumbnailUrl ?? currentSong.thumbnailUrl;
+    final thumbArt = currentSong.thumbnailUrl;
 
     // Detect whether we are rendering inline inside minimized GlassTabBar or expanded
     final placement = GlassTabBarAccessoryPlacementScope.of(context);
@@ -48,8 +51,10 @@ class PlayerControls extends ConsumerWidget {
         title: currentSong.title,
         artist: currentSong.artist,
         highResArt: highResArt,
+        thumbArt: thumbArt,
         songId: currentSong.id,
         isPlaying: isPlaying,
+        isLoading: isLoading,
       );
     }
 
@@ -59,8 +64,10 @@ class PlayerControls extends ConsumerWidget {
       title: currentSong.title,
       artist: currentSong.artist,
       highResArt: highResArt,
+      thumbArt: thumbArt,
       songId: currentSong.id,
       isPlaying: isPlaying,
+      isLoading: isLoading,
       progress: progress,
     );
   }
@@ -73,8 +80,10 @@ class PlayerControls extends ConsumerWidget {
     required String title,
     required String artist,
     required String? highResArt,
+    required String? thumbArt,
     required String? songId,
     required bool isPlaying,
+    required bool isLoading,
   }) {
     return GlassContainer(
       useOwnLayer: true,
@@ -101,6 +110,7 @@ class PlayerControls extends ConsumerWidget {
                 child: highResArt != null
                     ? WavifyCachedImage(
                         imageUrl: highResArt,
+                        placeholderImageUrl: thumbArt,
                         songId: songId,
                         width: 34,
                         height: 34,
@@ -162,13 +172,18 @@ class PlayerControls extends ConsumerWidget {
                 width: 32,
                 height: 34,
                 alignment: Alignment.center,
-                child: AnimatedCupertinoIcon(
-                  icon: isPlaying
-                      ? CupertinoIcons.pause_fill
-                      : CupertinoIcons.play_fill,
-                  color: Colors.white,
-                  size: 20,
-                ),
+                child: (isLoading && !Platform.environment.containsKey('FLUTTER_TEST'))
+                    ? const CupertinoActivityIndicator(
+                        radius: 9,
+                        color: Colors.white,
+                      )
+                    : AnimatedCupertinoIcon(
+                        icon: isPlaying
+                            ? CupertinoIcons.pause_fill
+                            : CupertinoIcons.play_fill,
+                        color: Colors.white,
+                        size: 20,
+                      ),
               ),
             ),
 
@@ -203,8 +218,10 @@ class PlayerControls extends ConsumerWidget {
     required String title,
     required String artist,
     required String? highResArt,
+    required String? thumbArt,
     required String? songId,
     required bool isPlaying,
+    required bool isLoading,
     required double progress,
   }) {
     return GlassContainer(
@@ -239,6 +256,7 @@ class PlayerControls extends ConsumerWidget {
                           child: highResArt != null
                               ? WavifyCachedImage(
                                   imageUrl: highResArt,
+                                  placeholderImageUrl: thumbArt,
                                   songId: songId,
                                   width: 40,
                                   height: 40,
@@ -299,13 +317,18 @@ class PlayerControls extends ConsumerWidget {
                     width: 40,
                     height: 44,
                     alignment: Alignment.center,
-                    child: AnimatedCupertinoIcon(
-                      icon: isPlaying
-                          ? CupertinoIcons.pause_fill
-                          : CupertinoIcons.play_fill,
-                      color: Colors.white,
-                      size: 26,
-                    ),
+                    child: (isLoading && !Platform.environment.containsKey('FLUTTER_TEST'))
+                        ? const CupertinoActivityIndicator(
+                            radius: 12,
+                            color: Colors.white,
+                          )
+                        : AnimatedCupertinoIcon(
+                            icon: isPlaying
+                                ? CupertinoIcons.pause_fill
+                                : CupertinoIcons.play_fill,
+                            color: Colors.white,
+                            size: 26,
+                          ),
                   ),
                 ),
                 const SizedBox(width: 4),

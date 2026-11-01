@@ -13,7 +13,22 @@ import 'package:wavify/models/video_item.dart';
 import 'package:wavify/services/artwork_cache_service.dart';
 import 'package:wavify/services/audio_cache_service.dart';
 import 'package:wavify/services/home_cache_service.dart';
+import 'package:wavify/services/music_service.dart';
+import 'package:wavify/services/song_metrics_cache_service.dart';
 import 'package:wavify/widgets/wavify_cached_image.dart';
+
+class _MockMusicService extends MusicService {
+  @override
+  Future<AudioStreamInfo> resolveAudioStream(String videoId) async {
+    return const AudioStreamInfo(
+      url: 'https://example.com/stream.mp4',
+      headers: {},
+      bitrate: 128000,
+      mimeType: 'audio/mp4',
+      durationMs: 200000,
+    );
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -213,13 +228,14 @@ void main() {
     );
 
     testWidgets(
-      'WavifyCachedImage renders network image when given valid URL',
+      'WavifyCachedImage renders network image when given valid URL and placeholderImageUrl',
       (tester) async {
         await tester.pumpWidget(
           const MaterialApp(
             home: Scaffold(
               body: WavifyCachedImage(
-                imageUrl: 'https://example.com/artwork.jpg',
+                imageUrl: 'https://example.com/artwork_highres.jpg',
+                placeholderImageUrl: 'https://example.com/thumb.jpg',
                 songId: 'song_art_test',
                 width: 60,
                 height: 60,
@@ -233,5 +249,37 @@ void main() {
         expect(find.byType(Image), findsOneWidget);
       },
     );
+  });
+
+  group('SongMetricsCacheService Tests', () {
+    test('Stores and retrieves song duration accurately in memory and persistent cache', () async {
+      final cache = SongMetricsCacheService.instance;
+      await cache.clear();
+
+      expect(cache.getDuration('song_metric_1'), isNull);
+
+      await cache.setDuration('song_metric_1', 215);
+      expect(cache.getDuration('song_metric_1'), const Duration(seconds: 215));
+
+      // Overwriting updates value
+      await cache.setDuration('song_metric_1', 220);
+      expect(cache.getDuration('song_metric_1'), const Duration(seconds: 220));
+
+      await cache.clear();
+      expect(cache.getDuration('song_metric_1'), isNull);
+    });
+
+    test('AudioStreamInfo exposes durationMs and durationSeconds', () {
+      const info = AudioStreamInfo(
+        url: 'https://example.com/stream.mp4',
+        headers: {},
+        bitrate: 128000,
+        mimeType: 'audio/mp4',
+        durationMs: 185000,
+      );
+
+      expect(info.durationMs, 185000);
+      expect(info.durationSeconds, 185);
+    });
   });
 }

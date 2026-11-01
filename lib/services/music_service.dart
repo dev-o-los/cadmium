@@ -20,6 +20,7 @@ import '../models/artist_item.dart';
 import 'artwork_cache_service.dart';
 import 'home_cache_service.dart';
 import 'lyrics_service.dart';
+import 'song_metrics_cache_service.dart';
 
 /// Resolved audio stream data containing direct stream URL, matching User-Agent headers,
 /// bitrate, and media format specifications.
@@ -29,6 +30,7 @@ class AudioStreamInfo {
   final int bitrate;
   final String mimeType;
   final int? contentLength;
+  final int? durationMs;
 
   const AudioStreamInfo({
     required this.url,
@@ -36,7 +38,11 @@ class AudioStreamInfo {
     required this.bitrate,
     required this.mimeType,
     this.contentLength,
+    this.durationMs,
   });
+
+  int? get durationSeconds =>
+      durationMs != null && durationMs! > 0 ? durationMs! ~/ 1000 : null;
 }
 
 /// Client configuration for InnerTube player requests, inspired by BitChord's PlayerClient.
@@ -202,6 +208,10 @@ class MusicService {
       final diskCached = await HomeCacheService.instance.loadHomeData();
       if (diskCached != null && !diskCached.isEmpty) {
         _cachedHomeData = diskCached;
+        SongMetricsCacheService.instance.precacheTracks(
+          [...diskCached.recents.take(3), ...diskCached.quickPicks.take(3)],
+          this,
+        );
         return diskCached;
       }
     }
@@ -218,6 +228,10 @@ class MusicService {
         _cachedHomeData = personalData;
         await HomeCacheService.instance.saveHomeData(personalData);
         ArtworkCacheService.instance.prefetchArtworks(personalData.recents);
+        SongMetricsCacheService.instance.precacheTracks(
+          [...personalData.recents.take(3), ...personalData.quickPicks.take(3)],
+          this,
+        );
         return personalData;
       }
     }
@@ -258,6 +272,10 @@ class MusicService {
     _cachedHomeData = homeData;
     await HomeCacheService.instance.saveHomeData(homeData);
     ArtworkCacheService.instance.prefetchArtworks(homeData.recents);
+    SongMetricsCacheService.instance.precacheTracks(
+      [...homeData.recents.take(3), ...homeData.quickPicks.take(3)],
+      this,
+    );
     return homeData;
   }
 
@@ -2009,6 +2027,9 @@ class MusicService {
       }
 
       if (isCacheValid) {
+        if (cached.info.durationSeconds != null && cached.info.durationSeconds! > 0) {
+          unawaited(SongMetricsCacheService.instance.setDuration(trimmedId, cached.info.durationSeconds!));
+        }
         return cached.info;
       }
       _streamCache.remove(trimmedId);
@@ -2029,6 +2050,9 @@ class MusicService {
           final isViable = await _probeStreamUrl(streamInfo.url, streamInfo.headers);
           if (isViable) {
             _streamCache[trimmedId] = (info: streamInfo, timestamp: DateTime.now());
+            if (streamInfo.durationSeconds != null && streamInfo.durationSeconds! > 0) {
+              unawaited(SongMetricsCacheService.instance.setDuration(trimmedId, streamInfo.durationSeconds!));
+            }
             return streamInfo;
           }
         }
@@ -2104,6 +2128,18 @@ class MusicService {
     final mimeType = selectedFormat['mimeType'] as String? ?? 'audio/mp4';
     final contentLength = int.tryParse(selectedFormat['contentLength'] as String? ?? '');
 
+    int? durationMs;
+    final videoDetails = data['videoDetails'] as Map<String, dynamic>?;
+    if (videoDetails != null && videoDetails['lengthSeconds'] != null) {
+      final lenSec = int.tryParse(videoDetails['lengthSeconds'].toString());
+      if (lenSec != null && lenSec > 0) {
+        durationMs = lenSec * 1000;
+      }
+    }
+    if (durationMs == null && selectedFormat['approxDurationMs'] != null) {
+      durationMs = int.tryParse(selectedFormat['approxDurationMs'].toString());
+    }
+
     return AudioStreamInfo(
       url: streamUrl,
       headers: {
@@ -2112,6 +2148,7 @@ class MusicService {
       bitrate: bitrate,
       mimeType: mimeType,
       contentLength: contentLength,
+      durationMs: durationMs,
     );
   }
 

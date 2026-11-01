@@ -299,4 +299,98 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     container.dispose();
   });
+
+  testWidgets('Duration scrubber smoothly resolves duration from song.durationSeconds when playerState.duration is zero', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.5;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    const testSong = SongItem(
+      id: 'song_dur_test',
+      title: 'Save Your Tears',
+      artist: 'The Weeknd',
+      durationSeconds: 215,
+    );
+
+    final container = ProviderContainer();
+    container.read(playerProvider.notifier).state = const PlayerStateModel(
+      currentSong: testSong,
+      isPlaying: true,
+      duration: Duration.zero, // Initially zero before stream emits duration
+      position: Duration(seconds: 15),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: Scaffold(
+            body: PlayerScreen(),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Scrubber total duration resolves to 215s (3:35), so remaining is -3:35 and elapsed is 0:00
+    expect(find.text('-3:35'), findsOneWidget);
+    expect(find.text('0:00'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    container.dispose();
+  });
+
+  testWidgets('Play/Pause responsive toggle cancels stream resolution immediately', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.5;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    const testSong = SongItem(
+      id: 'song_toggle_test',
+      title: 'Responsive Song',
+      artist: 'Test Artist',
+      durationSeconds: 180,
+    );
+
+    final container = ProviderContainer();
+    final notifier = container.read(playerProvider.notifier);
+
+    notifier.state = const PlayerStateModel(
+      currentSong: testSong,
+      isPlaying: true,
+      isResolvingStream: true,
+      isBuffering: true,
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: Scaffold(
+            body: PlayerScreen(),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // Tap play/pause button while resolving stream
+    notifier.togglePlayPause();
+    await tester.pump();
+
+    // Must immediately cancel resolving and enter paused state
+    expect(container.read(playerProvider).isPlaying, isFalse);
+    expect(container.read(playerProvider).isResolvingStream, isFalse);
+    expect(container.read(playerProvider).isBuffering, isFalse);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    container.dispose();
+  });
 }

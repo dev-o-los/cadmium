@@ -10,6 +10,7 @@ import '../models/song_item.dart';
 import '../models/lyric_line.dart';
 import '../services/artwork_cache_service.dart';
 import '../services/audio_cache_service.dart';
+import '../services/song_metrics_cache_service.dart';
 import 'music_service_provider.dart';
 
 /// Immutable model representing the active player playback state.
@@ -181,7 +182,6 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     });
 
     _positionSub = _audioPlayer.positionStream.listen((pos) {
-      if (state.isResolvingStream) return;
       final newLyricIdx = _computeActiveLyricIndex(pos.inMilliseconds, state.lyrics);
       state = state.copyWith(
         position: pos,
@@ -190,9 +190,12 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     });
 
     _durationSub = _audioPlayer.durationStream.listen((dur) {
-      if (state.isResolvingStream) return;
-      if (dur != null) {
+      if (dur != null && dur > Duration.zero) {
         state = state.copyWith(duration: dur);
+        final songId = state.currentSong?.id;
+        if (songId != null && songId.isNotEmpty) {
+          unawaited(SongMetricsCacheService.instance.setDuration(songId, dur.inSeconds));
+        }
       }
     });
 
@@ -255,6 +258,10 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   /// Optimistically primes the player UI with song metadata (e.g. from an album or single)
   /// so that the full player screen opens immediately while the audio stream resolves.
   void prepareSong(SongItem song) {
+    final initialDuration = (song.durationSeconds != null && song.durationSeconds! > 0)
+        ? Duration(seconds: song.durationSeconds!)
+        : (SongMetricsCacheService.instance.getDuration(song.id) ?? Duration.zero);
+
     state = state.copyWith(
       currentSong: song,
       animatedArtworkUrl: song.animatedArtworkUrl,
@@ -266,7 +273,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       isLoadingLyrics: true,
       activeLyricIndex: -1,
       position: Duration.zero,
-      duration: Duration.zero,
+      duration: initialDuration,
     );
     ArtworkCacheService.instance.recordSongPlay(song);
     _fetchLyrics(song);
@@ -308,6 +315,10 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       updatedQueue = contextQueue.where((s) => s.id != song.id).toList();
     }
 
+    final initialDuration = (song.durationSeconds != null && song.durationSeconds! > 0)
+        ? Duration(seconds: song.durationSeconds!)
+        : (SongMetricsCacheService.instance.getDuration(song.id) ?? Duration.zero);
+
     // Immediately show new song in player bar and enter play mode
     state = state.copyWith(
       currentSong: song,
@@ -323,7 +334,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       isLoadingLyrics: true,
       activeLyricIndex: -1,
       position: Duration.zero,
-      duration: Duration(seconds: song.durationSeconds ?? 0),
+      duration: initialDuration,
     );
 
     // Fetch lyrics asynchronously in background
@@ -360,6 +371,14 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
           return;
         }
 
+        if (streamInfo.durationSeconds != null && streamInfo.durationSeconds! > 0) {
+          if (state.duration == Duration.zero) {
+            state = state.copyWith(
+              duration: Duration(seconds: streamInfo.durationSeconds!),
+            );
+          }
+        }
+
         audioSource = await AudioCacheService.instance.createAudioSource(
           song.id,
           streamInfo.url,
@@ -377,6 +396,12 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       }
 
       await _audioPlayer.setAudioSource(audioSource, preload: true);
+
+      final playerDur = _audioPlayer.duration;
+      if (playerDur != null && playerDur > Duration.zero) {
+        state = state.copyWith(duration: playerDur);
+        unawaited(SongMetricsCacheService.instance.setDuration(song.id, playerDur.inSeconds));
+      }
 
       // Guard: User might have paused while setting audio source
       if (requestId != _currentStreamRequestId || state.currentSong?.id != song.id || !state.isPlaying) {
@@ -410,12 +435,17 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   Future<void> _fetchLyrics(SongItem song) async {
     try {
       final musicService = _ref.read(musicServiceProvider);
+      final cachedDur = SongMetricsCacheService.instance.getDuration(song.id);
+      final durSec = (song.durationSeconds != null && song.durationSeconds! > 0)
+          ? song.durationSeconds
+          : (cachedDur?.inSeconds);
+
       final result = await musicService.getLyricsWithMetadata(
         videoId: song.id,
         title: song.title,
         artist: song.artist,
         album: song.album,
-        durationSeconds: song.durationSeconds,
+        durationSeconds: durSec,
       );
       if (state.currentSong?.id == song.id) {
         state = state.copyWith(

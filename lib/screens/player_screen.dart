@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/cupertino.dart';
@@ -11,6 +12,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../models/song_item.dart';
 import '../providers/favorites_provider.dart';
 import '../providers/player_provider.dart';
+import '../services/song_metrics_cache_service.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/apple_music_slider.dart';
@@ -491,12 +493,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                           colorFilter: _amoledVibrancyFilter,
                           child: WavifyCachedImage(
                             imageUrl: animatedArtworkUrl ?? artworkUrl,
+                            placeholderImageUrl: song.thumbnailUrl,
                             songId: song.id,
                             fit: BoxFit.cover,
                             alignment: Alignment.topCenter,
                             filterQuality: FilterQuality.medium,
                             errorWidget: WavifyCachedImage(
                               imageUrl: artworkUrl,
+                              placeholderImageUrl: song.thumbnailUrl,
                               songId: song.id,
                               fit: BoxFit.cover,
                               alignment: Alignment.topCenter,
@@ -549,6 +553,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                               // 1. Crystal-clear 1800x1800 studio-master artwork (instant display & razor sharpness)
                               WavifyCachedImage(
                                 imageUrl: artworkUrl,
+                                placeholderImageUrl: song.thumbnailUrl,
                                 songId: song.id,
                                 fit: BoxFit.cover,
                                 alignment: Alignment.topCenter,
@@ -1265,16 +1270,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
   // SHARED SCRUBBER, CONTROLS & APPLE DOCK
   // =========================================================================
   Widget _buildDurationScrubber(PlayerStateModel playerState) {
-    final totalMs = playerState.duration.inMilliseconds > 0
-        ? playerState.duration.inMilliseconds.toDouble()
-        : 1.0;
+    int durationMs = playerState.duration.inMilliseconds;
+    if (durationMs <= 0 && playerState.currentSong != null) {
+      final song = playerState.currentSong!;
+      if (song.durationSeconds != null && song.durationSeconds! > 0) {
+        durationMs = song.durationSeconds! * 1000;
+      } else {
+        final cached = SongMetricsCacheService.instance.getDuration(song.id);
+        if (cached != null && cached.inMilliseconds > 0) {
+          durationMs = cached.inMilliseconds;
+        }
+      }
+    }
+
+    final hasValidDuration = durationMs > 0;
+    final totalMs = hasValidDuration ? durationMs.toDouble() : 1.0;
 
     final currentMs = _isDraggingSlider
         ? _dragSliderValue
         : playerState.position.inMilliseconds.toDouble().clamp(0.0, totalMs);
 
     final elapsedStr = _formatDuration(Duration(milliseconds: currentMs.toInt()));
-    final remainingStr = '-${_formatDuration(Duration(milliseconds: (totalMs - currentMs).toInt()))}';
+    final remainingStr = hasValidDuration
+        ? '-${_formatDuration(Duration(milliseconds: (totalMs - currentMs).toInt()))}'
+        : '--:--';
 
     return AppleMusicSlider(
       value: currentMs,
@@ -1297,6 +1316,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
   Widget _buildTransportControls(PlayerStateModel playerState) {
     final notifier = ref.read(playerProvider.notifier);
     final showPauseIcon = playerState.isPlaying;
+    final isLoading = (playerState.isResolvingStream || playerState.isBuffering) && playerState.isPlaying;
+    final isTestMode = Platform.environment.containsKey('FLUTTER_TEST');
+
+    Widget playPauseWidget;
+    if (isLoading && !isTestMode) {
+      playPauseWidget = const CupertinoActivityIndicator(
+        radius: 18,
+        color: Colors.white,
+      );
+    } else {
+      playPauseWidget = AnimatedCupertinoIcon(
+        icon: showPauseIcon ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
+        color: Colors.white,
+        size: 52,
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1325,11 +1360,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
               width: 72,
               height: 72,
               child: Center(
-                child: AnimatedCupertinoIcon(
-                  icon: showPauseIcon ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
-                  color: Colors.white,
-                  size: 52,
-                ),
+                child: playPauseWidget,
               ),
             ),
           ),

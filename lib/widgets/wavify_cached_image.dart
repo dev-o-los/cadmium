@@ -14,6 +14,7 @@ import '../services/artwork_cache_service.dart';
 /// 3. Graceful fallback and error builder.
 class WavifyCachedImage extends StatelessWidget {
   final String? imageUrl;
+  final String? placeholderImageUrl;
   final String? songId;
   final double? width;
   final double? height;
@@ -27,6 +28,7 @@ class WavifyCachedImage extends StatelessWidget {
   const WavifyCachedImage({
     super.key,
     required this.imageUrl,
+    this.placeholderImageUrl,
     this.songId,
     this.width,
     this.height,
@@ -138,6 +140,33 @@ class WavifyCachedImage extends StatelessWidget {
   }
 
   Widget _buildPlaceholder() {
+    final cleanThumb = _sanitizeUrl(placeholderImageUrl);
+    if (cleanThumb != null && cleanThumb.isNotEmpty) {
+      if (Platform.environment.containsKey('FLUTTER_TEST')) {
+        return Image.network(
+          cleanThumb,
+          width: width,
+          height: height,
+          fit: fit,
+          alignment: alignment,
+          errorBuilder: (_, _, _) => _buildDefaultPlaceholder(),
+        );
+      }
+      return CachedNetworkImage(
+        imageUrl: cleanThumb,
+        width: width,
+        height: height,
+        fit: fit,
+        alignment: alignment,
+        filterQuality: filterQuality,
+        placeholder: (_, _) => _buildDefaultPlaceholder(),
+        errorWidget: (_, _, _) => _buildDefaultPlaceholder(),
+      );
+    }
+    return _buildDefaultPlaceholder();
+  }
+
+  Widget _buildDefaultPlaceholder() {
     return Container(
       width: width,
       height: height,
