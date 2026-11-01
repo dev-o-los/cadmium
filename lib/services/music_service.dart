@@ -66,6 +66,9 @@ class MusicService {
   // In-memory cache for dynamically resolved album cover artwork
   final Map<String, String> _albumArtworkCache = {};
 
+  // In-memory cache for dynamically resolved animated artwork / GIF videos
+  final Map<String, String?> _animatedArtworkCache = {};
+
   /// Sets or updates the connected Google account with YouTube Music authorization.
   void setAuthAccount(UserAccount? account) {
     _currentAccount = account;
@@ -345,7 +348,7 @@ class MusicService {
       if (item is SongDetailed && item.videoId.isNotEmpty) {
         String? thumb;
         if (item.thumbnails.isNotEmpty) {
-          thumb = item.thumbnails.last.url;
+          thumb = SongItem.upgradeThumbnail(item.thumbnails.last.url);
         }
         list.add(
           SongItem(
@@ -370,7 +373,7 @@ class MusicService {
       if (item is AlbumDetailed && item.albumId.isNotEmpty) {
         String? thumb;
         if (item.thumbnails.isNotEmpty) {
-          thumb = item.thumbnails.last.url;
+          thumb = SongItem.upgradeThumbnail(item.thumbnails.last.url);
         }
         list.add(
           AlbumItem(
@@ -395,7 +398,7 @@ class MusicService {
       if (item is VideoDetailed && item.videoId.isNotEmpty) {
         String? thumb;
         if (item.thumbnails.isNotEmpty) {
-          thumb = item.thumbnails.last.url;
+          thumb = SongItem.upgradeThumbnail(item.thumbnails.last.url);
         }
         list.add(
           VideoItem(
@@ -633,6 +636,124 @@ class MusicService {
     return null;
   }
 
+  /// Resolves an animated looping artwork ("GIF video") for the song or its album from YouTube.
+  /// Uses YouTube's Innertube WEB client search to extract the official `movingThumbnailRenderer` WebP/GIF loop.
+  /// Returns null if unavailable or upon network failure, allowing graceful fallback to static artwork.
+  Future<String?> getAnimatedArtwork(SongItem song) async {
+    // If song already has an animated artwork URL specified, return it
+    if (song.animatedArtworkUrl != null && song.animatedArtworkUrl!.isNotEmpty) {
+      return song.animatedArtworkUrl;
+    }
+
+    final cacheKey = song.id.isNotEmpty ? song.id : '${song.title}_${song.artist}';
+    if (_animatedArtworkCache.containsKey(cacheKey)) {
+      return _animatedArtworkCache[cacheKey];
+    }
+
+    try {
+      // 1. Try querying with song title + artist
+      String? animatedUrl = await _searchMovingThumbnail('${song.title} ${song.artist}');
+
+      // 2. If not found and song belongs to an album, try querying with album name + artist
+      if (animatedUrl == null &&
+          song.album != null &&
+          song.album!.isNotEmpty &&
+          song.album != song.title) {
+        animatedUrl = await _searchMovingThumbnail('${song.album} ${song.artist}');
+      }
+
+      _animatedArtworkCache[cacheKey] = animatedUrl;
+      return animatedUrl;
+    } catch (e) {
+      debugPrint('getAnimatedArtwork error for ${song.title}: $e');
+      _animatedArtworkCache[cacheKey] = null;
+      return null;
+    }
+  }
+
+  /// Internal helper to perform a lightweight Innertube WEB client search for moving thumbnails.
+  Future<String?> _searchMovingThumbnail(String query) async {
+    final cleanQuery = query.trim();
+    if (cleanQuery.isEmpty) return null;
+
+    HttpClient? client;
+    try {
+      final uri = Uri.parse('https://www.youtube.com/youtubei/v1/search?prettyPrint=false');
+      final body = jsonEncode({
+        'context': {
+          'client': {
+            'clientName': 'WEB',
+            'clientVersion': '2.20231018.01.00',
+            'hl': 'en',
+            'gl': 'US',
+          }
+        },
+        'query': cleanQuery,
+      });
+
+      client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
+      final request = await client.postUrl(uri);
+      request.headers.contentType = ContentType.json;
+      request.headers.set(
+        'User-Agent',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      );
+      request.write(body);
+
+      final response = await request.close().timeout(const Duration(seconds: 4));
+      if (response.statusCode != 200) {
+        await response.drain();
+        return null;
+      }
+
+      final responseBody = await utf8.decoder.bind(response).join();
+      final data = jsonDecode(responseBody);
+
+      return _extractMovingThumbnailUrl(data);
+    } catch (_) {
+      return null;
+    } finally {
+      client?.close(force: true);
+    }
+  }
+
+  /// Recursively walks JSON to find `movingThumbnailRenderer` URL
+  String? _extractMovingThumbnailUrl(dynamic data) {
+    if (data == null) return null;
+    String? result;
+
+    void walk(dynamic node) {
+      if (result != null) return;
+      if (node is Map) {
+        if (node.containsKey('movingThumbnailRenderer')) {
+          final moving = node['movingThumbnailRenderer'];
+          if (moving is Map) {
+            final thumbs = moving['movingThumbnailDetails']?['thumbnails'] as List?;
+            if (thumbs != null && thumbs.isNotEmpty) {
+              final rawUrl = thumbs.first['url'] as String?;
+              if (rawUrl != null && rawUrl.isNotEmpty) {
+                result = rawUrl.startsWith('//') ? 'https:$rawUrl' : rawUrl;
+                return;
+              }
+            }
+          }
+        }
+        for (final value in node.values) {
+          walk(value);
+          if (result != null) return;
+        }
+      } else if (node is List) {
+        for (final item in node) {
+          walk(item);
+          if (result != null) return;
+        }
+      }
+    }
+
+    walk(data);
+    return result;
+  }
+
   /// Fetches track listings for an album or single.
   /// First queries `_ytMusic.getAlbum(albumId)`. If no tracks are parsed or if it fails,
   /// gracefully falls back to searching songs with [queryFallback].
@@ -654,7 +775,8 @@ class MusicService {
               .where((s) => s.videoId.isNotEmpty)
               .map((s) {
                 final artistName = s.artist.name.isNotEmpty ? s.artist.name : albumArtist;
-                final thumb = s.thumbnails.isNotEmpty ? s.thumbnails.last.url : albumThumb;
+                final rawThumb = s.thumbnails.isNotEmpty ? s.thumbnails.last.url : albumThumb;
+                final thumb = SongItem.upgradeThumbnail(rawThumb);
                 return SongItem(
                   id: s.videoId,
                   title: s.name.isNotEmpty ? s.name : 'Untitled',
@@ -1280,7 +1402,7 @@ class MusicService {
             title: song.name.isNotEmpty ? song.name : 'Untitled Track',
             artist: artistName,
             album: song.album?.name,
-            thumbnailUrl: SongItem.upgradeThumbnail(thumbUrl, size: 800),
+            thumbnailUrl: SongItem.upgradeThumbnail(thumbUrl),
             durationSeconds: song.duration,
           );
         })
@@ -1429,6 +1551,7 @@ class MusicService {
 
   void dispose() {
     _streamCache.clear();
+    _animatedArtworkCache.clear();
     _cachedHomeData = null;
   }
 }

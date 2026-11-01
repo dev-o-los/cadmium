@@ -237,4 +237,60 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     container.dispose();
   });
+
+  testWidgets('PlayerScreen mounts cleanly with animated artwork URL ("GIF video")', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.5;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    const testSong = SongItem(
+      id: 'animated_123',
+      title: 'Blinding Lights',
+      artist: 'The Weeknd',
+      thumbnailUrl: 'https://i.ytimg.com/vi/4NRXx6U8ABQ/hqdefault.jpg',
+      animatedArtworkUrl: 'https://i.ytimg.com/an_webp/4NRXx6U8ABQ/mqdefault_6s.webp?du=3000&sqp=abc&rs=xyz',
+      durationSeconds: 200,
+    );
+
+    final container = ProviderContainer();
+    container.read(playerProvider.notifier).state = PlayerStateModel(
+      currentSong: testSong,
+      animatedArtworkUrl: testSong.animatedArtworkUrl,
+      isPlaying: true,
+      duration: const Duration(seconds: 200),
+      position: const Duration(seconds: 10),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: Scaffold(
+            body: PlayerScreen(),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Song info renders correctly
+    expect(find.text('Blinding Lights'), findsOneWidget);
+    expect(find.text('The Weeknd'), findsWidgets);
+
+    // Verify SongItem copyWith and JSON roundtrip with animatedArtworkUrl
+    final json = testSong.toJson();
+    expect(json['animatedArtworkUrl'], equals(testSong.animatedArtworkUrl));
+    final restoredSong = SongItem.fromJson(json);
+    expect(restoredSong.animatedArtworkUrl, equals(testSong.animatedArtworkUrl));
+
+    final modifiedSong = testSong.copyWith(animatedArtworkUrl: 'https://example.com/loop.gif');
+    expect(modifiedSong.animatedArtworkUrl, equals('https://example.com/loop.gif'));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    container.dispose();
+  });
 }

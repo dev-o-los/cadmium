@@ -646,6 +646,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                 ? Image.network(
                                     _resolvedArtwork!,
                                     fit: BoxFit.cover,
+                                    filterQuality: FilterQuality.high,
+                                    isAntiAlias: true,
                                     errorBuilder: (context, error, stackTrace) =>
                                         _fallbackCover(artworkSize),
                                   )

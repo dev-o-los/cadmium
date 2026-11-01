@@ -27,6 +27,7 @@ class PlayerStateModel {
   final List<LyricLine> lyrics;
   final bool isLoadingLyrics;
   final int activeLyricIndex;
+  final String? animatedArtworkUrl;
   final AudioDeviceItem connectedDevice;
   final String? selectedDeviceId;
   final List<AudioDeviceItem> availableAudioDevices;
@@ -47,6 +48,7 @@ class PlayerStateModel {
     this.lyrics = const [],
     this.isLoadingLyrics = false,
     this.activeLyricIndex = -1,
+    this.animatedArtworkUrl,
     this.connectedDevice = const AudioDeviceItem(
       id: 'speaker',
       name: 'Phone Speaker',
@@ -81,6 +83,8 @@ class PlayerStateModel {
     List<LyricLine>? lyrics,
     bool? isLoadingLyrics,
     int? activeLyricIndex,
+    String? animatedArtworkUrl,
+    bool clearAnimatedArtwork = false,
     AudioDeviceItem? connectedDevice,
     String? selectedDeviceId,
     List<AudioDeviceItem>? availableAudioDevices,
@@ -101,6 +105,7 @@ class PlayerStateModel {
       lyrics: lyrics ?? this.lyrics,
       isLoadingLyrics: isLoadingLyrics ?? this.isLoadingLyrics,
       activeLyricIndex: activeLyricIndex ?? this.activeLyricIndex,
+      animatedArtworkUrl: clearAnimatedArtwork ? null : (animatedArtworkUrl ?? this.animatedArtworkUrl),
       connectedDevice: connectedDevice ?? this.connectedDevice,
       selectedDeviceId: selectedDeviceId ?? this.selectedDeviceId,
       availableAudioDevices: availableAudioDevices ?? this.availableAudioDevices,
@@ -199,6 +204,8 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   void prepareSong(SongItem song) {
     state = state.copyWith(
       currentSong: song,
+      animatedArtworkUrl: song.animatedArtworkUrl,
+      clearAnimatedArtwork: song.animatedArtworkUrl == null,
       isResolvingStream: true,
       isPlaying: true,
       clearErrorMessage: true,
@@ -208,6 +215,8 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       position: Duration.zero,
       duration: Duration.zero,
     );
+    _fetchAnimatedArtwork(song);
+    _resolveMasterArtwork(song);
     refreshAudioDevices();
   }
 
@@ -233,6 +242,8 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
 
     state = state.copyWith(
       currentSong: song,
+      animatedArtworkUrl: song.animatedArtworkUrl,
+      clearAnimatedArtwork: song.animatedArtworkUrl == null,
       isResolvingStream: true,
       isPlaying: true, // Optimistically show playing state to eliminate button lag
       clearErrorMessage: true,
@@ -247,6 +258,12 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
 
     // Fetch lyrics asynchronously in background
     _fetchLyrics(song.id);
+
+    // Fetch animated looping artwork ("GIF video") asynchronously in background
+    _fetchAnimatedArtwork(song);
+
+    // Resolve studio-master album artwork asynchronously if needed
+    _resolveMasterArtwork(song);
 
     // Refresh currently connected audio output device (Bluetooth, headphones, speaker)
     refreshAudioDevices();
@@ -305,6 +322,38 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         isLoadingLyrics: false,
       );
     }
+  }
+
+  Future<void> _fetchAnimatedArtwork(SongItem song) async {
+    try {
+      final musicService = _ref.read(musicServiceProvider);
+      final animatedUrl = await musicService.getAnimatedArtwork(song);
+      if (state.currentSong?.id == song.id && animatedUrl != null) {
+        state = state.copyWith(animatedArtworkUrl: animatedUrl);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _resolveMasterArtwork(SongItem song) async {
+    // If the song already has a studio-master Google User Content URL, nothing needed
+    if (song.thumbnailUrl != null &&
+        (song.thumbnailUrl!.contains('googleusercontent.com') ||
+         song.thumbnailUrl!.contains('ggpht.com'))) {
+      return;
+    }
+
+    try {
+      final musicService = _ref.read(musicServiceProvider);
+      final masterArt = await musicService.getAlbumArtwork(
+        song.album ?? '',
+        title: song.title,
+        artist: song.artist,
+      );
+      if (masterArt != null && masterArt.isNotEmpty && state.currentSong?.id == song.id) {
+        final updatedSong = song.copyWith(thumbnailUrl: masterArt);
+        state = state.copyWith(currentSong: updatedSong);
+      }
+    } catch (_) {}
   }
 
   void togglePlayPause() {

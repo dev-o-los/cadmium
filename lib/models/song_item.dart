@@ -7,6 +7,7 @@ class SongItem {
   final String? album;
   final String? thumbnailUrl;
   final int? durationSeconds;
+  final String? animatedArtworkUrl;
 
   const SongItem({
     required this.id,
@@ -15,6 +16,7 @@ class SongItem {
     this.album,
     this.thumbnailUrl,
     this.durationSeconds,
+    this.animatedArtworkUrl,
   });
 
   /// Formats duration seconds into mm:ss format.
@@ -26,33 +28,40 @@ class SongItem {
   }
 
   /// Automatically upgrades YouTube Music thumbnails (which default to 60x60 or 120x120)
-  /// into crystal-clear HD resolution (800x800, 1000x1000, or 1200x1200).
-  static String? upgradeThumbnail(String? url, {int size = 800}) {
+  /// and standard YouTube thumbnails into studio-master quality (up to 1800x1800 uncompressed 100% quality)
+  /// optimized for high-DPI AMOLED mobile screens.
+  static String? upgradeThumbnail(String? url, {int size = 1800, int quality = 100}) {
     if (url == null || url.isEmpty) return url;
 
+    final cleanUrl = url.startsWith('//') ? 'https:$url' : url;
+
     // Google User Content (YouTube Music album art, e.g. yt3.googleusercontent.com, lh3.googleusercontent.com)
-    if (url.contains('googleusercontent.com') || url.contains('ggpht.com')) {
-      if (RegExp(r'=w\d+-h\d+').hasMatch(url)) {
-        return url.replaceAll(RegExp(r'=w\d+-h\d+.*'), '=w$size-h$size-l90-rj');
+    if (cleanUrl.contains('googleusercontent.com') || cleanUrl.contains('ggpht.com')) {
+      if (RegExp(r'=w\d+-h\d+').hasMatch(cleanUrl)) {
+        return cleanUrl.replaceAll(RegExp(r'=w\d+-h\d+.*'), '=w$size-h$size-l$quality-rj');
       }
-      if (RegExp(r'=s\d+').hasMatch(url)) {
-        return url.replaceAll(RegExp(r'=s\d+.*'), '=s$size');
+      if (RegExp(r'=s\d+').hasMatch(cleanUrl)) {
+        return cleanUrl.replaceAll(RegExp(r'=s\d+.*'), '=s$size-c-k');
       }
-      return '$url=w$size-h$size-l90-rj';
+      return '$cleanUrl=w$size-h$size-l$quality-rj';
     }
 
-    // YouTube standard thumbnails
-    if (url.contains('i.ytimg.com') || url.contains('img.youtube.com')) {
-      if (url.contains('hqdefault.jpg') || url.contains('default.jpg') || url.contains('mqdefault.jpg')) {
-        return url.replaceAll(RegExp(r'(mqdefault|default)\.jpg'), 'hqdefault.jpg');
+    // YouTube standard thumbnails: upgrade to 1920x1080 Full HD maxresdefault
+    if (cleanUrl.contains('i.ytimg.com') || cleanUrl.contains('img.youtube.com')) {
+      if (cleanUrl.contains('hqdefault.jpg') ||
+          cleanUrl.contains('default.jpg') ||
+          cleanUrl.contains('mqdefault.jpg') ||
+          cleanUrl.contains('sddefault.jpg') ||
+          cleanUrl.contains('hq720.jpg')) {
+        return cleanUrl.replaceAll(RegExp(r'(mqdefault|default|hqdefault|sddefault|hq720)\.jpg'), 'maxresdefault.jpg');
       }
     }
 
-    return url;
+    return cleanUrl;
   }
 
-  /// Returns high-resolution artwork URL for full-screen and crisp player displays
-  String? get highResThumbnailUrl => upgradeThumbnail(thumbnailUrl, size: 1000);
+  /// Returns studio-master resolution artwork URL (1800x1800, 100% uncompressed quality) for pristine player and AMOLED displays
+  String? get highResThumbnailUrl => upgradeThumbnail(thumbnailUrl, size: 1800, quality: 100);
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -61,6 +70,7 @@ class SongItem {
         'album': album,
         'thumbnailUrl': thumbnailUrl,
         'durationSeconds': durationSeconds,
+        'animatedArtworkUrl': animatedArtworkUrl,
       };
 
   factory SongItem.fromJson(Map<String, dynamic> json) => SongItem(
@@ -70,6 +80,7 @@ class SongItem {
         album: json['album'] as String?,
         thumbnailUrl: json['thumbnailUrl'] as String?,
         durationSeconds: json['durationSeconds'] as int?,
+        animatedArtworkUrl: json['animatedArtworkUrl'] as String?,
       );
 
   SongItem copyWith({
@@ -79,6 +90,7 @@ class SongItem {
     String? album,
     String? thumbnailUrl,
     int? durationSeconds,
+    String? animatedArtworkUrl,
   }) {
     return SongItem(
       id: id ?? this.id,
@@ -87,6 +99,7 @@ class SongItem {
       album: album ?? this.album,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
       durationSeconds: durationSeconds ?? this.durationSeconds,
+      animatedArtworkUrl: animatedArtworkUrl ?? this.animatedArtworkUrl,
     );
   }
 
