@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -62,26 +63,17 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
   // Mini player dock crawl / minimization state
   bool _isMiniPlayerCrawled = false;
   double _accumulatedScrollDelta = 0.0;
-  double _scrollOffset = 0.0;
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
     _loadArtistDetails();
   }
 
   @override
   void dispose() {
-    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
-  }
-
-  void _onScroll() {
-    setState(() {
-      _scrollOffset = _scrollController.hasClients ? _scrollController.offset : 0.0;
-    });
   }
 
   bool _handleScrollNotification(ScrollNotification notification) {
@@ -326,7 +318,36 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
             ),
           ),
 
-          // Floating Top Navigation Bar with Back, Sticky Title, and Right Actions
+          // Top Progressive Blur: softly blurs out scrolling content as it reaches the top
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: MediaQuery.of(context).padding.top + 60,
+            child: IgnorePointer(
+              child: ClipRect(
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: const [0.0, 0.60, 1.0],
+                        colors: [
+                          Colors.black.withValues(alpha: 0.45),
+                          Colors.black.withValues(alpha: 0.15),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Floating Top Action Controls: Circular Back button on left, Frosted Share & Account capsule on right
           _buildFloatingTopNavBar(userAccount),
 
           // Floating Mini Player + Liquid Glass Bottom Dock
@@ -407,10 +428,9 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
     );
   }
 
-  /// Floating Top Navigation Bar: Back button, Sticky title on scroll, and Share/Account actions
+  /// Floating Top Action Controls: Circular Back button on left, Frosted Share & Account capsule on right
   Widget _buildFloatingTopNavBar(UserAccount? account) {
     final topPadding = MediaQuery.of(context).padding.top;
-    final showStickyTitle = _scrollOffset > 240;
 
     return Positioned(
       top: 0,
@@ -419,10 +439,9 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
       child: Container(
         height: topPadding + 54,
         padding: EdgeInsets.fromLTRB(16, topPadding, 16, 6),
-        decoration: BoxDecoration(
-          color: showStickyTitle ? Colors.black.withValues(alpha: 0.88) : Colors.transparent,
-        ),
+        color: Colors.transparent,
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             // Floating circular Liquid Glass Back button
             GlassIconButton(
@@ -445,29 +464,6 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                 specularSharpness: GlassSpecularSharpness.sharp,
               ),
             ),
-
-            const SizedBox(width: 12),
-
-            // Animated Sticky Title dissolving in when scrolling
-            Expanded(
-              child: AnimatedOpacity(
-                opacity: showStickyTitle ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 220),
-                child: Text(
-                  _displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: -0.4,
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(width: 12),
 
             // Right Action Pill in Liquid Glass: Share Button + User Avatar Circle
             GlassContainer(

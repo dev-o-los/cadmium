@@ -53,6 +53,14 @@ void main() {
       SongItem(id: 's2', title: 'Everyday', artist: 'SoFaygo'),
       SongItem(id: 's3', title: 'CONTEST', artist: 'Travis Scott, SoFaygo'),
       SongItem(id: 's4', title: 'MP5', artist: 'Trippie Redd, SoFaygo'),
+      SongItem(id: 's5', title: 'Knock Knock', artist: 'SoFaygo'),
+      SongItem(id: 's6', title: 'Satellite', artist: 'SoFaygo'),
+      SongItem(id: 's7', title: 'Off The Map', artist: 'SoFaygo'),
+      SongItem(id: 's8', title: 'MM3', artist: 'SoFaygo'),
+      SongItem(id: 's9', title: 'Stay Awake', artist: 'SoFaygo, Lil Uzi Vert'),
+      SongItem(id: 's10', title: 'Blitz', artist: 'SoFaygo'),
+      SongItem(id: 's11', title: 'Me Too', artist: 'SoFaygo'),
+      SongItem(id: 's12', title: 'Fasho', artist: 'SoFaygo'),
     ],
     albums: [
       AlbumItem(id: 'a1', title: 'MANIA', artist: 'SoFaygo', year: 2025),
@@ -148,11 +156,11 @@ void main() {
 
     // 7. Verify Singles & EPs Carousel
     expect(find.text('Singles & EPs'), findsOneWidget);
-    expect(find.text('Satellite'), findsOneWidget);
+    expect(find.text('Satellite'), findsWidgets);
 
     // 8. Verify Videos Section
     expect(find.text('Videos'), findsOneWidget);
-    expect(find.text('Knock Knock'), findsOneWidget);
+    expect(find.text('Knock Knock'), findsWidgets);
     expect(find.text('SoFaygo • 101M views'), findsOneWidget);
 
     // 9. Verify Featured on Carousel

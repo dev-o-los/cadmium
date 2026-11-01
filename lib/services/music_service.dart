@@ -1117,6 +1117,7 @@ class MusicService {
     List<PlaylistItem> playlistsByArtist = [];
     List<ArtistItem> similarArtists = [];
     AlbumItem? recentRelease;
+    String? moreTracksBrowseId;
 
     // 1. Direct InnerTube browse request to extract full rich layout matching YouTube Music
     if (targetId.startsWith('UC')) {
@@ -1165,6 +1166,8 @@ class MusicService {
             // Top songs shelf
             final shelf = section['musicShelfRenderer'];
             if (shelf != null) {
+              moreTracksBrowseId ??= traverseString(shelf, ['bottomEndpoint', 'browseEndpoint', 'browseId']) ??
+                  traverseString(shelf, ['title', 'runs', 'navigationEndpoint', 'browseEndpoint', 'browseId']);
               final shelfTitle = (traverseString(shelf, ['title', 'runs', 'text']) ?? '').toLowerCase();
               if (shelfTitle.contains('song') || topSongs.isEmpty) {
                 final items = shelf['contents'] as List? ?? [];
@@ -1452,6 +1455,98 @@ class MusicService {
         }
       } catch (e) {
         debugPrint('getArtistDetails fallback error: $e');
+      }
+    }
+
+    // Ensure at least 12 tracks in advance for top songs
+    if (topSongs.length < 12) {
+      // 1. Try moreTracksBrowseId if available
+      if (moreTracksBrowseId != null && moreTracksBrowseId.isNotEmpty) {
+        try {
+          final moreData = await _ytMusic.constructRequest('browse', body: {'browseId': moreTracksBrowseId});
+          final tabs = moreData['contents']?['singleColumnBrowseResultsRenderer']?['tabs'] as List?;
+          List? sections;
+          if (tabs != null && tabs.isNotEmpty) {
+            final firstTab = tabs.first;
+            if (firstTab is Map) {
+              sections = firstTab['tabRenderer']?['content']?['sectionListRenderer']?['contents'] as List?;
+            }
+          }
+          sections ??= moreData['contents']?['sectionListRenderer']?['contents'] as List?;
+          final firstSection = (sections != null && sections.isNotEmpty && sections.first is Map)
+              ? sections.first as Map
+              : null;
+          final playlistShelf = firstSection?['musicPlaylistShelfRenderer'] ?? firstSection?['musicShelfRenderer'];
+          final moreContents = playlistShelf?['contents'] as List? ?? [];
+
+          for (final it in moreContents) {
+            final item = it['musicResponsiveListItemRenderer'];
+            if (item == null) continue;
+            final vId = item['playlistItemData']?['videoId'] ??
+                traverseString(item, ['navigationEndpoint', 'watchEndpoint', 'videoId']);
+            if (vId == null || (vId as String).isEmpty) continue;
+
+            final flexCols = item['flexColumns'] as List? ?? [];
+            String title = 'Untitled';
+            String artist = resolvedName;
+            String? album;
+
+            if (flexCols.isNotEmpty) {
+              title = traverseString(flexCols[0], ['musicResponsiveListItemFlexColumnRenderer', 'text', 'runs', 'text']) ?? 'Untitled';
+            }
+            if (flexCols.length > 1) {
+              artist = traverseString(flexCols[1], ['musicResponsiveListItemFlexColumnRenderer', 'text', 'runs', 'text']) ?? resolvedName;
+            }
+            if (flexCols.length > 2) {
+              album = traverseString(flexCols[2], ['musicResponsiveListItemFlexColumnRenderer', 'text', 'runs', 'text']);
+            }
+
+            String? thumb;
+            final itemThumbs = traverseList(item, ['thumbnail', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails']);
+            if (itemThumbs.isNotEmpty) {
+              thumb = SongItem.upgradeThumbnail(itemThumbs.last?['url'] as String? ?? '');
+            }
+
+            final isDuplicate = topSongs.any(
+              (s) => s.id == vId || s.title.trim().toLowerCase() == title.trim().toLowerCase(),
+            );
+            if (!isDuplicate) {
+              topSongs.add(
+                SongItem(
+                  id: vId,
+                  title: title,
+                  artist: artist,
+                  thumbnailUrl: thumb,
+                  album: album,
+                ),
+              );
+              if (topSongs.length >= 12) break;
+            }
+          }
+        } catch (e) {
+          debugPrint('Error fetching more browse tracks: $e');
+        }
+      }
+
+      // 2. Query searchSongs as reliable fallback to reach at least 12 tracks
+      if (topSongs.length < 12) {
+        try {
+          final query = resolvedName.isNotEmpty ? resolvedName : (fallbackName ?? '');
+          if (query.isNotEmpty) {
+            final additionalTracks = await searchSongs(query);
+            for (final track in additionalTracks) {
+              final isDuplicate = topSongs.any(
+                (s) => s.id == track.id || s.title.trim().toLowerCase() == track.title.trim().toLowerCase(),
+              );
+              if (!isDuplicate) {
+                topSongs.add(track);
+                if (topSongs.length >= 12) break;
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('Error fetching advance top songs: $e');
+        }
       }
     }
 
