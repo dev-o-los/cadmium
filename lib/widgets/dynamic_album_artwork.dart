@@ -6,6 +6,7 @@ import '../constants/app_colors.dart';
 import '../models/album_item.dart';
 import '../providers/library_provider.dart';
 import '../providers/music_service_provider.dart';
+import 'wavify_cached_image.dart';
 
 /// Dynamically resolves and displays real cover artwork for an album.
 /// If the album already has a valid image, it renders it with Image.network.
@@ -106,28 +107,30 @@ class _DynamicAlbumArtworkState extends ConsumerState<DynamicAlbumArtwork> {
   @override
   Widget build(BuildContext context) {
     if (_resolvedUrl != null && _resolvedUrl!.isNotEmpty) {
-      return Image.network(
-        _resolvedUrl!,
+      return WavifyCachedImage(
+        imageUrl: _resolvedUrl!,
         width: widget.size,
         height: widget.size,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          if (!_hasAttemptedFetch) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _fetchArtwork();
-            });
-          }
-          return Container(
-            width: widget.size,
-            height: widget.size,
-            color: AppColors.appleDarkSurfaceHigh,
-            child: Icon(
-              CupertinoIcons.music_albums,
-              color: Colors.white30,
-              size: (widget.size * 0.5).clamp(20.0, 48.0),
-            ),
-          );
-        },
+        errorWidget: Builder(
+          builder: (context) {
+            if (!_hasAttemptedFetch) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _fetchArtwork();
+              });
+            }
+            return Container(
+              width: widget.size,
+              height: widget.size,
+              color: AppColors.appleDarkSurfaceHigh,
+              child: Icon(
+                CupertinoIcons.music_albums,
+                color: Colors.white30,
+                size: (widget.size * 0.5).clamp(20.0, 48.0),
+              ),
+            );
+          },
+        ),
       );
     }
 

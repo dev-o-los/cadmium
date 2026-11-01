@@ -16,6 +16,7 @@ import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/apple_music_slider.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/apple_lyrics_view.dart';
+import '../widgets/wavify_cached_image.dart';
 
 enum PlayerViewMode {
   nowPlaying,
@@ -271,15 +272,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                   leading: ClipRRect(
                     borderRadius: BorderRadius.circular(6),
                     child: song.thumbnailUrl != null
-                        ? Image.network(
-                            song.highResThumbnailUrl ?? song.thumbnailUrl!,
+                        ? WavifyCachedImage(
+                            imageUrl: song.highResThumbnailUrl ?? song.thumbnailUrl!,
+                            songId: song.id,
                             width: 44,
                             height: 44,
                             fit: BoxFit.cover,
                             filterQuality: FilterQuality.medium,
-                            cacheWidth: 132,
-                            cacheHeight: 132,
-                            errorBuilder: (context, error, stackTrace) => _fallbackMiniArt(),
+                            errorWidget: _fallbackMiniArt(),
                           )
                         : _fallbackMiniArt(),
                   ),
@@ -489,18 +489,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                         imageFilter: ui.ImageFilter.blur(sigmaX: 42, sigmaY: 42),
                         child: ColorFiltered(
                           colorFilter: _amoledVibrancyFilter,
-                          child: Image.network(
-                            animatedArtworkUrl ?? artworkUrl,
+                          child: WavifyCachedImage(
+                            imageUrl: animatedArtworkUrl ?? artworkUrl,
+                            songId: song.id,
                             fit: BoxFit.cover,
                             alignment: Alignment.topCenter,
                             filterQuality: FilterQuality.medium,
-                            isAntiAlias: true,
-                            errorBuilder: (context, error, stackTrace) => Image.network(
-                              artworkUrl,
+                            errorWidget: WavifyCachedImage(
+                              imageUrl: artworkUrl,
+                              songId: song.id,
                               fit: BoxFit.cover,
                               alignment: Alignment.topCenter,
                               filterQuality: FilterQuality.medium,
-                              errorBuilder: (_, _, _) => const SizedBox(),
+                              errorWidget: const SizedBox(),
                             ),
                           ),
                         ),
@@ -546,32 +547,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                             fit: StackFit.expand,
                             children: [
                               // 1. Crystal-clear 1800x1800 studio-master artwork (instant display & razor sharpness)
-                              Image.network(
-                                artworkUrl,
+                              WavifyCachedImage(
+                                imageUrl: artworkUrl,
+                                songId: song.id,
                                 fit: BoxFit.cover,
                                 alignment: Alignment.topCenter,
                                 filterQuality: FilterQuality.high,
-                                isAntiAlias: true,
-                                errorBuilder: (context, error, stackTrace) {
-                                  if (artworkUrl.contains('maxresdefault.jpg')) {
-                                    return Image.network(
-                                      artworkUrl.replaceAll('maxresdefault.jpg', 'hq720.jpg'),
-                                      fit: BoxFit.cover,
-                                      alignment: Alignment.topCenter,
-                                      filterQuality: FilterQuality.high,
-                                      isAntiAlias: true,
-                                      errorBuilder: (_, _, _) => Image.network(
-                                        artworkUrl.replaceAll('maxresdefault.jpg', 'hqdefault.jpg'),
-                                        fit: BoxFit.cover,
-                                        alignment: Alignment.topCenter,
-                                        filterQuality: FilterQuality.high,
-                                        isAntiAlias: true,
-                                        errorBuilder: (_, _, _) => const SizedBox(),
-                                      ),
-                                    );
-                                  }
-                                  return const SizedBox();
-                                },
+                                errorWidget: const SizedBox(),
                               ),
 
                               // 2. Animated Looping Motion ("GIF video") when available from YouTube Music
@@ -994,15 +976,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: song.thumbnailUrl != null
-                      ? Image.network(
-                          song.highResThumbnailUrl ?? song.thumbnailUrl!,
+                      ? WavifyCachedImage(
+                          imageUrl: song.highResThumbnailUrl ?? song.thumbnailUrl!,
+                          songId: song.id,
                           width: 44,
                           height: 44,
                           fit: BoxFit.cover,
                           filterQuality: FilterQuality.medium,
-                          cacheWidth: 132,
-                          cacheHeight: 132,
-                          errorBuilder: (context, error, stackTrace) => _fallbackMiniArt(),
+                          errorWidget: _fallbackMiniArt(),
                         )
                       : _fallbackMiniArt(),
                 ),
@@ -1166,15 +1147,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
             leading: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: song.thumbnailUrl != null
-                  ? Image.network(
-                      song.highResThumbnailUrl ?? song.thumbnailUrl!,
+                  ? WavifyCachedImage(
+                      imageUrl: song.highResThumbnailUrl ?? song.thumbnailUrl!,
+                      songId: song.id,
                       width: 44,
                       height: 44,
                       fit: BoxFit.cover,
                       filterQuality: FilterQuality.medium,
-                      cacheWidth: 132,
-                      cacheHeight: 132,
-                      errorBuilder: (context, error, stackTrace) => _fallbackMiniArt(),
+                      errorWidget: _fallbackMiniArt(),
                     )
                   : _fallbackMiniArt(),
             ),
@@ -1238,15 +1218,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(6),
                                 child: item.thumbnailUrl != null
-                                    ? Image.network(
-                                        item.highResThumbnailUrl ?? item.thumbnailUrl!,
+                                    ? WavifyCachedImage(
+                                        imageUrl: item.highResThumbnailUrl ?? item.thumbnailUrl!,
+                                        songId: item.id,
                                         width: 40,
                                         height: 40,
                                         fit: BoxFit.cover,
                                         filterQuality: FilterQuality.medium,
-                                        cacheWidth: 120,
-                                        cacheHeight: 120,
-                                        errorBuilder: (context, error, stackTrace) => _fallbackMiniArt(),
+                                        errorWidget: _fallbackMiniArt(),
                                       )
                                     : _fallbackMiniArt(),
                               ),

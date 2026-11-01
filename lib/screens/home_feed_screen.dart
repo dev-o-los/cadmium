@@ -18,6 +18,7 @@ import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/dynamic_album_artwork.dart';
 import '../widgets/track_options_sheet.dart';
+import '../widgets/wavify_cached_image.dart';
 import '../widgets/wavify_logo.dart';
 import 'google_signin_screen.dart';
 
@@ -336,10 +337,11 @@ class HomeFeedScreen extends ConsumerWidget {
               // Background Image or Solid/Gradient fill
               if (hero.imageUrl != null && !isShubhCard)
                 Positioned.fill(
-                  child: Image.network(
-                    hero.imageUrl!,
+                  child: WavifyCachedImage(
+                    imageUrl: hero.imageUrl!,
+                    songId: hero.playTrack?.id,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
+                    errorWidget: Container(
                       color: Color(hero.primaryColor ?? 0xFF2A2825),
                     ),
                   ),
@@ -594,13 +596,13 @@ class HomeFeedScreen extends ConsumerWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: song.thumbnailUrl != null
-                    ? Image.network(
-                        song.thumbnailUrl!,
+                    ? WavifyCachedImage(
+                        imageUrl: song.thumbnailUrl!,
+                        songId: song.id,
                         width: 48,
                         height: 48,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            _fallbackSquareArt(),
+                        errorWidget: _fallbackSquareArt(),
                       )
                     : _fallbackSquareArt(),
               ),
@@ -946,23 +948,22 @@ class HomeFeedScreen extends ConsumerWidget {
                         child: Stack(
                           children: [
                             video.thumbnailUrl != null
-                                ? Image.network(
-                                    video.thumbnailUrl!,
+                                ? WavifyCachedImage(
+                                    imageUrl: video.thumbnailUrl!,
+                                    songId: video.id,
                                     width: videoWidth,
                                     height: videoThumbnailHeight,
                                     fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) =>
-                                            Container(
-                                              width: videoWidth,
-                                              height: videoThumbnailHeight,
-                                              color: AppColors.appleDarkSurfaceHigh,
-                                              child: const Icon(
-                                                CupertinoIcons.play_rectangle_fill,
-                                                color: Colors.white24,
-                                                size: 40,
-                                              ),
-                                            ),
+                                    errorWidget: Container(
+                                      width: videoWidth,
+                                      height: videoThumbnailHeight,
+                                      color: AppColors.appleDarkSurfaceHigh,
+                                      child: const Icon(
+                                        CupertinoIcons.play_rectangle_fill,
+                                        color: Colors.white24,
+                                        size: 40,
+                                      ),
+                                    ),
                                   )
                                 : Container(
                                     width: videoWidth,
@@ -1084,16 +1085,13 @@ class HomeFeedScreen extends ConsumerWidget {
                           ClipRRect(
                             borderRadius: BorderRadius.circular(12),
                             child: song.thumbnailUrl != null
-                                ? Image.network(
-                                    song.thumbnailUrl!,
+                                ? WavifyCachedImage(
+                                    imageUrl: song.thumbnailUrl!,
+                                    songId: song.id,
                                     width: cardWidth,
                                     height: cardWidth,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (
-                                      context,
-                                      error,
-                                      stackTrace,
-                                    ) => _fallbackSquareArt(size: cardWidth),
+                                    errorWidget: _fallbackSquareArt(size: cardWidth),
                                   )
                                 : _fallbackSquareArt(size: cardWidth),
                           ),

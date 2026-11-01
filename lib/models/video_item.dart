@@ -27,5 +27,23 @@ class VideoItem {
     }
     return parts.join(' • ');
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'artist': artist,
+        'thumbnailUrl': thumbnailUrl,
+        'durationSeconds': durationSeconds,
+        'views': views,
+      };
+
+  factory VideoItem.fromJson(Map<String, dynamic> json) => VideoItem(
+        id: json['id'] as String,
+        title: json['title'] as String,
+        artist: json['artist'] as String,
+        thumbnailUrl: json['thumbnailUrl'] as String?,
+        durationSeconds: json['durationSeconds'] as int?,
+        views: json['views'] as String?,
+      );
 }
 

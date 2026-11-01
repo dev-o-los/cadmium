@@ -17,6 +17,8 @@ import '../models/user_account.dart';
 import '../models/playlist_item.dart';
 import '../models/artist_details.dart';
 import '../models/artist_item.dart';
+import 'artwork_cache_service.dart';
+import 'home_cache_service.dart';
 import 'lyrics_service.dart';
 
 /// Resolved audio stream data containing direct stream URL, matching User-Agent headers,
@@ -193,8 +195,15 @@ class MusicService {
   /// - Your daily discover
   /// - Trending songs for you
   Future<HomeData> getHomeData({bool refresh = false}) async {
-    if (!refresh && _cachedHomeData != null) {
-      return _cachedHomeData!;
+    if (!refresh) {
+      if (_cachedHomeData != null) {
+        return _cachedHomeData!;
+      }
+      final diskCached = await HomeCacheService.instance.loadHomeData();
+      if (diskCached != null && !diskCached.isEmpty) {
+        _cachedHomeData = diskCached;
+        return diskCached;
+      }
     }
 
     if (!_isInitialized) {
@@ -207,6 +216,8 @@ class MusicService {
       final personalData = await _fetchPersonalizedHomeData();
       if (personalData != null) {
         _cachedHomeData = personalData;
+        await HomeCacheService.instance.saveHomeData(personalData);
+        ArtworkCacheService.instance.prefetchArtworks(personalData.recents);
         return personalData;
       }
     }
@@ -245,6 +256,8 @@ class MusicService {
     );
 
     _cachedHomeData = homeData;
+    await HomeCacheService.instance.saveHomeData(homeData);
+    ArtworkCacheService.instance.prefetchArtworks(homeData.recents);
     return homeData;
   }
 
@@ -1975,11 +1988,27 @@ class MusicService {
       throw ArgumentError('Video ID cannot be empty');
     }
 
-    // Check memory cache
+    // Check memory cache with smart URL expiry check
     final cached = _streamCache[trimmedId];
     if (cached != null) {
-      final age = DateTime.now().difference(cached.timestamp);
-      if (age < const Duration(minutes: 5)) {
+      bool isCacheValid = false;
+      final expireMatch = RegExp(r'[?&]expire=(\d+)').firstMatch(cached.info.url);
+      if (expireMatch != null) {
+        final expireSec = int.tryParse(expireMatch.group(1) ?? '');
+        if (expireSec != null) {
+          final expireDate = DateTime.fromMillisecondsSinceEpoch(expireSec * 1000);
+          if (DateTime.now().isBefore(expireDate.subtract(const Duration(minutes: 15)))) {
+            isCacheValid = true;
+          }
+        }
+      } else {
+        final age = DateTime.now().difference(cached.timestamp);
+        if (age < const Duration(hours: 3)) {
+          isCacheValid = true;
+        }
+      }
+
+      if (isCacheValid) {
         return cached.info;
       }
       _streamCache.remove(trimmedId);

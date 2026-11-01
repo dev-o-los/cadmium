@@ -6,6 +6,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../providers/player_provider.dart';
 import 'animated_cupertino_icon.dart';
+import 'wavify_cached_image.dart';
 
 /// Floating Liquid Glass Mini Player inspired by Apple Music.
 /// Uses Riverpod for reactive playback state management, Cupertino icons, and zero-lag controls.
@@ -47,6 +48,7 @@ class PlayerControls extends ConsumerWidget {
         title: currentSong.title,
         artist: currentSong.artist,
         highResArt: highResArt,
+        songId: currentSong.id,
         isPlaying: isPlaying,
       );
     }
@@ -57,6 +59,7 @@ class PlayerControls extends ConsumerWidget {
       title: currentSong.title,
       artist: currentSong.artist,
       highResArt: highResArt,
+      songId: currentSong.id,
       isPlaying: isPlaying,
       progress: progress,
     );
@@ -70,6 +73,7 @@ class PlayerControls extends ConsumerWidget {
     required String title,
     required String artist,
     required String? highResArt,
+    required String? songId,
     required bool isPlaying,
   }) {
     return GlassContainer(
@@ -95,15 +99,14 @@ class PlayerControls extends ConsumerWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: highResArt != null
-                    ? Image.network(
-                        highResArt,
+                    ? WavifyCachedImage(
+                        imageUrl: highResArt,
+                        songId: songId,
                         width: 34,
                         height: 34,
                         fit: BoxFit.cover,
                         filterQuality: FilterQuality.medium,
-                        cacheWidth: 102,
-                        cacheHeight: 102,
-                        errorBuilder: (context, error, stackTrace) => _fallbackArtwork(size: 34),
+                        errorWidget: _fallbackArtwork(size: 34),
                       )
                     : _fallbackArtwork(size: 34),
               ),
@@ -198,6 +201,7 @@ class PlayerControls extends ConsumerWidget {
     required String title,
     required String artist,
     required String? highResArt,
+    required String? songId,
     required bool isPlaying,
     required double progress,
   }) {
@@ -231,16 +235,14 @@ class PlayerControls extends ConsumerWidget {
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: highResArt != null
-                              ? Image.network(
-                                  highResArt,
+                              ? WavifyCachedImage(
+                                  imageUrl: highResArt,
+                                  songId: songId,
                                   width: 40,
                                   height: 40,
                                   fit: BoxFit.cover,
                                   filterQuality: FilterQuality.medium,
-                                  cacheWidth: 120,
-                                  cacheHeight: 120,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      _fallbackArtwork(size: 40),
+                                  errorWidget: _fallbackArtwork(size: 40),
                                 )
                               : _fallbackArtwork(size: 40),
                         ),

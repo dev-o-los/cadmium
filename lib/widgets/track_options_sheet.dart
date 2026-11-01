@@ -6,6 +6,7 @@ import '../constants/app_colors.dart';
 import '../models/song_item.dart';
 import '../providers/favorites_provider.dart';
 import '../utils/playback_utils.dart';
+import 'wavify_cached_image.dart';
 
 /// Shows the standard Apple Music 3-dots action sheet for a [SongItem].
 void showTrackOptionsModal(
@@ -32,13 +33,13 @@ void showTrackOptionsModal(
                 leading: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: song.thumbnailUrl != null
-                      ? Image.network(
-                          song.thumbnailUrl!,
+                      ? WavifyCachedImage(
+                          imageUrl: song.thumbnailUrl!,
+                          songId: song.id,
                           width: 50,
                           height: 50,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              _fallbackSquare(),
+                          errorWidget: _fallbackSquare(),
                         )
                       : _fallbackSquare(),
                 ),

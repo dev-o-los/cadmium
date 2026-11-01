@@ -8,6 +8,8 @@ import 'package:just_audio/just_audio.dart';
 import '../models/audio_device_item.dart';
 import '../models/song_item.dart';
 import '../models/lyric_line.dart';
+import '../services/artwork_cache_service.dart';
+import '../services/audio_cache_service.dart';
 import 'music_service_provider.dart';
 
 /// Immutable model representing the active player playback state.
@@ -266,6 +268,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       position: Duration.zero,
       duration: Duration.zero,
     );
+    ArtworkCacheService.instance.recordSongPlay(song);
     _fetchLyrics(song);
     _fetchAnimatedArtwork(song);
     _resolveMasterArtwork(song);
@@ -335,22 +338,43 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     // Refresh currently connected audio output device (Bluetooth, headphones, speaker)
     refreshAudioDevices();
 
+    // Track play count and pre-cache high-res artwork for tracks heard repeatedly
+    ArtworkCacheService.instance.recordSongPlay(song);
+
     try {
-      final musicService = _ref.read(musicServiceProvider);
-      final streamInfo = await musicService.resolveAudioStream(song.id);
+      AudioSource audioSource;
+      final cachedAudio = AudioCacheService.instance.getCachedAudioFile(song.id);
 
-      // Guard: User might have skipped track or tapped pause while resolving stream
-      if (requestId != _currentStreamRequestId || state.currentSong?.id != song.id || !state.isPlaying) {
-        if (requestId == _currentStreamRequestId) {
-          state = state.copyWith(isResolvingStream: false, isBuffering: false);
+      if (cachedAudio != null) {
+        // Fast-path: local cached audio file (instant 0ms playback!)
+        audioSource = AudioSource.file(cachedAudio.path, tag: song.id);
+      } else {
+        final musicService = _ref.read(musicServiceProvider);
+        final streamInfo = await musicService.resolveAudioStream(song.id);
+
+        // Guard: User might have skipped track or tapped pause while resolving stream
+        if (requestId != _currentStreamRequestId || state.currentSong?.id != song.id || !state.isPlaying) {
+          if (requestId == _currentStreamRequestId) {
+            state = state.copyWith(isResolvingStream: false, isBuffering: false);
+          }
+          return;
         }
-        return;
-      }
 
-      final audioSource = AudioSource.uri(
-        Uri.parse(streamInfo.url),
-        headers: streamInfo.headers,
-      );
+        audioSource = await AudioCacheService.instance.createAudioSource(
+          song.id,
+          streamInfo.url,
+          streamInfo.headers,
+        );
+
+        // If heard repeatedly, trigger background audio cache download
+        if (ArtworkCacheService.instance.isHeardRepeatedly(song.id)) {
+          AudioCacheService.instance.cacheAudioInBackground(
+            song.id,
+            streamInfo.url,
+            streamInfo.headers,
+          );
+        }
+      }
 
       await _audioPlayer.setAudioSource(audioSource, preload: true);
 

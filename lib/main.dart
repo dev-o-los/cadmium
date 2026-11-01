@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'screens/home_screen.dart';
+import 'services/artwork_cache_service.dart';
+import 'services/audio_cache_service.dart';
+import 'services/home_cache_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -14,6 +17,12 @@ void main() {
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
+
+  // Initialize persistent caches asynchronously so app launch and playback are instant
+  ArtworkCacheService.instance.init();
+  AudioCacheService.instance.init();
+  HomeCacheService.instance.loadHomeData();
+
   runApp(
     const ProviderScope(
       child: WavifyApp(),
