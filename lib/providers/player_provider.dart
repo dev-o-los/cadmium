@@ -34,6 +34,7 @@ class PlayerStateModel {
   final String? lyricsSongwriters;
   final bool hasWordSyncedLyrics;
   final String? animatedArtworkUrl;
+  final Map<String, String>? animatedArtworkHeaders;
   final AudioDeviceItem connectedDevice;
   final String? selectedDeviceId;
   final List<AudioDeviceItem> availableAudioDevices;
@@ -58,6 +59,7 @@ class PlayerStateModel {
     this.lyricsSongwriters,
     this.hasWordSyncedLyrics = false,
     this.animatedArtworkUrl,
+    this.animatedArtworkHeaders,
     this.connectedDevice = const AudioDeviceItem(
       id: 'speaker',
       name: 'Phone Speaker',
@@ -98,6 +100,7 @@ class PlayerStateModel {
     bool clearLyricsSongwriters = false,
     bool? hasWordSyncedLyrics,
     String? animatedArtworkUrl,
+    Map<String, String>? animatedArtworkHeaders,
     bool clearAnimatedArtwork = false,
     AudioDeviceItem? connectedDevice,
     String? selectedDeviceId,
@@ -123,6 +126,7 @@ class PlayerStateModel {
       lyricsSongwriters: clearLyricsSongwriters ? null : (lyricsSongwriters ?? this.lyricsSongwriters),
       hasWordSyncedLyrics: hasWordSyncedLyrics ?? this.hasWordSyncedLyrics,
       animatedArtworkUrl: clearAnimatedArtwork ? null : (animatedArtworkUrl ?? this.animatedArtworkUrl),
+      animatedArtworkHeaders: clearAnimatedArtwork ? null : (animatedArtworkHeaders ?? this.animatedArtworkHeaders),
       connectedDevice: connectedDevice ?? this.connectedDevice,
       selectedDeviceId: selectedDeviceId ?? this.selectedDeviceId,
       availableAudioDevices: availableAudioDevices ?? this.availableAudioDevices,
@@ -472,9 +476,12 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   Future<void> _fetchAnimatedArtwork(SongItem song) async {
     try {
       final musicService = _ref.read(musicServiceProvider);
-      final animatedUrl = await musicService.getAnimatedArtwork(song);
-      if (state.currentSong?.id == song.id && animatedUrl != null) {
-        state = state.copyWith(animatedArtworkUrl: animatedUrl);
+      final artworkData = await musicService.getAnimatedArtworkData(song);
+      if (state.currentSong?.id == song.id && artworkData != null) {
+        state = state.copyWith(
+          animatedArtworkUrl: artworkData.url,
+          animatedArtworkHeaders: artworkData.headers,
+        );
       }
     } catch (_) {}
   }

@@ -45,6 +45,40 @@ class AudioStreamInfo {
       durationMs != null && durationMs! > 0 ? durationMs! ~/ 1000 : null;
 }
 
+/// Resolved video stream data for crisp moving artwork / background video playback.
+class VideoStreamInfo {
+  final String url;
+  final Map<String, String> headers;
+  final int width;
+  final int height;
+  final String qualityLabel;
+
+  const VideoStreamInfo({
+    required this.url,
+    required this.headers,
+    required this.width,
+    required this.height,
+    required this.qualityLabel,
+  });
+}
+
+/// Resolved animated artwork data (HD video stream or animated WebP loop).
+class AnimatedArtworkData {
+  final String url;
+  final Map<String, String> headers;
+  final bool isVideo;
+  final int width;
+  final int height;
+
+  const AnimatedArtworkData({
+    required this.url,
+    this.headers = const {},
+    this.isVideo = false,
+    this.width = 1280,
+    this.height = 720,
+  });
+}
+
 /// Client configuration for InnerTube player requests, inspired by BitChord's PlayerClient.
 class _InnerTubeClientConfig {
   final String clientName;
@@ -78,6 +112,12 @@ class MusicService {
 
   // In-memory cache for dynamically resolved animated artwork / GIF videos
   final Map<String, String?> _animatedArtworkCache = {};
+
+  // In-memory cache for resolved animated artwork data (URL + headers + isVideo)
+  final Map<String, AnimatedArtworkData?> _animatedArtworkDataCache = {};
+
+  // In-memory cache for dynamically resolved HD video streams (720p/1080p MP4)
+  final Map<String, VideoStreamInfo?> _videoStreamCache = {};
 
   // Apple Music-style lyrics provider service (binimum/am-lyrics pipeline)
   final LyricsService _lyricsService = LyricsService();
@@ -675,43 +715,133 @@ class MusicService {
     return null;
   }
 
-  /// Resolves an animated looping artwork ("GIF video") for the song or its album from YouTube.
-  /// Uses YouTube's Innertube WEB client search to extract the official `movingThumbnailRenderer` WebP/GIF loop.
-  /// Returns null if unavailable or upon network failure, allowing graceful fallback to static artwork.
-  Future<String?> getAnimatedArtwork(SongItem song) async {
+  /// Resolves animated looping artwork or crisp HD video stream for the song or its album from YouTube.
+  /// 1. Searches YouTube for the official music video / moving visualizer to retrieve its HD stream (1080p/720p).
+  /// 2. If video is found, extracts its hardware-accelerated video stream and headers.
+  /// 3. If HD video unavailable, checks for moving WebP thumbnail.
+  /// 4. Falls back to album search or direct track ID video.
+  Future<AnimatedArtworkData?> getAnimatedArtworkData(SongItem song) async {
     // If song already has an animated artwork URL specified, return it
     if (song.animatedArtworkUrl != null && song.animatedArtworkUrl!.isNotEmpty) {
-      return song.animatedArtworkUrl;
+      final isVideo = isVideoMediaUrl(song.animatedArtworkUrl);
+      return AnimatedArtworkData(
+        url: song.animatedArtworkUrl!,
+        isVideo: isVideo,
+      );
     }
 
     final cacheKey = song.id.isNotEmpty ? song.id : '${song.title}_${song.artist}';
-    if (_animatedArtworkCache.containsKey(cacheKey)) {
-      return _animatedArtworkCache[cacheKey];
+    if (_animatedArtworkDataCache.containsKey(cacheKey)) {
+      return _animatedArtworkDataCache[cacheKey];
     }
 
     try {
-      // 1. Try querying with song title + artist
-      String? animatedUrl = await _searchMovingThumbnail('${song.title} ${song.artist}');
-
-      // 2. If not found and song belongs to an album, try querying with album name + artist
-      if (animatedUrl == null &&
-          song.album != null &&
-          song.album!.isNotEmpty &&
-          song.album != song.title) {
-        animatedUrl = await _searchMovingThumbnail('${song.album} ${song.artist}');
+      // 1. Search YouTube for official music video / moving visualizer first
+      final searchResult = await _searchOfficialVideoOrThumbnail('${song.title} ${song.artist}');
+      if (searchResult != null) {
+        if (searchResult.videoId != null) {
+          final officialVideo = await resolveVideoStream(searchResult.videoId!);
+          if (officialVideo != null && officialVideo.height >= 480) {
+            final data = AnimatedArtworkData(
+              url: officialVideo.url,
+              headers: officialVideo.headers,
+              isVideo: true,
+              width: officialVideo.width,
+              height: officialVideo.height,
+            );
+            _animatedArtworkDataCache[cacheKey] = data;
+            _animatedArtworkCache[cacheKey] = data.url;
+            return data;
+          }
+        }
+        if (searchResult.thumbnailUrl != null) {
+          final data = AnimatedArtworkData(
+            url: searchResult.thumbnailUrl!,
+            isVideo: false,
+          );
+          _animatedArtworkDataCache[cacheKey] = data;
+          _animatedArtworkCache[cacheKey] = data.url;
+          return data;
+        }
       }
 
-      _animatedArtworkCache[cacheKey] = animatedUrl;
-      return animatedUrl;
+      // 2. Fallback to album search if song belongs to an album
+      if (song.album != null && song.album!.isNotEmpty && song.album != song.title) {
+        final albumResult = await _searchOfficialVideoOrThumbnail('${song.album} ${song.artist}');
+        if (albumResult != null) {
+          if (albumResult.videoId != null) {
+            final officialVideo = await resolveVideoStream(albumResult.videoId!);
+            if (officialVideo != null && officialVideo.height >= 480) {
+              final data = AnimatedArtworkData(
+                url: officialVideo.url,
+                headers: officialVideo.headers,
+                isVideo: true,
+                width: officialVideo.width,
+                height: officialVideo.height,
+              );
+              _animatedArtworkDataCache[cacheKey] = data;
+              _animatedArtworkCache[cacheKey] = data.url;
+              return data;
+            }
+          }
+          if (albumResult.thumbnailUrl != null) {
+            final data = AnimatedArtworkData(
+              url: albumResult.thumbnailUrl!,
+              isVideo: false,
+            );
+            _animatedArtworkDataCache[cacheKey] = data;
+            _animatedArtworkCache[cacheKey] = data.url;
+            return data;
+          }
+        }
+      }
+
+      // 3. Direct video resolution from track ID as final fallback
+      if (song.id.isNotEmpty) {
+        final directVideo = await resolveVideoStream(song.id);
+        if (directVideo != null && directVideo.height >= 480) {
+          final data = AnimatedArtworkData(
+            url: directVideo.url,
+            headers: directVideo.headers,
+            isVideo: true,
+            width: directVideo.width,
+            height: directVideo.height,
+          );
+          _animatedArtworkDataCache[cacheKey] = data;
+          _animatedArtworkCache[cacheKey] = data.url;
+          return data;
+        }
+      }
+
+      _animatedArtworkDataCache[cacheKey] = null;
+      _animatedArtworkCache[cacheKey] = null;
+      return null;
     } catch (e) {
-      debugPrint('getAnimatedArtwork error for ${song.title}: $e');
+      debugPrint('getAnimatedArtworkData error for ${song.title}: $e');
+      _animatedArtworkDataCache[cacheKey] = null;
       _animatedArtworkCache[cacheKey] = null;
       return null;
     }
   }
 
-  /// Internal helper to perform a lightweight Innertube WEB client search for moving thumbnails.
-  Future<String?> _searchMovingThumbnail(String query) async {
+  /// Determines whether the given URL represents a playable video stream.
+  static bool isVideoMediaUrl(String? url) {
+    if (url == null || url.trim().isEmpty) return false;
+    final lower = url.toLowerCase();
+    return lower.contains('.mp4') ||
+        lower.contains('googlevideo.com') ||
+        lower.contains('/videoplayback') ||
+        lower.contains('.m3u8');
+  }
+
+  /// Resolves an animated looping artwork or crisp HD video stream for the song or its album from YouTube.
+  Future<String?> getAnimatedArtwork(SongItem song) async {
+    final data = await getAnimatedArtworkData(song);
+    return data?.url;
+  }
+
+  /// Internal helper to perform a lightweight search for the official video ID and moving thumbnail.
+  Future<({String? videoId, String? thumbnailUrl})?> _searchOfficialVideoOrThumbnail(String query) async {
     final cleanQuery = query.trim();
     if (cleanQuery.isEmpty) return null;
 
@@ -748,49 +878,51 @@ class MusicService {
       final responseBody = await utf8.decoder.bind(response).join();
       final data = jsonDecode(responseBody);
 
-      return _extractMovingThumbnailUrl(data);
+      String? matchedVideoId;
+      String? matchedThumbnailUrl;
+
+      void walk(dynamic node) {
+        if (matchedVideoId != null && matchedThumbnailUrl != null) return;
+        if (node is Map) {
+          if (node.containsKey('videoRenderer')) {
+            final vr = node['videoRenderer'];
+            if (vr is Map) {
+              matchedVideoId ??= vr['videoId'] as String?;
+              final moving = vr['richThumbnail']?['movingThumbnailRenderer'] ?? vr['movingThumbnailRenderer'];
+              if (moving is Map && matchedThumbnailUrl == null) {
+                final thumbs = moving['movingThumbnailDetails']?['thumbnails'] as List?;
+                if (thumbs != null && thumbs.isNotEmpty) {
+                  final raw = thumbs.first['url'] as String?;
+                  if (raw != null && raw.isNotEmpty) {
+                    matchedThumbnailUrl = raw.startsWith('//') ? 'https:$raw' : raw;
+                  }
+                }
+              }
+              if (matchedVideoId != null && matchedThumbnailUrl != null) return;
+            }
+          }
+          for (final value in node.values) {
+            walk(value);
+            if (matchedVideoId != null && matchedThumbnailUrl != null) return;
+          }
+        } else if (node is List) {
+          for (final item in node) {
+            walk(item);
+            if (matchedVideoId != null && matchedThumbnailUrl != null) return;
+          }
+        }
+      }
+
+      walk(data);
+      if (matchedVideoId != null || matchedThumbnailUrl != null) {
+        return (videoId: matchedVideoId, thumbnailUrl: matchedThumbnailUrl);
+      }
+      return null;
     } catch (_) {
       return null;
     } finally {
       client?.close(force: true);
     }
-  }
-
-  /// Recursively walks JSON to find `movingThumbnailRenderer` URL
-  String? _extractMovingThumbnailUrl(dynamic data) {
-    if (data == null) return null;
-    String? result;
-
-    void walk(dynamic node) {
-      if (result != null) return;
-      if (node is Map) {
-        if (node.containsKey('movingThumbnailRenderer')) {
-          final moving = node['movingThumbnailRenderer'];
-          if (moving is Map) {
-            final thumbs = moving['movingThumbnailDetails']?['thumbnails'] as List?;
-            if (thumbs != null && thumbs.isNotEmpty) {
-              final rawUrl = thumbs.first['url'] as String?;
-              if (rawUrl != null && rawUrl.isNotEmpty) {
-                result = rawUrl.startsWith('//') ? 'https:$rawUrl' : rawUrl;
-                return;
-              }
-            }
-          }
-        }
-        for (final value in node.values) {
-          walk(value);
-          if (result != null) return;
-        }
-      } else if (node is List) {
-        for (final item in node) {
-          walk(item);
-          if (result != null) return;
-        }
-      }
-    }
-
-    walk(data);
-    return result;
   }
 
   /// Fetches track listings for an album or single.
@@ -2068,6 +2200,138 @@ class MusicService {
     throw Exception('No playable audio stream could be verified for track $trimmedId');
   }
 
+  /// Resolves a crisp high-definition video stream (HLS .m3u8 or progressive MP4) for [videoId].
+  /// Used for Apple Music / Spotify Canvas-style moving background video in the player screen.
+  Future<VideoStreamInfo?> resolveVideoStream(String videoId) async {
+    final trimmedId = videoId.trim();
+    if (trimmedId.isEmpty) return null;
+
+    final cached = _videoStreamCache[trimmedId];
+    if (cached != null) {
+      return cached;
+    }
+
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    for (final client in _clientTiers) {
+      try {
+        final data = await _ytMusic.constructRequest(
+          "player",
+          body: {"videoId": trimmedId},
+          options: ClientRequestOptions(
+            clientName: client.clientName,
+            clientVersion: client.clientVersion,
+          ),
+        );
+
+        if (data is! Map) continue;
+
+        final streamingData = data['streamingData'] as Map<String, dynamic>?;
+        if (streamingData == null) continue;
+
+        // 1. Prefer HLS Master Manifest (.m3u8) - natively decoded by AVPlayer (iOS/macOS)
+        // and ExoPlayer (Android), adaptive up to 1080p/720p, zero fragmented container errors!
+        final hlsUrl = streamingData['hlsManifestUrl'] as String?;
+        if (hlsUrl != null && hlsUrl.isNotEmpty) {
+          final info = VideoStreamInfo(
+            url: hlsUrl,
+            headers: {
+              'User-Agent': client.userAgent,
+            },
+            width: 1920,
+            height: 1080,
+            qualityLabel: '1080p',
+          );
+          _videoStreamCache[trimmedId] = info;
+          return info;
+        }
+
+        // 2. Next check combined progressive MP4 formats (has full standard moov container atom)
+        final progressiveFormats = (streamingData['formats'] as List<dynamic>? ?? [])
+            .where((f) {
+              final mime = f['mimeType'] as String? ?? '';
+              return mime.startsWith('video/mp4') && f.containsKey('url');
+            }).toList();
+
+        if (progressiveFormats.isNotEmpty) {
+          progressiveFormats.sort((a, b) {
+            final aHeight = (a['height'] as num?)?.toInt() ?? 0;
+            final bHeight = (b['height'] as num?)?.toInt() ?? 0;
+            return bHeight.compareTo(aHeight);
+          });
+          final selected = progressiveFormats.first;
+          final videoUrl = selected['url'] as String?;
+          if (videoUrl != null && videoUrl.isNotEmpty) {
+            final w = (selected['width'] as num?)?.toInt() ?? 640;
+            final h = (selected['height'] as num?)?.toInt() ?? 360;
+            final q = selected['qualityLabel'] as String? ?? '${h}p';
+            final info = VideoStreamInfo(
+              url: videoUrl,
+              headers: {
+                'User-Agent': client.userAgent,
+              },
+              width: w,
+              height: h,
+              qualityLabel: q,
+            );
+            _videoStreamCache[trimmedId] = info;
+            return info;
+          }
+        }
+
+        // 3. Fallback to adaptiveFormats MP4
+        final adaptiveFormats = streamingData['adaptiveFormats'] as List<dynamic>? ?? [];
+        final videoFormats = adaptiveFormats.where((f) {
+          final mime = f['mimeType'] as String? ?? '';
+          return mime.startsWith('video/mp4') && f.containsKey('url');
+        }).toList();
+
+        if (videoFormats.isEmpty) continue;
+
+        videoFormats.sort((a, b) {
+          final bHeight = (b['height'] as num?)?.toInt() ?? 0;
+          final aHeight = (a['height'] as num?)?.toInt() ?? 0;
+          return bHeight.compareTo(aHeight);
+        });
+
+        final selectedFormat = videoFormats.firstWhere(
+          (f) {
+            final h = (f['height'] as num?)?.toInt() ?? 0;
+            return h >= 720 && h <= 1080;
+          },
+          orElse: () => videoFormats.first,
+        );
+
+        final videoUrl = selectedFormat['url'] as String?;
+        if (videoUrl == null || videoUrl.isEmpty) continue;
+
+        final width = (selectedFormat['width'] as num?)?.toInt() ?? 1280;
+        final height = (selectedFormat['height'] as num?)?.toInt() ?? 720;
+        final qualityLabel = selectedFormat['qualityLabel'] as String? ?? '${height}p';
+
+        final info = VideoStreamInfo(
+          url: videoUrl,
+          headers: {
+            'User-Agent': client.userAgent,
+          },
+          width: width,
+          height: height,
+          qualityLabel: qualityLabel,
+        );
+
+        _videoStreamCache[trimmedId] = info;
+        return info;
+      } catch (_) {
+        // Continue to fallback client
+      }
+    }
+
+    _videoStreamCache[trimmedId] = null;
+    return null;
+  }
+
   /// Backwards-compatible convenience method that returns just the direct stream URL.
   Future<String> getAudioStreamUrl(String videoId) async {
     final info = await resolveAudioStream(videoId);
@@ -2175,8 +2439,10 @@ class MusicService {
 
   void dispose() {
     _streamCache.clear();
+    _videoStreamCache.clear();
     _artistDetailsCache.clear();
     _animatedArtworkCache.clear();
+    _animatedArtworkDataCache.clear();
     _lyricsService.dispose();
     _cachedHomeData = null;
   }

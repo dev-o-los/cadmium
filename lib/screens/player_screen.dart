@@ -14,6 +14,7 @@ import '../providers/favorites_provider.dart';
 import '../providers/player_provider.dart';
 import '../services/song_metrics_cache_service.dart';
 import '../utils/playback_utils.dart';
+import '../widgets/ambient_video_canvas.dart';
 import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/apple_music_slider.dart';
 import '../widgets/apple_pressable.dart';
@@ -425,6 +426,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                   song,
                   screenHeight,
                   animatedArtworkUrl: playerState.animatedArtworkUrl ?? song.animatedArtworkUrl,
+                  animatedArtworkHeaders: playerState.animatedArtworkHeaders,
+                  isPlaying: playerState.isPlaying,
                 ),
 
                 // 2. Animated Switcher for the Main View (Now Playing, Synced Lyrics, Queue)
@@ -459,7 +462,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
   /// - Foreground layer: pristine, studio-master crisp artwork (1800x1800 uncompressed) and anti-aliased looping moving artwork ("GIF video")
   /// - Bottom gradient: seamlessly darkens into pure OLED pitch black behind downside controls
   /// - Zero white line / artifact: all shader masks use pure black alpha masks and are clipped with ClipRect
-  Widget _buildArtworkCanvas(SongItem song, double screenHeight, {String? animatedArtworkUrl}) {
+  Widget _buildArtworkCanvas(
+    SongItem song,
+    double screenHeight, {
+    String? animatedArtworkUrl,
+    Map<String, String>? animatedArtworkHeaders,
+    bool isPlaying = true,
+  }) {
     if (song.thumbnailUrl == null) {
       return Container(color: Colors.black);
     }
@@ -492,7 +501,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                         child: ColorFiltered(
                           colorFilter: _amoledVibrancyFilter,
                           child: WavifyCachedImage(
-                            imageUrl: animatedArtworkUrl ?? artworkUrl,
+                            imageUrl: AmbientVideoCanvas.isVideoUrl(animatedArtworkUrl)
+                                ? artworkUrl
+                                : (animatedArtworkUrl ?? artworkUrl),
                             placeholderImageUrl: song.thumbnailUrl,
                             songId: song.id,
                             fit: BoxFit.cover,
@@ -561,30 +572,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                                 errorWidget: const SizedBox(),
                               ),
 
-                              // 2. Animated Looping Motion ("GIF video") when available from YouTube Music
-                              // Anti-aliased with sub-pixel reconstruction filtering (sigma: 0.65) and smooth fade-in
-                              // so that the moving album art animates fluidly on loop without blocky pixelation or jagged edges!
+                              // 2. High-Definition Hardware-Accelerated Ambient Moving Video Canvas (1080p/720p 60fps)
                               if (animatedArtworkUrl != null && animatedArtworkUrl.isNotEmpty)
-                                ImageFiltered(
-                                  imageFilter: ui.ImageFilter.blur(sigmaX: 0.65, sigmaY: 0.65),
-                                  child: Image.network(
-                                    animatedArtworkUrl,
-                                    fit: BoxFit.cover,
-                                    alignment: Alignment.topCenter,
-                                    filterQuality: FilterQuality.high,
-                                    isAntiAlias: true,
-                                    gaplessPlayback: true,
-                                    frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                                      if (wasSynchronouslyLoaded) return child;
-                                      return AnimatedOpacity(
-                                        opacity: frame == null ? 0.0 : 1.0,
-                                        duration: const Duration(milliseconds: 400),
-                                        curve: Curves.easeOutCubic,
-                                        child: child,
-                                      );
-                                    },
-                                    errorBuilder: (context, error, stackTrace) => const SizedBox(),
-                                  ),
+                                AmbientVideoCanvas(
+                                  mediaUrl: animatedArtworkUrl,
+                                  headers: animatedArtworkHeaders,
+                                  fallbackImageUrl: song.thumbnailUrl,
+                                  isPlaying: isPlaying,
+                                  fit: BoxFit.cover,
+                                  alignment: Alignment.topCenter,
                                 ),
                             ],
                           ),
@@ -648,18 +644,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                         child: ColorFiltered(
                           colorFilter: _amoledVibrancyFilter,
                           child: Image.network(
-                            animatedArtworkUrl ?? artworkUrl,
+                            artworkUrl,
                             fit: BoxFit.cover,
                             alignment: Alignment.center,
                             filterQuality: FilterQuality.medium,
                             isAntiAlias: true,
-                            errorBuilder: (context, error, stackTrace) => Image.network(
-                              artworkUrl,
-                              fit: BoxFit.cover,
-                              alignment: Alignment.center,
-                              filterQuality: FilterQuality.medium,
-                              errorBuilder: (_, _, _) => Container(color: Colors.black),
-                            ),
+                            errorBuilder: (_, _, _) => Container(color: Colors.black),
                           ),
                         ),
                       ),

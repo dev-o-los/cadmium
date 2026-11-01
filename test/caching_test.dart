@@ -17,19 +17,6 @@ import 'package:wavify/services/music_service.dart';
 import 'package:wavify/services/song_metrics_cache_service.dart';
 import 'package:wavify/widgets/wavify_cached_image.dart';
 
-class _MockMusicService extends MusicService {
-  @override
-  Future<AudioStreamInfo> resolveAudioStream(String videoId) async {
-    return const AudioStreamInfo(
-      url: 'https://example.com/stream.mp4',
-      headers: {},
-      bitrate: 128000,
-      mimeType: 'audio/mp4',
-      durationMs: 200000,
-    );
-  }
-}
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
