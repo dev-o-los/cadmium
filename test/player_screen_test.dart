@@ -23,7 +23,13 @@ class MockMusicService extends MusicService {
   }
 
   @override
-  Future<List<LyricLine>> getLyrics(String videoId) async => const [];
+  Future<List<LyricLine>> getLyrics(
+    String videoId, {
+    String? title,
+    String? artist,
+    String? album,
+    int? durationSeconds,
+  }) async => const [];
 }
 
 void main() {

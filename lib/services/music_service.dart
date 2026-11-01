@@ -16,6 +16,7 @@ import '../models/home_data.dart';
 import '../models/user_account.dart';
 import '../models/playlist_item.dart';
 import '../models/artist_item.dart';
+import 'lyrics_service.dart';
 
 /// Resolved audio stream data containing direct stream URL, matching User-Agent headers,
 /// bitrate, and media format specifications.
@@ -68,6 +69,9 @@ class MusicService {
 
   // In-memory cache for dynamically resolved animated artwork / GIF videos
   final Map<String, String?> _animatedArtworkCache = {};
+
+  // Apple Music-style lyrics provider service (binimum/am-lyrics pipeline)
+  final LyricsService _lyricsService = LyricsService();
 
   /// Sets or updates the connected Google account with YouTube Music authorization.
   void setAuthAccount(UserAccount? account) {
@@ -1323,8 +1327,46 @@ class MusicService {
     }
   }
 
-  /// Fetches synchronized timed lyrics (or fallback plain lyrics) for a song.
-  Future<List<LyricLine>> getLyrics(String videoId) async {
+  /// Fetches synchronized Apple Music-style lyrics (word-by-word synced where available)
+  /// using the binimum/am-lyrics provider chain (lrc.red -> LyricsPlus/BiniLyrics -> LRCLIB -> YTMusic).
+  Future<LyricsResult> getLyricsWithMetadata({
+    required String videoId,
+    required String title,
+    required String artist,
+    String? album,
+    int? durationSeconds,
+  }) async {
+    return _lyricsService.fetchLyrics(
+      title: title,
+      artist: artist,
+      album: album,
+      durationSeconds: durationSeconds,
+      ytFallback: () => _fetchYtMusicLyrics(videoId),
+    );
+  }
+
+  /// Backward-compatible getLyrics method.
+  Future<List<LyricLine>> getLyrics(
+    String videoId, {
+    String? title,
+    String? artist,
+    String? album,
+    int? durationSeconds,
+  }) async {
+    if (title != null && artist != null) {
+      final res = await getLyricsWithMetadata(
+        videoId: videoId,
+        title: title,
+        artist: artist,
+        album: album,
+        durationSeconds: durationSeconds,
+      );
+      if (res.lines.isNotEmpty) return res.lines;
+    }
+    return _fetchYtMusicLyrics(videoId);
+  }
+
+  Future<List<LyricLine>> _fetchYtMusicLyrics(String videoId) async {
     final trimmedId = videoId.trim();
     if (trimmedId.isEmpty) return [];
 
@@ -1552,6 +1594,7 @@ class MusicService {
   void dispose() {
     _streamCache.clear();
     _animatedArtworkCache.clear();
+    _lyricsService.dispose();
     _cachedHomeData = null;
   }
 }

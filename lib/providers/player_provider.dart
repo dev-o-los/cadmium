@@ -27,6 +27,9 @@ class PlayerStateModel {
   final List<LyricLine> lyrics;
   final bool isLoadingLyrics;
   final int activeLyricIndex;
+  final String? lyricsSource;
+  final String? lyricsSongwriters;
+  final bool hasWordSyncedLyrics;
   final String? animatedArtworkUrl;
   final AudioDeviceItem connectedDevice;
   final String? selectedDeviceId;
@@ -48,6 +51,9 @@ class PlayerStateModel {
     this.lyrics = const [],
     this.isLoadingLyrics = false,
     this.activeLyricIndex = -1,
+    this.lyricsSource,
+    this.lyricsSongwriters,
+    this.hasWordSyncedLyrics = false,
     this.animatedArtworkUrl,
     this.connectedDevice = const AudioDeviceItem(
       id: 'speaker',
@@ -83,6 +89,11 @@ class PlayerStateModel {
     List<LyricLine>? lyrics,
     bool? isLoadingLyrics,
     int? activeLyricIndex,
+    String? lyricsSource,
+    bool clearLyricsSource = false,
+    String? lyricsSongwriters,
+    bool clearLyricsSongwriters = false,
+    bool? hasWordSyncedLyrics,
     String? animatedArtworkUrl,
     bool clearAnimatedArtwork = false,
     AudioDeviceItem? connectedDevice,
@@ -105,6 +116,9 @@ class PlayerStateModel {
       lyrics: lyrics ?? this.lyrics,
       isLoadingLyrics: isLoadingLyrics ?? this.isLoadingLyrics,
       activeLyricIndex: activeLyricIndex ?? this.activeLyricIndex,
+      lyricsSource: clearLyricsSource ? null : (lyricsSource ?? this.lyricsSource),
+      lyricsSongwriters: clearLyricsSongwriters ? null : (lyricsSongwriters ?? this.lyricsSongwriters),
+      hasWordSyncedLyrics: hasWordSyncedLyrics ?? this.hasWordSyncedLyrics,
       animatedArtworkUrl: clearAnimatedArtwork ? null : (animatedArtworkUrl ?? this.animatedArtworkUrl),
       connectedDevice: connectedDevice ?? this.connectedDevice,
       selectedDeviceId: selectedDeviceId ?? this.selectedDeviceId,
@@ -215,6 +229,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       position: Duration.zero,
       duration: Duration.zero,
     );
+    _fetchLyrics(song);
     _fetchAnimatedArtwork(song);
     _resolveMasterArtwork(song);
     refreshAudioDevices();
@@ -257,7 +272,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     );
 
     // Fetch lyrics asynchronously in background
-    _fetchLyrics(song.id);
+    _fetchLyrics(song);
 
     // Fetch animated looping artwork ("GIF video") asynchronously in background
     _fetchAnimatedArtwork(song);
@@ -308,19 +323,35 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     }
   }
 
-  Future<void> _fetchLyrics(String songId) async {
+  Future<void> _fetchLyrics(SongItem song) async {
     try {
       final musicService = _ref.read(musicServiceProvider);
-      final fetched = await musicService.getLyrics(songId);
-      state = state.copyWith(
-        lyrics: fetched,
-        isLoadingLyrics: false,
+      final result = await musicService.getLyricsWithMetadata(
+        videoId: song.id,
+        title: song.title,
+        artist: song.artist,
+        album: song.album,
+        durationSeconds: song.durationSeconds,
       );
+      if (state.currentSong?.id == song.id) {
+        state = state.copyWith(
+          lyrics: result.lines,
+          lyricsSource: result.source,
+          lyricsSongwriters: result.songwriters,
+          hasWordSyncedLyrics: result.hasWordSync,
+          isLoadingLyrics: false,
+        );
+      }
     } catch (e) {
-      state = state.copyWith(
-        lyrics: const [],
-        isLoadingLyrics: false,
-      );
+      if (state.currentSong?.id == song.id) {
+        state = state.copyWith(
+          lyrics: const [],
+          lyricsSource: null,
+          lyricsSongwriters: null,
+          hasWordSyncedLyrics: false,
+          isLoadingLyrics: false,
+        );
+      }
     }
   }
 

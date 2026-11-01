@@ -14,6 +14,7 @@ import '../providers/player_provider.dart';
 import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/apple_music_slider.dart';
 import '../widgets/apple_pressable.dart';
+import '../widgets/apple_lyrics_view.dart';
 
 enum PlayerViewMode {
   nowPlaying,
@@ -53,8 +54,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
   // Scrubber drag state (local UI interaction only)
   bool _isDraggingSlider = false;
   double _dragSliderValue = 0.0;
-
-  final ScrollController _lyricsScrollController = ScrollController();
 
   @override
   void initState() {
@@ -133,16 +132,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     _startAutoHideTimer();
   }
 
-  void _scrollToActiveLyric(int activeIndex) {
-    if (_currentMode == PlayerViewMode.lyrics && _lyricsScrollController.hasClients && activeIndex >= 0) {
-      final targetOffset = (activeIndex * 72.0) - 140.0;
-      _lyricsScrollController.animateTo(
-        math.max(0.0, targetOffset),
-        duration: const Duration(milliseconds: 380),
-        curve: Curves.easeOutCubic,
-      );
-    }
-  }
+
 
   String _formatDuration(Duration duration) {
     final minutes = duration.inMinutes;
@@ -355,7 +345,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     _autoHideTimer?.cancel();
     _ambientAnimController.dispose();
     _controlsAnimController.dispose();
-    _lyricsScrollController.dispose();
     super.dispose();
   }
 
@@ -385,10 +374,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
       }
     });
 
-    // Scroll lyrics smoothly when active line updates
-    ref.listen<int>(playerProvider.select((s) => s.activeLyricIndex), (previous, activeIndex) {
-      _scrollToActiveLyric(activeIndex);
-    });
+
 
     final screenHeight = MediaQuery.sizeOf(context).height;
     final screenWidth = MediaQuery.sizeOf(context).width;
@@ -1122,225 +1108,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
   }
 
   Widget _buildLyricsContent(PlayerStateModel playerState) {
-    if (playerState.isLoadingLyrics) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(color: Colors.white),
-            SizedBox(height: 16),
-            Text('Connecting lyrics...', style: TextStyle(color: appleSecondaryText)),
-          ],
-        ),
-      );
-    }
-
-    final lyrics = playerState.lyrics;
-
-    if (lyrics.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.08),
-                ),
-                child: const Icon(
-                  CupertinoIcons.quote_bubble,
-                  color: appleSecondaryText,
-                  size: 36,
-                ),
-              ),
-              const SizedBox(height: 18),
-              const Text(
-                'No lyrics available right now',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: -0.4,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Lyrics for this track haven\'t been published yet.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.6),
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return GestureDetector(
-      onTap: _toggleControls,
-      behavior: HitTestBehavior.opaque,
-      child: Stack(
-        children: [
-          // 1. Synced Lyrics List with edge dissolve shader mask & distance blur
-          Positioned.fill(
-            child: ShaderMask(
-              shaderCallback: (bounds) {
-                return const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black,
-                    Colors.black,
-                    Colors.transparent,
-                  ],
-                  stops: [0.0, 0.07, 0.88, 1.0],
-                ).createShader(bounds);
-              },
-              blendMode: BlendMode.dstIn,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: ListView.builder(
-                  controller: _lyricsScrollController,
-                  padding: const EdgeInsets.only(top: 36, bottom: 60),
-                  itemCount: lyrics.length + 1,
-                  itemBuilder: (context, index) {
-                    // Attribution row at the bottom of lyrics
-                    if (index == lyrics.length) {
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 28, bottom: 40),
-                        child: Row(
-                          children: [
-                            const Text(
-                              'Lyrics by YouTube Music',
-                              style: TextStyle(
-                                color: appleSecondaryText,
-                                fontSize: 13,
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                            const Spacer(),
-                            Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white.withValues(alpha: 0.1),
-                              ),
-                              child: const Icon(CupertinoIcons.globe, color: Colors.white70, size: 16),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white.withValues(alpha: 0.1),
-                              ),
-                              child: const Icon(CupertinoIcons.textformat, color: Colors.white70, size: 16),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-
-                    final line = lyrics[index];
-                    final isActive = index == playerState.activeLyricIndex;
-
-                    // Gradual player effect: active line is crystal sharp (blur: 0.0),
-                    // while lines going upside or downside gradually blur with distance
-                    final lineDistance = playerState.activeLyricIndex >= 0
-                        ? (index - playerState.activeLyricIndex).abs()
-                        : 0;
-                    final blurSigma = isActive ? 0.0 : math.min(1.8, 0.35 + (lineDistance * 0.28));
-
-                    return GestureDetector(
-                      onTap: () {
-                        ref.read(playerProvider.notifier).seekToLyric(line);
-                        _resetAutoHideTimer();
-                      },
-                      behavior: HitTestBehavior.opaque,
-                      child: AnimatedPadding(
-                        duration: const Duration(milliseconds: 280),
-                        curve: Curves.easeOutCubic,
-                        padding: EdgeInsets.symmetric(vertical: isActive ? 14 : 8),
-                        child: ImageFiltered(
-                          imageFilter: ui.ImageFilter.blur(
-                            sigmaX: blurSigma,
-                            sigmaY: blurSigma,
-                            tileMode: TileMode.decal,
-                          ),
-                          child: Text(
-                            line.text,
-                            style: TextStyle(
-                              color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.38),
-                              fontSize: isActive ? 30 : 23,
-                              fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
-                              letterSpacing: -0.5,
-                              height: 1.3,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ),
-
-          // 2. Top progressive blur dissolve vignette
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 32,
-            child: IgnorePointer(
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0xD808080A),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // 3. Bottom progressive blur dissolve vignette (active in both player on and hidden states)
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: 48,
-            child: IgnorePointer(
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [
-                      Color(0xD808080A),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+    return AppleLyricsView(
+      lyrics: playerState.lyrics,
+      activeLyricIndex: playerState.activeLyricIndex,
+      currentPositionMs: playerState.position.inMilliseconds,
+      isLoading: playerState.isLoadingLyrics,
+      lyricsSource: playerState.lyricsSource,
+      lyricsSongwriters: playerState.lyricsSongwriters,
+      onSeekToLyric: (line) {
+        ref.read(playerProvider.notifier).seekToLyric(line);
+        _resetAutoHideTimer();
+      },
+      onTapBackground: _toggleControls,
     );
   }
 
