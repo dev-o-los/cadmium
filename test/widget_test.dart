@@ -4,9 +4,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wavify/main.dart';
 import 'package:wavify/models/song_item.dart';
+import 'package:wavify/models/album_item.dart';
+import 'package:wavify/models/home_data.dart';
+import 'package:wavify/providers/home_data_provider.dart';
+import 'package:wavify/screens/home_screen.dart';
+import 'package:wavify/screens/player_screen.dart';
 import 'package:wavify/providers/player_provider.dart';
 import 'package:wavify/widgets/liquid_glass_bottom_bar.dart';
 import 'package:wavify/widgets/player_controls.dart';
+
+class _MockHomeDataNotifier extends HomeDataNotifier {
+  final HomeData mockData;
+  _MockHomeDataNotifier(this.mockData);
+
+  @override
+  Future<HomeData> build() async => mockData;
+}
 
 void main() {
   testWidgets('WavifyApp Liquid Glass Navigation Bar UI smoke test', (WidgetTester tester) async {
@@ -104,5 +117,121 @@ void main() {
     // Verify tapping the collapsed active tab calls onExpand
     await tester.tap(find.byIcon(CupertinoIcons.house_fill).first);
     expect(expandedTapped, isTrue);
+  });
+
+  testWidgets('Tapping album art single directly launches player and does not redirect to search',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const testAlbum = AlbumItem(
+      id: 'album_test_1',
+      title: 'Starboy',
+      artist: 'The Weeknd',
+      type: 'Single',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          homeDataProvider.overrideWith(
+            () => _MockHomeDataNotifier(
+              const HomeData(
+                heroCards: [],
+                recents: [],
+                quickPicks: [],
+                moods: [],
+                albumsAndSingles: [testAlbum],
+                musicVideos: [],
+                dailyDiscover: [],
+                genres: [],
+                trendingSongs: [],
+              ),
+            ),
+          ),
+        ],
+        child: const MaterialApp(
+          home: HomeScreen(),
+        ),
+      ),
+    );
+
+    // Initial pump
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Verify 'Starboy' album tile is displayed under 'Albums & singles'
+    expect(find.text('Starboy'), findsOneWidget);
+    expect(find.text('Albums & singles'), findsOneWidget);
+
+    // Tap on the album single card
+    await tester.tap(find.text('Starboy'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Player screen should now be directly mounted in the modal bottom sheet!
+    expect(find.byType(PlayerScreen), findsOneWidget);
+  });
+
+  testWidgets('List with 2 elements dynamically calculates responsive height instead of fixed 256px',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const song1 = SongItem(
+      id: 'song_1',
+      title: 'Track One',
+      artist: 'Artist One',
+    );
+    const song2 = SongItem(
+      id: 'song_2',
+      title: 'Track Two',
+      artist: 'Artist Two',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          homeDataProvider.overrideWith(
+            () => _MockHomeDataNotifier(
+              const HomeData(
+                heroCards: [],
+                recents: [song1, song2], // Only 2 elements
+                quickPicks: [],
+                moods: [],
+                albumsAndSingles: [],
+                musicVideos: [],
+                dailyDiscover: [],
+                genres: [],
+                trendingSongs: [],
+              ),
+            ),
+          ),
+        ],
+        child: const MaterialApp(
+          home: HomeScreen(),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Both songs should be displayed
+    expect(find.text('Track One'), findsOneWidget);
+    expect(find.text('Track Two'), findsOneWidget);
+
+    // Verify the section container height for 2 elements is dynamically 128px (2 * 64px),
+    // instead of the previous hardcoded 256px
+    final sizedBoxes = tester.widgetList<SizedBox>(find.byType(SizedBox));
+    final sectionBox = sizedBoxes.firstWhere(
+      (b) => b.height == 128.0,
+      orElse: () => const SizedBox(),
+    );
+    expect(sectionBox.height, 128.0);
   });
 }

@@ -194,6 +194,23 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     return -1;
   }
 
+  /// Optimistically primes the player UI with song metadata (e.g. from an album or single)
+  /// so that the full player screen opens immediately while the audio stream resolves.
+  void prepareSong(SongItem song) {
+    state = state.copyWith(
+      currentSong: song,
+      isResolvingStream: true,
+      isPlaying: true,
+      clearErrorMessage: true,
+      lyrics: const [],
+      isLoadingLyrics: true,
+      activeLyricIndex: -1,
+      position: Duration.zero,
+      duration: Duration.zero,
+    );
+    refreshAudioDevices();
+  }
+
   /// Selects and plays a song, automatically resolving its stream and fetching synced lyrics.
   Future<void> playSong(SongItem song, {List<SongItem>? contextQueue, bool forceReload = false}) async {
     if (state.currentSong?.id == song.id && !forceReload && _audioPlayer.audioSource != null) {

@@ -15,12 +15,14 @@ import '../providers/music_service_provider.dart';
 import '../providers/home_data_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/favorites_provider.dart';
+import '../providers/auth_provider.dart';
 import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/player_controls.dart';
 import '../widgets/liquid_glass_bottom_bar.dart';
 import '../widgets/wavify_logo.dart';
 import '../widgets/apple_pressable.dart';
 import 'player_screen.dart';
+import 'google_signin_screen.dart';
 
 /// Main Home Screen featuring Apple Music-inspired dark theme UI,
 /// multi-section home feed from YouTube Music, floating liquid glass dock,
@@ -98,21 +100,107 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     super.dispose();
   }
 
-  void _onSongSelected(SongItem song, {List<SongItem>? contextQueue}) {
-    ref
-        .read(playerProvider.notifier)
-        .playSong(song, contextQueue: contextQueue);
-  }
+  bool _isPlayerOpen = false;
 
   void _openPlayerScreen() {
+    if (_isPlayerOpen || !mounted) return;
+    _isPlayerOpen = true;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      useSafeArea:
-          false, // Extends player to whole screen up behind the status bar
+      useSafeArea: false, // Extends player to whole screen up behind the status bar
       backgroundColor: Colors.transparent,
       builder: (context) => const PlayerScreen(),
+    ).whenComplete(() {
+      _isPlayerOpen = false;
+    });
+  }
+
+  void _onSongSelected(
+    SongItem song, {
+    List<SongItem>? contextQueue,
+    bool autoOpenPlayer = true,
+  }) {
+    ref
+        .read(playerProvider.notifier)
+        .playSong(song, contextQueue: contextQueue);
+    if (autoOpenPlayer) {
+      _openPlayerScreen();
+    }
+  }
+
+  Future<void> _playAlbumOrSingle(AlbumItem album) async {
+    // Directly open the music player screen with instant feedback
+    _openPlayerScreen();
+
+    // Prepare optimistic song in player state immediately
+    final placeholder = SongItem(
+      id: 'album_${album.id}',
+      title: album.title,
+      artist: album.artist,
+      thumbnailUrl: album.thumbnailUrl,
+      album: album.title,
     );
+    ref.read(playerProvider.notifier).prepareSong(placeholder);
+
+    try {
+      final musicService = ref.read(musicServiceProvider);
+      final tracks = await musicService.getAlbumSongs(
+        album.id,
+        queryFallback: '${album.title} ${album.artist}',
+      );
+
+      if (!mounted) return;
+
+      if (tracks.isNotEmpty) {
+        final firstTrack = tracks.first;
+        final queue = tracks.length > 1 ? tracks.sublist(1) : <SongItem>[];
+        ref.read(playerProvider.notifier).playSong(
+          firstTrack,
+          contextQueue: queue,
+          forceReload: true,
+        );
+      } else {
+        _showSnackBar('No playable tracks found for "${album.title}"');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackBar('Unable to load "${album.title}": $e');
+    }
+  }
+
+  Future<void> _playHero(HeroCardItem hero) async {
+    _openPlayerScreen();
+
+    final placeholder = SongItem(
+      id: 'hero_${hero.id}',
+      title: hero.title,
+      artist: hero.subtitle.isNotEmpty ? hero.subtitle : hero.caption,
+      thumbnailUrl: hero.imageUrl,
+    );
+    ref.read(playerProvider.notifier).prepareSong(placeholder);
+
+    try {
+      final musicService = ref.read(musicServiceProvider);
+      final tracks = await musicService.searchSongs(hero.title);
+
+      if (!mounted) return;
+
+      if (tracks.isNotEmpty) {
+        final firstTrack = tracks.first;
+        final queue = tracks.length > 1 ? tracks.sublist(1) : <SongItem>[];
+        ref.read(playerProvider.notifier).playSong(
+          firstTrack,
+          contextQueue: queue,
+          forceReload: true,
+        );
+      } else {
+        _showSnackBar('No tracks found for "${hero.title}"');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackBar('Unable to play "${hero.title}": $e');
+    }
   }
 
   Future<void> _handleSearch([String? initialQuery]) async {
@@ -276,6 +364,308 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  void _showAccountModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1C1C1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Consumer(
+          builder: (context, ref, child) {
+            final account = ref.watch(authProvider);
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                16,
+                20,
+                MediaQuery.of(context).viewInsets.bottom + 28,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Modal Grabber
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  if (account != null) ...[
+                    // Signed In Account Overview
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 28,
+                          backgroundColor: appleRed,
+                          backgroundImage: account.avatarUrl != null
+                              ? NetworkImage(account.avatarUrl!)
+                              : null,
+                          child: account.avatarUrl == null
+                              ? Text(
+                                  account.initials,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                account.displayName,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (account.email.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  account.email,
+                                  style: const TextStyle(
+                                    color: appleSecondaryText,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.greenAccent,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  const Text(
+                                    'YouTube Music Connected',
+                                    style: TextStyle(
+                                      color: Colors.greenAccent,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Personalized Recommendations Switch
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: appleDarkSurfaceHigh,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            CupertinoIcons.sparkles,
+                            color: appleRed,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: const [
+                                Text(
+                                  'Personalized Feed',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Home feed is tailored to your YouTube Music account',
+                                  style: TextStyle(
+                                    color: appleSecondaryText,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          CupertinoSwitch(
+                            value: account.isPersonalizedEnabled,
+                            activeTrackColor: appleRed,
+                            onChanged: (val) {
+                              ref
+                                  .read(authProvider.notifier)
+                                  .togglePersonalizedRecommendations(val);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(
+                        CupertinoIcons.arrow_2_circlepath,
+                        color: Colors.white,
+                      ),
+                      title: const Text(
+                        'Refresh Recommendations',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        ref.read(homeDataProvider.notifier).refresh();
+                        _showSnackBar('Refreshing your YouTube Music feed...');
+                      },
+                    ),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(
+                        CupertinoIcons.arrow_right_arrow_left,
+                        color: Colors.white,
+                      ),
+                      title: const Text(
+                        'Switch Google Account',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const GoogleSignInScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(
+                        CupertinoIcons.square_arrow_right,
+                        color: appleRed,
+                      ),
+                      title: const Text(
+                        'Sign Out of Google Account',
+                        style: TextStyle(
+                          color: appleRed,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        ref.read(authProvider.notifier).signOut();
+                        _showSnackBar('Signed out of YouTube Music account');
+                      },
+                    ),
+                  ] else ...[
+                    // Not Signed In: Connect Promotion
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: appleRed.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          CupertinoIcons.music_note_list,
+                          color: appleRed,
+                          size: 38,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Sign In with Google Account',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Sign in with your Google account that uses YouTube Music to get recommendations according to your specific account.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: appleSecondaryText,
+                        fontSize: 13,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    ApplePressable(
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const GoogleSignInScreen(),
+                          ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: appleRed,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(
+                              CupertinoIcons.play_circle_fill,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Sign in with Google (YouTube Music)',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final playerState = ref.watch(playerProvider);
@@ -419,31 +809,89 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 // Signature 3-wave sound logo
                 const WavifyLogo(size: 32, color: Colors.white),
 
-                // Circular profile avatar
-                GestureDetector(
-                  onTap: () {
-                    _showSnackBar('Signed in as Utkarsh');
+                // Interactive Top Right Google / YouTube Music Profile Button
+                Consumer(
+                  builder: (context, ref, child) {
+                    final account = ref.watch(authProvider);
+
+                    return ApplePressable(
+                      onTap: () {
+                        if (account != null) {
+                          _showAccountModal(context);
+                        } else {
+                          // Directly open the Google Sign-In WebView on click
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const GoogleSignInScreen(),
+                            ),
+                          );
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(22),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: account != null
+                                    ? appleRed.withValues(alpha: 0.85)
+                                    : Colors.white.withValues(alpha: 0.5),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: CircleAvatar(
+                              radius: 18,
+                              backgroundColor: account != null
+                                  ? appleRed
+                                  : appleDarkSurfaceHigh,
+                              backgroundImage: account?.avatarUrl != null
+                                  ? NetworkImage(account!.avatarUrl!)
+                                  : null,
+                              child: account?.avatarUrl == null
+                                  ? account != null
+                                      ? Text(
+                                          account.initials,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        )
+                                      : const Icon(
+                                          CupertinoIcons.person_crop_circle_fill,
+                                          color: Colors.white,
+                                          size: 24,
+                                        )
+                                  : null,
+                            ),
+                          ),
+                          // Connected status dot indicator
+                          if (account != null)
+                            Positioned(
+                              right: -1,
+                              bottom: -1,
+                              child: Container(
+                                width: 12,
+                                height: 12,
+                                decoration: BoxDecoration(
+                                  color: Colors.greenAccent,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.black,
+                                    width: 2,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
                   },
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: const CircleAvatar(
-                      radius: 18,
-                      backgroundColor: appleDarkSurfaceHigh,
-                      child: Icon(
-                        CupertinoIcons.person_crop_circle_fill,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                  ),
                 ),
               ],
             ),
@@ -548,15 +996,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _buildHeroCard(HeroCardItem hero) {
     final isShubhCard = hero.id.contains('shubh');
 
-    return GestureDetector(
+    return ApplePressable(
       onTap: () {
         if (hero.playTrack != null) {
           _onSongSelected(hero.playTrack!);
         } else {
-          _searchController.text = hero.title;
-          _handleSearch(hero.title);
+          _playHero(hero);
         }
       },
+      borderRadius: BorderRadius.circular(18),
       child: Container(
         width: 236,
         decoration: BoxDecoration(
@@ -736,6 +1184,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       chunked.add(songs.sublist(i, end));
     }
 
+    // Responsively calculate height based on the maximum number of items in any column
+    // When a column only has 2 elements, it renders dynamically with proportional height
+    // rather than staying stuck at the rigid 4-element height (256px).
+    final maxPerColumn = chunked.fold<int>(
+      0,
+      (prev, col) => col.length > prev ? col.length : prev,
+    );
+    const rowHeight = 64.0;
+    final totalHeight = maxPerColumn * rowHeight;
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final columnWidth = (screenWidth * 0.86).clamp(280.0, 440.0);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -770,7 +1231,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 256, // 4 items * 64px each
+          height: totalHeight,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -779,7 +1240,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             itemBuilder: (context, columnIndex) {
               final columnSongs = chunked[columnIndex];
               return SizedBox(
-                width: MediaQuery.of(context).size.width * 0.86,
+                width: columnWidth,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: columnSongs
@@ -838,9 +1299,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                         letterSpacing: -0.3,
+                        height: 1.25,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
                       song.artist,
                       maxLines: 1,
@@ -849,6 +1311,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         color: appleSecondaryText,
                         fontSize: 13,
                         fontWeight: FontWeight.w400,
+                        height: 1.2,
                       ),
                     ),
                   ],
@@ -925,11 +1388,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             separatorBuilder: (context, index) => const SizedBox(width: 14),
             itemBuilder: (context, index) {
               final mood = moodDefs[index];
-              return GestureDetector(
+              return ApplePressable(
                 onTap: () {
                   _searchController.text = mood.title;
                   _handleSearch(mood.title);
                 },
+                borderRadius: BorderRadius.circular(18),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1009,6 +1473,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _buildAlbumsAndSinglesSection(List<AlbumItem> albums) {
     if (albums.isEmpty) return const SizedBox.shrink();
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final cardWidth = (screenWidth * 0.38).clamp(136.0, 180.0);
+    final cardHeight = cardWidth + 58.0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1026,7 +1494,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 204,
+          height: cardHeight,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -1034,28 +1502,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             separatorBuilder: (context, index) => const SizedBox(width: 14),
             itemBuilder: (context, index) {
               final album = albums[index];
-              return GestureDetector(
-                onTap: () {
-                  _searchController.text = '${album.title} ${album.artist}';
-                  _handleSearch('${album.title} ${album.artist}');
-                },
+              return ApplePressable(
+                onTap: () => _playAlbumOrSingle(album),
+                borderRadius: BorderRadius.circular(14),
                 child: SizedBox(
-                  width: 142,
+                  width: cardWidth,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(14),
                         child: album.thumbnailUrl != null
                             ? Image.network(
                                 album.thumbnailUrl!,
-                                width: 142,
-                                height: 142,
+                                width: cardWidth,
+                                height: cardWidth,
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) =>
-                                    _fallbackSquareArt(),
+                                    _fallbackSquareArt(size: cardWidth),
                               )
-                            : _fallbackSquareArt(),
+                            : _fallbackSquareArt(size: cardWidth),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -1067,6 +1534,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           letterSpacing: -0.2,
+                          height: 1.2,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -1078,6 +1546,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           color: appleSecondaryText,
                           fontSize: 12,
                           fontWeight: FontWeight.w400,
+                          height: 1.2,
                         ),
                       ),
                     ],
@@ -1094,6 +1563,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// 16:9 Music Videos Widescreen Carousel
   Widget _buildMusicVideosSection(List<VideoItem> videos) {
     if (videos.isEmpty) return const SizedBox.shrink();
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final videoWidth = (screenWidth * 0.65).clamp(220.0, 320.0);
+    final videoThumbnailHeight = videoWidth * (9 / 16);
+    final videoCardHeight = videoThumbnailHeight + 58.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1112,7 +1586,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 200,
+          height: videoCardHeight,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -1120,7 +1594,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             separatorBuilder: (context, index) => const SizedBox(width: 14),
             itemBuilder: (context, index) {
               final video = videos[index];
-              return GestureDetector(
+              return ApplePressable(
                 onTap: () {
                   _onSongSelected(
                     SongItem(
@@ -1132,10 +1606,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   );
                 },
+                borderRadius: BorderRadius.circular(14),
                 child: SizedBox(
-                  width: 250,
+                  width: videoWidth,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(14),
@@ -1144,14 +1620,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             video.thumbnailUrl != null
                                 ? Image.network(
                                     video.thumbnailUrl!,
-                                    width: 250,
-                                    height: 140,
+                                    width: videoWidth,
+                                    height: videoThumbnailHeight,
                                     fit: BoxFit.cover,
                                     errorBuilder:
                                         (context, error, stackTrace) =>
                                             Container(
-                                              width: 250,
-                                              height: 140,
+                                              width: videoWidth,
+                                              height: videoThumbnailHeight,
                                               color: appleDarkSurfaceHigh,
                                               child: const Icon(
                                                 CupertinoIcons.play_rectangle_fill,
@@ -1161,8 +1637,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                             ),
                                   )
                                 : Container(
-                                    width: 250,
-                                    height: 140,
+                                    width: videoWidth,
+                                    height: videoThumbnailHeight,
                                     color: appleDarkSurfaceHigh,
                                     child: const Icon(
                                       CupertinoIcons.play_rectangle_fill,
@@ -1199,6 +1675,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           letterSpacing: -0.2,
+                          height: 1.2,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -1210,6 +1687,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           color: appleSecondaryText,
                           fontSize: 12,
                           fontWeight: FontWeight.w400,
+                          height: 1.2,
                         ),
                       ),
                     ],
@@ -1231,6 +1709,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (songs.isEmpty) return const SizedBox.shrink();
 
     final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
+    final screenWidth = MediaQuery.of(context).size.width;
+    final cardWidth = (screenWidth * 0.38).clamp(136.0, 180.0);
+    final cardHeight = cardWidth + 58.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1249,7 +1730,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 200,
+          height: cardHeight,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -1259,12 +1740,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               final song = songs[index];
               final isCurrent = currentSong?.id == song.id;
 
-              return GestureDetector(
+              return ApplePressable(
                 onTap: () => _onSongSelected(song, contextQueue: songs),
+                borderRadius: BorderRadius.circular(12),
                 child: SizedBox(
-                  width: 140,
+                  width: cardWidth,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Stack(
                         children: [
@@ -1273,16 +1756,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             child: song.thumbnailUrl != null
                                 ? Image.network(
                                     song.thumbnailUrl!,
-                                    width: 140,
-                                    height: 140,
+                                    width: cardWidth,
+                                    height: cardWidth,
                                     fit: BoxFit.cover,
                                     errorBuilder: (
                                       context,
                                       error,
                                       stackTrace,
-                                    ) => _fallbackSquareArt(),
+                                    ) => _fallbackSquareArt(size: cardWidth),
                                   )
-                                : _fallbackSquareArt(),
+                                : _fallbackSquareArt(size: cardWidth),
                           ),
                           if (isCurrent)
                             Positioned(
@@ -1313,6 +1796,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           letterSpacing: -0.2,
+                          height: 1.2,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -1324,6 +1808,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           color: appleSecondaryText,
                           fontSize: 12,
                           fontWeight: FontWeight.w400,
+                          height: 1.2,
                         ),
                       ),
                     ],
@@ -1337,15 +1822,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _fallbackSquareArt() {
+  Widget _fallbackSquareArt({double size = 48}) {
     return Container(
-      width: 48,
-      height: 48,
+      width: size,
+      height: size,
       color: appleDarkSurfaceHigh,
-      child: const Icon(
+      child: Icon(
         CupertinoIcons.music_note,
         color: Colors.white30,
-        size: 24,
+        size: (size * 0.5).clamp(20.0, 48.0),
       ),
     );
   }
@@ -1380,43 +1865,52 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: genres.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 2.3,
-          ),
-          itemBuilder: (context, index) {
-            final g = genres[index];
-            final color = g.colorValue != null
-                ? Color(g.colorValue!).withValues(alpha: 0.85)
-                : appleDarkSurfaceHigh;
+        Builder(
+          builder: (context) {
+            final screenWidth = MediaQuery.of(context).size.width;
+            final crossAxisCount = screenWidth > 600 ? 3 : 2;
+            final childAspectRatio = screenWidth > 600 ? 3.0 : 2.4;
 
-            return GestureDetector(
-              onTap: () {
-                _searchController.text = g.title;
-                _handleSearch(g.title);
-              },
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  color: color,
-                ),
-                alignment: Alignment.bottomLeft,
-                child: Text(
-                  g.title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: genres.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: childAspectRatio,
               ),
+              itemBuilder: (context, index) {
+                final g = genres[index];
+                final color = g.colorValue != null
+                    ? Color(g.colorValue!).withValues(alpha: 0.85)
+                    : appleDarkSurfaceHigh;
+
+                return ApplePressable(
+                  onTap: () {
+                    _searchController.text = g.title;
+                    _handleSearch(g.title);
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      color: color,
+                    ),
+                    alignment: Alignment.bottomLeft,
+                    child: Text(
+                      g.title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                );
+              },
             );
           },
         ),
@@ -1457,6 +1951,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
         const SizedBox(height: 16),
+        Consumer(
+          builder: (context, ref, child) {
+            final account = ref.watch(authProvider);
+            return _buildLibraryActionTile(
+              account != null
+                  ? CupertinoIcons.person_crop_circle_badge_checkmark
+                  : CupertinoIcons.person_crop_circle,
+              account != null
+                  ? 'YouTube Music (${account.displayName})'
+                  : 'Connect YouTube Music Account',
+              iconColor: account != null ? Colors.greenAccent : appleRed,
+              trailingText: account != null ? 'Connected' : 'Sign In',
+              onTap: () {
+                if (account != null) {
+                  _showAccountModal(context);
+                } else {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const GoogleSignInScreen(),
+                    ),
+                  );
+                }
+              },
+            );
+          },
+        ),
         _buildLibraryActionTile(
           CupertinoIcons.star_fill,
           'Favorite Songs',
@@ -1768,62 +2289,73 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return ApplePressable(
       onTap: () => _onSongSelected(song, contextQueue: contextQueue),
       borderRadius: BorderRadius.circular(10),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: song.thumbnailUrl != null
-                  ? Image.network(
-                      song.thumbnailUrl!,
-                      width: 48,
-                      height: 48,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          _fallbackSquareArt(),
-                    )
-                  : _fallbackSquareArt(),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: isSelected ? appleRed : Colors.white,
-                      fontSize: 16,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 58),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: song.thumbnailUrl != null
+                    ? Image.network(
+                        song.thumbnailUrl!,
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _fallbackSquareArt(),
+                      )
+                    : _fallbackSquareArt(),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      song.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isSelected ? appleRed : Colors.white,
+                        fontSize: 15,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                        letterSpacing: -0.3,
+                        height: 1.25,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    song.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: appleSecondaryText, fontSize: 13),
-                  ),
-                ],
+                    const SizedBox(height: 3),
+                    Text(
+                      song.artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: appleSecondaryText,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w400,
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            if (isSelected) ...[
-              const Icon(CupertinoIcons.waveform, color: appleRed, size: 20),
-              const SizedBox(width: 6),
+              if (isSelected) ...[
+                const Icon(CupertinoIcons.waveform, color: appleRed, size: 20),
+                const SizedBox(width: 6),
+              ],
+              IconButton(
+                icon: const AnimatedCupertinoIcon(
+                  icon: CupertinoIcons.ellipsis_vertical,
+                  color: appleSecondaryText,
+                  size: 18,
+                ),
+                onPressed: () => _showTrackOptions(song),
+              ),
             ],
-            IconButton(
-              icon: const AnimatedCupertinoIcon(
-                icon: CupertinoIcons.ellipsis_vertical,
-                color: appleSecondaryText,
-                size: 18,
-              ),
-              onPressed: () => _showTrackOptions(song),
-            ),
-          ],
+          ),
         ),
       ),
     );
