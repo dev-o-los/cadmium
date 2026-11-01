@@ -265,7 +265,13 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
     final isSelected = currentSong?.id == song.id;
 
     return ApplePressable(
-      onTap: () => playSong(context, ref, song),
+      onTap: () => playSong(
+        context,
+        ref,
+        song,
+        contextQueue: _searchResults.where((s) => s.id != song.id).toList(),
+        forceReload: true,
+      ),
       borderRadius: BorderRadius.circular(10),
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 58),

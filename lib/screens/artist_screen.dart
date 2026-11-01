@@ -847,7 +847,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                       final isCurrent = currentSong?.id == song.id;
 
                       return ApplePressable(
-                        onTap: () => playSong(context, ref, song, contextQueue: songs),
+                        onTap: () => playSong(context, ref, song, contextQueue: songs, forceReload: true),
                         borderRadius: BorderRadius.circular(10),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1043,6 +1043,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                       artist: video.artist,
                       thumbnailUrl: video.thumbnailUrl,
                     ),
+                    forceReload: true,
                   );
                 },
                 borderRadius: BorderRadius.circular(12),

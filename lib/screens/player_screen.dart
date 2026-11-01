@@ -1244,7 +1244,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                             },
                           ),
                           onTap: () {
-                            ref.read(playerProvider.notifier).playSong(item);
+                            ref.read(playerProvider.notifier).playSong(item, forceReload: true);
                           },
                         ),
                       );
@@ -1306,7 +1306,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
   Widget _buildTransportControls(PlayerStateModel playerState) {
     final notifier = ref.read(playerProvider.notifier);
     final showPauseIcon = playerState.isPlaying;
-    final isLoading = (playerState.isResolvingStream || playerState.isBuffering) && playerState.isPlaying;
+    final isLoading = ref.watch(playerIsLoadingProvider);
     final isTestMode = Platform.environment.containsKey('FLUTTER_TEST');
 
     Widget playPauseWidget;

@@ -106,17 +106,23 @@ class ExploreScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-        ...trending.take(10).map((track) => _buildSongRow(context, ref, track)),
+        ...trending.take(10).map((track) => _buildSongRow(context, ref, track, trending)),
       ],
     );
   }
 
-  Widget _buildSongRow(BuildContext context, WidgetRef ref, SongItem song) {
+  Widget _buildSongRow(BuildContext context, WidgetRef ref, SongItem song, List<SongItem> allTracks) {
     final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
     final isSelected = currentSong?.id == song.id;
 
     return ApplePressable(
-      onTap: () => playSong(context, ref, song),
+      onTap: () => playSong(
+        context,
+        ref,
+        song,
+        contextQueue: allTracks.where((t) => t.id != song.id).toList(),
+        forceReload: true,
+      ),
       borderRadius: BorderRadius.circular(10),
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 58),

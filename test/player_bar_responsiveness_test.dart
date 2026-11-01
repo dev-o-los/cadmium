@@ -164,5 +164,27 @@ void main() {
 
       expect(tapCount, equals(1));
     });
+
+    test('playerIsLoadingProvider accurately reflects resolving vs playing state', () {
+      final container = ProviderContainer(
+        overrides: [
+          musicServiceProvider.overrideWithValue(MockMusicService()),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      const song = SongItem(id: 'track_test', title: 'Test', artist: 'Artist');
+
+      // 1. Initially idle: not loading
+      expect(container.read(playerIsLoadingProvider), isFalse);
+
+      // 2. Prepare song: resolving stream, isPlaying=true -> isLoading=true
+      container.read(playerProvider.notifier).prepareSong(song);
+      expect(container.read(playerIsLoadingProvider), isTrue);
+
+      // 3. User pauses: isLoading immediately becomes false
+      container.read(playerProvider.notifier).pause();
+      expect(container.read(playerIsLoadingProvider), isFalse);
+    });
   });
 }

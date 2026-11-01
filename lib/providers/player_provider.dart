@@ -77,6 +77,9 @@ class PlayerStateModel {
     ],
   });
 
+  /// Whether the player is actively resolving stream or buffering before audio starts.
+  bool get isLoading => isPlaying && (isResolvingStream || (isBuffering && position == Duration.zero));
+
   PlayerStateModel copyWith({
     SongItem? currentSong,
     bool? isPlaying,
@@ -173,7 +176,17 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         return;
       }
 
-      // Do not overwrite optimistic playing state while audio stream is still resolving
+      // If the audio player is ready or actively playing, stream resolution and initial buffering are completed!
+      if (processing == ProcessingState.ready || (isPlaying && processing != ProcessingState.idle)) {
+        state = state.copyWith(
+          isPlaying: isPlaying || state.isPlaying,
+          isBuffering: false,
+          isResolvingStream: false,
+        );
+        return;
+      }
+
+      // While resolving stream, preserve optimistic isPlaying state if player is still idle/loading
       if (state.isResolvingStream && state.isPlaying) {
         state = state.copyWith(isBuffering: isBuffering);
         return;
@@ -187,6 +200,20 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
 
     _positionSub = _audioPlayer.positionStream.listen((pos) {
       final newLyricIdx = _computeActiveLyricIndex(pos.inMilliseconds, state.lyrics);
+
+      // Once playback position advances, audio is unequivocally playing out of speakers:
+      // clear any residual loading or resolving states immediately!
+      if (pos > Duration.zero && (state.isResolvingStream || state.isBuffering)) {
+        state = state.copyWith(
+          position: pos,
+          activeLyricIndex: newLyricIdx,
+          isResolvingStream: false,
+          isBuffering: false,
+          isPlaying: true,
+        );
+        return;
+      }
+
       state = state.copyWith(
         position: pos,
         activeLyricIndex: newLyricIdx,
@@ -288,10 +315,13 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
 
   /// Selects and plays a song, automatically resolving its stream and fetching synced lyrics.
   Future<void> playSong(SongItem song, {List<SongItem>? contextQueue, bool forceReload = false}) async {
-    // If user clicked the song currently loaded and not resolving, toggle play/pause
+    // If user clicked the song currently loaded and not resolving:
+    // If paused, immediately start playing. If already playing, continue playing.
     if (state.currentSong?.id == song.id && !forceReload) {
       if (_audioPlayer.audioSource != null && !state.isResolvingStream) {
-        togglePlayPause();
+        if (!state.isPlaying) {
+          play();
+        }
         return;
       }
       if (state.isResolvingStream) {
@@ -367,8 +397,8 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         final musicService = _ref.read(musicServiceProvider);
         final streamInfo = await musicService.resolveAudioStream(song.id);
 
-        // Guard: User might have skipped track or tapped pause while resolving stream
-        if (requestId != _currentStreamRequestId || state.currentSong?.id != song.id || !state.isPlaying) {
+        // Guard: User might have skipped track while resolving stream
+        if (requestId != _currentStreamRequestId || state.currentSong?.id != song.id) {
           if (requestId == _currentStreamRequestId) {
             state = state.copyWith(isResolvingStream: false, isBuffering: false);
           }
@@ -401,14 +431,19 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
 
       await _audioPlayer.setAudioSource(audioSource, preload: true);
 
+      // Stream resolution is completed once audio source is loaded
+      if (requestId == _currentStreamRequestId && state.currentSong?.id == song.id) {
+        state = state.copyWith(isResolvingStream: false);
+      }
+
       final playerDur = _audioPlayer.duration;
       if (playerDur != null && playerDur > Duration.zero) {
         state = state.copyWith(duration: playerDur);
         unawaited(SongMetricsCacheService.instance.setDuration(song.id, playerDur.inSeconds));
       }
 
-      // Guard: User might have paused while setting audio source
-      if (requestId != _currentStreamRequestId || state.currentSong?.id != song.id || !state.isPlaying) {
+      // Guard: User might have skipped track while setting audio source
+      if (requestId != _currentStreamRequestId || state.currentSong?.id != song.id) {
         if (requestId == _currentStreamRequestId) {
           state = state.copyWith(isResolvingStream: false, isBuffering: false);
         }
@@ -579,11 +614,14 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     if (state.queue.isNotEmpty) {
       final nextSong = state.queue.first;
       final remainingQueue = state.queue.sublist(1);
-      playSong(nextSong, contextQueue: remainingQueue);
+      playSong(nextSong, contextQueue: remainingQueue, forceReload: true);
     } else if (state.recentlyPlayed.length > 1) {
       final currentIdx = state.recentlyPlayed.indexWhere((s) => s.id == state.currentSong?.id);
       final nextIdx = (currentIdx + 1) % state.recentlyPlayed.length;
-      playSong(state.recentlyPlayed[nextIdx]);
+      playSong(state.recentlyPlayed[nextIdx], forceReload: true);
+    } else if (state.currentSong != null) {
+      seek(Duration.zero);
+      play();
     }
   }
 
@@ -596,9 +634,10 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     if (state.recentlyPlayed.length > 1) {
       final currentIdx = state.recentlyPlayed.indexWhere((s) => s.id == state.currentSong?.id);
       final prevIdx = (currentIdx - 1 + state.recentlyPlayed.length) % state.recentlyPlayed.length;
-      playSong(state.recentlyPlayed[prevIdx]);
-    } else {
+      playSong(state.recentlyPlayed[prevIdx], forceReload: true);
+    } else if (state.currentSong != null) {
       seek(Duration.zero);
+      play();
     }
   }
 
@@ -843,5 +882,17 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
 /// Global Riverpod provider for player state management.
 final playerProvider = StateNotifierProvider<PlayerNotifier, PlayerStateModel>((ref) {
   return PlayerNotifier(ref);
+});
+
+/// Riverpod provider determining whether the play/pause button should display a loading spinner.
+/// True ONLY while the stream is actively resolving or buffering before initial audio playback.
+/// Once audio is ready or playing, this is guaranteed to be false.
+final playerIsLoadingProvider = Provider<bool>((ref) {
+  return ref.watch(playerProvider.select((state) {
+    if (!state.isPlaying) return false;
+    if (state.isResolvingStream) return true;
+    if (state.isBuffering && state.position == Duration.zero) return true;
+    return false;
+  }));
 });
 

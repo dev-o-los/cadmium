@@ -28,7 +28,7 @@ class PlayerControls extends ConsumerWidget {
     }
 
     final isPlaying = playerState.isPlaying;
-    final isLoading = (playerState.isResolvingStream || playerState.isBuffering) && isPlaying;
+    final isLoading = ref.watch(playerIsLoadingProvider);
 
     final progress = playerState.duration.inMilliseconds > 0
         ? (playerState.position.inMilliseconds /

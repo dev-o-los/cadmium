@@ -318,7 +318,7 @@ class HomeFeedScreen extends ConsumerWidget {
     return ApplePressable(
       onTap: () {
         if (hero.playTrack != null) {
-          playSong(context, ref, hero.playTrack!);
+          playSong(context, ref, hero.playTrack!, forceReload: true);
         } else {
           playHero(context, ref, hero);
         }
@@ -586,7 +586,7 @@ class HomeFeedScreen extends ConsumerWidget {
     return SizedBox(
       height: 64,
       child: ApplePressable(
-        onTap: () => playSong(context, ref, song, contextQueue: contextQueue),
+        onTap: () => playSong(context, ref, song, contextQueue: contextQueue, forceReload: true),
         borderRadius: BorderRadius.circular(10),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
@@ -934,6 +934,7 @@ class HomeFeedScreen extends ConsumerWidget {
                       thumbnailUrl: video.thumbnailUrl,
                       durationSeconds: video.durationSeconds,
                     ),
+                    forceReload: true,
                   );
                 },
                 borderRadius: BorderRadius.circular(14),
@@ -1072,7 +1073,7 @@ class HomeFeedScreen extends ConsumerWidget {
               final isCurrent = currentSong?.id == song.id;
 
               return ApplePressable(
-                onTap: () => playSong(context, ref, song, contextQueue: songs),
+                onTap: () => playSong(context, ref, song, contextQueue: songs, forceReload: true),
                 borderRadius: BorderRadius.circular(12),
                 child: SizedBox(
                   width: cardWidth,
