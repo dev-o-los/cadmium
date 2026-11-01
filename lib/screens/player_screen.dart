@@ -298,7 +298,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   ),
-                  subtitle: Text(song.artist, maxLines: 1, style: const TextStyle(color: appleSecondaryText)),
+                  subtitle: Text(
+                    song.artist,
+                    maxLines: 1,
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.75)),
+                  ),
                 ),
                 const Divider(color: Color(0xFF2C2C2E)),
                 ListTile(
@@ -912,16 +916,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                     letterSpacing: -0.4,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 4),
                 Text(
                   song.artist,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: appleSecondaryText,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w400,
-                    letterSpacing: -0.1,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.82),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: -0.2,
                   ),
                 ),
               ],
@@ -1025,10 +1029,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                       song.artist,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: appleSecondaryText,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w400,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.78),
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
@@ -1388,7 +1392,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
             subtitle: Text(
               song.artist,
               maxLines: 1,
-              style: const TextStyle(color: appleSecondaryText, fontSize: 13),
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.75),
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
             ),
             trailing: const Icon(CupertinoIcons.waveform, color: appleRed, size: 22),
           ),
