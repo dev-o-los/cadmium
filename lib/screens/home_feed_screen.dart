@@ -631,7 +631,7 @@ class HomeFeedScreen extends ConsumerWidget {
                         song.artist,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.appleSecondaryText,
                           fontSize: 13,
                           fontWeight: FontWeight.w400,
@@ -1136,7 +1136,7 @@ class HomeFeedScreen extends ConsumerWidget {
                           song.artist,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.appleSecondaryText,
                             fontSize: 12,
                             fontWeight: FontWeight.w400,

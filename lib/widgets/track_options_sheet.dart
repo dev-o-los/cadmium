@@ -61,7 +61,7 @@ void showTrackOptionsModal(
                     song.artist,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.appleSecondaryText,
                       fontSize: 13,
                     ),

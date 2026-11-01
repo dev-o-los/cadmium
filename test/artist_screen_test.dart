@@ -11,7 +11,6 @@ import 'package:wavify/models/song_item.dart';
 import 'package:wavify/models/video_item.dart';
 import 'package:wavify/providers/library_provider.dart';
 import 'package:wavify/providers/music_service_provider.dart';
-import 'package:wavify/providers/player_provider.dart';
 import 'package:wavify/screens/artist_screen.dart';
 import 'package:wavify/screens/album_screen.dart';
 import 'package:wavify/services/music_service.dart';
