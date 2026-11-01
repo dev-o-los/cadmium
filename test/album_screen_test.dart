@@ -6,8 +6,10 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wavify/models/album_item.dart';
 import 'package:wavify/providers/library_provider.dart';
+import 'package:wavify/providers/navigation_provider.dart';
 import 'package:wavify/screens/album_screen.dart';
 import 'package:wavify/screens/player_screen.dart';
+import 'package:wavify/widgets/liquid_glass_bottom_bar.dart';
 
 void main() {
   setUp(() {
@@ -52,13 +54,16 @@ void main() {
 
     // 3. Verify Top Navigation Bar & Action Pill
     expect(find.byIcon(CupertinoIcons.chevron_back), findsOneWidget);
-    expect(find.byIcon(CupertinoIcons.search), findsOneWidget);
+    expect(find.byIcon(CupertinoIcons.search), findsNWidgets(2)); // top action dock + bottom bar trailing search
     expect(find.byIcon(CupertinoIcons.slider_horizontal_3), findsOneWidget);
     expect(find.byIcon(CupertinoIcons.ellipsis), findsOneWidget);
 
     // Verify Liquid Glass integration: 3 circular GlassIconButtons (back, shuffle, bookmark) and 1 GlassButtonGroup
     expect(find.byType(GlassIconButton), findsNWidgets(3));
     expect(find.byType(GlassButtonGroup), findsOneWidget);
+
+    // Verify Persistent Bottom Navigation Bar is present on AlbumScreen
+    expect(find.byType(LiquidGlassBottomBar), findsOneWidget);
 
     // 4. Verify "About the album" and "More" button
     expect(find.text('About the album'), findsOneWidget);
@@ -121,5 +126,57 @@ void main() {
 
     // Player screen mounts
     expect(find.byType(PlayerScreen), findsOneWidget);
+  });
+
+  testWidgets('Scrolling album content dynamically renders progressive blur and shader at top',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(400, 500);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(createAlbumScreen());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Initially at top (offset 0), blur is idle (SizedBox.shrink)
+    expect(find.byType(ProgressiveBlur), findsNothing);
+
+    // Scroll content up by dragging
+    await tester.drag(find.text('Pink Heartz').first, const Offset(0, -250));
+    await tester.pump();
+
+    // Progressive blur is mounted behind floating buttons
+    expect(find.byType(ProgressiveBlur), findsOneWidget);
+  });
+
+  testWidgets('Tapping tab in bottom bar on AlbumScreen switches active tab index',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: AlbumScreen(album: testAlbum),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Initially tab is 0 (Home)
+    expect(container.read(currentTabProvider), 0);
+
+    // Tap Explore tab (index 1) in the bottom navigation bar
+    await tester.tap(find.byIcon(CupertinoIcons.compass));
+    await tester.pump();
+
+    // currentTabProvider is updated to 1
+    expect(container.read(currentTabProvider), 1);
   });
 }

@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
@@ -10,10 +11,12 @@ import '../models/album_item.dart';
 import '../models/song_item.dart';
 import '../providers/library_provider.dart';
 import '../providers/music_service_provider.dart';
+import '../providers/navigation_provider.dart';
 import '../providers/player_provider.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/apple_pressable.dart';
+import '../widgets/liquid_glass_bottom_bar.dart';
 import '../widgets/player_controls.dart';
 import '../widgets/track_options_sheet.dart';
 
@@ -51,23 +54,59 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
 
   bool _isDescriptionExpanded = false;
   bool _isSearching = false;
-  double _scrollOffset = 0.0;
   String _sortBy = 'default'; // 'default', 'title', 'duration'
+
+  // Crawl / Minimization state for floating mini player and bottom bar
+  bool _isMiniPlayerCrawled = false;
+  double _accumulatedScrollDelta = 0.0;
+
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification.metrics.axis != Axis.vertical) {
+      return false;
+    }
+
+    final pixels = notification.metrics.pixels;
+    if (pixels <= 25) {
+      if (_isMiniPlayerCrawled) {
+        setState(() => _isMiniPlayerCrawled = false);
+      }
+      _accumulatedScrollDelta = 0;
+      return false;
+    }
+
+    if (notification is UserScrollNotification) {
+      if (notification.direction == ScrollDirection.reverse &&
+          !_isMiniPlayerCrawled) {
+        setState(() => _isMiniPlayerCrawled = true);
+      } else if (notification.direction == ScrollDirection.forward &&
+          _isMiniPlayerCrawled) {
+        setState(() => _isMiniPlayerCrawled = false);
+      }
+    } else if (notification is ScrollUpdateNotification) {
+      final delta = notification.scrollDelta ?? 0.0;
+      if (delta > 0) {
+        _accumulatedScrollDelta =
+            (_accumulatedScrollDelta > 0 ? _accumulatedScrollDelta : 0) + delta;
+        if (_accumulatedScrollDelta > 20 && !_isMiniPlayerCrawled) {
+          setState(() => _isMiniPlayerCrawled = true);
+        }
+      } else if (delta < 0) {
+        _accumulatedScrollDelta =
+            (_accumulatedScrollDelta < 0 ? _accumulatedScrollDelta : 0) + delta;
+        if (_accumulatedScrollDelta < -12 && _isMiniPlayerCrawled) {
+          setState(() => _isMiniPlayerCrawled = false);
+        }
+      }
+    }
+
+    return false;
+  }
 
   @override
   void initState() {
     super.initState();
     _album = widget.album;
     _resolvedArtwork = widget.album.thumbnailUrl;
-
-    _scrollController.addListener(() {
-      if (mounted) {
-        setState(() {
-          _scrollOffset = _scrollController.offset;
-        });
-      }
-    });
-
     _loadAlbumDetails();
   }
 
@@ -443,7 +482,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
 
     final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
     final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
-    final showCollapsedHeader = _scrollOffset > 240.0;
+    final currentTabIndex = ref.watch(currentTabProvider);
 
     final totalDurationStr = _formatTotalDuration();
     final yearStr = _album.year ?? 2022;
@@ -510,15 +549,20 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
           ),
 
           // 3. Scrollable Album Content
-          CustomScrollView(
-            controller: _scrollController,
-            slivers: [
-              // Top Spacing for Floating App Bar
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: MediaQuery.of(context).padding.top + 64,
-                ),
+          NotificationListener<ScrollNotification>(
+            onNotification: _handleScrollNotification,
+            child: CustomScrollView(
+              controller: _scrollController,
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
               ),
+              slivers: [
+                // Top Spacing for Floating App Bar
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: MediaQuery.of(context).padding.top + 64,
+                  ),
+                ),
 
               // Search Bar (if search is toggled on)
               if (_isSearching)
@@ -954,158 +998,178 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     ),
                   ),
                 ),
-            ],
+              ],
+            ),
           ),
 
-          // 4. Persistent Top Navigation Bar
+          // 4. Dynamic Top Progressive Blur & Shader Scrim on Scroll
+          AnimatedBuilder(
+            animation: _scrollController,
+            builder: (context, _) {
+              final offset =
+                  _scrollController.hasClients ? _scrollController.offset : 0.0;
+              final progress = (offset / 80.0).clamp(0.0, 1.0);
+              if (progress <= 0.001) {
+                return const SizedBox.shrink();
+              }
+
+              final topBlurHeight =
+                  MediaQuery.of(context).padding.top + 68.0;
+
+              return Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: topBlurHeight,
+                child: IgnorePointer(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // Progressive graduated backdrop blur (26 sigma at top, dissolves downward)
+                      ProgressiveBlur(
+                        maxSigma: 26.0 * progress,
+                        direction: ProgressiveBlurDirection.topToBottom,
+                        falloff: 1.2,
+                      ),
+                      // Soft gradient shader dissolving into transparency
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.65 * progress),
+                              Colors.black.withValues(alpha: 0.30 * progress),
+                              Colors.transparent,
+                            ],
+                            stops: const [0.0, 0.65, 1.0],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+
+          // 5. Persistent Floating Top Buttons (Back & Action Dock)
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            child: Container(
-              padding: EdgeInsets.fromLTRB(
-                16,
-                MediaQuery.of(context).padding.top + 6,
-                16,
-                10,
-              ),
-              decoration: BoxDecoration(
-                color: showCollapsedHeader
-                    ? Colors.black.withValues(alpha: 0.85)
-                    : Colors.transparent,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Back Button (Liquid Glass circular button)
-                  GlassIconButton(
-                    icon: const Icon(
-                      CupertinoIcons.chevron_back,
-                      color: Colors.white,
-                      size: 20,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Back Button (Liquid Glass circular button)
+                    GlassIconButton(
+                      icon: const Icon(
+                        CupertinoIcons.chevron_back,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      size: 44,
+                      iconSize: 22,
+                      shape: GlassIconButtonShape.circle,
+                      useOwnLayer: true,
+                      settings: const LiquidGlassSettings(
+                        glassColor: Color(0x40000000),
+                        thickness: 24,
+                        blur: 24,
+                        refractiveIndex: 1.15,
+                        lightIntensity: 0.40,
+                        specularSharpness: GlassSpecularSharpness.sharp,
+                      ),
                     ),
-                    onPressed: () => Navigator.pop(context),
-                    size: 40,
-                    iconSize: 20,
-                    shape: GlassIconButtonShape.circle,
-                    useOwnLayer: true,
-                    settings: const LiquidGlassSettings(
-                      glassColor: Color(0x40000000),
-                      thickness: 24,
-                      blur: 24,
-                      refractiveIndex: 1.15,
-                      lightIntensity: 0.40,
-                      specularSharpness: GlassSpecularSharpness.sharp,
-                    ),
-                  ),
 
-                  // Collapsed Header Title & Artist (Smooth crossfade on scroll)
-                  if (showCollapsedHeader)
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              _album.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: -0.3,
-                              ),
-                            ),
-                            Text(
-                              _album.artist,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: AppColors.appleSecondaryText,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
+                    // Right Pill Action Dock (Search, Sort, 3-dots) in Liquid Glass (Matching size)
+                    GlassButtonGroup.icons(
+                      borderRadius: 22,
+                      useOwnLayer: true,
+                      iconSize: 22,
+                      itemPadding: const EdgeInsets.symmetric(
+                          horizontal: 13, vertical: 11),
+                      settings: const LiquidGlassSettings(
+                        glassColor: Color(0x40000000),
+                        thickness: 24,
+                        blur: 24,
+                        refractiveIndex: 1.15,
+                        lightIntensity: 0.40,
+                        specularSharpness: GlassSpecularSharpness.sharp,
                       ),
-                    )
-                  else
-                    const Spacer(),
-
-                  // Right Pill Action Dock (Search, Sort, 3-dots) in Liquid Glass
-                  GlassButtonGroup.icons(
-                    borderRadius: 20,
-                    useOwnLayer: true,
-                    iconSize: 18,
-                    itemPadding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 8),
-                    settings: const LiquidGlassSettings(
-                      glassColor: Color(0x40000000),
-                      thickness: 24,
-                      blur: 24,
-                      refractiveIndex: 1.15,
-                      lightIntensity: 0.40,
-                      specularSharpness: GlassSpecularSharpness.sharp,
+                      items: [
+                        GlassButtonGroupItem(
+                          icon: Icon(
+                            _isSearching
+                                ? CupertinoIcons.xmark
+                                : CupertinoIcons.search,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                          onTap: () {
+                            setState(() {
+                              _isSearching = !_isSearching;
+                              if (!_isSearching) {
+                                _searchController.clear();
+                                _onSearchChanged('');
+                              }
+                            });
+                          },
+                        ),
+                        GlassButtonGroupItem(
+                          icon: const Icon(
+                            CupertinoIcons.slider_horizontal_3,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                          onTap: _showSortOptions,
+                        ),
+                        GlassButtonGroupItem(
+                          icon: const Icon(
+                            CupertinoIcons.ellipsis,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                          onTap: _showAlbumOptions,
+                        ),
+                      ],
                     ),
-                    items: [
-                      GlassButtonGroupItem(
-                        icon: Icon(
-                          _isSearching
-                              ? CupertinoIcons.xmark
-                              : CupertinoIcons.search,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                        onTap: () {
-                          setState(() {
-                            _isSearching = !_isSearching;
-                            if (!_isSearching) {
-                              _searchController.clear();
-                              _onSearchChanged('');
-                            }
-                          });
-                        },
-                      ),
-                      GlassButtonGroupItem(
-                        icon: const Icon(
-                          CupertinoIcons.slider_horizontal_3,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                        onTap: _showSortOptions,
-                      ),
-                      GlassButtonGroupItem(
-                        icon: const Icon(
-                          CupertinoIcons.ellipsis,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                        onTap: _showAlbumOptions,
-                      ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
 
-          // 5. Floating Mini Player (rested at the bottom matching reference screenshot)
-          if (currentSong != null)
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 12,
-              child: SafeArea(
-                top: false,
-                child: PlayerControls(
-                  onTap: () => openPlayerScreen(context),
-                ),
+          // 6. Floating Liquid Glass Bottom Navigation Dock
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: SafeArea(
+              top: false,
+              child: LiquidGlassBottomBar(
+                currentIndex: currentTabIndex,
+                isCrawled: _isMiniPlayerCrawled,
+                onTabSelected: (index) {
+                  ref.read(currentTabProvider.notifier).state = index;
+                  Navigator.popUntil(context, (route) => route.isFirst);
+                },
+                onExpand: () {
+                  setState(() => _isMiniPlayerCrawled = false);
+                },
+                bottomAccessory: currentSong != null
+                    ? PlayerControls(
+                        onTap: () => openPlayerScreen(context),
+                      )
+                    : null,
               ),
             ),
+          ),
         ],
       ),
     );

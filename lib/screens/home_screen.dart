@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../providers/navigation_provider.dart';
 import '../providers/player_provider.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/liquid_glass_bottom_bar.dart';
@@ -31,9 +32,6 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   final GlobalKey<SearchScreenState> _searchKey = GlobalKey<SearchScreenState>();
-
-  // 4 tabs: 0: Home, 1: Explore, 2: Library, 3: Search
-  int _currentTabIndex = 0;
 
   // Crawl / Minimization state for floating mini player and bottom bar
   bool _isMiniPlayerCrawled = false;
@@ -104,8 +102,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _navigateToSearchWithQuery(String query) {
+    ref.read(currentTabProvider.notifier).state = 3;
     setState(() {
-      _currentTabIndex = 3;
       _isMiniPlayerCrawled = false;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -116,6 +114,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final playerState = ref.watch(playerProvider);
+    final currentTabIndex = ref.watch(currentTabProvider);
 
     // Listen for audio stream resolution errors
     ref.listen<String?>(playerProvider.select((s) => s.errorMessage), (
@@ -138,12 +137,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: NotificationListener<ScrollNotification>(
               onNotification: _handleScrollNotification,
               child: IndexedStack(
-                index: _currentTabIndex,
+                index: currentTabIndex,
                 children: [
                   HomeFeedScreen(
                     onNavigateToTab: (index) {
+                      ref.read(currentTabProvider.notifier).state = index;
                       setState(() {
-                        _currentTabIndex = index;
                         _isMiniPlayerCrawled = false;
                       });
                     },
@@ -170,11 +169,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: SafeArea(
               top: false,
               child: LiquidGlassBottomBar(
-                currentIndex: _currentTabIndex,
+                currentIndex: currentTabIndex,
                 isCrawled: _isMiniPlayerCrawled,
                 onTabSelected: (index) {
+                  ref.read(currentTabProvider.notifier).state = index;
                   setState(() {
-                    _currentTabIndex = index;
                     _isMiniPlayerCrawled = false;
                   });
                 },
