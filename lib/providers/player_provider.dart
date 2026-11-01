@@ -196,17 +196,39 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   int _computeActiveLyricIndex(int currentMs, List<LyricLine> lyrics) {
     if (lyrics.isEmpty) return -1;
 
+    // Guard: Before the first timed lyric starts (song intro), no lyric should be active
+    final firstStart = lyrics.first.startTimeMs;
+    if (firstStart != null && currentMs < firstStart) {
+      return -1;
+    }
+
+    // 1. Direct active range check: line currently being sung
     for (int i = 0; i < lyrics.length; i++) {
-      if (lyrics[i].isActiveAt(currentMs)) {
+      final line = lyrics[i];
+      if (line.startTimeMs == null) continue;
+
+      final start = line.startTimeMs!;
+      final end = line.endTimeMs ?? (start + 3500);
+
+      if (currentMs >= start && currentMs < end) {
         return i;
       }
     }
 
-    if (lyrics.first.startTimeMs != null) {
-      for (int i = lyrics.length - 1; i >= 0; i--) {
-        if (lyrics[i].startTimeMs != null && currentMs >= lyrics[i].startTimeMs!) {
-          return i;
+    // 2. Inter-line gap handling (between line i end and line i+1 start)
+    for (int i = 0; i < lyrics.length; i++) {
+      final line = lyrics[i];
+      if (line.startTimeMs == null) continue;
+
+      final nextStart = (i < lyrics.length - 1) ? lyrics[i + 1].startTimeMs : null;
+      if (currentMs >= line.startTimeMs! && (nextStart == null || currentMs < nextStart)) {
+        // If there's an instrumental break (> 3.5s gap after endTimeMs), un-highlight
+        if (line.endTimeMs != null && (currentMs - line.endTimeMs!) > 2500) {
+          if (nextStart != null && (nextStart - line.endTimeMs!) > 3500) {
+            return -1; // In instrumental break
+          }
         }
+        return i;
       }
     }
 

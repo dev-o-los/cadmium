@@ -8,6 +8,8 @@ import 'apple_pressable.dart';
 
 /// Apple Music-style Karaoke Lyrics View inspired by binimum/am-lyrics (Benjamin).
 /// Features:
+/// - Live active lyric correctly positioned in the prime upper-middle viewing area below album art
+/// - Previously sung verses smoothly scroll upwards and dissolve beneath the top bar / album art
 /// - Word-by-word / Syllable progressive gradient wipe synchronization for real-time karaoke
 /// - Distance-based Gaussian blur (depth-of-field) and scale falloff for inactive lines
 /// - Dynamic Apple duet alignment (right-aligned for opposing singer, left-aligned for lead)
@@ -43,32 +45,67 @@ class AppleLyricsView extends StatefulWidget {
 
 class _AppleLyricsViewState extends State<AppleLyricsView> {
   final ScrollController _scrollController = ScrollController();
+  final Map<int, GlobalKey> _lineKeys = {};
   bool _isUserScrolling = false;
   Timer? _userScrollDebounce;
+
+  GlobalKey _getKeyForIndex(int index) {
+    return _lineKeys.putIfAbsent(index, () => GlobalKey());
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.activeLyricIndex >= 0) {
+        _scrollToActiveLine(immediate: true);
+      }
+    });
+  }
 
   @override
   void didUpdateWidget(covariant AppleLyricsView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.activeLyricIndex != oldWidget.activeLyricIndex && !_isUserScrolling) {
-      _scrollToActiveLine();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _scrollToActiveLine();
+        }
+      });
     }
   }
 
-  void _scrollToActiveLine() {
+  /// Centers the active line just below the album art header,
+  /// smoothly shifting the previous verse upside as each verse finishes.
+  void _scrollToActiveLine({bool immediate = false}) {
     if (!_scrollController.hasClients || widget.activeLyricIndex < 0) return;
     if (widget.activeLyricIndex >= widget.lyrics.length) return;
 
-    // Center active line at approximately 22% from top of viewport
-    final targetOffset = (widget.activeLyricIndex * 72.0).clamp(
-      0.0,
-      _scrollController.position.maxScrollExtent,
-    );
+    final key = _lineKeys[widget.activeLyricIndex];
+    final targetContext = key?.currentContext;
 
-    _scrollController.animateTo(
-      targetOffset,
-      duration: const Duration(milliseconds: 450),
-      curve: Curves.easeOutCubic,
-    );
+    if (targetContext != null) {
+      Scrollable.ensureVisible(
+        targetContext,
+        alignment: 0.0, // Positions live lyric directly below the album art header
+        duration: immediate ? Duration.zero : const Duration(milliseconds: 380),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      final targetOffset = widget.activeLyricIndex * 68.0;
+
+      if (immediate) {
+        _scrollController.jumpTo(
+          targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+        );
+      } else {
+        _scrollController.animateTo(
+          targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+          duration: const Duration(milliseconds: 380),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    }
   }
 
   void _handleUserScroll(ScrollNotification notification) {
@@ -174,7 +211,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView> {
                     Colors.black,
                     Colors.transparent,
                   ],
-                  stops: [0.0, 0.08, 0.88, 1.0],
+                  stops: [0.0, 0.02, 0.90, 1.0],
                 ).createShader(bounds);
               },
               blendMode: BlendMode.dstIn,
@@ -187,7 +224,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView> {
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: ListView.builder(
                     controller: _scrollController,
-                    padding: const EdgeInsets.only(top: 40, bottom: 80),
+                    padding: const EdgeInsets.only(top: 14, bottom: 220),
                     itemCount: widget.lyrics.length + 1,
                     itemBuilder: (context, index) {
                       if (index == widget.lyrics.length) {
@@ -225,6 +262,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView> {
     final wrapAlignment = line.isOppositeTurn ? WrapAlignment.end : WrapAlignment.start;
 
     return ApplePressable(
+      key: _getKeyForIndex(index),
       onTap: () => widget.onSeekToLyric(line),
       pressedScale: 0.96,
       pressedOpacity: 0.85,

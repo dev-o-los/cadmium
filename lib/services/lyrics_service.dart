@@ -224,10 +224,18 @@ class LyricsService {
         }
       }
 
+      var resolvedEndMs = endTimeMs;
+      if (syllables.isNotEmpty && syllables.last.endTimeMs > resolvedEndMs) {
+        resolvedEndMs = syllables.last.endTimeMs;
+      }
+      if (resolvedEndMs <= startTimeMs) {
+        resolvedEndMs = startTimeMs + 3500;
+      }
+
       lines.add(LyricLine(
         text: text,
         startTimeMs: startTimeMs,
-        endTimeMs: endTimeMs,
+        endTimeMs: resolvedEndMs,
         syllables: syllables,
         isWordSynced: isWordSync && syllables.isNotEmpty,
         isBackground: isBackground,
@@ -298,7 +306,7 @@ class LyricsService {
 
       final timeMs = (item['time'] as num?)?.toInt() ?? 0;
       final durationMs = (item['duration'] as num?)?.toInt() ?? 0;
-      final endTimeMs = timeMs + durationMs;
+      var endTimeMs = durationMs > 0 ? timeMs + durationMs : timeMs + 3500;
 
       final element = item['element'] as Map<String, dynamic>?;
       final singer = element?['singer'] as String?;
@@ -323,6 +331,10 @@ class LyricsService {
             ));
           }
         }
+      }
+
+      if (syllables.isNotEmpty && syllables.last.endTimeMs > endTimeMs) {
+        endTimeMs = syllables.last.endTimeMs;
       }
 
       lines.add(LyricLine(
