@@ -81,7 +81,10 @@ class LibraryScreen extends ConsumerWidget {
               ),
               if (account != null)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(12),
@@ -112,10 +115,7 @@ class LibraryScreen extends ConsumerWidget {
         const SizedBox(height: 20),
 
         // 2. Playlists Section
-        _buildLibrarySectionHeader(
-          title: 'Playlists',
-          count: playlists.length,
-        ),
+        _buildLibrarySectionHeader(title: 'Playlists', count: playlists.length),
         const SizedBox(height: 12),
         if (playlists.isEmpty && isLoggedIn)
           Padding(
@@ -123,7 +123,8 @@ class LibraryScreen extends ConsumerWidget {
             child: _buildEmptySectionBanner(
               icon: CupertinoIcons.music_note_list,
               title: 'No Playlists Found',
-              subtitle: 'Tap Save Playlist below to import any YouTube playlist.',
+              subtitle:
+                  'Tap Save Playlist below to import any YouTube playlist.',
               actionButtonText: 'Save Playlist',
               onActionTap: () => _showSavePlaylistSheet(context, ref),
             ),
@@ -148,7 +149,12 @@ class LibraryScreen extends ConsumerWidget {
                   );
                 }
                 final playlist = playlists[index - 1];
-                return _buildPlaylistSquareCard(context, ref, playlist, cardWidth);
+                return _buildPlaylistSquareCard(
+                  context,
+                  ref,
+                  playlist,
+                  cardWidth,
+                );
               },
             ),
           ),
@@ -194,10 +200,7 @@ class LibraryScreen extends ConsumerWidget {
         const SizedBox(height: 28),
 
         // 4. Albums Section
-        _buildLibrarySectionHeader(
-          title: 'Albums',
-          count: albums.length,
-        ),
+        _buildLibrarySectionHeader(title: 'Albums', count: albums.length),
         const SizedBox(height: 12),
         if (albums.isEmpty && isLoggedIn)
           Padding(
@@ -237,10 +240,7 @@ class LibraryScreen extends ConsumerWidget {
         const SizedBox(height: 28),
 
         // 5. Artists Section
-        _buildLibrarySectionHeader(
-          title: 'Artists',
-          count: artists.length,
-        ),
+        _buildLibrarySectionHeader(title: 'Artists', count: artists.length),
         const SizedBox(height: 12),
         if (artists.isEmpty && isLoggedIn)
           Padding(
@@ -364,10 +364,14 @@ class LibraryScreen extends ConsumerWidget {
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) =>
                           _fallbackSquareArt(
-                              size: cardWidth, icon: CupertinoIcons.music_note_list),
+                            size: cardWidth,
+                            icon: CupertinoIcons.music_note_list,
+                          ),
                     )
                   : _fallbackSquareArt(
-                      size: cardWidth, icon: CupertinoIcons.music_note_list),
+                      size: cardWidth,
+                      icon: CupertinoIcons.music_note_list,
+                    ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -407,8 +411,9 @@ class LibraryScreen extends ConsumerWidget {
     double cardWidth,
     List<SongItem> queue,
   ) {
-    final isCurrent =
-        ref.watch(playerProvider.select((s) => s.currentSong?.id == song.id));
+    final isCurrent = ref.watch(
+      playerProvider.select((s) => s.currentSong?.id == song.id),
+    );
     final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
 
     return ApplePressable(
@@ -510,10 +515,7 @@ class LibraryScreen extends ConsumerWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: DynamicAlbumArtwork(
-                album: album,
-                size: cardWidth,
-              ),
+              child: DynamicAlbumArtwork(album: album, size: cardWidth),
             ),
             const SizedBox(height: 8),
             Text(
@@ -571,10 +573,14 @@ class LibraryScreen extends ConsumerWidget {
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) =>
                           _fallbackSquareArt(
-                              size: cardWidth, icon: CupertinoIcons.person_solid),
+                            size: cardWidth,
+                            icon: CupertinoIcons.person_solid,
+                          ),
                     )
                   : _fallbackSquareArt(
-                      size: cardWidth, icon: CupertinoIcons.person_solid),
+                      size: cardWidth,
+                      icon: CupertinoIcons.person_solid,
+                    ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -707,7 +713,11 @@ class LibraryScreen extends ConsumerWidget {
                   color: Colors.white.withValues(alpha: 0.06),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: AppColors.appleSecondaryText, size: 24),
+                child: Icon(
+                  icon,
+                  color: AppColors.appleSecondaryText,
+                  size: 24,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -741,8 +751,10 @@ class LibraryScreen extends ConsumerWidget {
               onTap: onActionTap,
               borderRadius: BorderRadius.circular(10),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(10),
@@ -750,7 +762,11 @@ class LibraryScreen extends ConsumerWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(CupertinoIcons.plus, color: AppColors.appleRed, size: 16),
+                    const Icon(
+                      CupertinoIcons.plus,
+                      color: AppColors.appleRed,
+                      size: 16,
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       actionButtonText,
@@ -845,12 +861,15 @@ class LibraryScreen extends ConsumerWidget {
                               controller: controller,
                               autofocus: true,
                               style: const TextStyle(
-                                  color: Colors.white, fontSize: 14),
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
                               decoration: const InputDecoration(
-                                hintText:
-                                    'https://music.youtube.com/playlist?list=...',
+                                hintText: 'https://music.youtube.com/playlist?list=...',
                                 hintStyle: TextStyle(
-                                    color: Colors.white38, fontSize: 13),
+                                  color: Colors.white38,
+                                  fontSize: 13,
+                                ),
                                 border: InputBorder.none,
                               ),
                             ),
@@ -876,7 +895,9 @@ class LibraryScreen extends ConsumerWidget {
                       Text(
                         errorMessage!,
                         style: const TextStyle(
-                            color: Colors.redAccent, fontSize: 12),
+                          color: Colors.redAccent,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                     const SizedBox(height: 20),
@@ -913,8 +934,7 @@ class LibraryScreen extends ConsumerWidget {
                                     final input = controller.text.trim();
                                     if (input.isEmpty) {
                                       setModalState(() {
-                                        errorMessage =
-                                            'Please enter a playlist URL or ID.';
+                                        errorMessage = 'Please enter a playlist URL or ID.';
                                       });
                                       return;
                                     }
@@ -925,15 +945,17 @@ class LibraryScreen extends ConsumerWidget {
                                     });
 
                                     try {
-                                      final musicService =
-                                          ref.read(musicServiceProvider);
+                                      final musicService = ref.read(
+                                        musicServiceProvider,
+                                      );
                                       final playlist = await musicService
                                           .fetchYouTubePlaylist(input);
 
                                       if (playlist != null) {
                                         ref
                                             .read(
-                                                savedPlaylistsProvider.notifier)
+                                              savedPlaylistsProvider.notifier,
+                                            )
                                             .addPlaylist(playlist);
                                         if (modalCtx.mounted) {
                                           Navigator.pop(modalCtx);
@@ -947,8 +969,7 @@ class LibraryScreen extends ConsumerWidget {
                                       } else {
                                         setModalState(() {
                                           isLoading = false;
-                                          errorMessage =
-                                              'Could not resolve playlist. Check link and try again.';
+                                          errorMessage = 'Could not resolve playlist. Check link and try again.';
                                         });
                                       }
                                     } catch (e) {
@@ -975,7 +996,8 @@ class LibraryScreen extends ConsumerWidget {
                                         strokeWidth: 2,
                                         valueColor:
                                             AlwaysStoppedAnimation<Color>(
-                                                Colors.white),
+                                              Colors.white,
+                                            ),
                                       ),
                                     )
                                   : const Text(
@@ -1069,8 +1091,10 @@ class LibraryScreen extends ConsumerWidget {
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(CupertinoIcons.xmark_circle_fill,
-                              color: Colors.white54),
+                          icon: const Icon(
+                            CupertinoIcons.xmark_circle_fill,
+                            color: Colors.white54,
+                          ),
                           onPressed: () => Navigator.pop(modalCtx),
                         ),
                       ],
@@ -1087,19 +1111,26 @@ class LibraryScreen extends ConsumerWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: Row(
                         children: [
-                          const Icon(CupertinoIcons.search,
-                              color: AppColors.appleSecondaryText, size: 20),
+                          const Icon(
+                            CupertinoIcons.search,
+                            color: AppColors.appleSecondaryText,
+                            size: 20,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: TextField(
                               controller: searchController,
                               autofocus: true,
                               style: const TextStyle(
-                                  color: Colors.white, fontSize: 15),
+                                color: Colors.white,
+                                fontSize: 15,
+                              ),
                               decoration: const InputDecoration(
                                 hintText: 'Search artists on YouTube...',
                                 hintStyle: TextStyle(
-                                    color: Colors.white38, fontSize: 14),
+                                  color: Colors.white38,
+                                  fontSize: 14,
+                                ),
                                 border: InputBorder.none,
                               ),
                               onSubmitted: executeSearch,
@@ -1110,16 +1141,20 @@ class LibraryScreen extends ConsumerWidget {
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: AppColors.appleRed),
+                                strokeWidth: 2,
+                                color: AppColors.appleRed,
+                              ),
                             )
                           else if (searchController.text.isNotEmpty)
                             GestureDetector(
-                              onTap: () =>
-                                  executeSearch(searchController.text),
-                              child: const Text('Search',
-                                  style: TextStyle(
-                                      color: AppColors.appleRed,
-                                      fontWeight: FontWeight.bold)),
+                              onTap: () => executeSearch(searchController.text),
+                              child: const Text(
+                                'Search',
+                                style: TextStyle(
+                                  color: AppColors.appleRed,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                         ],
                       ),
@@ -1133,23 +1168,30 @@ class LibraryScreen extends ConsumerWidget {
                               'Search for an artist and tap + to add them to your library.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                  color: AppColors.appleSecondaryText, fontSize: 14),
+                                color: AppColors.appleSecondaryText,
+                                fontSize: 14,
+                              ),
                             ),
                           )
                         : ListView.separated(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 8),
+                              horizontal: 20,
+                              vertical: 8,
+                            ),
                             itemCount: searchResults.length,
                             separatorBuilder: (context, index) =>
                                 const SizedBox(height: 8),
                             itemBuilder: (context, index) {
                               final artist = searchResults[index];
-                              final isSaved =
-                                  savedArtists.any((a) => a.id == artist.id);
+                              final isSaved = savedArtists.any(
+                                (a) => a.id == artist.id,
+                              );
 
                               return Container(
                                 padding: const EdgeInsets.symmetric(
-                                    vertical: 8, horizontal: 12),
+                                  vertical: 8,
+                                  horizontal: 12,
+                                ),
                                 decoration: BoxDecoration(
                                   color: Colors.white.withValues(alpha: 0.04),
                                   borderRadius: BorderRadius.circular(12),
@@ -1164,15 +1206,21 @@ class LibraryScreen extends ConsumerWidget {
                                               width: 44,
                                               height: 44,
                                               fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) =>
-                                                  _fallbackSquareArt(
-                                                      size: 44,
-                                                      icon: CupertinoIcons
-                                                          .person_solid),
+                                              errorBuilder:
+                                                  (
+                                                    context,
+                                                    error,
+                                                    stackTrace,
+                                                  ) => _fallbackSquareArt(
+                                                    size: 44,
+                                                    icon: CupertinoIcons
+                                                        .person_solid,
+                                                  ),
                                             )
                                           : _fallbackSquareArt(
                                               size: 44,
-                                              icon: CupertinoIcons.person_solid),
+                                              icon: CupertinoIcons.person_solid,
+                                            ),
                                     ),
                                     const SizedBox(width: 12),
                                     Expanded(
@@ -1192,7 +1240,8 @@ class LibraryScreen extends ConsumerWidget {
                                           Text(
                                             artist.subtitle,
                                             style: const TextStyle(
-                                              color: AppColors.appleSecondaryText,
+                                              color:
+                                                  AppColors.appleSecondaryText,
                                               fontSize: 12,
                                             ),
                                           ),
@@ -1203,7 +1252,7 @@ class LibraryScreen extends ConsumerWidget {
                                       icon: Icon(
                                         isSaved
                                             ? CupertinoIcons
-                                                .checkmark_circle_fill
+                                                  .checkmark_circle_fill
                                             : CupertinoIcons.plus_circle,
                                         color: isSaved
                                             ? Colors.greenAccent
@@ -1299,8 +1348,10 @@ class LibraryScreen extends ConsumerWidget {
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(CupertinoIcons.xmark_circle_fill,
-                              color: Colors.white54),
+                          icon: const Icon(
+                            CupertinoIcons.xmark_circle_fill,
+                            color: Colors.white54,
+                          ),
                           onPressed: () => Navigator.pop(modalCtx),
                         ),
                       ],
@@ -1317,19 +1368,26 @@ class LibraryScreen extends ConsumerWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: Row(
                         children: [
-                          const Icon(CupertinoIcons.search,
-                              color: AppColors.appleSecondaryText, size: 20),
+                          const Icon(
+                            CupertinoIcons.search,
+                            color: AppColors.appleSecondaryText,
+                            size: 20,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: TextField(
                               controller: searchController,
                               autofocus: true,
                               style: const TextStyle(
-                                  color: Colors.white, fontSize: 15),
+                                color: Colors.white,
+                                fontSize: 15,
+                              ),
                               decoration: const InputDecoration(
                                 hintText: 'Search albums on YouTube...',
                                 hintStyle: TextStyle(
-                                    color: Colors.white38, fontSize: 14),
+                                  color: Colors.white38,
+                                  fontSize: 14,
+                                ),
                                 border: InputBorder.none,
                               ),
                               onSubmitted: executeSearch,
@@ -1340,16 +1398,20 @@ class LibraryScreen extends ConsumerWidget {
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: AppColors.appleRed),
+                                strokeWidth: 2,
+                                color: AppColors.appleRed,
+                              ),
                             )
                           else if (searchController.text.isNotEmpty)
                             GestureDetector(
-                              onTap: () =>
-                                  executeSearch(searchController.text),
-                              child: const Text('Search',
-                                  style: TextStyle(
-                                      color: AppColors.appleRed,
-                                      fontWeight: FontWeight.bold)),
+                              onTap: () => executeSearch(searchController.text),
+                              child: const Text(
+                                'Search',
+                                style: TextStyle(
+                                  color: AppColors.appleRed,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                         ],
                       ),
@@ -1363,23 +1425,30 @@ class LibraryScreen extends ConsumerWidget {
                               'Search for an album and tap + to add it to your library.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                  color: AppColors.appleSecondaryText, fontSize: 14),
+                                color: AppColors.appleSecondaryText,
+                                fontSize: 14,
+                              ),
                             ),
                           )
                         : ListView.separated(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 8),
+                              horizontal: 20,
+                              vertical: 8,
+                            ),
                             itemCount: searchResults.length,
                             separatorBuilder: (context, index) =>
                                 const SizedBox(height: 8),
                             itemBuilder: (context, index) {
                               final album = searchResults[index];
-                              final isSaved =
-                                  savedAlbums.any((a) => a.id == album.id);
+                              final isSaved = savedAlbums.any(
+                                (a) => a.id == album.id,
+                              );
 
                               return Container(
                                 padding: const EdgeInsets.symmetric(
-                                    vertical: 8, horizontal: 12),
+                                  vertical: 8,
+                                  horizontal: 12,
+                                ),
                                 decoration: BoxDecoration(
                                   color: Colors.white.withValues(alpha: 0.04),
                                   borderRadius: BorderRadius.circular(12),
@@ -1394,16 +1463,21 @@ class LibraryScreen extends ConsumerWidget {
                                               width: 44,
                                               height: 44,
                                               fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) =>
-                                                  _fallbackSquareArt(
-                                                      size: 44,
-                                                      icon: CupertinoIcons
-                                                          .music_albums),
+                                              errorBuilder:
+                                                  (
+                                                    context,
+                                                    error,
+                                                    stackTrace,
+                                                  ) => _fallbackSquareArt(
+                                                    size: 44,
+                                                    icon: CupertinoIcons
+                                                        .music_albums,
+                                                  ),
                                             )
                                           : _fallbackSquareArt(
                                               size: 44,
-                                              icon: CupertinoIcons
-                                                  .music_albums),
+                                              icon: CupertinoIcons.music_albums,
+                                            ),
                                     ),
                                     const SizedBox(width: 12),
                                     Expanded(
@@ -1423,7 +1497,8 @@ class LibraryScreen extends ConsumerWidget {
                                           Text(
                                             album.subtitle,
                                             style: const TextStyle(
-                                              color: AppColors.appleSecondaryText,
+                                              color:
+                                                  AppColors.appleSecondaryText,
                                               fontSize: 12,
                                             ),
                                           ),
@@ -1434,7 +1509,7 @@ class LibraryScreen extends ConsumerWidget {
                                       icon: Icon(
                                         isSaved
                                             ? CupertinoIcons
-                                                .checkmark_circle_fill
+                                                  .checkmark_circle_fill
                                             : CupertinoIcons.plus_circle,
                                         color: isSaved
                                             ? Colors.greenAccent
@@ -1478,4 +1553,3 @@ class LibraryScreen extends ConsumerWidget {
     );
   }
 }
-
