@@ -1591,16 +1591,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(14),
-                        child: album.thumbnailUrl != null
-                            ? Image.network(
-                                album.thumbnailUrl!,
-                                width: cardWidth,
-                                height: cardWidth,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    _fallbackSquareArt(size: cardWidth),
-                              )
-                            : _fallbackSquareArt(size: cardWidth),
+                        child: _DynamicAlbumArtwork(
+                          album: album,
+                          size: cardWidth,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -2018,25 +2012,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final cardWidth = (screenWidth * 0.38).clamp(136.0, 180.0);
     final cardHeight = cardWidth + 58.0;
 
-    final savedPlaylists = ref.watch(savedPlaylistsProvider);
-    final savedAlbums = ref.watch(savedAlbumsProvider);
-    final savedArtists = ref.watch(savedArtistsProvider);
+    final account = ref.watch(authProvider);
+    final isLoggedIn = account != null;
+
+    final playlistsAsync = ref.watch(userPlaylistsProvider);
+    final albumsAsync = ref.watch(userAlbumsProvider);
+    final artistsAsync = ref.watch(userArtistsProvider);
     final localFavorites = ref.watch(favoritesProvider);
     final ytLikesAsync = ref.watch(youtubeLikedSongsProvider);
     final recentlyPlayed = ref.watch(
       playerProvider.select((s) => s.recentlyPlayed),
     );
 
-    // Combine YouTube Liked Music and local favorite songs, deduplicated by ID
-    final ytLikes = ytLikesAsync.value ?? [];
-    final Map<String, SongItem> likedMap = {};
-    for (final s in ytLikes) {
-      likedMap[s.id] = s;
+    final playlists = playlistsAsync.value ?? [];
+    final albums = albumsAsync.value ?? [];
+    final artists = artistsAsync.value ?? [];
+
+    // Liked Music:
+    // When logged in: Show ONLY user's YouTube Music account liked tracks merged with local favorites.
+    // When logged out: Show local favorites.
+    final List<SongItem> allLikedMusic;
+    if (isLoggedIn) {
+      final ytLikes = ytLikesAsync.value ?? [];
+      final Map<String, SongItem> likedMap = {};
+      for (final s in ytLikes) {
+        likedMap[s.id] = s;
+      }
+      for (final s in localFavorites) {
+        likedMap[s.id] = s;
+      }
+      allLikedMusic = likedMap.values.toList();
+    } else {
+      allLikedMusic = localFavorites;
     }
-    for (final s in localFavorites) {
-      likedMap[s.id] = s;
-    }
-    final allLikedMusic = likedMap.values.toList();
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(0, 12, 0, 160),
@@ -2056,38 +2064,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   letterSpacing: -1.2,
                 ),
               ),
-              Consumer(
-                builder: (context, ref, _) {
-                  final account = ref.watch(authProvider);
-                  if (account == null) return const SizedBox.shrink();
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          CupertinoIcons.checkmark_seal_fill,
-                          color: Colors.greenAccent,
-                          size: 13,
+              if (account != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        CupertinoIcons.checkmark_seal_fill,
+                        color: Colors.greenAccent,
+                        size: 13,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        account.displayName.split(' ').first,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
                         ),
-                        const SizedBox(width: 5),
-                        Text(
-                          account.displayName.split(' ').first,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),
@@ -2096,32 +2099,44 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // 2. Playlists Section (Horizontal album cards with Save from YouTube button)
         _buildLibrarySectionHeader(
           title: 'Playlists',
-          count: savedPlaylists.length,
+          count: playlists.length,
         ),
         const SizedBox(height: 12),
-        SizedBox(
-          height: cardHeight,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
+        if (playlists.isEmpty && isLoggedIn)
+          Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: savedPlaylists.length + 1,
-            separatorBuilder: (context, index) => const SizedBox(width: 14),
-            itemBuilder: (context, index) {
-              if (index == 0) {
-                return _buildActionSquareCard(
-                  cardWidth: cardWidth,
-                  icon: CupertinoIcons.plus,
-                  title: 'Save Playlist',
-                  subtitle: 'From YouTube',
-                  iconColor: appleRed,
-                  onTap: () => _showSavePlaylistSheet(context),
-                );
-              }
-              final playlist = savedPlaylists[index - 1];
-              return _buildPlaylistSquareCard(playlist, cardWidth);
-            },
+            child: _buildEmptySectionBanner(
+              icon: CupertinoIcons.music_note_list,
+              title: 'No Playlists Found',
+              subtitle: 'Tap Save Playlist below to import any YouTube playlist.',
+              actionButtonText: 'Save Playlist',
+              onActionTap: () => _showSavePlaylistSheet(context),
+            ),
+          )
+        else
+          SizedBox(
+            height: cardHeight,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: playlists.length + 1,
+              separatorBuilder: (context, index) => const SizedBox(width: 14),
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return _buildActionSquareCard(
+                    cardWidth: cardWidth,
+                    icon: CupertinoIcons.plus,
+                    title: 'Save Playlist',
+                    subtitle: 'From YouTube',
+                    iconColor: appleRed,
+                    onTap: () => _showSavePlaylistSheet(context),
+                  );
+                }
+                final playlist = playlists[index - 1];
+                return _buildPlaylistSquareCard(playlist, cardWidth);
+              },
+            ),
           ),
-        ),
         const SizedBox(height: 28),
 
         // 3. Liked Music Section (Horizontal album cards - no list style)
@@ -2135,9 +2150,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: _buildEmptySectionBanner(
               icon: CupertinoIcons.heart,
-              title: 'No Liked Music Yet',
-              subtitle:
-                  'Star songs locally or sign in with YouTube Music to import your liked tracks.',
+              title: isLoggedIn ? 'No Liked Music Found' : 'No Liked Music Yet',
+              subtitle: isLoggedIn
+                  ? 'Tracks you like on YouTube Music or star in Wavify will appear here.'
+                  : 'Star songs locally or sign in with YouTube Music to import your liked tracks.',
             ),
           )
         else
@@ -2159,63 +2175,87 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // 4. Albums Section (Horizontal album cards)
         _buildLibrarySectionHeader(
           title: 'Albums',
-          count: savedAlbums.length,
+          count: albums.length,
         ),
         const SizedBox(height: 12),
-        SizedBox(
-          height: cardHeight,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
+        if (albums.isEmpty && isLoggedIn)
+          Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: savedAlbums.length + 1,
-            separatorBuilder: (context, index) => const SizedBox(width: 14),
-            itemBuilder: (context, index) {
-              if (index == 0) {
-                return _buildActionSquareCard(
-                  cardWidth: cardWidth,
-                  icon: CupertinoIcons.search,
-                  title: 'Add Album',
-                  subtitle: 'From YouTube',
-                  iconColor: const Color(0xFFFF9500),
-                  onTap: () => _showSearchAlbumSheet(context),
-                );
-              }
-              final album = savedAlbums[index - 1];
-              return _buildAlbumSquareCard(album, cardWidth);
-            },
+            child: _buildEmptySectionBanner(
+              icon: CupertinoIcons.music_albums,
+              title: 'No Saved Albums Found',
+              subtitle: 'Tap Add Album below to search and save albums to your library.',
+              actionButtonText: 'Add Album',
+              onActionTap: () => _showSearchAlbumSheet(context),
+            ),
+          )
+        else
+          SizedBox(
+            height: cardHeight,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: albums.length + 1,
+              separatorBuilder: (context, index) => const SizedBox(width: 14),
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return _buildActionSquareCard(
+                    cardWidth: cardWidth,
+                    icon: CupertinoIcons.search,
+                    title: 'Add Album',
+                    subtitle: 'From YouTube',
+                    iconColor: const Color(0xFFFF9500),
+                    onTap: () => _showSearchAlbumSheet(context),
+                  );
+                }
+                final album = albums[index - 1];
+                return _buildAlbumSquareCard(album, cardWidth);
+              },
+            ),
           ),
-        ),
         const SizedBox(height: 28),
 
         // 5. Artists Section (Horizontal artist cards)
         _buildLibrarySectionHeader(
           title: 'Artists',
-          count: savedArtists.length,
+          count: artists.length,
         ),
         const SizedBox(height: 12),
-        SizedBox(
-          height: cardHeight,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
+        if (artists.isEmpty && isLoggedIn)
+          Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: savedArtists.length + 1,
-            separatorBuilder: (context, index) => const SizedBox(width: 14),
-            itemBuilder: (context, index) {
-              if (index == 0) {
-                return _buildActionSquareCard(
-                  cardWidth: cardWidth,
-                  icon: CupertinoIcons.person_badge_plus,
-                  title: 'Add Artist',
-                  subtitle: 'From YouTube',
-                  iconColor: const Color(0xFF00C7BE),
-                  onTap: () => _showSearchArtistSheet(context),
-                );
-              }
-              final artist = savedArtists[index - 1];
-              return _buildArtistSquareCard(artist, cardWidth);
-            },
+            child: _buildEmptySectionBanner(
+              icon: CupertinoIcons.person_2_fill,
+              title: 'No Subscribed Artists Found',
+              subtitle: 'Tap Add Artist below to search and bookmark favorite artists.',
+              actionButtonText: 'Add Artist',
+              onActionTap: () => _showSearchArtistSheet(context),
+            ),
+          )
+        else
+          SizedBox(
+            height: cardHeight,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: artists.length + 1,
+              separatorBuilder: (context, index) => const SizedBox(width: 14),
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return _buildActionSquareCard(
+                    cardWidth: cardWidth,
+                    icon: CupertinoIcons.person_badge_plus,
+                    title: 'Add Artist',
+                    subtitle: 'From YouTube',
+                    iconColor: const Color(0xFF00C7BE),
+                    onTap: () => _showSearchArtistSheet(context),
+                  );
+                }
+                final artist = artists[index - 1];
+                return _buildArtistSquareCard(artist, cardWidth);
+              },
+            ),
           ),
-        ),
         const SizedBox(height: 28),
 
         // 6. Recently Played Section (Horizontal square cards - no list style)
@@ -2428,16 +2468,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: album.thumbnailUrl != null
-                  ? Image.network(
-                      album.thumbnailUrl!,
-                      width: cardWidth,
-                      height: cardWidth,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          _fallbackSquareArt(size: cardWidth, icon: CupertinoIcons.music_albums),
-                    )
-                  : _fallbackSquareArt(size: cardWidth, icon: CupertinoIcons.music_albums),
+              child: _DynamicAlbumArtwork(
+                album: album,
+                size: cardWidth,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -2600,6 +2634,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     required IconData icon,
     required String title,
     required String subtitle,
+    String? actionButtonText,
+    VoidCallback? onActionTap,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
@@ -2611,40 +2647,75 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           width: 1,
         ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.06),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: appleSecondaryText, size: 24),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.06),
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    color: appleSecondaryText,
-                    fontSize: 13,
-                  ),
+                child: Icon(icon, color: appleSecondaryText, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: appleSecondaryText,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+          if (actionButtonText != null && onActionTap != null) ...[
+            const SizedBox(height: 14),
+            ApplePressable(
+              onTap: onActionTap,
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(CupertinoIcons.plus, color: appleRed, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      actionButtonText,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -3582,6 +3653,160 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Dynamically resolves and displays real cover artwork for an album.
+/// If the album already has a valid image, it renders it with Image.network.
+/// If missing or if network loading fails, it dynamically queries YouTube Music
+/// to grab the image for that specific album, caching and persisting it.
+/// If and only if no image is available, it gracefully renders the fallback icon.
+class _DynamicAlbumArtwork extends ConsumerStatefulWidget {
+  final AlbumItem album;
+  final double size;
+
+  const _DynamicAlbumArtwork({
+    required this.album,
+    required this.size,
+  });
+
+  @override
+  ConsumerState<_DynamicAlbumArtwork> createState() =>
+      _DynamicAlbumArtworkState();
+}
+
+class _DynamicAlbumArtworkState extends ConsumerState<_DynamicAlbumArtwork> {
+  String? _resolvedUrl;
+  bool _isFetching = false;
+  bool _hasAttemptedFetch = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolvedUrl = _sanitizeUrl(widget.album.thumbnailUrl);
+    if (_resolvedUrl == null || _resolvedUrl!.isEmpty) {
+      _fetchArtwork();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _DynamicAlbumArtwork oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.album.id != widget.album.id ||
+        oldWidget.album.thumbnailUrl != widget.album.thumbnailUrl) {
+      _resolvedUrl = _sanitizeUrl(widget.album.thumbnailUrl);
+      _hasAttemptedFetch = false;
+      if (_resolvedUrl == null || _resolvedUrl!.isEmpty) {
+        _fetchArtwork();
+      }
+    }
+  }
+
+  String? _sanitizeUrl(String? url) {
+    if (url == null || url.trim().isEmpty) return null;
+    final trimmed = url.trim();
+    if (trimmed.startsWith('//')) return 'https:$trimmed';
+    if (trimmed.contains('s6_19N3N1z') || trimmed.contains('s4_90Q2N1z')) {
+      return null;
+    }
+    return trimmed;
+  }
+
+  Future<void> _fetchArtwork() async {
+    if (_hasAttemptedFetch || _isFetching) return;
+    _isFetching = true;
+    _hasAttemptedFetch = true;
+
+    try {
+      final musicService = ref.read(musicServiceProvider);
+      final artwork = await musicService.getAlbumArtwork(
+        widget.album.id,
+        title: widget.album.title,
+        artist: widget.album.artist,
+      );
+
+      if (!mounted) return;
+
+      if (artwork != null && artwork.isNotEmpty) {
+        setState(() {
+          _resolvedUrl = artwork;
+          _isFetching = false;
+        });
+
+        // Persist the grabbed real image in local storage
+        ref
+            .read(savedAlbumsProvider.notifier)
+            .updateAlbumThumbnail(widget.album.id, artwork);
+      } else {
+        setState(() {
+          _isFetching = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isFetching = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_resolvedUrl != null && _resolvedUrl!.isNotEmpty) {
+      return Image.network(
+        _resolvedUrl!,
+        width: widget.size,
+        height: widget.size,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          if (!_hasAttemptedFetch) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _fetchArtwork();
+            });
+          }
+          return Container(
+            width: widget.size,
+            height: widget.size,
+            color: _HomeScreenState.appleDarkSurfaceHigh,
+            child: Icon(
+              CupertinoIcons.music_albums,
+              color: Colors.white30,
+              size: (widget.size * 0.5).clamp(20.0, 48.0),
+            ),
+          );
+        },
+      );
+    }
+
+    if (_isFetching) {
+      return Container(
+        width: widget.size,
+        height: widget.size,
+        color: _HomeScreenState.appleDarkSurfaceHigh,
+        child: const Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white24),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: widget.size,
+      height: widget.size,
+      color: _HomeScreenState.appleDarkSurfaceHigh,
+      child: Icon(
+        CupertinoIcons.music_albums,
+        color: Colors.white30,
+        size: (widget.size * 0.5).clamp(20.0, 48.0),
       ),
     );
   }

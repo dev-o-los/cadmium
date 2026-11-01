@@ -10,14 +10,71 @@ import '../services/music_service.dart';
 import 'auth_provider.dart';
 import 'music_service_provider.dart';
 
+const _defaultCuratedPlaylists = [
+  PlaylistItem(
+    id: 'RDCLAK5uy_kmPRjFGNQStVPkuDY27sopV4JyQuqJEe0',
+    title: "Today's Hits",
+    author: 'YouTube Music',
+    thumbnailUrl:
+        'https://yt3.googleusercontent.com/CxEICEsjmiUDkCuUGmI0RKJ9mvuGDfSqi2rpNwokFXLBj4AcjoAByJu4nZr-I5BrL160Rw-kOxE=s800',
+    trackCount: 50,
+  ),
+  PlaylistItem(
+    id: 'RDCLAK5uy_kLWShQgtRacM0nqzLTB3-AQaeS6eLactI',
+    title: 'Chill Lo-Fi Vibes',
+    author: 'YouTube Music',
+    thumbnailUrl:
+        'https://yt3.googleusercontent.com/9n7N4Wz2vQ_W48P0Z0x1_f1=s800',
+    trackCount: 45,
+  ),
+];
+
+const _defaultCuratedAlbums = [
+  AlbumItem(
+    id: 'MPREb_FWIMEPTHFsY',
+    title: 'Starboy',
+    artist: 'The Weeknd',
+    type: 'Album',
+    year: 2016,
+    thumbnailUrl:
+        'https://yt3.googleusercontent.com/dcxXIIlest09vnvKznWM9VWQXu1EL7lKxBzXGzwgmVjmMNBm1dEWT_0qn1xrEZYyKF_qRE1TLq8P_JY_mQ=w800-h800-l90-rj',
+  ),
+  AlbumItem(
+    id: 'MPREb_V75Wk7DqM2a',
+    title: 'After Hours',
+    artist: 'The Weeknd',
+    type: 'Album',
+    year: 2020,
+    thumbnailUrl:
+        'https://yt3.googleusercontent.com/JDKz3Anlyo49xBhFcFx13QD_Tk4-kqdiYTo15gtkL93nE8biWyZ7o0BPyW6RnXVxcXaJ5DgU5nJ_0NjJ=w800-h800-l90-rj',
+  ),
+];
+
+const _defaultCuratedArtists = [
+  ArtistItem(
+    id: 'UC0WP5P-ufpRfjbNrmOWwLBQ',
+    name: 'The Weeknd',
+    subscribers: '34M subscribers',
+    thumbnailUrl:
+        'https://lh3.googleusercontent.com/U-SAmNOu4TynE818gLCfKsuHZ0U5YNEtO9mrjSI9WCCKERs98LzrCal5kajBBTQNwdcisoB2Bn-pHp4=w800-h800-p-l90-rj',
+  ),
+  ArtistItem(
+    id: 'UCqECaJ8Gagnn7YCbPEzWH6g',
+    name: 'Taylor Swift',
+    subscribers: '58M subscribers',
+    thumbnailUrl:
+        'https://yt3.googleusercontent.com/DU6Kpr5TYKcW6QHvMnsJau5_8QSuix8LCLtf5UEaziZZdXw8SxvcxJ9YWmVIQuzhg2R-MVHYgjdGCQ=w800-h800-p-l90-rj',
+  ),
+];
+
 // ============================================================================
-// SAVED PLAYLISTS NOTIFIER
+// SAVED PLAYLISTS NOTIFIER (Local persistence)
 // ============================================================================
 
 class SavedPlaylistsNotifier extends StateNotifier<List<PlaylistItem>> {
   static const _storageKey = 'wavify_saved_playlists_v1';
 
-  SavedPlaylistsNotifier() : super(const []) {
+  SavedPlaylistsNotifier() : super(_defaultCuratedPlaylists) {
     _loadPlaylists();
   }
 
@@ -38,26 +95,6 @@ class SavedPlaylistsNotifier extends StateNotifier<List<PlaylistItem>> {
             .whereType<PlaylistItem>()
             .toList();
         state = loaded;
-      } else {
-        // Default initial curated playlists to get the user started
-        state = const [
-          PlaylistItem(
-            id: 'RDCLAK5uy_kmPRjFGNQStVPkuDY27sopV4JyQuqJEe0',
-            title: "Today's Hits",
-            author: 'YouTube Music',
-            thumbnailUrl:
-                'https://lh3.googleusercontent.com/tYt6t70r1T0o67-tG8xG3tE4z0Q-2E0x1_f1=w800-h800-l90-rj',
-            trackCount: 50,
-          ),
-          PlaylistItem(
-            id: 'RDCLAK5uy_kLWShQgtRacM0nqzLTB3-AQaeS6eLactI',
-            title: 'Chill Lo-Fi Vibes',
-            author: 'YouTube Music',
-            thumbnailUrl:
-                'https://lh3.googleusercontent.com/9n7N4Wz2vQ_W48P0Z0x1_f1=w800-h800-l90-rj',
-            trackCount: 45,
-          ),
-        ];
       }
     } catch (e) {
       debugPrint('Error loading saved playlists: $e');
@@ -81,6 +118,24 @@ class SavedPlaylistsNotifier extends StateNotifier<List<PlaylistItem>> {
     await _persist(updated);
   }
 
+  void updatePlaylistThumbnail(String playlistId, String thumbnailUrl) {
+    state = [
+      for (final p in state)
+        if (p.id == playlistId)
+          PlaylistItem(
+            id: p.id,
+            title: p.title,
+            author: p.author,
+            thumbnailUrl: thumbnailUrl,
+            trackCount: p.trackCount,
+            isCustom: p.isCustom,
+          )
+        else
+          p,
+    ];
+    _persist(state);
+  }
+
   Future<void> _persist(List<PlaylistItem> playlists) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -98,13 +153,13 @@ final savedPlaylistsProvider =
 });
 
 // ============================================================================
-// SAVED ALBUMS NOTIFIER
+// SAVED ALBUMS NOTIFIER (Local persistence)
 // ============================================================================
 
 class SavedAlbumsNotifier extends StateNotifier<List<AlbumItem>> {
   static const _storageKey = 'wavify_saved_albums_v1';
 
-  SavedAlbumsNotifier() : super(const []) {
+  SavedAlbumsNotifier() : super(_defaultCuratedAlbums) {
     _loadAlbums();
   }
 
@@ -125,28 +180,6 @@ class SavedAlbumsNotifier extends StateNotifier<List<AlbumItem>> {
             .whereType<AlbumItem>()
             .toList();
         state = loaded;
-      } else {
-        // Initial popular albums
-        state = const [
-          AlbumItem(
-            id: 'MPREb_kYVnBwDqgB9',
-            title: 'Starboy',
-            artist: 'The Weeknd',
-            type: 'Album',
-            year: 2016,
-            thumbnailUrl:
-                'https://lh3.googleusercontent.com/s6_19N3N1z=w800-h800-l90-rj',
-          ),
-          AlbumItem(
-            id: 'MPREb_V75Wk7DqM2a',
-            title: 'After Hours',
-            artist: 'The Weeknd',
-            type: 'Album',
-            year: 2020,
-            thumbnailUrl:
-                'https://lh3.googleusercontent.com/s4_90Q2N1z=w800-h800-l90-rj',
-          ),
-        ];
       }
     } catch (e) {
       debugPrint('Error loading saved albums: $e');
@@ -163,7 +196,7 @@ class SavedAlbumsNotifier extends StateNotifier<List<AlbumItem>> {
     if (exists) {
       updated = state.where((a) => a.id != album.id).toList();
     } else {
-      updated = [album, ...state];
+      updated = [album.copyWith(isCustom: true), ...state];
     }
     state = updated;
     await _persist(updated);
@@ -174,6 +207,17 @@ class SavedAlbumsNotifier extends StateNotifier<List<AlbumItem>> {
     final updated = state.where((a) => a.id != albumId).toList();
     state = updated;
     await _persist(updated);
+  }
+
+  void updateAlbumThumbnail(String albumId, String thumbnailUrl) {
+    state = [
+      for (final album in state)
+        if (album.id == albumId)
+          album.copyWith(thumbnailUrl: thumbnailUrl)
+        else
+          album,
+    ];
+    _persist(state);
   }
 
   Future<void> _persist(List<AlbumItem> albums) async {
@@ -193,13 +237,13 @@ final savedAlbumsProvider =
 });
 
 // ============================================================================
-// SAVED ARTISTS NOTIFIER
+// SAVED ARTISTS NOTIFIER (Local persistence)
 // ============================================================================
 
 class SavedArtistsNotifier extends StateNotifier<List<ArtistItem>> {
   static const _storageKey = 'wavify_saved_artists_v1';
 
-  SavedArtistsNotifier() : super(const []) {
+  SavedArtistsNotifier() : super(_defaultCuratedArtists) {
     _loadArtists();
   }
 
@@ -220,24 +264,6 @@ class SavedArtistsNotifier extends StateNotifier<List<ArtistItem>> {
             .whereType<ArtistItem>()
             .toList();
         state = loaded;
-      } else {
-        // Initial popular artists
-        state = const [
-          ArtistItem(
-            id: 'UC0WP5P-ufpRfjbNrmOWwLBQ',
-            name: 'The Weeknd',
-            subscribers: '34M subscribers',
-            thumbnailUrl:
-                'https://lh3.googleusercontent.com/artist_weeknd=w800-h800-l90-rj',
-          ),
-          ArtistItem(
-            id: 'UCqECaJ8Gagnn7YCbPEzWH6g',
-            name: 'Taylor Swift',
-            subscribers: '58M subscribers',
-            thumbnailUrl:
-                'https://lh3.googleusercontent.com/artist_taylor=w800-h800-l90-rj',
-          ),
-        ];
       }
     } catch (e) {
       debugPrint('Error loading saved artists: $e');
@@ -254,7 +280,7 @@ class SavedArtistsNotifier extends StateNotifier<List<ArtistItem>> {
     if (exists) {
       updated = state.where((a) => a.id != artist.id).toList();
     } else {
-      updated = [artist, ...state];
+      updated = [artist.copyWith(isCustom: true), ...state];
     }
     state = updated;
     await _persist(updated);
@@ -265,6 +291,17 @@ class SavedArtistsNotifier extends StateNotifier<List<ArtistItem>> {
     final updated = state.where((a) => a.id != artistId).toList();
     state = updated;
     await _persist(updated);
+  }
+
+  void updateArtistThumbnail(String artistId, String thumbnailUrl) {
+    state = [
+      for (final a in state)
+        if (a.id == artistId)
+          a.copyWith(thumbnailUrl: thumbnailUrl)
+        else
+          a,
+    ];
+    _persist(state);
   }
 
   Future<void> _persist(List<ArtistItem> artists) async {
@@ -284,7 +321,7 @@ final savedArtistsProvider =
 });
 
 // ============================================================================
-// YOUTUBE MUSIC LIKED SONGS & MIXES
+// YOUTUBE MUSIC LIKED SONGS NOTIFIER
 // ============================================================================
 
 class YouTubeLikedSongsNotifier extends StateNotifier<AsyncValue<List<SongItem>>> {
@@ -328,3 +365,92 @@ final youtubeLikedSongsProvider = StateNotifierProvider<
   return YouTubeLikedSongsNotifier(musicService, ref);
 });
 
+// ============================================================================
+// USER-SPECIFIC LIBRARY PROVIDERS
+// When logged in: returns ONLY the user's specific account items & custom favorites.
+// When logged out: returns the local starter/curated collection.
+// ============================================================================
+
+/// Resolves playlists for the Library tab:
+/// - Logged out: Local saved & starter playlists.
+/// - Logged in: ONLY the user's own YouTube Music account playlists and custom saved playlists.
+final userPlaylistsProvider = FutureProvider<List<PlaylistItem>>((ref) async {
+  final account = ref.watch(authProvider);
+  final localSaved = ref.watch(savedPlaylistsProvider);
+
+  if (account == null) {
+    return localSaved;
+  }
+
+  final musicService = ref.watch(musicServiceProvider);
+  final ytPlaylists = await musicService.getUserPlaylists();
+  final customUserPlaylists = localSaved.where((p) => p.isCustom).toList();
+
+  final seen = <String>{};
+  final result = <PlaylistItem>[];
+
+  for (final p in [...customUserPlaylists, ...ytPlaylists]) {
+    if (!seen.contains(p.id)) {
+      seen.add(p.id);
+      result.add(p);
+    }
+  }
+
+  return result;
+});
+
+/// Resolves albums for the Library tab:
+/// - Logged out: Local saved & starter albums.
+/// - Logged in: ONLY the user's own YouTube Music account albums and custom saved albums.
+final userAlbumsProvider = FutureProvider<List<AlbumItem>>((ref) async {
+  final account = ref.watch(authProvider);
+  final localSaved = ref.watch(savedAlbumsProvider);
+
+  if (account == null) {
+    return localSaved;
+  }
+
+  final musicService = ref.watch(musicServiceProvider);
+  final ytAlbums = await musicService.getUserAlbums();
+  final customUserAlbums = localSaved.where((a) => a.isCustom).toList();
+
+  final seen = <String>{};
+  final result = <AlbumItem>[];
+
+  for (final a in [...customUserAlbums, ...ytAlbums]) {
+    if (!seen.contains(a.id)) {
+      seen.add(a.id);
+      result.add(a);
+    }
+  }
+
+  return result;
+});
+
+/// Resolves artists for the Library tab:
+/// - Logged out: Local saved & starter artists.
+/// - Logged in: ONLY the user's own YouTube Music account artists and custom saved artists.
+final userArtistsProvider = FutureProvider<List<ArtistItem>>((ref) async {
+  final account = ref.watch(authProvider);
+  final localSaved = ref.watch(savedArtistsProvider);
+
+  if (account == null) {
+    return localSaved;
+  }
+
+  final musicService = ref.watch(musicServiceProvider);
+  final ytArtists = await musicService.getUserArtists();
+  final customUserArtists = localSaved.where((a) => a.isCustom).toList();
+
+  final seen = <String>{};
+  final result = <ArtistItem>[];
+
+  for (final a in [...customUserArtists, ...ytArtists]) {
+    if (!seen.contains(a.id)) {
+      seen.add(a.id);
+      result.add(a);
+    }
+  }
+
+  return result;
+});

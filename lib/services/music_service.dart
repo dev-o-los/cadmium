@@ -63,6 +63,9 @@ class MusicService {
 
   UserAccount? get currentAccount => _currentAccount;
 
+  // In-memory cache for dynamically resolved album cover artwork
+  final Map<String, String> _albumArtworkCache = {};
+
   /// Sets or updates the connected Google account with YouTube Music authorization.
   void setAuthAccount(UserAccount? account) {
     _currentAccount = account;
@@ -533,7 +536,8 @@ class MusicService {
           .map((a) {
             String? thumb;
             if (a.thumbnails.isNotEmpty) {
-              thumb = a.thumbnails.last.url;
+              final raw = a.thumbnails.last.url;
+              thumb = SongItem.upgradeThumbnail(raw.startsWith('//') ? 'https:$raw' : raw);
             }
             return AlbumItem(
               id: a.albumId,
@@ -549,6 +553,84 @@ class MusicService {
       debugPrint('searchAlbums error: $e');
       return [];
     }
+  }
+
+  /// Resolves the real cover artwork URL for a specific album by ID, title, or artist.
+  /// If the album has no image or if loading failed, this grabs the real image from YouTube Music.
+  Future<String?> getAlbumArtwork(String albumId, {String? title, String? artist}) async {
+    final cleanId = albumId.trim();
+    if (cleanId.isNotEmpty && _albumArtworkCache.containsKey(cleanId)) {
+      return _albumArtworkCache[cleanId];
+    }
+
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    // 1. Try querying the album directly
+    if (cleanId.isNotEmpty) {
+      try {
+        final albumFull = await _ytMusic.getAlbum(cleanId);
+        if (albumFull.thumbnails.isNotEmpty) {
+          final raw = albumFull.thumbnails.last.url;
+          final url = SongItem.upgradeThumbnail(raw.startsWith('//') ? 'https:$raw' : raw);
+          if (url != null && url.isNotEmpty) {
+            _albumArtworkCache[cleanId] = url;
+            return url;
+          }
+        }
+        if (albumFull.songs.isNotEmpty) {
+          for (final song in albumFull.songs) {
+            if (song.thumbnails.isNotEmpty) {
+              final raw = song.thumbnails.last.url;
+              final url = SongItem.upgradeThumbnail(raw.startsWith('//') ? 'https:$raw' : raw);
+              if (url != null && url.isNotEmpty) {
+                _albumArtworkCache[cleanId] = url;
+                return url;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('getAlbumArtwork getAlbum error for $cleanId: $e');
+      }
+    }
+
+    // 2. Try searching YouTube Music for this specific album
+    final query = '${title ?? ''} ${artist ?? ''}'.trim();
+    if (query.isNotEmpty) {
+      try {
+        final searchResults = await _ytMusic.searchAlbums(query);
+        if (searchResults.isNotEmpty) {
+          final first = searchResults.first;
+          if (first.thumbnails.isNotEmpty) {
+            final raw = first.thumbnails.last.url;
+            final url = SongItem.upgradeThumbnail(raw.startsWith('//') ? 'https:$raw' : raw);
+            if (url != null && url.isNotEmpty) {
+              if (cleanId.isNotEmpty) _albumArtworkCache[cleanId] = url;
+              return url;
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('getAlbumArtwork searchAlbums error for $query: $e');
+      }
+
+      // 3. Fallback search songs for the track artwork
+      try {
+        final songs = await _ytMusic.searchSongs(query);
+        if (songs.isNotEmpty && songs.first.thumbnails.isNotEmpty) {
+          final raw = songs.first.thumbnails.last.url;
+          final url = SongItem.upgradeThumbnail(raw.startsWith('//') ? 'https:$raw' : raw);
+          if (url != null && url.isNotEmpty) {
+            if (cleanId.isNotEmpty) _albumArtworkCache[cleanId] = url;
+            return url;
+          }
+        }
+      } catch (_) {}
+    }
+
+    return null;
   }
 
   /// Fetches track listings for an album or single.
@@ -864,6 +946,138 @@ class MusicService {
       }
     }
     return mixes;
+  }
+
+  /// Fetches the user's specific playlists from their YouTube Music account.
+  Future<List<PlaylistItem>> getUserPlaylists() async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+    if (_currentAccount == null) return [];
+
+    final playlists = <PlaylistItem>[];
+    final seenIds = <String>{};
+
+    try {
+      final sections = await _ytMusic.getHomeSections();
+      for (final section in sections) {
+        for (final item in section.contents) {
+          if (item is PlaylistDetailed && item.playlistId.isNotEmpty) {
+            if (!seenIds.contains(item.playlistId)) {
+              seenIds.add(item.playlistId);
+              String? thumb;
+              if (item.thumbnails.isNotEmpty) {
+                final raw = item.thumbnails.last.url;
+                thumb = SongItem.upgradeThumbnail(raw.startsWith('//') ? 'https:$raw' : raw);
+              }
+              playlists.add(
+                PlaylistItem(
+                  id: item.playlistId,
+                  title: item.name.isNotEmpty ? item.name : 'Playlist',
+                  author: item.artist.name.isNotEmpty
+                      ? item.artist.name
+                      : 'YouTube Music',
+                  thumbnailUrl: thumb,
+                  isCustom: false,
+                ),
+              );
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('getUserPlaylists error: $e');
+    }
+
+    return playlists;
+  }
+
+  /// Fetches the user's specific saved albums from their YouTube Music account.
+  Future<List<AlbumItem>> getUserAlbums() async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+    if (_currentAccount == null) return [];
+
+    final albums = <AlbumItem>[];
+    final seenIds = <String>{};
+
+    try {
+      final sections = await _ytMusic.getHomeSections();
+      for (final section in sections) {
+        for (final item in section.contents) {
+          if (item is AlbumDetailed && item.albumId.isNotEmpty) {
+            if (!seenIds.contains(item.albumId)) {
+              seenIds.add(item.albumId);
+              String? thumb;
+              if (item.thumbnails.isNotEmpty) {
+                final raw = item.thumbnails.last.url;
+                thumb = SongItem.upgradeThumbnail(raw.startsWith('//') ? 'https:$raw' : raw);
+              }
+              albums.add(
+                AlbumItem(
+                  id: item.albumId,
+                  title: item.name.isNotEmpty ? item.name : 'Album',
+                  artist: item.artist.name.isNotEmpty
+                      ? item.artist.name
+                      : 'Unknown Artist',
+                  thumbnailUrl: thumb,
+                  type: item.type.isNotEmpty ? item.type : 'Album',
+                  year: item.year,
+                  isCustom: false,
+                ),
+              );
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('getUserAlbums error: $e');
+    }
+
+    return albums;
+  }
+
+  /// Fetches the user's specific subscribed artists from their YouTube Music account.
+  Future<List<ArtistItem>> getUserArtists() async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+    if (_currentAccount == null) return [];
+
+    final artists = <ArtistItem>[];
+    final seenIds = <String>{};
+
+    try {
+      final sections = await _ytMusic.getHomeSections();
+      for (final section in sections) {
+        for (final item in section.contents) {
+          if (item is ArtistDetailed && item.artistId.isNotEmpty) {
+            if (!seenIds.contains(item.artistId)) {
+              seenIds.add(item.artistId);
+              String? thumb;
+              if (item.thumbnails.isNotEmpty) {
+                final raw = item.thumbnails.last.url;
+                thumb = SongItem.upgradeThumbnail(raw.startsWith('//') ? 'https:$raw' : raw);
+              }
+              artists.add(
+                ArtistItem(
+                  id: item.artistId,
+                  name: item.name.isNotEmpty ? item.name : 'Artist',
+                  thumbnailUrl: thumb,
+                  subscribers: 'Artist',
+                  isCustom: false,
+                ),
+              );
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('getUserArtists error: $e');
+    }
+
+    return artists;
   }
 
   Future<List<VideoItem>> searchVideos(String query) async {
