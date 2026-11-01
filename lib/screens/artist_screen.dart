@@ -1,8 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../constants/app_colors.dart';
 import '../models/album_item.dart';
@@ -177,10 +180,27 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
     showWavifySnackBar(context, 'Shuffling $_displayName top tracks');
   }
 
-  void _playArtistRadio() {
+  bool get _isPlayingThisArtist {
+    final playerState = ref.watch(playerProvider);
+    if (!playerState.isPlaying || playerState.currentSong == null) return false;
+    final current = playerState.currentSong!.artist.toLowerCase();
+    final target = _displayName.toLowerCase();
+    return current.contains(target) || target.contains(current);
+  }
+
+  void _togglePlayArtist() {
+    final playerState = ref.read(playerProvider);
+    if (playerState.currentSong != null) {
+      final current = playerState.currentSong!.artist.toLowerCase();
+      final target = _displayName.toLowerCase();
+      if (current.contains(target) || target.contains(current)) {
+        ref.read(playerProvider.notifier).togglePlayPause();
+        return;
+      }
+    }
     final tracks = _artistDetails?.topSongs ?? [];
     if (tracks.isEmpty) {
-      showWavifySnackBar(context, 'No tracks available for radio');
+      showWavifySnackBar(context, 'No playable tracks for $_displayName');
       return;
     }
     playSong(
@@ -191,7 +211,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
       autoOpenPlayer: false,
       forceReload: true,
     );
-    showWavifySnackBar(context, 'Starting $_displayName Radio');
+    showWavifySnackBar(context, 'Playing $_displayName');
   }
 
   @override
@@ -343,7 +363,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
   Widget _buildSliverHeroHeader() {
     final banner = _heroBannerUrl;
     final topPadding = MediaQuery.of(context).padding.top;
-    final bannerHeight = 280.0 + topPadding;
+    final bannerHeight = 380.0 + topPadding;
 
     return SliverToBoxAdapter(
       child: SizedBox(
@@ -356,6 +376,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
               Image.network(
                 banner,
                 fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
                 filterQuality: FilterQuality.medium,
                 errorBuilder: (context, error, stackTrace) => _fallbackBanner(),
               )
@@ -369,11 +390,11 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    stops: const [0.0, 0.45, 0.75, 1.0],
+                    stops: const [0.0, 0.40, 0.75, 1.0],
                     colors: [
-                      Colors.black.withValues(alpha: 0.35),
-                      Colors.black.withValues(alpha: 0.15),
-                      Colors.black.withValues(alpha: 0.7),
+                      Colors.black.withValues(alpha: 0.25),
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.65),
                       Colors.black,
                     ],
                   ),
@@ -389,7 +410,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
   /// Floating Top Navigation Bar: Back button, Sticky title on scroll, and Share/Account actions
   Widget _buildFloatingTopNavBar(UserAccount? account) {
     final topPadding = MediaQuery.of(context).padding.top;
-    final showStickyTitle = _scrollOffset > 180;
+    final showStickyTitle = _scrollOffset > 240;
 
     return Positioned(
       top: 0,
@@ -399,27 +420,29 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
         height: topPadding + 54,
         padding: EdgeInsets.fromLTRB(16, topPadding, 16, 6),
         decoration: BoxDecoration(
-          color: showStickyTitle ? Colors.black.withValues(alpha: 0.85) : Colors.transparent,
+          color: showStickyTitle ? Colors.black.withValues(alpha: 0.88) : Colors.transparent,
         ),
         child: Row(
           children: [
-            // Floating circular glass Back button
-            ApplePressable(
-              onTap: () => Navigator.maybePop(context),
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.black.withValues(alpha: 0.45),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.15), width: 0.5),
-                ),
-                child: const Icon(
-                  CupertinoIcons.chevron_back,
-                  color: Colors.white,
-                  size: 22,
-                ),
+            // Floating circular Liquid Glass Back button
+            GlassIconButton(
+              icon: const Icon(
+                CupertinoIcons.chevron_back,
+                color: Colors.white,
+                size: 22,
+              ),
+              onPressed: () => Navigator.maybePop(context),
+              size: 42,
+              iconSize: 22,
+              shape: GlassIconButtonShape.circle,
+              useOwnLayer: true,
+              settings: const LiquidGlassSettings(
+                glassColor: Color(0x33FFFFFF),
+                thickness: 20,
+                blur: 24,
+                refractiveIndex: 1.15,
+                lightIntensity: 0.45,
+                specularSharpness: GlassSpecularSharpness.sharp,
               ),
             ),
 
@@ -446,62 +469,72 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
 
             const SizedBox(width: 12),
 
-            // Right Action Pill: Share Button + User Avatar Circle
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Share button
-                ApplePressable(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    showWavifySnackBar(context, 'Sharing $_displayName');
-                  },
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.black.withValues(alpha: 0.45),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.15), width: 0.5),
+            // Right Action Pill in Liquid Glass: Share Button + User Avatar Circle
+            GlassContainer(
+              height: 42,
+              shape: const LiquidRoundedSuperellipse(borderRadius: 21),
+              color: const Color(0x33FFFFFF),
+              useOwnLayer: true,
+              settings: const LiquidGlassSettings(
+                thickness: 20,
+                blur: 24,
+                refractiveIndex: 1.18,
+                lightIntensity: 0.45,
+                specularSharpness: GlassSpecularSharpness.sharp,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Share button
+                    ApplePressable(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        showWavifySnackBar(context, 'Sharing $_displayName');
+                      },
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                        child: Icon(
+                          CupertinoIcons.share,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
                     ),
-                    child: const Icon(
-                      CupertinoIcons.share,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                ),
 
-                const SizedBox(width: 10),
+                    const SizedBox(width: 8),
 
-                // Account Avatar circle
-                ApplePressable(
-                  onTap: () => showAccountModalSheet(context, ref),
-                  borderRadius: BorderRadius.circular(19),
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.black.withValues(alpha: 0.45),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.15), width: 0.5),
+                    // Account Avatar circle
+                    ApplePressable(
+                      onTap: () => showAccountModalSheet(context, ref),
+                      child: Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.8),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: ClipOval(
+                          child: account?.avatarUrl != null
+                              ? Image.network(
+                                  account!.avatarUrl!,
+                                  width: 30,
+                                  height: 30,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      const Icon(CupertinoIcons.person_crop_circle, color: Colors.white, size: 20),
+                                )
+                              : const Icon(CupertinoIcons.person_crop_circle, color: Colors.white, size: 20),
+                        ),
+                      ),
                     ),
-                    child: account?.avatarUrl != null
-                        ? ClipOval(
-                            child: Image.network(
-                              account!.avatarUrl!,
-                              width: 38,
-                              height: 38,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  const Icon(CupertinoIcons.person_crop_circle, color: Colors.white, size: 24),
-                            ),
-                          )
-                        : const Icon(CupertinoIcons.person_crop_circle, color: Colors.white, size: 24),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ],
         ),
@@ -509,129 +542,101 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
     );
   }
 
-  /// Artist Header Metadata & Transport Action Row (Shuffle, Radio, Follow)
+  /// Artist Header Metadata & Centered Action Row (Shuffle, Play, Star)
   Widget _buildHeroMetadata(bool isSaved) {
-    final subscribers = _artistDetails?.subscribers;
-    final listeners = _artistDetails?.monthlyListeners;
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Artist Title
-          Text(
-            _displayName,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.8,
+          // Centered Artist Title
+          Center(
+            child: Text(
+              _displayName,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 36,
+                fontWeight: FontWeight.bold,
+                letterSpacing: -0.6,
+              ),
             ),
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: 20),
 
-          // Stat Badges Pill Row (Subscribers + Monthly Listeners)
-          if (subscribers != null || listeners != null)
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                if (subscribers != null)
-                  _buildStatPill(
-                    icon: CupertinoIcons.person_2_fill,
-                    text: subscribers,
-                  ),
-                if (listeners != null)
-                  _buildStatPill(
-                    icon: CupertinoIcons.waveform,
-                    text: listeners,
-                  ),
-              ],
-            ),
-
-          const SizedBox(height: 18),
-
-          // Action Buttons Row: Shuffle, Radio, Follow/Bookmark
+          // Center Liquid Glass Action Row: [Shuffle] [Large Play] [Star]
           Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Wide Pill [🔀 Shuffle]
-              Expanded(
-                child: ApplePressable(
-                  onTap: _shuffleArtistTracks,
-                  borderRadius: BorderRadius.circular(24),
-                  child: Container(
-                    height: 48,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(24),
-                      color: AppColors.appleRed,
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(CupertinoIcons.shuffle, color: Colors.white, size: 18),
-                        SizedBox(width: 8),
-                        Text(
-                          'Shuffle',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+              // 1. Shuffle (Liquid Glass circular button)
+              GlassIconButton(
+                icon: const Icon(
+                  CupertinoIcons.shuffle,
+                  color: Colors.white,
+                  size: 22,
+                ),
+                onPressed: _shuffleArtistTracks,
+                size: 56,
+                iconSize: 22,
+                shape: GlassIconButtonShape.circle,
+                useOwnLayer: true,
+                settings: const LiquidGlassSettings(
+                  glassColor: Color(0x33FFFFFF),
+                  thickness: 22,
+                  blur: 24,
+                  refractiveIndex: 1.15,
+                  lightIntensity: 0.45,
+                  specularSharpness: GlassSpecularSharpness.sharp,
                 ),
               ),
 
-              const SizedBox(width: 12),
+              const SizedBox(width: 22),
 
-              // Wide Pill [📻 Radio / Mix]
-              Expanded(
-                child: ApplePressable(
-                  onTap: _playArtistRadio,
-                  borderRadius: BorderRadius.circular(24),
-                  child: Container(
-                    height: 48,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(24),
-                      color: const Color(0xFF1C1C1E),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.12), width: 0.5),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(CupertinoIcons.dot_radiowaves_left_right, color: Colors.white, size: 18),
-                        SizedBox(width: 8),
-                        Text(
-                          'Radio',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(width: 12),
-
-              // Circular Follow/Bookmark Button
+              // 2. Center Prominent Play Button (74px White Circle)
               ApplePressable(
-                onTap: () async {
+                onTap: _togglePlayArtist,
+                borderRadius: BorderRadius.circular(37),
+                child: Container(
+                  width: 74,
+                  height: 74,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        blurRadius: 18,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Icon(
+                      _isPlayingThisArtist ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
+                      color: Colors.black,
+                      size: 32,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 22),
+
+              // 3. Star / Favorite (Liquid Glass circular button)
+              GlassIconButton(
+                icon: Icon(
+                  CupertinoIcons.star_fill,
+                  color: isSaved ? AppColors.appleRed : Colors.white,
+                  size: 22,
+                ),
+                onPressed: () async {
                   HapticFeedback.lightImpact();
                   final item = ArtistItem(
                     id: _artistDetails?.id ?? widget.artistId ?? 'artist_${_displayName.hashCode}',
                     name: _displayName,
                     thumbnailUrl: _heroBannerUrl,
-                    subscribers: subscribers,
+                    subscribers: _artistDetails?.subscribers,
                     isCustom: true,
                   );
                   final added = await ref.read(savedArtistsProvider.notifier).toggleArtist(item);
@@ -642,20 +647,17 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                     );
                   }
                 },
-                borderRadius: BorderRadius.circular(24),
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFF1C1C1E),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.12), width: 0.5),
-                  ),
-                  child: Icon(
-                    isSaved ? CupertinoIcons.checkmark_alt : CupertinoIcons.plus,
-                    color: isSaved ? AppColors.appleRed : Colors.white,
-                    size: 20,
-                  ),
+                size: 56,
+                iconSize: 22,
+                shape: GlassIconButtonShape.circle,
+                useOwnLayer: true,
+                settings: const LiquidGlassSettings(
+                  glassColor: Color(0x33FFFFFF),
+                  thickness: 22,
+                  blur: 24,
+                  refractiveIndex: 1.15,
+                  lightIntensity: 0.45,
+                  specularSharpness: GlassSpecularSharpness.sharp,
                 ),
               ),
             ],
@@ -665,34 +667,38 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
     );
   }
 
-  /// Spotlight Card for Recent Single / Latest Release (Screenshot 4)
+  /// Spotlight Card for Recent Single / Latest Release (matching screenshot)
   Widget _buildRecentReleaseCard(AlbumItem recent) {
+    final isRecentSaved = ref.watch(savedAlbumsProvider.select((list) {
+      return list.any((a) => a.id == recent.id);
+    }));
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: ApplePressable(
         onTap: () => openAlbumScreen(context, recent),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(22),
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            color: const Color(0xFF1C1C1E),
+            borderRadius: BorderRadius.circular(22),
+            color: const Color(0xFF1E1E26),
             border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
           ),
           child: Row(
             children: [
               ClipRRect(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(14),
                 child: recent.thumbnailUrl != null
                     ? Image.network(
                         recent.thumbnailUrl!,
-                        width: 58,
-                        height: 58,
+                        width: 72,
+                        height: 72,
                         fit: BoxFit.cover,
                         filterQuality: FilterQuality.medium,
-                        errorBuilder: (context, error, stackTrace) => _fallbackSquareArt(58),
+                        errorBuilder: (context, error, stackTrace) => _fallbackSquareArt(72),
                       )
-                    : _fallbackSquareArt(58),
+                    : _fallbackSquareArt(72),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -701,21 +707,30 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
+                      recent.year != null ? 'Single • ${recent.year}' : 'Single',
+                      style: const TextStyle(
+                        color: Color(0xFF8E8E93),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
                       recent.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 16,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        letterSpacing: -0.3,
+                        letterSpacing: -0.4,
                       ),
                     ),
                     const SizedBox(height: 3),
-                    Text(
-                      recent.year != null ? 'Recent Single • ${recent.year}' : 'Recent Single',
-                      style: const TextStyle(
-                        color: AppColors.appleSecondaryText,
+                    const Text(
+                      'Recent Single',
+                      style: TextStyle(
+                        color: Color(0xFF8E8E93),
                         fontSize: 13,
                         fontWeight: FontWeight.w400,
                       ),
@@ -723,10 +738,35 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                   ],
                 ),
               ),
-              const Icon(
-                CupertinoIcons.chevron_forward,
-                color: Color(0xFF8E8E93),
-                size: 20,
+              // Liquid Glass Circular [+] button
+              GlassIconButton(
+                icon: Icon(
+                  isRecentSaved ? CupertinoIcons.checkmark_alt : CupertinoIcons.plus,
+                  color: isRecentSaved ? AppColors.appleRed : Colors.white,
+                  size: 20,
+                ),
+                onPressed: () async {
+                  HapticFeedback.lightImpact();
+                  final added = await ref.read(savedAlbumsProvider.notifier).toggleAlbum(recent);
+                  if (mounted) {
+                    showWavifySnackBar(
+                      context,
+                      added ? 'Saved "${recent.title}" to Library' : 'Removed "${recent.title}" from Library',
+                    );
+                  }
+                },
+                size: 40,
+                iconSize: 20,
+                shape: GlassIconButtonShape.circle,
+                useOwnLayer: true,
+                settings: const LiquidGlassSettings(
+                  glassColor: Color(0x33FFFFFF),
+                  thickness: 20,
+                  blur: 20,
+                  refractiveIndex: 1.15,
+                  lightIntensity: 0.40,
+                  specularSharpness: GlassSpecularSharpness.sharp,
+                ),
               ),
             ],
           ),
@@ -735,7 +775,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
     );
   }
 
-  /// Top Songs Section with Drag Dots, explicit badges, and 3-dots menus (Screenshot 4)
+  /// Top Songs Section: 4-Item Vertical Stack Column with horizontal paging (matching screenshot)
   Widget _buildTopSongsSection() {
     final songs = _artistDetails?.topSongs ?? [];
     if (songs.isEmpty && !_isLoading) {
@@ -744,6 +784,15 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
 
     final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
     final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
+
+    // Chunk songs into columns of 4 (matches YouTube Music / screenshot horizontal paging layout)
+    final columns = <List<SongItem>>[];
+    for (var i = 0; i < songs.length; i += 4) {
+      columns.add(songs.sublist(i, math.min(i + 4, songs.length)));
+    }
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final columnWidth = screenWidth > 60 ? screenWidth - 48 : 320.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -764,121 +813,136 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
         if (_isLoading && songs.isEmpty)
           _buildTopSongsSkeleton()
         else
-          ListView.builder(
-            shrinkWrap: true,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: songs.length > 5 ? 5 : songs.length,
-            itemBuilder: (context, index) {
-              final song = songs[index];
-              final isCurrent = currentSong?.id == song.id;
+          SizedBox(
+            height: 248,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: columns.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 14),
+              itemBuilder: (context, columnIndex) {
+                final columnSongs = columns[columnIndex];
+                return SizedBox(
+                  width: columns.length > 1 ? columnWidth : (screenWidth > 60 ? screenWidth - 40 : 340.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: columnSongs.map((song) {
+                      final isCurrent = currentSong?.id == song.id;
 
-              return ApplePressable(
-                onTap: () => playSong(context, ref, song, contextQueue: songs),
-                borderRadius: BorderRadius.circular(10),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 4),
-                  child: Row(
-                    children: [
-                      // Left vertical drag handle / 3 dots (Screenshot 4)
-                      const Icon(
-                        CupertinoIcons.ellipsis_vertical,
-                        color: Color(0xFF48484A),
-                        size: 14,
-                      ),
-                      const SizedBox(width: 8),
-
-                      // Artwork thumbnail
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Stack(
-                          children: [
-                            song.thumbnailUrl != null
-                                ? Image.network(
-                                    song.thumbnailUrl!,
-                                    width: 48,
-                                    height: 48,
-                                    fit: BoxFit.cover,
-                                    filterQuality: FilterQuality.medium,
-                                    errorBuilder: (context, error, stackTrace) =>
-                                        _fallbackSquareArt(48),
-                                  )
-                                : _fallbackSquareArt(48),
-                            if (isCurrent)
-                              Positioned.fill(
-                                child: Container(
-                                  color: Colors.black.withValues(alpha: 0.55),
-                                  child: Center(
-                                    child: Icon(
-                                      isPlaying
-                                          ? CupertinoIcons.speaker_2_fill
-                                          : CupertinoIcons.pause_fill,
-                                      color: AppColors.appleRed,
-                                      size: 16,
-                                    ),
-                                  ),
+                      return ApplePressable(
+                        onTap: () => playSong(context, ref, song, contextQueue: songs),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            children: [
+                              // Artwork thumbnail
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Stack(
+                                  children: [
+                                    song.thumbnailUrl != null
+                                        ? Image.network(
+                                            song.thumbnailUrl!,
+                                            width: 48,
+                                            height: 48,
+                                            fit: BoxFit.cover,
+                                            filterQuality: FilterQuality.medium,
+                                            errorBuilder: (context, error, stackTrace) =>
+                                                _fallbackSquareArt(48),
+                                          )
+                                        : _fallbackSquareArt(48),
+                                    if (isCurrent)
+                                      Positioned.fill(
+                                        child: Container(
+                                          color: Colors.black.withValues(alpha: 0.55),
+                                          child: Center(
+                                            child: Icon(
+                                              isPlaying
+                                                  ? CupertinoIcons.speaker_2_fill
+                                                  : CupertinoIcons.pause_fill,
+                                              color: AppColors.appleRed,
+                                              size: 16,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
+                              const SizedBox(width: 12),
 
-                      // Title & Artist metadata
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              children: [
-                                // Explicit Badge [E] (Screenshot 4)
-                                _buildExplicitBadge(),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    song.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: isCurrent ? AppColors.appleRed : Colors.white,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: -0.3,
+                              // Title & Artist metadata
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        // Explicit Badge [E]
+                                        _buildExplicitBadge(),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            song.title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: isCurrent ? AppColors.appleRed : Colors.white,
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w600,
+                                              letterSpacing: -0.3,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      song.artist,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Color(0xFF8E8E93),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              song.artist,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Color(0xFF8E8E93),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w400,
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
 
-                      // Right 3-dots action menu icon (Screenshot 4)
-                      IconButton(
-                        icon: const Icon(
-                          CupertinoIcons.ellipsis_vertical,
-                          color: Color(0xFF8E8E93),
-                          size: 18,
+                              // Liquid Glass 3-dots action button
+                              GlassIconButton(
+                                icon: const Icon(
+                                  CupertinoIcons.ellipsis_vertical,
+                                  color: Color(0xFF8E8E93),
+                                  size: 18,
+                                ),
+                                onPressed: () => showTrackOptionsModal(context, ref, song),
+                                size: 36,
+                                iconSize: 18,
+                                shape: GlassIconButtonShape.circle,
+                                useOwnLayer: true,
+                                settings: const LiquidGlassSettings(
+                                  glassColor: Color(0x22FFFFFF),
+                                  thickness: 16,
+                                  blur: 16,
+                                  refractiveIndex: 1.12,
+                                  lightIntensity: 0.35,
+                                  specularSharpness: GlassSpecularSharpness.sharp,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        onPressed: () => showTrackOptionsModal(context, ref, song),
-                      ),
-                    ],
+                      );
+                    }).toList(),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
       ],
     );
@@ -1296,15 +1360,30 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
             ),
           ),
           if (onShowAll != null)
-            GestureDetector(
+            ApplePressable(
               onTap: onShowAll,
-              behavior: HitTestBehavior.opaque,
-              child: const Text(
-                'Show all',
-                style: TextStyle(
-                  color: Color(0xFF8E8E93),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+              child: GlassContainer(
+                height: 28,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                shape: const LiquidRoundedSuperellipse(borderRadius: 14),
+                color: const Color(0x22FFFFFF),
+                useOwnLayer: true,
+                settings: const LiquidGlassSettings(
+                  thickness: 16,
+                  blur: 16,
+                  refractiveIndex: 1.12,
+                  lightIntensity: 0.35,
+                  specularSharpness: GlassSpecularSharpness.sharp,
+                ),
+                child: const Center(
+                  child: Text(
+                    'Show all',
+                    style: TextStyle(
+                      color: Color(0xFFD1D1D6),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1424,12 +1503,18 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
   }
 
   Widget _buildStatPill({required IconData icon, required String text}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1C1C1E),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 0.5),
+    return GlassContainer(
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      shape: const LiquidRoundedSuperellipse(borderRadius: 18),
+      color: const Color(0x2AFFFFFF),
+      useOwnLayer: true,
+      settings: const LiquidGlassSettings(
+        thickness: 16,
+        blur: 20,
+        refractiveIndex: 1.15,
+        lightIntensity: 0.40,
+        specularSharpness: GlassSpecularSharpness.sharp,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

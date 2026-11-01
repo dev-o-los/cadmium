@@ -124,15 +124,14 @@ void main() {
     expect(find.text('462K subscribers'), findsWidgets);
     expect(find.text('2.47M monthly listeners'), findsWidgets);
 
-    // 3. Verify Action Row: Shuffle, Radio, Follow
-    expect(find.text('Shuffle'), findsOneWidget);
-    expect(find.text('Radio'), findsOneWidget);
+    // 3. Verify Liquid Glass Action Row: Shuffle, Large Play, Star/Favorite
     expect(find.byIcon(CupertinoIcons.shuffle), findsOneWidget);
-    expect(find.byIcon(CupertinoIcons.dot_radiowaves_left_right), findsOneWidget);
-    expect(find.byIcon(CupertinoIcons.plus), findsOneWidget);
+    expect(find.byIcon(CupertinoIcons.play_fill), findsWidgets);
+    expect(find.byIcon(CupertinoIcons.star_fill), findsOneWidget);
 
     // 4. Verify Spotlight Recent Single
-    expect(find.text('Recent Single • 2026'), findsOneWidget);
+    expect(find.text('Single • 2026'), findsWidgets);
+    expect(find.text('Recent Single'), findsOneWidget);
 
     // 5. Verify Top Songs Section
     expect(find.text('Top songs'), findsOneWidget);
@@ -185,7 +184,7 @@ void main() {
     expect(find.byType(LiquidGlassBottomBar), findsOneWidget);
   });
 
-  testWidgets('Tapping Follow button on ArtistScreen bookmarks artist in library',
+  testWidgets('Tapping Star button on ArtistScreen bookmarks artist in library',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(800, 1600);
     tester.view.devicePixelRatio = 1.0;
@@ -208,8 +207,8 @@ void main() {
       isFalse,
     );
 
-    // Tap Follow/Plus button
-    await tester.tap(find.byIcon(CupertinoIcons.plus));
+    // Tap Star button in action row
+    await tester.tap(find.byIcon(CupertinoIcons.star_fill));
     await tester.pumpAndSettle();
 
     // Now saved
@@ -217,7 +216,6 @@ void main() {
       container.read(savedArtistsProvider).any((a) => a.name == 'SoFaygo'),
       isTrue,
     );
-    expect(find.byIcon(CupertinoIcons.checkmark_alt), findsOneWidget);
   });
 
   testWidgets('Tapping artist name in AlbumScreen navigates to ArtistScreen',
