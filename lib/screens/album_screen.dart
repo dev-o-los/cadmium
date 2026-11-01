@@ -405,6 +405,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         ref,
         firstTrack,
         contextQueue: queue,
+        autoOpenPlayer: true,
         forceReload: true,
       );
     } else {
@@ -420,6 +421,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         context,
         ref,
         placeholder,
+        autoOpenPlayer: true,
         forceReload: true,
       );
     }

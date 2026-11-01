@@ -51,7 +51,7 @@ void playSong(
   WidgetRef ref,
   SongItem song, {
   List<SongItem>? contextQueue,
-  bool autoOpenPlayer = true,
+  bool autoOpenPlayer = false,
   bool forceReload = false,
 }) {
   ref.read(playerProvider.notifier).playSong(

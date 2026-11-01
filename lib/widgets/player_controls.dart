@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
@@ -27,7 +28,6 @@ class PlayerControls extends ConsumerWidget {
       return const SizedBox.shrink();
     }
 
-    const appleMusicRed = Color(0xFFFA243C);
     final isPlaying = playerState.isPlaying;
 
     final progress = playerState.duration.inMilliseconds > 0
@@ -48,8 +48,6 @@ class PlayerControls extends ConsumerWidget {
         artist: currentSong.artist,
         highResArt: highResArt,
         isPlaying: isPlaying,
-        isResolvingStream: playerState.isResolvingStream,
-        appleMusicRed: appleMusicRed,
       );
     }
 
@@ -60,9 +58,7 @@ class PlayerControls extends ConsumerWidget {
       artist: currentSong.artist,
       highResArt: highResArt,
       isPlaying: isPlaying,
-      isResolvingStream: playerState.isResolvingStream,
       progress: progress,
-      appleMusicRed: appleMusicRed,
     );
   }
 
@@ -75,8 +71,6 @@ class PlayerControls extends ConsumerWidget {
     required String artist,
     required String? highResArt,
     required bool isPlaying,
-    required bool isResolvingStream,
-    required Color appleMusicRed,
   }) {
     return GlassContainer(
       useOwnLayer: true,
@@ -138,11 +132,11 @@ class PlayerControls extends ConsumerWidget {
                     ),
                     const SizedBox(height: 1),
                     Text(
-                      isResolvingStream ? 'Connecting...' : artist,
+                      artist.isNotEmpty ? artist : 'Unknown Artist',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: isResolvingStream ? appleMusicRed : const Color(0xFF8E8E93),
+                      style: const TextStyle(
+                        color: Color(0xFF8E8E93),
                         fontSize: 11,
                         fontWeight: FontWeight.w400,
                       ),
@@ -157,6 +151,7 @@ class PlayerControls extends ConsumerWidget {
             // Play / Pause Button with instant responsive tap
             GestureDetector(
               onTap: () {
+                HapticFeedback.lightImpact();
                 ref.read(playerProvider.notifier).togglePlayPause();
               },
               behavior: HitTestBehavior.opaque,
@@ -175,6 +170,7 @@ class PlayerControls extends ConsumerWidget {
             // Skip Next Button
             GestureDetector(
               onTap: () {
+                HapticFeedback.lightImpact();
                 ref.read(playerProvider.notifier).skipNext();
               },
               behavior: HitTestBehavior.opaque,
@@ -203,9 +199,7 @@ class PlayerControls extends ConsumerWidget {
     required String artist,
     required String? highResArt,
     required bool isPlaying,
-    required bool isResolvingStream,
     required double progress,
-    required Color appleMusicRed,
   }) {
     return GlassContainer(
       useOwnLayer: true,
@@ -271,13 +265,11 @@ class PlayerControls extends ConsumerWidget {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                isResolvingStream ? 'Connecting...' : artist,
+                                artist.isNotEmpty ? artist : 'Unknown Artist',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: isResolvingStream
-                                      ? appleMusicRed
-                                      : const Color(0xFF8E8E93),
+                                style: const TextStyle(
+                                  color: Color(0xFF8E8E93),
                                   fontSize: 12,
                                   fontWeight: FontWeight.w400,
                                 ),
@@ -295,6 +287,7 @@ class PlayerControls extends ConsumerWidget {
                 // Play / Pause Button: Dedicated gesture target with immediate animated response
                 GestureDetector(
                   onTap: () {
+                    HapticFeedback.lightImpact();
                     ref.read(playerProvider.notifier).togglePlayPause();
                   },
                   behavior: HitTestBehavior.opaque,
@@ -316,6 +309,7 @@ class PlayerControls extends ConsumerWidget {
                 // Skip Next Button (Fast Forward)
                 GestureDetector(
                   onTap: () {
+                    HapticFeedback.lightImpact();
                     ref.read(playerProvider.notifier).skipNext();
                   },
                   behavior: HitTestBehavior.opaque,

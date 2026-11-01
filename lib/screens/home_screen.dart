@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/song_item.dart';
 import '../providers/navigation_provider.dart';
 import '../providers/player_provider.dart';
 import '../utils/playback_utils.dart';
@@ -124,6 +125,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (error != null) {
         showWavifySnackBar(context, error);
         ref.read(playerProvider.notifier).clearErrorMessage();
+      }
+    });
+
+    // Ensure floating mini player bar expands into view when a new song starts playing
+    ref.listen<SongItem?>(playerProvider.select((s) => s.currentSong), (
+      prev,
+      current,
+    ) {
+      if (current != null && prev?.id != current.id) {
+        if (_isMiniPlayerCrawled) {
+          setState(() {
+            _isMiniPlayerCrawled = false;
+          });
+        }
       }
     });
 

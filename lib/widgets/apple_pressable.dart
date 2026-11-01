@@ -36,17 +36,15 @@ class _ApplePressableState extends State<ApplePressable> {
 
   void _handleTapDown(TapDownDetails details) {
     if (widget.onTap != null || widget.onLongPress != null) {
-      setState(() => _isPressed = true);
+      if (!_isPressed) {
+        setState(() => _isPressed = true);
+      }
     }
   }
 
   void _handleTapUp(TapUpDetails details) {
     if (_isPressed) {
       setState(() => _isPressed = false);
-      if (widget.enableHaptic) {
-        HapticFeedback.lightImpact();
-      }
-      widget.onTap?.call();
     }
   }
 
@@ -56,15 +54,26 @@ class _ApplePressableState extends State<ApplePressable> {
     }
   }
 
+  void _handleTap() {
+    if (_isPressed) {
+      setState(() => _isPressed = false);
+    }
+    if (widget.enableHaptic) {
+      HapticFeedback.lightImpact();
+    }
+    widget.onTap?.call();
+  }
+
   @override
   Widget build(BuildContext context) {
     final effectiveRadius = widget.borderRadius ?? BorderRadius.circular(10);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTapDown: _handleTapDown,
-      onTapUp: _handleTapUp,
-      onTapCancel: _handleTapCancel,
+      onTapDown: (widget.onTap != null || widget.onLongPress != null) ? _handleTapDown : null,
+      onTapUp: (widget.onTap != null || widget.onLongPress != null) ? _handleTapUp : null,
+      onTapCancel: (widget.onTap != null || widget.onLongPress != null) ? _handleTapCancel : null,
+      onTap: widget.onTap != null ? _handleTap : null,
       onLongPress: widget.onLongPress != null
           ? () {
               if (widget.enableHaptic) {
