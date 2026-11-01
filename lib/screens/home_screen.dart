@@ -15,6 +15,7 @@ import 'player_screen.dart';
 import 'search_screen.dart';
 
 export 'album_screen.dart';
+export 'artist_screen.dart';
 export 'explore_screen.dart';
 export 'home_feed_screen.dart';
 export 'library_screen.dart';

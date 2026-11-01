@@ -11,6 +11,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../models/song_item.dart';
 import '../providers/favorites_provider.dart';
 import '../providers/player_provider.dart';
+import '../utils/playback_utils.dart';
 import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/apple_music_slider.dart';
 import '../widgets/apple_pressable.dart';
@@ -288,10 +289,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   ),
-                  subtitle: Text(
-                    song.artist,
-                    maxLines: 1,
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.75)),
+                  subtitle: GestureDetector(
+                    onTap: () {
+                      Navigator.pop(context);
+                      openArtistScreen(context, artistName: song.artist);
+                    },
+                    child: Text(
+                      song.artist,
+                      maxLines: 1,
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.75)),
+                    ),
                   ),
                 ),
                 const Divider(color: Color(0xFF2C2C2E)),
@@ -325,7 +332,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                 ListTile(
                   leading: const Icon(CupertinoIcons.person_fill, color: Colors.white),
                   title: Text('Go to Artist (${song.artist})', style: const TextStyle(color: Colors.white)),
-                  onTap: () => Navigator.pop(context),
+                  onTap: () {
+                    Navigator.pop(context);
+                    openArtistScreen(context, artistName: song.artist);
+                  },
                 ),
                 ListTile(
                   leading: const Icon(CupertinoIcons.share, color: Colors.white),
@@ -903,15 +913,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  song.artist,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.82),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: -0.2,
+                ApplePressable(
+                  onTap: () => openArtistScreen(context, artistName: song.artist),
+                  child: Text(
+                    song.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.82),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: -0.2,
+                    ),
                   ),
                 ),
               ],
@@ -1011,14 +1024,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      song.artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.78),
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w500,
+                    ApplePressable(
+                      onTap: () => openArtistScreen(context, artistName: song.artist),
+                      child: Text(
+                        song.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.78),
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ],
@@ -1168,13 +1184,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
             ),
-            subtitle: Text(
-              song.artist,
-              maxLines: 1,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.75),
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
+            subtitle: GestureDetector(
+              onTap: () => openArtistScreen(context, artistName: song.artist),
+              child: Text(
+                song.artist,
+                maxLines: 1,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.75),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
             trailing: const Icon(CupertinoIcons.waveform, color: appleRed, size: 22),

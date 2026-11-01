@@ -10,6 +10,7 @@ import '../models/song_item.dart';
 import '../providers/music_service_provider.dart';
 import '../providers/player_provider.dart';
 import '../screens/album_screen.dart';
+import '../screens/artist_screen.dart';
 import '../screens/player_screen.dart';
 
 /// Shows a floating dark Apple Music-style snackbar with the provided message.
@@ -41,6 +42,26 @@ void openAlbumScreen(BuildContext context, AlbumItem album) {
     context,
     MaterialPageRoute(
       builder: (context) => AlbumScreen(album: album),
+    ),
+  );
+}
+
+/// Opens the dedicated full-page [ArtistScreen] with ambient hero banner, top songs,
+/// albums, singles, videos, playlists, similar artists, and Apple-styled biography stats.
+void openArtistScreen(
+  BuildContext context, {
+  String? artistId,
+  String? artistName,
+  String? thumbnailUrl,
+}) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => ArtistScreen(
+        artistId: artistId,
+        artistName: artistName,
+        initialThumbnailUrl: thumbnailUrl,
+      ),
     ),
   );
 }

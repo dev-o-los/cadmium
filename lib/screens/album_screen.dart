@@ -318,17 +318,37 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                       fontSize: 16,
                     ),
                   ),
-                  subtitle: Text(
-                    _album.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.appleSecondaryText,
-                      fontSize: 13,
+                  subtitle: GestureDetector(
+                    onTap: () {
+                      Navigator.pop(modalCtx);
+                      openArtistScreen(context, artistName: _album.artist);
+                    },
+                    child: Text(
+                      _album.artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.appleSecondaryText,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                 ),
                 const Divider(color: Color(0xFF2C2C2E)),
+                ListTile(
+                  leading: const Icon(
+                    CupertinoIcons.person_crop_circle,
+                    color: Colors.white,
+                  ),
+                  title: Text(
+                    'View Artist: ${_album.artist}',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  onTap: () {
+                    Navigator.pop(modalCtx);
+                    openArtistScreen(context, artistName: _album.artist);
+                  },
+                ),
                 ListTile(
                   leading: Icon(
                     isSaved ? CupertinoIcons.bookmark_fill : CupertinoIcons.bookmark,
@@ -673,13 +693,16 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                       const SizedBox(height: 4),
 
                       // Artist Name
-                      Text(
-                        _album.artist,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
+                      ApplePressable(
+                        onTap: () => openArtistScreen(context, artistName: _album.artist),
+                        child: Text(
+                          _album.artist,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 6),

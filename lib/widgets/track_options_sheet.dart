@@ -52,17 +52,37 @@ void showTrackOptionsModal(
                     fontSize: 16,
                   ),
                 ),
-                subtitle: Text(
-                  song.artist,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.appleSecondaryText,
-                    fontSize: 13,
+                subtitle: GestureDetector(
+                  onTap: () {
+                    Navigator.pop(modalContext);
+                    openArtistScreen(context, artistName: song.artist);
+                  },
+                  child: Text(
+                    song.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.appleSecondaryText,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               ),
               const Divider(color: Color(0xFF2C2C2E)),
+              ListTile(
+                leading: const Icon(
+                  CupertinoIcons.person_crop_circle,
+                  color: Colors.white,
+                ),
+                title: Text(
+                  'View Artist: ${song.artist}',
+                  style: const TextStyle(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.pop(modalContext);
+                  openArtistScreen(context, artistName: song.artist);
+                },
+              ),
               ListTile(
                 leading: const Icon(
                   CupertinoIcons.text_badge_plus,

@@ -481,15 +481,18 @@ class LibraryScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 2),
-            Text(
-              song.artist,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.appleSecondaryText,
-                fontSize: 12,
-                fontWeight: FontWeight.w400,
-                height: 1.2,
+            ApplePressable(
+              onTap: () => openArtistScreen(context, artistName: song.artist),
+              child: Text(
+                song.artist,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.appleSecondaryText,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                  height: 1.2,
+                ),
               ),
             ),
           ],
@@ -555,7 +558,12 @@ class LibraryScreen extends ConsumerWidget {
     double cardWidth,
   ) {
     return ApplePressable(
-      onTap: () => playArtist(context, ref, artist),
+      onTap: () => openArtistScreen(
+        context,
+        artistId: artist.id,
+        artistName: artist.name,
+        thumbnailUrl: artist.thumbnailUrl,
+      ),
       borderRadius: BorderRadius.circular(14),
       child: SizedBox(
         width: cardWidth,

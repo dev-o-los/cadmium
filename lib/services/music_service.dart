@@ -15,6 +15,7 @@ import '../models/lyric_line.dart';
 import '../models/home_data.dart';
 import '../models/user_account.dart';
 import '../models/playlist_item.dart';
+import '../models/artist_details.dart';
 import '../models/artist_item.dart';
 import 'lyrics_service.dart';
 
@@ -117,6 +118,9 @@ class MusicService {
 
   // Cached streams to prevent duplicate Innertube player requests (5 min TTL)
   final Map<String, ({AudioStreamInfo info, DateTime timestamp})> _streamCache = {};
+
+  // Cached artist details to prevent repeated parsing and provide instant loads (15 min TTL)
+  final Map<String, ({ArtistDetails details, DateTime timestamp})> _artistDetailsCache = {};
 
   // Cached home feed data
   HomeData? _cachedHomeData;
@@ -1068,6 +1072,423 @@ class MusicService {
     return [];
   }
 
+  /// Fetches comprehensive artist details from YouTube Music including bio,
+  /// subscriber stats, monthly audience, top songs, albums, singles & EPs,
+  /// music videos, featured playlists, artist playlists, and fans might also like.
+  Future<ArtistDetails> getArtistDetails(String artistIdOrName, {String? fallbackName}) async {
+    final rawQuery = artistIdOrName.trim();
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    // Check memory cache
+    final cached = _artistDetailsCache[rawQuery.toLowerCase()];
+    if (cached != null) {
+      final age = DateTime.now().difference(cached.timestamp);
+      if (age < const Duration(minutes: 15)) {
+        return cached.details;
+      }
+      _artistDetailsCache.remove(rawQuery.toLowerCase());
+    }
+
+    String targetId = rawQuery;
+    String resolvedName = fallbackName ?? rawQuery;
+
+    // If ID is not a standard channel browseId (UC...), search for the artist channel ID
+    if (!targetId.startsWith('UC')) {
+      final searchQuery = fallbackName != null && fallbackName.isNotEmpty ? fallbackName : rawQuery;
+      final searchResults = await searchArtists(searchQuery);
+      if (searchResults.isNotEmpty) {
+        targetId = searchResults.first.id;
+        resolvedName = searchResults.first.name;
+      }
+    }
+
+    String? bannerUrl;
+    String? thumbnailUrl;
+    String? subscribers;
+    String? monthlyListeners;
+    String? description;
+    List<SongItem> topSongs = [];
+    List<AlbumItem> albums = [];
+    List<AlbumItem> singles = [];
+    List<VideoItem> videos = [];
+    List<PlaylistItem> featuredOn = [];
+    List<PlaylistItem> playlistsByArtist = [];
+    List<ArtistItem> similarArtists = [];
+    AlbumItem? recentRelease;
+
+    // 1. Direct InnerTube browse request to extract full rich layout matching YouTube Music
+    if (targetId.startsWith('UC')) {
+      try {
+        final data = await _ytMusic.constructRequest('browse', body: {'browseId': targetId});
+        final header = data['header']?['musicImmersiveHeaderRenderer'] ??
+            data['header']?['musicVisualHeaderRenderer'] ??
+            data['header']?['musicHeaderRenderer'];
+
+        if (header != null) {
+          final titleText = traverseString(header, ['title', 'runs', 'text']);
+          if (titleText != null && titleText.isNotEmpty) {
+            resolvedName = titleText;
+          }
+
+          // Subscribers
+          final subButton = header['subscriptionButton']?['subscribeButtonRenderer'];
+          subscribers = traverseString(subButton, ['longSubscriberCountText', 'runs', 'text']) ??
+              traverseString(subButton, ['subscriberCountText', 'runs', 'text']) ??
+              traverseString(subButton, ['shortSubscriberCountText', 'runs', 'text']);
+
+          // Monthly Audience / Listeners
+          monthlyListeners = traverseString(header, ['monthlyListenerCount', 'runs', 'text']);
+
+          // Bio description
+          final descRuns = header['description']?['runs'] as List?;
+          if (descRuns != null && descRuns.isNotEmpty) {
+            description = descRuns.map((r) => r['text'] ?? '').join('').trim();
+          }
+
+          // Banner Image
+          final thumbs = traverseList(header, ['thumbnail', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails']);
+          if (thumbs.isNotEmpty) {
+            final lastUrl = thumbs.last?['url'] as String?;
+            if (lastUrl != null && lastUrl.isNotEmpty) {
+              bannerUrl = SongItem.upgradeThumbnail(lastUrl);
+              thumbnailUrl = bannerUrl;
+            }
+          }
+        }
+
+        // Parse contents sections
+        final contents = data['contents']?['singleColumnBrowseResultsRenderer']?['tabs']?[0]?['tabRenderer']?['content']?['sectionListRenderer']?['contents'] as List?;
+        if (contents != null) {
+          for (final section in contents) {
+            // Top songs shelf
+            final shelf = section['musicShelfRenderer'];
+            if (shelf != null) {
+              final shelfTitle = (traverseString(shelf, ['title', 'runs', 'text']) ?? '').toLowerCase();
+              if (shelfTitle.contains('song') || topSongs.isEmpty) {
+                final items = shelf['contents'] as List? ?? [];
+                for (final it in items) {
+                  final item = it['musicResponsiveListItemRenderer'];
+                  if (item == null) continue;
+                  final vId = item['playlistItemData']?['videoId'] ??
+                      traverseString(item, ['navigationEndpoint', 'watchEndpoint', 'videoId']);
+                  if (vId == null || (vId as String).isEmpty) continue;
+
+                  final flexCols = item['flexColumns'] as List? ?? [];
+                  String title = 'Untitled';
+                  String artist = resolvedName;
+                  String? album;
+
+                  if (flexCols.isNotEmpty) {
+                    title = traverseString(flexCols[0], ['musicResponsiveListItemFlexColumnRenderer', 'text', 'runs', 'text']) ?? 'Untitled';
+                  }
+                  if (flexCols.length > 1) {
+                    artist = traverseString(flexCols[1], ['musicResponsiveListItemFlexColumnRenderer', 'text', 'runs', 'text']) ?? resolvedName;
+                  }
+                  if (flexCols.length > 2) {
+                    album = traverseString(flexCols[2], ['musicResponsiveListItemFlexColumnRenderer', 'text', 'runs', 'text']);
+                  }
+
+                  String? thumb;
+                  final itemThumbs = traverseList(item, ['thumbnail', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails']);
+                  if (itemThumbs.isNotEmpty) {
+                    thumb = SongItem.upgradeThumbnail(itemThumbs.last?['url'] as String? ?? '');
+                  }
+
+                  topSongs.add(
+                    SongItem(
+                      id: vId,
+                      title: title,
+                      artist: artist,
+                      thumbnailUrl: thumb,
+                      album: album,
+                    ),
+                  );
+                }
+              }
+            }
+
+            // Carousels: Albums, Singles, Videos, Featured, Playlists, Similar Artists
+            final carousel = section['musicCarouselShelfRenderer'];
+            if (carousel != null) {
+              final carouselTitle = (traverseString(carousel, ['header', 'musicCarouselShelfBasicHeaderRenderer', 'title', 'runs', 'text']) ?? '').toLowerCase();
+              final items = carousel['contents'] as List? ?? [];
+
+              if (carouselTitle.contains('album')) {
+                for (final it in items) {
+                  final renderer = it['musicTwoRowItemRenderer'];
+                  if (renderer == null) continue;
+                  final browseId = traverseString(renderer, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
+                  if (browseId == null || browseId.isEmpty) continue;
+                  final title = traverseString(renderer, ['title', 'runs', 'text']) ?? 'Album';
+                  final subtitle = traverseString(renderer, ['subtitle', 'runs', 'text']) ?? '';
+                  final yearMatch = RegExp(r'\b(19|20)\d{2}\b').firstMatch(subtitle);
+                  final year = yearMatch != null ? int.tryParse(yearMatch.group(0)!) : null;
+
+                  String? thumb;
+                  final itemThumbs = traverseList(renderer, ['thumbnailRenderer', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails']);
+                  if (itemThumbs.isNotEmpty) {
+                    thumb = SongItem.upgradeThumbnail(itemThumbs.last?['url'] as String? ?? '');
+                  }
+
+                  albums.add(
+                    AlbumItem(
+                      id: browseId,
+                      title: title,
+                      artist: resolvedName,
+                      thumbnailUrl: thumb,
+                      year: year,
+                      type: 'Album',
+                    ),
+                  );
+                }
+              } else if (carouselTitle.contains('single') || carouselTitle.contains('ep')) {
+                for (final it in items) {
+                  final renderer = it['musicTwoRowItemRenderer'];
+                  if (renderer == null) continue;
+                  final browseId = traverseString(renderer, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
+                  if (browseId == null || browseId.isEmpty) continue;
+                  final title = traverseString(renderer, ['title', 'runs', 'text']) ?? 'Single';
+                  final subtitle = traverseString(renderer, ['subtitle', 'runs', 'text']) ?? '';
+                  final yearMatch = RegExp(r'\b(19|20)\d{2}\b').firstMatch(subtitle);
+                  final year = yearMatch != null ? int.tryParse(yearMatch.group(0)!) : null;
+
+                  String? thumb;
+                  final itemThumbs = traverseList(renderer, ['thumbnailRenderer', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails']);
+                  if (itemThumbs.isNotEmpty) {
+                    thumb = SongItem.upgradeThumbnail(itemThumbs.last?['url'] as String? ?? '');
+                  }
+
+                  singles.add(
+                    AlbumItem(
+                      id: browseId,
+                      title: title,
+                      artist: resolvedName,
+                      thumbnailUrl: thumb,
+                      year: year,
+                      type: 'Single',
+                    ),
+                  );
+                }
+              } else if (carouselTitle.contains('video')) {
+                for (final it in items) {
+                  final renderer = it['musicTwoRowItemRenderer'];
+                  if (renderer == null) continue;
+                  final videoId = traverseString(renderer, ['navigationEndpoint', 'watchEndpoint', 'videoId']);
+                  if (videoId == null || videoId.isEmpty) continue;
+                  final title = traverseString(renderer, ['title', 'runs', 'text']) ?? 'Video';
+                  final subtitle = traverseString(renderer, ['subtitle', 'runs', 'text']) ?? '';
+                  final views = subtitle.contains('views') ? subtitle : null;
+
+                  String? thumb;
+                  final itemThumbs = traverseList(renderer, ['thumbnailRenderer', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails']);
+                  if (itemThumbs.isNotEmpty) {
+                    thumb = SongItem.upgradeThumbnail(itemThumbs.last?['url'] as String? ?? '');
+                  }
+
+                  videos.add(
+                    VideoItem(
+                      id: videoId,
+                      title: title,
+                      artist: resolvedName,
+                      thumbnailUrl: thumb,
+                      views: views,
+                    ),
+                  );
+                }
+              } else if (carouselTitle.contains('featured')) {
+                for (final it in items) {
+                  final renderer = it['musicTwoRowItemRenderer'];
+                  if (renderer == null) continue;
+                  final browseId = traverseString(renderer, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
+                  if (browseId == null || browseId.isEmpty) continue;
+                  final title = traverseString(renderer, ['title', 'runs', 'text']) ?? 'Playlist';
+
+                  String? thumb;
+                  final itemThumbs = traverseList(renderer, ['thumbnailRenderer', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails']);
+                  if (itemThumbs.isNotEmpty) {
+                    thumb = SongItem.upgradeThumbnail(itemThumbs.last?['url'] as String? ?? '');
+                  }
+
+                  featuredOn.add(
+                    PlaylistItem(
+                      id: browseId,
+                      title: title,
+                      author: 'YouTube Music',
+                      thumbnailUrl: thumb,
+                    ),
+                  );
+                }
+              } else if (carouselTitle.contains('playlist')) {
+                for (final it in items) {
+                  final renderer = it['musicTwoRowItemRenderer'];
+                  if (renderer == null) continue;
+                  final browseId = traverseString(renderer, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
+                  if (browseId == null || browseId.isEmpty) continue;
+                  final title = traverseString(renderer, ['title', 'runs', 'text']) ?? 'Playlist';
+
+                  String? thumb;
+                  final itemThumbs = traverseList(renderer, ['thumbnailRenderer', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails']);
+                  if (itemThumbs.isNotEmpty) {
+                    thumb = SongItem.upgradeThumbnail(itemThumbs.last?['url'] as String? ?? '');
+                  }
+
+                  playlistsByArtist.add(
+                    PlaylistItem(
+                      id: browseId,
+                      title: title,
+                      author: resolvedName,
+                      thumbnailUrl: thumb,
+                    ),
+                  );
+                }
+              } else if (carouselTitle.contains('fan') || carouselTitle.contains('similar')) {
+                for (final it in items) {
+                  final renderer = it['musicTwoRowItemRenderer'];
+                  if (renderer == null) continue;
+                  final artistBrowseId = traverseString(renderer, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
+                  if (artistBrowseId == null || artistBrowseId.isEmpty) continue;
+                  final title = traverseString(renderer, ['title', 'runs', 'text']) ?? 'Artist';
+                  final subtitle = traverseString(renderer, ['subtitle', 'runs', 'text']) ?? '';
+
+                  String? thumb;
+                  final itemThumbs = traverseList(renderer, ['thumbnailRenderer', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails']);
+                  if (itemThumbs.isNotEmpty) {
+                    thumb = SongItem.upgradeThumbnail(itemThumbs.last?['url'] as String? ?? '');
+                  }
+
+                  similarArtists.add(
+                    ArtistItem(
+                      id: artistBrowseId,
+                      name: title,
+                      thumbnailUrl: thumb,
+                      subscribers: subtitle.isNotEmpty ? subtitle : null,
+                    ),
+                  );
+                }
+              }
+            }
+
+            // Description shelf (About the artist)
+            final descShelf = section['musicDescriptionShelfRenderer'];
+            if (descShelf != null) {
+              if (description == null || description.isEmpty) {
+                final descRuns = descShelf['description']?['runs'] as List?;
+                if (descRuns != null && descRuns.isNotEmpty) {
+                  description = descRuns.map((r) => r['text'] ?? '').join('').trim();
+                }
+              }
+              subscribers ??= traverseString(descShelf, ['subheader', 'runs', 'text']);
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('getArtistDetails raw parse error: $e');
+      }
+    }
+
+    // 2. High-reliability fallback via _ytMusic.getArtist() if essential lists are empty
+    if ((topSongs.isEmpty || albums.isEmpty || singles.isEmpty) && targetId.startsWith('UC')) {
+      try {
+        final artistFull = await _ytMusic.getArtist(targetId);
+        if (topSongs.isEmpty && artistFull.topSongs.isNotEmpty) {
+          topSongs = artistFull.topSongs.map((s) => SongItem(
+            id: s.videoId,
+            title: s.name,
+            artist: s.artist.name.isNotEmpty ? s.artist.name : resolvedName,
+            thumbnailUrl: s.thumbnails.isNotEmpty ? SongItem.upgradeThumbnail(s.thumbnails.last.url) : null,
+            album: s.album?.name,
+            durationSeconds: s.duration,
+          )).toList();
+        }
+        if (albums.isEmpty && artistFull.topAlbums.isNotEmpty) {
+          albums = artistFull.topAlbums.map((a) => AlbumItem(
+            id: a.albumId,
+            title: a.name,
+            artist: a.artist.name.isNotEmpty ? a.artist.name : resolvedName,
+            thumbnailUrl: a.thumbnails.isNotEmpty ? SongItem.upgradeThumbnail(a.thumbnails.last.url) : null,
+            year: a.year,
+            type: 'Album',
+          )).toList();
+        }
+        if (singles.isEmpty && artistFull.topSingles.isNotEmpty) {
+          singles = artistFull.topSingles.map((a) => AlbumItem(
+            id: a.albumId,
+            title: a.name,
+            artist: a.artist.name.isNotEmpty ? a.artist.name : resolvedName,
+            thumbnailUrl: a.thumbnails.isNotEmpty ? SongItem.upgradeThumbnail(a.thumbnails.last.url) : null,
+            year: a.year,
+            type: 'Single',
+          )).toList();
+        }
+        if (videos.isEmpty && artistFull.topVideos.isNotEmpty) {
+          videos = artistFull.topVideos.map((v) => VideoItem(
+            id: v.videoId,
+            title: v.name,
+            artist: v.artist.name,
+            thumbnailUrl: v.thumbnails.isNotEmpty ? SongItem.upgradeThumbnail(v.thumbnails.last.url) : null,
+            durationSeconds: v.duration,
+          )).toList();
+        }
+        if (featuredOn.isEmpty && artistFull.featuredOn.isNotEmpty) {
+          featuredOn = artistFull.featuredOn.map((p) => PlaylistItem(
+            id: p.playlistId,
+            title: p.name,
+            author: p.artist.name.isNotEmpty ? p.artist.name : 'YouTube Music',
+            thumbnailUrl: p.thumbnails.isNotEmpty ? SongItem.upgradeThumbnail(p.thumbnails.last.url) : null,
+          )).toList();
+        }
+        if (similarArtists.isEmpty && artistFull.similarArtists.isNotEmpty) {
+          similarArtists = artistFull.similarArtists.map((a) => ArtistItem(
+            id: a.artistId,
+            name: a.name,
+            thumbnailUrl: a.thumbnails.isNotEmpty ? SongItem.upgradeThumbnail(a.thumbnails.last.url) : null,
+          )).toList();
+        }
+        if (bannerUrl == null && artistFull.thumbnails.isNotEmpty) {
+          bannerUrl = SongItem.upgradeThumbnail(artistFull.thumbnails.last.url);
+          thumbnailUrl = bannerUrl;
+        }
+      } catch (e) {
+        debugPrint('getArtistDetails fallback error: $e');
+      }
+    }
+
+    // Determine recent release spotlight
+    if (singles.isNotEmpty) {
+      recentRelease = singles.first;
+    } else if (albums.isNotEmpty) {
+      recentRelease = albums.first;
+    }
+
+    final details = ArtistDetails(
+      id: targetId,
+      name: resolvedName,
+      bannerUrl: bannerUrl,
+      thumbnailUrl: thumbnailUrl ?? bannerUrl,
+      subscribers: subscribers,
+      monthlyListeners: monthlyListeners,
+      description: description,
+      topSongs: topSongs,
+      albums: albums,
+      singles: singles,
+      videos: videos,
+      featuredOn: featuredOn,
+      playlistsByArtist: playlistsByArtist,
+      similarArtists: similarArtists,
+      recentRelease: recentRelease,
+    );
+
+    // Cache details
+    _artistDetailsCache[rawQuery.toLowerCase()] = (details: details, timestamp: DateTime.now());
+    if (targetId.isNotEmpty) {
+      _artistDetailsCache[targetId.toLowerCase()] = (details: details, timestamp: DateTime.now());
+    }
+
+    return details;
+  }
+
   /// Fetches user's personalized mixes and playlists if logged into YouTube Music.
   Future<List<PlaylistItem>> getPersonalizedMixes() async {
     if (!_isInitialized) {
@@ -1593,6 +2014,7 @@ class MusicService {
 
   void dispose() {
     _streamCache.clear();
+    _artistDetailsCache.clear();
     _animatedArtworkCache.clear();
     _lyricsService.dispose();
     _cachedHomeData = null;
