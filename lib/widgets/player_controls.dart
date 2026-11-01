@@ -15,10 +15,7 @@ import 'wavify_cached_image.dart';
 class PlayerControls extends ConsumerWidget {
   final VoidCallback? onTap;
 
-  const PlayerControls({
-    super.key,
-    this.onTap,
-  });
+  const PlayerControls({super.key, this.onTap});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -32,10 +29,13 @@ class PlayerControls extends ConsumerWidget {
     final isPlaying = playerState.isPlaying;
 
     final progress = playerState.duration.inMilliseconds > 0
-        ? (playerState.position.inMilliseconds / playerState.duration.inMilliseconds).clamp(0.0, 1.0)
+        ? (playerState.position.inMilliseconds /
+                  playerState.duration.inMilliseconds)
+              .clamp(0.0, 1.0)
         : 0.0;
 
-    final highResArt = currentSong.highResThumbnailUrl ?? currentSong.thumbnailUrl;
+    final highResArt =
+        currentSong.highResThumbnailUrl ?? currentSong.thumbnailUrl;
 
     // Detect whether we are rendering inline inside minimized GlassTabBar or expanded
     final placement = GlassTabBarAccessoryPlacementScope.of(context);
@@ -163,7 +163,9 @@ class PlayerControls extends ConsumerWidget {
                 height: 34,
                 alignment: Alignment.center,
                 child: AnimatedCupertinoIcon(
-                  icon: isPlaying ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
+                  icon: isPlaying
+                      ? CupertinoIcons.pause_fill
+                      : CupertinoIcons.play_fill,
                   color: Colors.white,
                   size: 20,
                 ),
