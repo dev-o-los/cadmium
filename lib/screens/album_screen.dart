@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../constants/app_colors.dart';
 import '../models/album_item.dart';
@@ -651,24 +652,25 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          // 1. Shuffle Button
-                          ApplePressable(
-                            onTap: () => _playAll(shuffle: true),
-                            borderRadius: BorderRadius.circular(26),
-                            child: Container(
-                              width: 52,
-                              height: 52,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF2C2C2E),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Center(
-                                child: Icon(
-                                  CupertinoIcons.shuffle,
-                                  color: Colors.white,
-                                  size: 22,
-                                ),
-                              ),
+                          // 1. Shuffle Button (Liquid Glass)
+                          GlassIconButton(
+                            icon: const Icon(
+                              CupertinoIcons.shuffle,
+                              color: Colors.white,
+                              size: 22,
+                            ),
+                            onPressed: () => _playAll(shuffle: true),
+                            size: 52,
+                            iconSize: 22,
+                            shape: GlassIconButtonShape.circle,
+                            useOwnLayer: true,
+                            settings: const LiquidGlassSettings(
+                              glassColor: Color(0x40000000),
+                              thickness: 26,
+                              blur: 24,
+                              refractiveIndex: 1.15,
+                              lightIntensity: 0.45,
+                              specularSharpness: GlassSpecularSharpness.sharp,
                             ),
                           ),
                           const SizedBox(width: 14),
@@ -708,9 +710,16 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                           ),
                           const SizedBox(width: 14),
 
-                          // 3. Save / Bookmark Button
-                          ApplePressable(
-                            onTap: () {
+                          // 3. Save / Bookmark Button (Liquid Glass)
+                          GlassIconButton(
+                            icon: Icon(
+                              isSaved
+                                  ? CupertinoIcons.check_mark
+                                  : CupertinoIcons.plus,
+                              color: Colors.white,
+                              size: 22,
+                            ),
+                            onPressed: () {
                               ref
                                   .read(savedAlbumsProvider.notifier)
                                   .toggleAlbum(_album);
@@ -721,25 +730,17 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                     : 'Saved "${_album.title}" to library',
                               );
                             },
-                            borderRadius: BorderRadius.circular(26),
-                            child: Container(
-                              width: 52,
-                              height: 52,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF2C2C2E),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Center(
-                                child: Icon(
-                                  isSaved
-                                      ? CupertinoIcons.check_mark
-                                      : CupertinoIcons.plus,
-                                  color: isSaved
-                                      ? Colors.white
-                                      : Colors.white,
-                                  size: 22,
-                                ),
-                              ),
+                            size: 52,
+                            iconSize: 22,
+                            shape: GlassIconButtonShape.circle,
+                            useOwnLayer: true,
+                            settings: const LiquidGlassSettings(
+                              glassColor: Color(0x40000000),
+                              thickness: 26,
+                              blur: 24,
+                              refractiveIndex: 1.15,
+                              lightIntensity: 0.45,
+                              specularSharpness: GlassSpecularSharpness.sharp,
                             ),
                           ),
                         ],
@@ -976,28 +977,25 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Back Button (Pill circular icon button)
-                  ApplePressable(
-                    onTap: () => Navigator.pop(context),
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.40),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.12),
-                          width: 1,
-                        ),
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          CupertinoIcons.chevron_back,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                      ),
+                  // Back Button (Liquid Glass circular button)
+                  GlassIconButton(
+                    icon: const Icon(
+                      CupertinoIcons.chevron_back,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    size: 40,
+                    iconSize: 20,
+                    shape: GlassIconButtonShape.circle,
+                    useOwnLayer: true,
+                    settings: const LiquidGlassSettings(
+                      glassColor: Color(0x40000000),
+                      thickness: 24,
+                      blur: 24,
+                      refractiveIndex: 1.15,
+                      lightIntensity: 0.40,
+                      specularSharpness: GlassSpecularSharpness.sharp,
                     ),
                   ),
 
@@ -1038,66 +1036,57 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                   else
                     const Spacer(),
 
-                  // Right Pill Action Dock (Search, Sort, 3-dots)
-                  Container(
-                    height: 40,
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.40),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.12),
-                        width: 1,
+                  // Right Pill Action Dock (Search, Sort, 3-dots) in Liquid Glass
+                  GlassButtonGroup.icons(
+                    borderRadius: 20,
+                    useOwnLayer: true,
+                    iconSize: 18,
+                    itemPadding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 8),
+                    settings: const LiquidGlassSettings(
+                      glassColor: Color(0x40000000),
+                      thickness: 24,
+                      blur: 24,
+                      refractiveIndex: 1.15,
+                      lightIntensity: 0.40,
+                      specularSharpness: GlassSpecularSharpness.sharp,
+                    ),
+                    items: [
+                      GlassButtonGroupItem(
+                        icon: Icon(
+                          _isSearching
+                              ? CupertinoIcons.xmark
+                              : CupertinoIcons.search,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                        onTap: () {
+                          setState(() {
+                            _isSearching = !_isSearching;
+                            if (!_isSearching) {
+                              _searchController.clear();
+                              _onSearchChanged('');
+                            }
+                          });
+                        },
                       ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                              minWidth: 36, minHeight: 36),
-                          icon: Icon(
-                            _isSearching
-                                ? CupertinoIcons.xmark
-                                : CupertinoIcons.search,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _isSearching = !_isSearching;
-                              if (!_isSearching) {
-                                _searchController.clear();
-                                _onSearchChanged('');
-                              }
-                            });
-                          },
+                      GlassButtonGroupItem(
+                        icon: const Icon(
+                          CupertinoIcons.slider_horizontal_3,
+                          color: Colors.white,
+                          size: 18,
                         ),
-                        IconButton(
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                              minWidth: 36, minHeight: 36),
-                          icon: const Icon(
-                            CupertinoIcons.slider_horizontal_3,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          onPressed: _showSortOptions,
+                        onTap: _showSortOptions,
+                      ),
+                      GlassButtonGroupItem(
+                        icon: const Icon(
+                          CupertinoIcons.ellipsis,
+                          color: Colors.white,
+                          size: 18,
                         ),
-                        IconButton(
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                              minWidth: 36, minHeight: 36),
-                          icon: const Icon(
-                            CupertinoIcons.ellipsis,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          onPressed: _showAlbumOptions,
-                        ),
-                      ],
-                    ),
+                        onTap: _showAlbumOptions,
+                      ),
+                    ],
                   ),
                 ],
               ),

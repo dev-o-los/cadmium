@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wavify/models/album_item.dart';
 import 'package:wavify/providers/library_provider.dart';
@@ -54,6 +55,10 @@ void main() {
     expect(find.byIcon(CupertinoIcons.search), findsOneWidget);
     expect(find.byIcon(CupertinoIcons.slider_horizontal_3), findsOneWidget);
     expect(find.byIcon(CupertinoIcons.ellipsis), findsOneWidget);
+
+    // Verify Liquid Glass integration: 3 circular GlassIconButtons (back, shuffle, bookmark) and 1 GlassButtonGroup
+    expect(find.byType(GlassIconButton), findsNWidgets(3));
+    expect(find.byType(GlassButtonGroup), findsOneWidget);
 
     // 4. Verify "About the album" and "More" button
     expect(find.text('About the album'), findsOneWidget);
