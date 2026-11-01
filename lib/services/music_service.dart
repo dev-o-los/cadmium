@@ -14,6 +14,8 @@ import '../models/music_category.dart';
 import '../models/lyric_line.dart';
 import '../models/home_data.dart';
 import '../models/user_account.dart';
+import '../models/playlist_item.dart';
+import '../models/artist_item.dart';
 
 /// Resolved audio stream data containing direct stream URL, matching User-Agent headers,
 /// bitrate, and media format specifications.
@@ -592,6 +594,276 @@ class MusicService {
     }
 
     return [];
+  }
+
+  /// Extracts clean playlist ID from URLs (e.g. music.youtube.com/playlist?list=... or youtube.com/playlist?list=...)
+  /// or directly returns the raw input if it's already an ID.
+  static String extractPlaylistId(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return '';
+
+    final uri = Uri.tryParse(trimmed);
+    if (uri != null && uri.queryParameters.containsKey('list')) {
+      return uri.queryParameters['list']!;
+    }
+    final match = RegExp(r'[?&]list=([^&#]+)').firstMatch(trimmed);
+    if (match != null) {
+      return match.group(1)!;
+    }
+    return trimmed;
+  }
+
+  /// Fetches playlist metadata (title, author, thumbnail, video count) from YouTube Music.
+  Future<PlaylistItem?> fetchYouTubePlaylist(String urlOrId) async {
+    final cleanId = extractPlaylistId(urlOrId);
+    if (cleanId.isEmpty) return null;
+
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    try {
+      final playlistFull = await _ytMusic.getPlaylist(cleanId);
+      final thumb = playlistFull.thumbnails.isNotEmpty
+          ? SongItem.upgradeThumbnail(playlistFull.thumbnails.last.url)
+          : null;
+
+      final authorName = playlistFull.artist.name.isNotEmpty
+          ? playlistFull.artist.name
+          : 'YouTube Music';
+
+      return PlaylistItem(
+        id: cleanId,
+        title: playlistFull.name.isNotEmpty ? playlistFull.name : 'YouTube Playlist',
+        author: authorName,
+        thumbnailUrl: thumb,
+        trackCount: playlistFull.videoCount > 0 ? playlistFull.videoCount : null,
+        isCustom: true,
+      );
+    } catch (e) {
+      debugPrint('fetchYouTubePlaylist error for $cleanId: $e');
+      return PlaylistItem(
+        id: cleanId,
+        title: 'Playlist ($cleanId)',
+        author: 'YouTube',
+        isCustom: true,
+      );
+    }
+  }
+
+  /// Retrieves track listing for a YouTube playlist.
+  Future<List<SongItem>> getPlaylistTracks(String playlistId, {String? queryFallback}) async {
+    final cleanId = extractPlaylistId(playlistId);
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    if (cleanId.isNotEmpty) {
+      try {
+        final videos = await _ytMusic.getPlaylistVideos(cleanId);
+        if (videos.isNotEmpty) {
+          return videos
+              .where((v) => v.videoId.isNotEmpty)
+              .map((v) {
+                final thumb = v.thumbnails.isNotEmpty
+                    ? SongItem.upgradeThumbnail(v.thumbnails.last.url)
+                    : null;
+                final artistName =
+                    v.artist.name.isNotEmpty ? v.artist.name : 'Unknown Artist';
+                return SongItem(
+                  id: v.videoId,
+                  title: v.name.isNotEmpty ? v.name : 'Untitled',
+                  artist: artistName,
+                  thumbnailUrl: thumb,
+                  durationSeconds: v.duration,
+                );
+              })
+              .toList();
+        }
+      } catch (e) {
+        debugPrint('getPlaylistTracks error for $cleanId: $e');
+      }
+    }
+
+    if (queryFallback != null && queryFallback.trim().isNotEmpty) {
+      return searchSongs(queryFallback);
+    }
+
+    return [];
+  }
+
+  /// Fetches Liked Music ('LM') from the logged-in YouTube Music user account.
+  Future<List<SongItem>> getLikedSongs() async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    if (_currentAccount != null) {
+      try {
+        final videos = await _ytMusic.getPlaylistVideos('LM');
+        if (videos.isNotEmpty) {
+          return videos
+              .where((v) => v.videoId.isNotEmpty)
+              .map((v) {
+                final thumb = v.thumbnails.isNotEmpty
+                    ? SongItem.upgradeThumbnail(v.thumbnails.last.url)
+                    : null;
+                final artistName =
+                    v.artist.name.isNotEmpty ? v.artist.name : 'Unknown Artist';
+                return SongItem(
+                  id: v.videoId,
+                  title: v.name.isNotEmpty ? v.name : 'Untitled',
+                  artist: artistName,
+                  thumbnailUrl: thumb,
+                  durationSeconds: v.duration,
+                );
+              })
+              .toList();
+        }
+      } catch (e) {
+        debugPrint('getLikedSongs LM error: $e, trying VLLM fallback');
+        try {
+          final videos = await _ytMusic.getPlaylistVideos('VLLM');
+          if (videos.isNotEmpty) {
+            return videos
+                .where((v) => v.videoId.isNotEmpty)
+                .map((v) {
+                  final thumb = v.thumbnails.isNotEmpty
+                      ? SongItem.upgradeThumbnail(v.thumbnails.last.url)
+                      : null;
+                  final artistName =
+                      v.artist.name.isNotEmpty ? v.artist.name : 'Unknown Artist';
+                  return SongItem(
+                    id: v.videoId,
+                    title: v.name.isNotEmpty ? v.name : 'Untitled',
+                    artist: artistName,
+                    thumbnailUrl: thumb,
+                    durationSeconds: v.duration,
+                  );
+                })
+                .toList();
+          }
+        } catch (_) {}
+      }
+    }
+
+    return [];
+  }
+
+  /// Searches artists on YouTube Music.
+  Future<List<ArtistItem>> searchArtists(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return [];
+
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    try {
+      final results = await _ytMusic.searchArtists(trimmed);
+      return results
+          .where((a) => a.artistId.isNotEmpty)
+          .map((a) {
+            final thumb = a.thumbnails.isNotEmpty
+                ? SongItem.upgradeThumbnail(a.thumbnails.last.url)
+                : null;
+            return ArtistItem(
+              id: a.artistId,
+              name: a.name.isNotEmpty ? a.name : 'Unknown Artist',
+              thumbnailUrl: thumb,
+              subscribers: 'Artist',
+            );
+          })
+          .toList();
+    } catch (e) {
+      debugPrint('searchArtists error: $e');
+      return [];
+    }
+  }
+
+  /// Fetches top songs for an artist on YouTube Music.
+  Future<List<SongItem>> getArtistSongs(String artistId, {String? artistName}) async {
+    final cleanId = artistId.trim();
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    if (cleanId.isNotEmpty) {
+      try {
+        final songs = await _ytMusic.getArtistSongs(cleanId);
+        if (songs.isNotEmpty) {
+          return songs
+              .where((s) => s.videoId.isNotEmpty)
+              .map((s) {
+                final thumb = s.thumbnails.isNotEmpty
+                    ? SongItem.upgradeThumbnail(s.thumbnails.last.url)
+                    : null;
+                final name = s.artist.name.isNotEmpty
+                    ? s.artist.name
+                    : (artistName ?? 'Artist');
+                return SongItem(
+                  id: s.videoId,
+                  title: s.name.isNotEmpty ? s.name : 'Untitled',
+                  artist: name,
+                  thumbnailUrl: thumb,
+                  durationSeconds: s.duration,
+                  album: s.album?.name,
+                );
+              })
+              .toList();
+        }
+      } catch (e) {
+        debugPrint('getArtistSongs error for $cleanId: $e');
+      }
+    }
+
+    if (artistName != null && artistName.isNotEmpty) {
+      return searchSongs(artistName);
+    }
+
+    return [];
+  }
+
+  /// Fetches user's personalized mixes and playlists if logged into YouTube Music.
+  Future<List<PlaylistItem>> getPersonalizedMixes() async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    final mixes = <PlaylistItem>[];
+    if (_currentAccount != null) {
+      try {
+        final sections = await _ytMusic.getHomeSections();
+        for (final section in sections) {
+          final titleLower = section.title.toLowerCase();
+          if (titleLower.contains('mixed for you') ||
+              titleLower.contains('mix') ||
+              titleLower.contains('playlist') ||
+              titleLower.contains('radio')) {
+            for (final item in section.contents) {
+              if (item is PlaylistDetailed && item.playlistId.isNotEmpty) {
+                final thumb = item.thumbnails.isNotEmpty
+                    ? SongItem.upgradeThumbnail(item.thumbnails.last.url)
+                    : null;
+                mixes.add(
+                  PlaylistItem(
+                    id: item.playlistId,
+                    title: item.name.isNotEmpty ? item.name : 'Mix',
+                    author: item.artist.name.isNotEmpty
+                        ? item.artist.name
+                        : 'YouTube Music',
+                    thumbnailUrl: thumb,
+                  ),
+                );
+              }
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('getPersonalizedMixes error: $e');
+      }
+    }
+    return mixes;
   }
 
   Future<List<VideoItem>> searchVideos(String query) async {
