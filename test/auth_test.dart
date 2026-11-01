@@ -223,13 +223,15 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      // Account modal sheet should display the connected Google / YouTube Music details
+      // Account modal sheet displays only user details and the single clean Log Out button
       expect(find.text('Utkarsh Google'), findsOneWidget);
       expect(find.text('utkarsh@gmail.com'), findsOneWidget);
-      expect(find.text('YouTube Music Connected'), findsOneWidget);
-      expect(find.text('Personalized Feed'), findsOneWidget);
-      expect(find.text('Refresh Recommendations'), findsOneWidget);
-      expect(find.text('Sign Out of Google Account'), findsOneWidget);
+      expect(find.text('Log Out'), findsOneWidget);
+
+      // Verify AI-looking switches and text are removed
+      expect(find.text('YouTube Music Connected'), findsNothing);
+      expect(find.text('Personalized Feed'), findsNothing);
+      expect(find.text('Refresh Recommendations'), findsNothing);
     });
 
     testWidgets('When not signed in, tapping top-right icon directly opens GoogleSignInScreen',
@@ -433,7 +435,6 @@ void main() {
       // Verify AppBar header elements
       expect(find.text('Sign in with Google'), findsOneWidget);
       expect(find.byIcon(CupertinoIcons.xmark), findsOneWidget);
-      expect(find.byIcon(CupertinoIcons.lock_fill), findsOneWidget);
     });
   });
 }

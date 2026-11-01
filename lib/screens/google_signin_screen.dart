@@ -1,6 +1,4 @@
 import 'dart:convert';
-import 'dart:ui';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,7 +8,7 @@ import '../providers/auth_provider.dart';
 import '../providers/music_service_provider.dart';
 
 /// Screen allowing users to sign in with their Google account to authorize
-/// YouTube Music, fetch their verified profile, and receive personalized recommendations.
+/// YouTube Music, fetch their profile, and receive personalized recommendations.
 class GoogleSignInScreen extends ConsumerStatefulWidget {
   const GoogleSignInScreen({super.key});
 
@@ -20,8 +18,6 @@ class GoogleSignInScreen extends ConsumerStatefulWidget {
 
 class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
   static const Color appleRed = Color(0xFFFA243C);
-  static const Color appleDarkSurface = Color(0xFF1C1C1E);
-  static const Color appleSecondaryText = Color(0xFF8E8E93);
 
   static const String _loginUrl =
       'https://accounts.google.com/ServiceLogin'
@@ -58,15 +54,7 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
   WebViewController? _webViewController;
   bool _isLoading = true;
   double _progress = 0.0;
-  String _currentUrl = 'https://accounts.google.com';
-
-  // Authentication progress state
   bool _isAuthorizing = false;
-  bool _isSuccess = false;
-  String? _profileName;
-  String? _profileEmail;
-  String? _profileAvatarUrl;
-  String _statusMessage = 'Connecting to YouTube Music...';
 
   WebViewCookieManager? _cookieManager;
 
@@ -106,7 +94,6 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
               if (mounted) {
                 setState(() {
                   _isLoading = true;
-                  _currentUrl = url;
                 });
               }
               _checkSessionTransition(url);
@@ -115,7 +102,6 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
               if (mounted) {
                 setState(() {
                   _isLoading = false;
-                  _currentUrl = url;
                 });
               }
               _checkSessionTransition(url);
@@ -144,17 +130,15 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
     }
   }
 
-  /// Detects when navigation reaches YouTube Music, immediately activates the frosted
-  /// loading overlay (preventing raw site flashes or black screen), extracts native session
-  /// cookies and ytcfg data, queries verified profile via InnerTube, and redirects to Home.
+  /// Detects when navigation reaches YouTube Music, extracts native session cookies
+  /// and ytcfg data, queries profile via InnerTube, saves credentials, and directly navigates Home.
   Future<void> _checkSessionTransition(String url) async {
-    if (_isAuthorizing || _isSuccess || !mounted) return;
+    if (_isAuthorizing || !mounted) return;
 
     if (url.contains('music.youtube.com') ||
         (url.contains('youtube.com') && !url.contains('accounts.google.com'))) {
       setState(() {
         _isAuthorizing = true;
-        _statusMessage = 'Connecting to YouTube Music...';
       });
 
       try {
@@ -162,7 +146,6 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
       } catch (e) {
         debugPrint('Verification error: $e');
         if (mounted) {
-          // If unexpected error, attempt emergency fallback with whatever cookies exist
           _performFallbackSignIn();
         }
       }
@@ -256,12 +239,6 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
       debugPrint('Error probing ytcfg: $e');
     }
 
-    if (mounted) {
-      setState(() {
-        _statusMessage = 'Retrieving your YouTube Music profile...';
-      });
-    }
-
     // 3. Query InnerTube account_menu using SAPISIDHASH to retrieve real name, email, and avatar
     final musicService = ref.read(musicServiceProvider);
     final profile = await musicService.fetchAccountProfile(
@@ -294,26 +271,12 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
       visitorData: visitorData,
     );
 
-    // 5. Persist account and trigger personalized home feed refresh
+    // 5. Persist account and trigger recommendations refresh
     await ref.read(authProvider.notifier).signInWithGoogleAccount(account);
 
     if (!mounted) return;
 
-    // 6. Transition to success state
-    setState(() {
-      _isAuthorizing = false;
-      _isSuccess = true;
-      _profileName = displayName;
-      _profileEmail = email;
-      _profileAvatarUrl = avatarUrl;
-    });
-
-    // 7. Brief pleasant delay (1.2s) so the user sees their verified profile, then redirect to Home
-    await Future.delayed(const Duration(milliseconds: 1200));
-
-    if (!mounted) return;
-
-    // Redirect straight to Home screen
+    // 6. Directly navigate straight to Home screen without any delay or verify screens
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
@@ -335,216 +298,6 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
     }
   }
 
-  Widget _buildInitialsAvatar() {
-    final name = _profileName ?? 'U';
-    final initials =
-        name.trim().isNotEmpty ? name.trim().substring(0, 1).toUpperCase() : 'U';
-    return Container(
-      color: const Color(0xFF2C2C2E),
-      alignment: Alignment.center,
-      child: Text(
-        initials,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 28,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildConfirmationOverlay() {
-    return Container(
-      color: Colors.black.withValues(alpha: 0.85),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-        child: Center(
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 28),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-            decoration: BoxDecoration(
-              color: appleDarkSurface,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.12),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.5),
-                  blurRadius: 30,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: _isSuccess
-                ? Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Stack(
-                        alignment: Alignment.bottomRight,
-                        children: [
-                          Container(
-                            width: 80,
-                            height: 80,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: appleRed, width: 2.5),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: appleRed.withValues(alpha: 0.4),
-                                  blurRadius: 18,
-                                  spreadRadius: 2,
-                                ),
-                              ],
-                            ),
-                            child: ClipOval(
-                              child: _profileAvatarUrl != null &&
-                                      _profileAvatarUrl!.isNotEmpty
-                                  ? CachedNetworkImage(
-                                      imageUrl: _profileAvatarUrl!,
-                                      fit: BoxFit.cover,
-                                      placeholder: (context, url) => Container(
-                                        color: const Color(0xFF2C2C2E),
-                                        child: const Center(
-                                          child: CupertinoActivityIndicator(
-                                            radius: 10,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ),
-                                      errorWidget: (context, url, error) =>
-                                          _buildInitialsAvatar(),
-                                    )
-                                  : _buildInitialsAvatar(),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.all(3),
-                            decoration: const BoxDecoration(
-                              color: Colors.black,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              CupertinoIcons.checkmark_seal_fill,
-                              color: Colors.greenAccent,
-                              size: 22,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                      Text(
-                        _profileName ?? 'Signed In!',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (_profileEmail != null && _profileEmail!.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          _profileEmail!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: appleSecondaryText,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 18),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.greenAccent.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Colors.greenAccent.withValues(alpha: 0.35),
-                          ),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              CupertinoIcons.checkmark_alt,
-                              color: Colors.greenAccent,
-                              size: 15,
-                            ),
-                            SizedBox(width: 6),
-                            Text(
-                              'Connected & Verified',
-                              style: TextStyle(
-                                color: Colors.greenAccent,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      const Text(
-                        'Redirecting to Home...',
-                        style: TextStyle(
-                          color: Colors.white54,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  )
-                : Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(
-                          color: appleRed.withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          CupertinoIcons.music_note_list,
-                          color: appleRed,
-                          size: 32,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      const Text(
-                        'Connecting Account',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _statusMessage,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: appleSecondaryText,
-                          fontSize: 13,
-                          height: 1.3,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      const CupertinoActivityIndicator(
-                        radius: 12,
-                        color: Colors.white,
-                      ),
-                    ],
-                  ),
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -556,41 +309,16 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
           icon: const Icon(CupertinoIcons.xmark, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Column(
-          children: [
-            const Text(
-              'Sign in with Google',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  CupertinoIcons.lock_fill,
-                  color: Colors.greenAccent,
-                  size: 10,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  _currentUrl.contains('music.youtube.com')
-                      ? 'music.youtube.com'
-                      : 'accounts.google.com',
-                  style: const TextStyle(
-                    color: appleSecondaryText,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ],
+        title: const Text(
+          'Sign in with Google',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         centerTitle: true,
-        bottom: (_isLoading && !_isAuthorizing && !_isSuccess)
+        bottom: (_isLoading && !_isAuthorizing)
             ? PreferredSize(
                 preferredSize: const Size.fromHeight(2),
                 child: LinearProgressIndicator(
@@ -617,10 +345,18 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
                     ),
             ),
 
-            // Frosted glass authorization and verification card
-            if (_isAuthorizing || _isSuccess)
+            // Clean dark overlay while credentials are being finalized
+            if (_isAuthorizing)
               Positioned.fill(
-                child: _buildConfirmationOverlay(),
+                child: Container(
+                  color: Colors.black,
+                  child: const Center(
+                    child: CupertinoActivityIndicator(
+                      radius: 14,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
               ),
           ],
         ),

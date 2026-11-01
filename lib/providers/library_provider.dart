@@ -385,9 +385,24 @@ final userPlaylistsProvider = FutureProvider<List<PlaylistItem>>((ref) async {
   final musicService = ref.watch(musicServiceProvider);
   final ytPlaylists = await musicService.getUserPlaylists();
   final customUserPlaylists = localSaved.where((p) => p.isCustom).toList();
+  final ytLikes = ref.watch(youtubeLikedSongsProvider).value ?? [];
 
   final seen = <String>{};
   final result = <PlaylistItem>[];
+
+  if (ytLikes.isNotEmpty) {
+    seen.add('LM');
+    result.add(
+      PlaylistItem(
+        id: 'LM',
+        title: 'Liked Music',
+        author: 'YouTube Music',
+        thumbnailUrl: ytLikes.first.thumbnailUrl,
+        trackCount: ytLikes.length,
+        isCustom: false,
+      ),
+    );
+  }
 
   for (final p in [...customUserPlaylists, ...ytPlaylists]) {
     if (!seen.contains(p.id)) {
@@ -401,7 +416,8 @@ final userPlaylistsProvider = FutureProvider<List<PlaylistItem>>((ref) async {
 
 /// Resolves albums for the Library tab:
 /// - Logged out: Local saved & starter albums.
-/// - Logged in: ONLY the user's own YouTube Music account albums and custom saved albums.
+/// - Logged in: ONLY the user's own YouTube Music account albums, custom saved albums,
+///   and their full collection of Liked Music presented as an album.
 final userAlbumsProvider = FutureProvider<List<AlbumItem>>((ref) async {
   final account = ref.watch(authProvider);
   final localSaved = ref.watch(savedAlbumsProvider);
@@ -413,9 +429,25 @@ final userAlbumsProvider = FutureProvider<List<AlbumItem>>((ref) async {
   final musicService = ref.watch(musicServiceProvider);
   final ytAlbums = await musicService.getUserAlbums();
   final customUserAlbums = localSaved.where((a) => a.isCustom).toList();
+  final ytLikes = ref.watch(youtubeLikedSongsProvider).value ?? [];
 
-  final seen = <String>{};
+  final seen = <String>{'LM'};
   final result = <AlbumItem>[];
+
+  // Feature the full album of Liked Music
+  if (ytLikes.isNotEmpty) {
+    result.add(
+      AlbumItem(
+        id: 'LM',
+        title: 'Liked Music',
+        artist: 'YouTube Music',
+        thumbnailUrl: ytLikes.first.thumbnailUrl,
+        type: 'Auto Playlist',
+        year: DateTime.now().year,
+        isCustom: false,
+      ),
+    );
+  }
 
   for (final a in [...customUserAlbums, ...ytAlbums]) {
     if (!seen.contains(a.id)) {

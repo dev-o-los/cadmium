@@ -80,33 +80,12 @@ class LibraryScreen extends ConsumerWidget {
                 ),
               ),
               if (account != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        CupertinoIcons.checkmark_seal_fill,
-                        color: Colors.greenAccent,
-                        size: 13,
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        account.displayName.split(' ').first,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+                Text(
+                  account.displayName.split(' ').first,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
             ],
@@ -183,10 +162,18 @@ class LibraryScreen extends ConsumerWidget {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: allLikedMusic.length,
+              itemCount: allLikedMusic.length + 1,
               separatorBuilder: (context, index) => const SizedBox(width: 14),
               itemBuilder: (context, index) {
-                final song = allLikedMusic[index];
+                if (index == 0) {
+                  return _buildLikedMusicAlbumCard(
+                    context,
+                    ref,
+                    cardWidth,
+                    allLikedMusic,
+                  );
+                }
+                final song = allLikedMusic[index - 1];
                 return _buildSongSquareCard(
                   context,
                   ref,
@@ -399,6 +386,116 @@ class LibraryScreen extends ConsumerWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLikedMusicAlbumCard(
+    BuildContext context,
+    WidgetRef ref,
+    double cardWidth,
+    List<SongItem> songs,
+  ) {
+    final firstThumb = songs.isNotEmpty ? songs.first.thumbnailUrl : null;
+    final likedAlbum = AlbumItem(
+      id: 'LM',
+      title: 'Liked Music',
+      artist: 'YouTube Music',
+      thumbnailUrl: firstThumb,
+      type: 'Auto Playlist',
+      year: DateTime.now().year,
+    );
+
+    return ApplePressable(
+      onTap: () => openAlbumScreen(context, likedAlbum),
+      borderRadius: BorderRadius.circular(14),
+      child: SizedBox(
+        width: cardWidth,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: firstThumb != null
+                      ? Image.network(
+                          firstThumb,
+                          width: cardWidth,
+                          height: cardWidth,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              _buildLikedAlbumCover(cardWidth),
+                        )
+                      : _buildLikedAlbumCover(cardWidth),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(5),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.65),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      CupertinoIcons.heart_fill,
+                      color: AppColors.appleRed,
+                      size: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Liked Songs',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.2,
+                height: 1.2,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Full Album • ${songs.length} tracks',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.appleSecondaryText,
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+                height: 1.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLikedAlbumCover(double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFFFA243C), Color(0xFF8E0E1E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: const Center(
+        child: Icon(
+          CupertinoIcons.heart_fill,
+          color: Colors.white,
+          size: 36,
         ),
       ),
     );

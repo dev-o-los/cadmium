@@ -392,6 +392,166 @@ class MusicService {
     }
   }
 
+  /// Parses standard duration strings ("MM:SS" or "HH:MM:SS") into total seconds
+  static int? parseDurationString(String? text) {
+    if (text == null || text.trim().isEmpty) return null;
+    final parts = text.trim().split(':');
+    if (parts.length == 2) {
+      final m = int.tryParse(parts[0]) ?? 0;
+      final s = int.tryParse(parts[1]) ?? 0;
+      return (m * 60) + s;
+    } else if (parts.length == 3) {
+      final h = int.tryParse(parts[0]) ?? 0;
+      final m = int.tryParse(parts[1]) ?? 0;
+      final s = int.tryParse(parts[2]) ?? 0;
+      return (h * 3600) + (m * 60) + s;
+    }
+    return null;
+  }
+
+  /// Parses a SongItem from a YouTube Music InnerTube musicResponsiveListItemRenderer
+  static SongItem? parseSongFromRenderer(Map<String, dynamic> item) {
+    final videoId = item['playlistItemData']?['videoId']?.toString() ??
+        traverseString(item, ['navigationEndpoint', 'watchEndpoint', 'videoId']) ??
+        traverseString(item, ['menu', 'menuRenderer', 'topLevelButtons', 'likeButtonRenderer', 'target', 'videoId']);
+    if (videoId == null || videoId.isEmpty) return null;
+
+    final flexCols = item['flexColumns'] as List? ?? [];
+    String title = 'Untitled';
+    String artist = 'Unknown Artist';
+    String? album;
+
+    if (flexCols.isNotEmpty) {
+      final t = _extractNodeText(flexCols[0]).trim();
+      if (t.isNotEmpty) title = t;
+    }
+
+    if (flexCols.length > 1) {
+      final runs = traverseList(flexCols[1], ['musicResponsiveListItemFlexColumnRenderer', 'text', 'runs']);
+      if (runs.isNotEmpty && runs.first is Map) {
+        artist = (runs.first['text'] ?? '').toString().trim();
+      }
+      if (runs.length >= 3 && runs[2] is Map && runs[2]['text'] != null) {
+        album = runs[2]['text'].toString().trim();
+      }
+    }
+
+    int? duration;
+    final fixedCols = item['fixedColumns'] as List? ?? [];
+    if (fixedCols.isNotEmpty) {
+      final durStr = _extractNodeText(fixedCols.first);
+      duration = parseDurationString(durStr);
+    }
+    if (duration == null && flexCols.length > 1) {
+      final runs = traverseList(flexCols[1], ['musicResponsiveListItemFlexColumnRenderer', 'text', 'runs']);
+      if (runs.isNotEmpty) {
+        final lastRun = runs.last;
+        if (lastRun is Map && lastRun['text'] != null) {
+          duration = parseDurationString(lastRun['text'].toString());
+        }
+      }
+    }
+
+    String? thumb;
+    final itemThumbs = traverseList(item, ['thumbnail', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails']);
+    if (itemThumbs.isNotEmpty && itemThumbs.last is Map && itemThumbs.last['url'] != null) {
+      thumb = SongItem.upgradeThumbnail(itemThumbs.last['url'].toString());
+    }
+
+    return SongItem(
+      id: videoId,
+      title: title,
+      artist: artist.isNotEmpty ? artist : 'Unknown Artist',
+      thumbnailUrl: thumb,
+      album: album,
+      durationSeconds: duration,
+    );
+  }
+
+  /// Sends an authenticated InnerTube POST request using session cookies and SAPISIDHASH
+  Future<dynamic> postInnerTube(
+    String endpoint, {
+    Map<String, dynamic>? bodyExtras,
+  }) async {
+    final account = _currentAccount;
+    if (account == null) return null;
+
+    final sapisid = account.sapisid;
+    if (sapisid == null || sapisid.isEmpty) return null;
+
+    final sapisidHash = computeSapisidHash(sapisid);
+    final version = '1.20240101.01.00';
+    final uri = Uri.parse('https://music.youtube.com/youtubei/v1/$endpoint?prettyPrint=false&hl=en');
+
+    final userContext = <String, dynamic>{
+      'lockedSafetyMode': false,
+    };
+    if (account.dataSyncId != null && account.dataSyncId!.isNotEmpty) {
+      userContext['onBehalfOfUser'] = account.dataSyncId;
+    }
+
+    final payload = {
+      'context': {
+        'client': {
+          'clientName': 'WEB_REMIX',
+          'clientVersion': version,
+          'hl': 'en',
+          'gl': 'US',
+          if (account.visitorData != null && account.visitorData!.isNotEmpty)
+            'visitorData': account.visitorData,
+        },
+        'user': userContext,
+        'request': {
+          'useSsl': true,
+        },
+      },
+      ...?bodyExtras,
+    };
+
+    HttpClient? client;
+    try {
+      client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+      final request = await client.postUrl(uri);
+      request.headers.contentType = ContentType.json;
+      request.headers.set(
+        'User-Agent',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+      );
+      request.headers.set('Accept-Language', 'en-US,en;q=0.9');
+      request.headers.set('X-Origin', 'https://music.youtube.com');
+      request.headers.set('Origin', 'https://music.youtube.com');
+      request.headers.set('Referer', 'https://music.youtube.com/');
+      request.headers.set('X-YouTube-Client-Name', '67');
+      request.headers.set('X-YouTube-Client-Version', version);
+      request.headers.set('Cookie', account.cookies);
+      request.headers.set('Authorization', sapisidHash);
+      request.headers.set('X-Goog-AuthUser', account.authUser ?? '0');
+      if (account.pageId != null && account.pageId!.isNotEmpty) {
+        request.headers.set('X-Goog-PageId', account.pageId!);
+      }
+      if (account.visitorData != null && account.visitorData!.isNotEmpty) {
+        request.headers.set('X-Goog-Visitor-Id', account.visitorData!);
+      }
+
+      request.write(jsonEncode(payload));
+
+      final response = await request.close().timeout(const Duration(seconds: 8));
+      if (response.statusCode != 200) {
+        debugPrint('postInnerTube ($endpoint) returned ${response.statusCode}');
+        await response.drain();
+        return null;
+      }
+
+      final responseBody = await utf8.decoder.bind(response).join();
+      return jsonDecode(responseBody);
+    } catch (e) {
+      debugPrint('postInnerTube error ($endpoint): $e');
+      return null;
+    } finally {
+      client?.close(force: true);
+    }
+  }
+
   // Cached streams to prevent duplicate Innertube player requests (5 min TTL)
   final Map<String, ({AudioStreamInfo info, DateTime timestamp})> _streamCache = {};
 
@@ -550,62 +710,123 @@ class MusicService {
   /// Fetches personalized home recommendations from YouTube Music using account authorization.
   Future<HomeData?> _fetchPersonalizedHomeData() async {
     try {
-      final sections = await _ytMusic.getHomeSections();
-      if (sections.isEmpty) return null;
-
       final personalizedRecents = <SongItem>[];
       final personalizedQuickPicks = <SongItem>[];
       final personalizedAlbums = <AlbumItem>[];
       final personalizedVideos = <VideoItem>[];
       final personalizedHeroCards = <HeroCardItem>[];
 
-      for (final section in sections) {
-        final titleLower = section.title.toLowerCase();
+      // 1. Authenticated InnerTube browse for FEmusic_home
+      try {
+        final homeJson = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_home'});
+        if (homeJson != null) {
+          final shelves = _collectRenderers(homeJson, 'musicCarouselShelfRenderer');
+          for (final shelf in shelves) {
+            final header = shelf['header']?['musicCarouselShelfBasicHeaderRenderer'];
+            final sectionTitle = _extractNodeText(header?['title']);
+            final titleLower = sectionTitle.toLowerCase();
+            final items = shelf['contents'] as List? ?? [];
+            final songs = <SongItem>[];
 
-        // 1. Listen again / User's listening history
-        if (titleLower.contains('listen again') ||
-            titleLower.contains('recent') ||
-            titleLower.contains('play it again') ||
-            titleLower.contains('history')) {
-          personalizedRecents.addAll(_extractSongsFromHomeSection(section));
-        }
-        // 2. Quick picks / Tailored algorithmic recommendations
-        else if (titleLower.contains('quick pick') ||
-            titleLower.contains('recommended') ||
-            titleLower.contains('start radio') ||
-            titleLower.contains('for you') ||
-            titleLower.contains('favorites')) {
-          personalizedQuickPicks.addAll(_extractSongsFromHomeSection(section));
-        }
-        // 3. Mixed for you / Personal Supermixes
-        else if (titleLower.contains('mixed for you') ||
-            titleLower.contains('supermix') ||
-            titleLower.contains('mixes') ||
-            titleLower.contains('your mix')) {
-          final songs = _extractSongsFromHomeSection(section);
-          if (songs.isNotEmpty) {
-            personalizedHeroCards.add(
-              HeroCardItem(
-                id: 'hero_personal_${personalizedHeroCards.length}',
-                title: section.title.isNotEmpty ? section.title : 'My Supermix',
-                subtitle: 'Personalized for ${_currentAccount?.displayName ?? "You"}',
-                caption: 'YouTube Music • Personalized Mix',
-                imageUrl: songs.first.thumbnailUrl,
-                primaryColor: 0xFFFA243C,
-                playTrack: songs.first,
-              ),
-            );
+            for (final it in items) {
+              if (it is Map && it['musicResponsiveListItemRenderer'] is Map) {
+                final song = parseSongFromRenderer(
+                  it['musicResponsiveListItemRenderer'] as Map<String, dynamic>,
+                );
+                if (song != null) songs.add(song);
+              }
+            }
+
+            if (titleLower.contains('listen again') ||
+                titleLower.contains('recent') ||
+                titleLower.contains('history') ||
+                titleLower.contains('play it again')) {
+              personalizedRecents.addAll(songs);
+            } else if (titleLower.contains('quick pick') ||
+                titleLower.contains('recommended') ||
+                titleLower.contains('for you') ||
+                titleLower.contains('favorites')) {
+              personalizedQuickPicks.addAll(songs);
+            } else if (titleLower.contains('supermix') ||
+                titleLower.contains('mix') ||
+                titleLower.contains('mixed for you')) {
+              if (songs.isNotEmpty) {
+                personalizedHeroCards.add(
+                  HeroCardItem(
+                    id: 'hero_personal_${personalizedHeroCards.length}',
+                    title: sectionTitle.isNotEmpty ? sectionTitle : 'Personal Mix',
+                    subtitle: 'For ${_currentAccount?.displayName ?? "You"}',
+                    caption: 'YouTube Music • Personalized',
+                    imageUrl: songs.first.thumbnailUrl,
+                    primaryColor: 0xFFFA243C,
+                    playTrack: songs.first,
+                  ),
+                );
+              }
+            }
           }
         }
-        // 4. Albums & singles
-        else if (titleLower.contains('album') ||
-            titleLower.contains('single') ||
-            titleLower.contains('new release')) {
-          personalizedAlbums.addAll(_extractAlbumsFromHomeSection(section));
-        }
-        // 5. Music videos
-        else if (titleLower.contains('video')) {
-          personalizedVideos.addAll(_extractVideosFromHomeSection(section));
+      } catch (e) {
+        debugPrint('FEmusic_home InnerTube error: $e');
+      }
+
+      // 2. Supplement from _ytMusic.getHomeSections()
+      final sections = await _ytMusic.getHomeSections();
+      if (sections.isNotEmpty) {
+        for (final section in sections) {
+          final titleLower = section.title.toLowerCase();
+
+          // Listen again / User's listening history
+          if (titleLower.contains('listen again') ||
+              titleLower.contains('recent') ||
+              titleLower.contains('play it again') ||
+              titleLower.contains('history')) {
+            if (personalizedRecents.isEmpty) {
+              personalizedRecents.addAll(_extractSongsFromHomeSection(section));
+            }
+          }
+          // Quick picks / Tailored algorithmic recommendations
+          else if (titleLower.contains('quick pick') ||
+              titleLower.contains('recommended') ||
+              titleLower.contains('start radio') ||
+              titleLower.contains('for you') ||
+              titleLower.contains('favorites')) {
+            if (personalizedQuickPicks.isEmpty) {
+              personalizedQuickPicks.addAll(_extractSongsFromHomeSection(section));
+            }
+          }
+          // Mixed for you / Personal Supermixes
+          else if (titleLower.contains('mixed for you') ||
+              titleLower.contains('supermix') ||
+              titleLower.contains('mixes') ||
+              titleLower.contains('your mix')) {
+            if (personalizedHeroCards.isEmpty) {
+              final songs = _extractSongsFromHomeSection(section);
+              if (songs.isNotEmpty) {
+                personalizedHeroCards.add(
+                  HeroCardItem(
+                    id: 'hero_personal_${personalizedHeroCards.length}',
+                    title: section.title.isNotEmpty ? section.title : 'My Supermix',
+                    subtitle: 'Personalized for ${_currentAccount?.displayName ?? "You"}',
+                    caption: 'YouTube Music • Personalized Mix',
+                    imageUrl: songs.first.thumbnailUrl,
+                    primaryColor: 0xFFFA243C,
+                    playTrack: songs.first,
+                  ),
+                );
+              }
+            }
+          }
+          // Albums & singles
+          else if (titleLower.contains('album') ||
+              titleLower.contains('single') ||
+              titleLower.contains('new release')) {
+            personalizedAlbums.addAll(_extractAlbumsFromHomeSection(section));
+          }
+          // Music videos
+          else if (titleLower.contains('video')) {
+            personalizedVideos.addAll(_extractVideosFromHomeSection(section));
+          }
         }
       }
 
@@ -1159,6 +1380,11 @@ class MusicService {
   Future<List<SongItem>> getAlbumSongs(String albumId, {String? queryFallback}) async {
     final cleanId = albumId.trim();
 
+    // If requesting Liked Music collection, resolve full liked tracks from user's account
+    if (cleanId == 'LM' || cleanId == 'liked_music' || cleanId == 'VLLM') {
+      return getLikedSongs();
+    }
+
     if (!_isInitialized) {
       await initialize();
     }
@@ -1212,6 +1438,9 @@ class MusicService {
     );
 
     String? artwork = initialAlbum.thumbnailUrl;
+    if ((artwork == null || artwork.isEmpty) && tracks.isNotEmpty) {
+      artwork = tracks.first.thumbnailUrl;
+    }
     if (artwork == null || artwork.isEmpty) {
       artwork = await getAlbumArtwork(
         initialAlbum.id,
@@ -1338,6 +1567,41 @@ class MusicService {
     }
 
     if (_currentAccount != null) {
+      // 1. Authenticated InnerTube request for user's full Liked Music playlist
+      try {
+        final data = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_liked_videos'});
+        if (data != null) {
+          final renderers = _collectRenderers(data, 'musicResponsiveListItemRenderer');
+          final parsed = renderers
+              .map(parseSongFromRenderer)
+              .whereType<SongItem>()
+              .toList();
+          if (parsed.isNotEmpty) {
+            return parsed;
+          }
+        }
+      } catch (e) {
+        debugPrint('getLikedSongs FEmusic_liked_videos error: $e');
+      }
+
+      // 2. Authenticated InnerTube request for VLLM
+      try {
+        final data = await postInnerTube('browse', bodyExtras: {'browseId': 'VLLM'});
+        if (data != null) {
+          final renderers = _collectRenderers(data, 'musicResponsiveListItemRenderer');
+          final parsed = renderers
+              .map(parseSongFromRenderer)
+              .whereType<SongItem>()
+              .toList();
+          if (parsed.isNotEmpty) {
+            return parsed;
+          }
+        }
+      } catch (e) {
+        debugPrint('getLikedSongs VLLM error: $e');
+      }
+
+      // 3. Fallback to _ytMusic.getPlaylistVideos
       try {
         final videos = await _ytMusic.getPlaylistVideos('LM');
         if (videos.isNotEmpty) {
@@ -2027,6 +2291,36 @@ class MusicService {
     final playlists = <PlaylistItem>[];
     final seenIds = <String>{};
 
+    // 1. Authenticated InnerTube library playlists
+    try {
+      final data = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_library_corpus_playlists'});
+      if (data != null) {
+        final items = _collectRenderers(data, 'musicTwoRowItemRenderer');
+        for (final item in items) {
+          final browseId = traverseString(item, ['navigationEndpoint', 'browseEndpoint', 'browseId']) ??
+              traverseString(item, ['navigationEndpoint', 'watchPlaylistEndpoint', 'playlistId']);
+          if (browseId != null && browseId.isNotEmpty && !seenIds.contains(browseId)) {
+            seenIds.add(browseId);
+            final title = _extractNodeText(item['title']);
+            final author = _extractNodeText(item['subtitle']);
+            final thumb = _extractNodePhoto(item);
+            playlists.add(
+              PlaylistItem(
+                id: browseId,
+                title: title.isNotEmpty ? title : 'Playlist',
+                author: author.isNotEmpty ? author : 'YouTube Music',
+                thumbnailUrl: thumb,
+                isCustom: false,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('getUserPlaylists InnerTube error: $e');
+    }
+
+    // 2. Merge home sections playlists
     try {
       final sections = await _ytMusic.getHomeSections();
       for (final section in sections) {
@@ -2055,7 +2349,7 @@ class MusicService {
         }
       }
     } catch (e) {
-      debugPrint('getUserPlaylists error: $e');
+      debugPrint('getUserPlaylists fallback error: $e');
     }
 
     return playlists;
@@ -2071,6 +2365,36 @@ class MusicService {
     final albums = <AlbumItem>[];
     final seenIds = <String>{};
 
+    // 1. Authenticated InnerTube library saved albums
+    try {
+      final data = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_library_corpus_albums'});
+      if (data != null) {
+        final items = _collectRenderers(data, 'musicTwoRowItemRenderer');
+        for (final item in items) {
+          final browseId = traverseString(item, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
+          if (browseId != null && browseId.isNotEmpty && !seenIds.contains(browseId)) {
+            seenIds.add(browseId);
+            final title = _extractNodeText(item['title']);
+            final artist = _extractNodeText(item['subtitle']);
+            final thumb = _extractNodePhoto(item);
+            albums.add(
+              AlbumItem(
+                id: browseId,
+                title: title.isNotEmpty ? title : 'Album',
+                artist: artist.isNotEmpty ? artist : 'Unknown Artist',
+                thumbnailUrl: thumb,
+                type: 'Album',
+                isCustom: false,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('getUserAlbums InnerTube error: $e');
+    }
+
+    // 2. Merge home sections albums
     try {
       final sections = await _ytMusic.getHomeSections();
       for (final section in sections) {
@@ -2101,7 +2425,7 @@ class MusicService {
         }
       }
     } catch (e) {
-      debugPrint('getUserAlbums error: $e');
+      debugPrint('getUserAlbums fallback error: $e');
     }
 
     return albums;
@@ -2117,6 +2441,35 @@ class MusicService {
     final artists = <ArtistItem>[];
     final seenIds = <String>{};
 
+    // 1. Authenticated InnerTube library subscribed artists
+    try {
+      final data = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_library_corpus_artists'});
+      if (data != null) {
+        final items = _collectRenderers(data, 'musicTwoRowItemRenderer');
+        for (final item in items) {
+          final browseId = traverseString(item, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
+          if (browseId != null && browseId.isNotEmpty && !seenIds.contains(browseId)) {
+            seenIds.add(browseId);
+            final name = _extractNodeText(item['title']);
+            final subscribers = _extractNodeText(item['subtitle']);
+            final thumb = _extractNodePhoto(item);
+            artists.add(
+              ArtistItem(
+                id: browseId,
+                name: name.isNotEmpty ? name : 'Artist',
+                thumbnailUrl: thumb,
+                subscribers: subscribers.isNotEmpty ? subscribers : 'Subscribed',
+                isCustom: false,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('getUserArtists InnerTube error: $e');
+    }
+
+    // 2. Merge home sections artists
     try {
       final sections = await _ytMusic.getHomeSections();
       for (final section in sections) {
@@ -2143,7 +2496,7 @@ class MusicService {
         }
       }
     } catch (e) {
-      debugPrint('getUserArtists error: $e');
+      debugPrint('getUserArtists fallback error: $e');
     }
 
     return artists;

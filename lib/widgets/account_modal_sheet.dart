@@ -4,9 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../constants/app_colors.dart';
 import '../providers/auth_provider.dart';
-import '../providers/home_data_provider.dart';
 import '../screens/google_signin_screen.dart';
-import '../utils/playback_utils.dart';
 import 'apple_pressable.dart';
 
 /// Shows the Google / YouTube Music account overview sheet, allowing the user
@@ -48,7 +46,7 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
                 const SizedBox(height: 20),
 
                 if (account != null) ...[
-                  // Signed In Account Overview
+                  // Clean Account Overview
                   Row(
                     children: [
                       CircleAvatar(
@@ -91,141 +89,41 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
                                 ),
                               ),
                             ],
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: const BoxDecoration(
-                                    color: Colors.greenAccent,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                const Text(
-                                  'YouTube Music Connected',
-                                  style: TextStyle(
-                                    color: Colors.greenAccent,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
                           ],
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
 
-                  // Personalized Recommendations Switch
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: AppColors.appleDarkSurfaceHigh,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          CupertinoIcons.sparkles,
-                          color: AppColors.appleRed,
-                          size: 24,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              Text(
-                                'Personalized Feed',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              SizedBox(height: 2),
-                              Text(
-                                'Home feed is tailored to your YouTube Music account',
-                                style: TextStyle(
-                                  color: AppColors.appleSecondaryText,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        CupertinoSwitch(
-                          value: account.isPersonalizedEnabled,
-                          activeTrackColor: AppColors.appleRed,
-                          onChanged: (val) {
-                            ref
-                                .read(authProvider.notifier)
-                                .togglePersonalizedRecommendations(val);
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
-                      CupertinoIcons.arrow_2_circlepath,
-                      color: Colors.white,
-                    ),
-                    title: const Text(
-                      'Refresh Recommendations',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    onTap: () {
-                      Navigator.pop(modalCtx);
-                      ref.read(homeDataProvider.notifier).refresh();
-                      showWavifySnackBar(context, 'Refreshing your YouTube Music feed...');
-                    },
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
-                      CupertinoIcons.arrow_right_arrow_left,
-                      color: Colors.white,
-                    ),
-                    title: const Text(
-                      'Switch Google Account',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    onTap: () {
-                      Navigator.pop(modalCtx);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const GoogleSignInScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
-                      CupertinoIcons.square_arrow_right,
-                      color: AppColors.appleRed,
-                    ),
-                    title: const Text(
-                      'Sign Out of Google Account',
-                      style: TextStyle(
-                        color: AppColors.appleRed,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                  // Clean Log Out Button
+                  ApplePressable(
                     onTap: () {
                       Navigator.pop(modalCtx);
                       ref.read(authProvider.notifier).signOut();
-                      showWavifySnackBar(context, 'Signed out of YouTube Music account');
                     },
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color: AppColors.appleRed.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: AppColors.appleRed.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'Log Out',
+                          style: TextStyle(
+                            color: AppColors.appleRed,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ] else ...[
                   // Not Signed In: Connect Promotion
