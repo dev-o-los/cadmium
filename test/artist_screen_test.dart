@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wavify/models/album_item.dart';
 import 'package:wavify/models/artist_details.dart';
@@ -311,5 +312,26 @@ void main() {
 
     // Verify ArtistScreen is opened
     expect(find.byType(ArtistScreen), findsOneWidget);
+  });
+
+  testWidgets('Top progressive blur only appears when scrolling up (zero blur at top)',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(createArtistScreen());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    // Initially at top (offset 0): ProgressiveBlur should NOT be rendered
+    expect(find.byType(ProgressiveBlur), findsNothing);
+
+    // Scroll up by dragging content upwards (negative Y offset)
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -200));
+    await tester.pump();
+
+    // Now that content scrolled up, ProgressiveBlur should be visible
+    expect(find.byType(ProgressiveBlur), findsOneWidget);
   });
 }

@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -318,33 +317,55 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
             ),
           ),
 
-          // Top Progressive Blur: softly blurs out scrolling content as it reaches the top
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: MediaQuery.of(context).padding.top + 60,
-            child: IgnorePointer(
-              child: ClipRect(
-                child: BackdropFilter(
-                  filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        stops: const [0.0, 0.60, 1.0],
-                        colors: [
-                          Colors.black.withValues(alpha: 0.45),
-                          Colors.black.withValues(alpha: 0.15),
-                          Colors.transparent,
-                        ],
+          // Top Progressive Blur & Shader Scrim: smoothly blurs out content only as it scrolls up (AlbumScreen inspired)
+          AnimatedBuilder(
+            animation: _scrollController,
+            builder: (context, _) {
+              final offset =
+                  _scrollController.hasClients ? _scrollController.offset : 0.0;
+              final progress = (offset / 80.0).clamp(0.0, 1.0);
+              if (progress <= 0.001) {
+                return const SizedBox.shrink();
+              }
+
+              final topBlurHeight =
+                  MediaQuery.of(context).padding.top + 68.0;
+
+              return Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: topBlurHeight,
+                child: IgnorePointer(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // Progressive graduated backdrop blur (dissolves downward)
+                      ProgressiveBlur(
+                        maxSigma: 26.0 * progress,
+                        direction: ProgressiveBlurDirection.topToBottom,
+                        falloff: 1.2,
                       ),
-                    ),
+                      // Soft gradient shader dissolving into transparency
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.65 * progress),
+                              Colors.black.withValues(alpha: 0.30 * progress),
+                              Colors.transparent,
+                            ],
+                            stops: const [0.0, 0.65, 1.0],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
 
           // Floating Top Action Controls: Circular Back button on left, Frosted Share & Account capsule on right
