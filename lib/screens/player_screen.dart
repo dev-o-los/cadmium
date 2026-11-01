@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../models/song_item.dart';
 import '../providers/favorites_provider.dart';
@@ -621,10 +622,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     return Column(
       key: const ValueKey('now_playing_view'),
       children: [
-        // Top Header: "Playing from <Album/Artist>" (pill removed, padded below camera notch)
+        // Top Header: "Playing from <Album/Artist>" (safely below camera notch on all devices)
         Padding(
           padding: EdgeInsets.only(
-            top: math.max(topPadding, 24) + 12,
+            top: math.max(topPadding, 48) + 18,
             left: 48,
             right: 48,
           ),
@@ -640,7 +641,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.70),
-                  fontSize: 13,
+                  fontSize: 12.5,
                   fontWeight: FontWeight.w500,
                   letterSpacing: -0.2,
                 ),
@@ -659,10 +660,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         ),
 
         // Bottom Section:
-        // - Metadata Row: Album/Title, Artist, Favourite, 3-dots (always visible)
-        // - Downside Controls: Scrubber, transport controls, dock, audio device (collapsible downwards)
+        // - Metadata Row: Title, Artist, Favourite, 3-dots (always visible)
+        // - Downside Controls: Scrubber, transport controls, dock (collapsible downwards)
         Padding(
-          padding: EdgeInsets.fromLTRB(24, 0, 24, math.max(bottomPadding, 16) + 38),
+          padding: EdgeInsets.fromLTRB(24, 0, 24, math.max(bottomPadding, 16) + 52),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -703,61 +704,58 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                          const SizedBox(height: 16),
+                            const SizedBox(height: 20),
 
-                          // Lyrics Hook Preview Banner (♫ The hook is on the way >)
-                          GestureDetector(
-                            onTap: () => _switchMode(PlayerViewMode.lyrics),
-                            behavior: HitTestBehavior.opaque,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4),
-                              child: Row(
-                                children: [
-                                  const AnimatedCupertinoIcon(
-                                    icon: CupertinoIcons.music_note,
-                                    color: Colors.white70,
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      activeLyric,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: Colors.white.withValues(alpha: 0.85),
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
+                            // Lyrics Hook Preview Banner (♫ The hook is on the way >)
+                            // Reduced image size, tight spacing to slider
+                            GestureDetector(
+                              onTap: () => _switchMode(PlayerViewMode.lyrics),
+                              behavior: HitTestBehavior.opaque,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 0),
+                                child: Row(
+                                  children: [
+                                    const AnimatedCupertinoIcon(
+                                      icon: CupertinoIcons.music_note,
+                                      color: Colors.white70,
+                                      size: 13,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        activeLyric,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: Colors.white.withValues(alpha: 0.85),
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  const Icon(CupertinoIcons.chevron_right, color: appleSecondaryText, size: 16),
-                                ],
+                                    const Icon(CupertinoIcons.chevron_right, color: appleSecondaryText, size: 13),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 10),
+                            const SizedBox(height: 2),
 
-                          // Scrubber Slider
-                          _buildDurationScrubber(playerState),
-                          const SizedBox(height: 16),
+                            // Scrubber Slider
+                            _buildDurationScrubber(playerState),
+                            const SizedBox(height: 26),
 
-                          // Transport Controls: Skip prev, Play/Pause, Skip next
-                          _buildTransportControls(playerState),
-                          const SizedBox(height: 24),
+                            // Transport Controls: Skip prev, Play/Pause, Skip next
+                            _buildTransportControls(playerState),
+                            const SizedBox(height: 38),
 
-                          // Bottom Action Dock: Lyrics, Audio Route, Queue
-                          _buildActionDock(playerState),
-                          const SizedBox(height: 10),
-
-                          // Audio Output Route Label (Dynamic Connected Audio Device)
-                          _buildAudioRouteLabel(playerState),
-                        ],
+                            // Bottom Action Dock: Lyrics, Audio Route, Queue
+                            _buildActionDock(playerState),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
               ),
             ],
           ),
@@ -766,10 +764,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     );
   }
 
-  /// Metadata Row: [E] Song Title + Artist / Album on Left, Star & 3-dots on Right
-  Widget _buildMetadataRow(SongItem song, bool isFavorite) {
-    final hasAlbum = song.album != null && song.album!.trim().isNotEmpty && song.album != song.title;
+  /// Reusable circular Liquid Glass button for actions like favourite and ellipsis
+  Widget _buildLiquidGlassButton({
+    required Widget icon,
+    required VoidCallback onTap,
+    double size = 44,
+  }) {
+    return ApplePressable(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(size / 2),
+      child: GlassContainer(
+        useOwnLayer: true,
+        width: size,
+        height: size,
+        shape: LiquidRoundedSuperellipse(borderRadius: size / 2),
+        color: const Color(0x33FFFFFF),
+        settings: const LiquidGlassSettings(
+          thickness: 20,
+          blur: 24,
+          refractiveIndex: 1.18,
+          lightIntensity: 0.50,
+          specularSharpness: GlassSpecularSharpness.sharp,
+        ),
+        child: Center(child: icon),
+      ),
+    );
+  }
 
+  /// Metadata Row: Song Title + Artist on Left (aligned flush), Liquid Glass Star & 3-dots on Right
+  Widget _buildMetadataRow(SongItem song, bool isFavorite) {
     return GestureDetector(
       onTap: () {
         if (_controlsAnimController.value < 0.5) {
@@ -786,34 +809,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    _buildExplicitBadge(),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 23,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
                 Text(
-                  hasAlbum ? '${song.artist} • ${song.album}' : song.artist,
+                  song.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.4,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  song.artist,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: appleSecondaryText,
-                    fontSize: 16,
+                    fontSize: 13.5,
                     fontWeight: FontWeight.w400,
+                    letterSpacing: -0.1,
                   ),
                 ),
               ],
@@ -821,48 +837,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
           ),
           const SizedBox(width: 12),
 
-          // Circular Star / Favourite Button
-          ApplePressable(
+          // Liquid Glass Star / Favourite Button
+          _buildLiquidGlassButton(
+            size: 44,
             onTap: () {
               ref.read(favoritesProvider.notifier).toggleFavorite(song);
               _resetAutoHideTimer();
             },
-            borderRadius: BorderRadius.circular(21),
-            child: Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.14),
-              ),
-              child: AnimatedCupertinoIcon(
-                icon: isFavorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
-                color: isFavorite ? appleRed : Colors.white,
-                size: 22,
-              ),
+            icon: AnimatedCupertinoIcon(
+              icon: isFavorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
+              color: isFavorite ? appleRed : Colors.white,
+              size: 21,
             ),
           ),
           const SizedBox(width: 10),
 
-          // Circular 3-dots Button
-          ApplePressable(
+          // Liquid Glass 3-dots Button
+          _buildLiquidGlassButton(
+            size: 44,
             onTap: () {
               _showSongOptionsSheet(song);
               _cancelAutoHideTimer();
             },
-            borderRadius: BorderRadius.circular(21),
-            child: Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.14),
-              ),
-              child: const AnimatedCupertinoIcon(
-                icon: CupertinoIcons.ellipsis,
-                color: Colors.white,
-                size: 20,
-              ),
+            icon: const AnimatedCupertinoIcon(
+              icon: CupertinoIcons.ellipsis,
+              color: Colors.white,
+              size: 20,
             ),
           ),
         ],
@@ -883,89 +883,83 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     return Column(
       key: ValueKey('mode_${_currentMode.name}'),
       children: [
-        // Top Mini Artwork Header (pill removed, spaced comfortably below camera cutout)
+        // Top Mini Artwork Header (chevron removed, spaced comfortably below camera cutout)
         Padding(
           padding: EdgeInsets.only(
-            top: math.max(topPadding, 24) + 10,
-            left: 16,
+            top: math.max(topPadding, 48) + 14,
+            left: 20,
             right: 16,
             bottom: 6,
           ),
           child: Row(
             children: [
-              IconButton(
-                icon: const Icon(CupertinoIcons.chevron_down, color: Colors.white70, size: 22),
-                onPressed: () => _switchMode(PlayerViewMode.nowPlaying),
-                splashRadius: 20,
-              ),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: song.thumbnailUrl != null
-                    ? Image.network(
-                        song.highResThumbnailUrl ?? song.thumbnailUrl!,
-                        width: 42,
-                        height: 42,
-                        fit: BoxFit.cover,
-                        filterQuality: FilterQuality.medium,
-                        cacheWidth: 126,
-                        cacheHeight: 126,
-                        errorBuilder: (context, error, stackTrace) => _fallbackMiniArt(),
-                      )
-                    : _fallbackMiniArt(),
+              GestureDetector(
+                onTap: () => _switchMode(PlayerViewMode.nowPlaying),
+                behavior: HitTestBehavior.opaque,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: song.thumbnailUrl != null
+                      ? Image.network(
+                          song.highResThumbnailUrl ?? song.thumbnailUrl!,
+                          width: 44,
+                          height: 44,
+                          fit: BoxFit.cover,
+                          filterQuality: FilterQuality.medium,
+                          cacheWidth: 132,
+                          cacheHeight: 132,
+                          errorBuilder: (context, error, stackTrace) => _fallbackMiniArt(),
+                        )
+                      : _fallbackMiniArt(),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        _buildExplicitBadge(),
-                        const SizedBox(width: 5),
-                        Expanded(
-                          child: Text(
-                            song.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: -0.3,
-                            ),
-                          ),
-                        ),
-                      ],
+                    Text(
+                      song.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: -0.3,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      (song.album != null && song.album!.trim().isNotEmpty)
-                          ? '${song.artist} • ${song.album}'
-                          : song.artist,
+                      song.artist,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: appleSecondaryText,
-                        fontSize: 13,
+                        fontSize: 12.5,
                         fontWeight: FontWeight.w400,
                       ),
                     ),
                   ],
                 ),
               ),
-              IconButton(
+              _buildLiquidGlassButton(
+                size: 38,
+                onTap: () => ref.read(favoritesProvider.notifier).toggleFavorite(song),
                 icon: AnimatedCupertinoIcon(
                   icon: isFavorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
                   color: isFavorite ? appleRed : Colors.white70,
-                  size: 22,
+                  size: 19,
                 ),
-                onPressed: () => ref.read(favoritesProvider.notifier).toggleFavorite(song),
-                splashRadius: 20,
               ),
-              IconButton(
-                icon: const AnimatedCupertinoIcon(icon: CupertinoIcons.ellipsis, color: Colors.white70, size: 20),
-                onPressed: () => _showSongOptionsSheet(song),
-                splashRadius: 20,
+              const SizedBox(width: 8),
+              _buildLiquidGlassButton(
+                size: 38,
+                onTap: () => _showSongOptionsSheet(song),
+                icon: const AnimatedCupertinoIcon(
+                  icon: CupertinoIcons.ellipsis,
+                  color: Colors.white70,
+                  size: 18,
+                ),
               ),
             ],
           ),
@@ -1010,17 +1004,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                     return child!;
                   },
                   child: Padding(
-                    padding: EdgeInsets.fromLTRB(24, 6, 24, math.max(bottomPadding, 16) + 38),
+                    padding: EdgeInsets.fromLTRB(24, 6, 24, math.max(bottomPadding, 16) + 48),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         _buildDurationScrubber(playerState),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 22),
                         _buildTransportControls(playerState),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 36),
                         _buildActionDock(playerState),
-                        const SizedBox(height: 8),
-                        _buildAudioRouteLabel(playerState),
                       ],
                     ),
                   ),
@@ -1098,79 +1090,160 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     return GestureDetector(
       onTap: _toggleControls,
       behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: ListView.builder(
-          controller: _lyricsScrollController,
-          padding: const EdgeInsets.symmetric(vertical: 24),
-          itemCount: lyrics.length + 1,
-          itemBuilder: (context, index) {
-            // Attribution row at the bottom of lyrics
-            if (index == lyrics.length) {
-              return Padding(
-                padding: const EdgeInsets.only(top: 28, bottom: 40),
-                child: Row(
-                  children: [
-                    const Text(
-                      'Lyrics by YouTube Music',
-                      style: TextStyle(
-                        color: appleSecondaryText,
-                        fontSize: 13,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                    const Spacer(),
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: 0.1),
-                      ),
-                      child: const Icon(CupertinoIcons.globe, color: Colors.white70, size: 16),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: 0.1),
-                      ),
-                      child: const Icon(CupertinoIcons.textformat, color: Colors.white70, size: 16),
-                    ),
+      child: Stack(
+        children: [
+          // 1. Synced Lyrics List with edge dissolve shader mask & distance blur
+          Positioned.fill(
+            child: ShaderMask(
+              shaderCallback: (bounds) {
+                return const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black,
+                    Colors.black,
+                    Colors.transparent,
                   ],
-                ),
-              );
-            }
-
-            final line = lyrics[index];
-            final isActive = index == playerState.activeLyricIndex;
-
-            return GestureDetector(
-              onTap: () {
-                ref.read(playerProvider.notifier).seekToLyric(line);
-                _resetAutoHideTimer();
+                  stops: [0.0, 0.07, 0.88, 1.0],
+                ).createShader(bounds);
               },
-              behavior: HitTestBehavior.opaque,
-              child: AnimatedPadding(
-                duration: const Duration(milliseconds: 280),
-                curve: Curves.easeOutCubic,
-                padding: EdgeInsets.symmetric(vertical: isActive ? 14 : 8),
-                child: Text(
-                  line.text,
-                  style: TextStyle(
-                    color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.38),
-                    fontSize: isActive ? 30 : 23,
-                    fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
-                    letterSpacing: -0.5,
-                    height: 1.3,
+              blendMode: BlendMode.dstIn,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: ListView.builder(
+                  controller: _lyricsScrollController,
+                  padding: const EdgeInsets.only(top: 36, bottom: 60),
+                  itemCount: lyrics.length + 1,
+                  itemBuilder: (context, index) {
+                    // Attribution row at the bottom of lyrics
+                    if (index == lyrics.length) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 28, bottom: 40),
+                        child: Row(
+                          children: [
+                            const Text(
+                              'Lyrics by YouTube Music',
+                              style: TextStyle(
+                                color: appleSecondaryText,
+                                fontSize: 13,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                            const Spacer(),
+                            Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withValues(alpha: 0.1),
+                              ),
+                              child: const Icon(CupertinoIcons.globe, color: Colors.white70, size: 16),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withValues(alpha: 0.1),
+                              ),
+                              child: const Icon(CupertinoIcons.textformat, color: Colors.white70, size: 16),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    final line = lyrics[index];
+                    final isActive = index == playerState.activeLyricIndex;
+
+                    // Gradual player effect: active line is crystal sharp (blur: 0.0),
+                    // while lines going upside or downside gradually blur with distance
+                    final lineDistance = playerState.activeLyricIndex >= 0
+                        ? (index - playerState.activeLyricIndex).abs()
+                        : 0;
+                    final blurSigma = isActive ? 0.0 : math.min(1.8, 0.35 + (lineDistance * 0.28));
+
+                    return GestureDetector(
+                      onTap: () {
+                        ref.read(playerProvider.notifier).seekToLyric(line);
+                        _resetAutoHideTimer();
+                      },
+                      behavior: HitTestBehavior.opaque,
+                      child: AnimatedPadding(
+                        duration: const Duration(milliseconds: 280),
+                        curve: Curves.easeOutCubic,
+                        padding: EdgeInsets.symmetric(vertical: isActive ? 14 : 8),
+                        child: ImageFiltered(
+                          imageFilter: ui.ImageFilter.blur(
+                            sigmaX: blurSigma,
+                            sigmaY: blurSigma,
+                            tileMode: TileMode.decal,
+                          ),
+                          child: Text(
+                            line.text,
+                            style: TextStyle(
+                              color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.38),
+                              fontSize: isActive ? 30 : 23,
+                              fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
+                              letterSpacing: -0.5,
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+
+          // 2. Top progressive blur dissolve vignette
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 32,
+            child: IgnorePointer(
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0xD808080A),
+                      Colors.transparent,
+                    ],
                   ),
                 ),
               ),
-            );
-          },
-        ),
+            ),
+          ),
+
+          // 3. Bottom progressive blur dissolve vignette (active in both player on and hidden states)
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 48,
+            child: IgnorePointer(
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      Color(0xD808080A),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1214,19 +1287,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                     )
                   : _fallbackMiniArt(),
             ),
-            title: Row(
-              children: [
-                _buildExplicitBadge(),
-                const SizedBox(width: 5),
-                Expanded(
-                  child: Text(
-                    song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
-                  ),
-                ),
-              ],
+            title: Text(
+              song.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
             ),
             subtitle: Text(
               song.artist,
@@ -1289,19 +1354,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                               ),
                             ],
                           ),
-                          title: Row(
-                            children: [
-                              _buildExplicitBadge(),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  item.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                                ),
-                              ),
-                            ],
+                          title: Text(
+                            item.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
                           ),
                           subtitle: Text(
                             item.artist,
@@ -1516,10 +1573,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
           ),
         ),
 
-        // Audio Output Route Button (reflects actual device icon: headphones vs speaker)
+        // Audio Output Route Button (Android Cast Icon for audio outputs)
         IconButton(
-          icon: AnimatedCupertinoIcon(
-            icon: playerState.connectedDevice.icon,
+          icon: const Icon(
+            Icons.cast_rounded,
             color: Colors.white60,
             size: 24,
           ),
@@ -1535,53 +1592,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
           onPressed: () => _switchMode(PlayerViewMode.queue),
         ),
       ],
-    );
-  }
-
-  Widget _buildAudioRouteLabel(PlayerStateModel playerState) {
-    return GestureDetector(
-      onTap: () {
-        _showAudioRouteModal();
-        _cancelAutoHideTimer();
-      },
-      behavior: HitTestBehavior.opaque,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            playerState.connectedDevice.icon,
-            color: appleSecondaryText,
-            size: 14,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            playerState.connectedDevice.name,
-            style: const TextStyle(
-              color: appleSecondaryText,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildExplicitBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(3),
-      ),
-      child: const Text(
-        'E',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
     );
   }
 

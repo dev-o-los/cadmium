@@ -211,9 +211,18 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    // Verify the actual connected Bluetooth device name is displayed
-    expect(find.text('AirPods Pro'), findsOneWidget);
-    expect(find.byIcon(CupertinoIcons.headphones), findsWidgets);
+    // Verify the action dock displays the Android cast icon for audio outputs
+    expect(find.byIcon(Icons.cast_rounded), findsOneWidget);
+
+    // Tapping the cast icon opens the Audio Output modal
+    await tester.tap(find.byIcon(Icons.cast_rounded));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Audio Output'), findsOneWidget);
+
+    // Close the modal
+    Navigator.of(tester.element(find.text('Audio Output'))).pop();
+    await tester.pump(const Duration(milliseconds: 400));
 
     // 2. Simulate switching to Phone Speaker
     container.read(playerProvider.notifier).state = container.read(playerProvider).copyWith(
@@ -222,9 +231,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    // Verify the label now displays Phone Speaker
-    expect(find.text('Phone Speaker'), findsOneWidget);
-    expect(find.byIcon(CupertinoIcons.speaker_2_fill), findsWidgets);
+    // Verify the cast icon remains accessible
+    expect(find.byIcon(Icons.cast_rounded), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     container.dispose();
