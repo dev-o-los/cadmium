@@ -9,6 +9,8 @@ import 'package:wavify/providers/auth_provider.dart';
 import 'package:wavify/providers/home_data_provider.dart';
 import 'package:wavify/providers/music_service_provider.dart';
 import 'package:wavify/screens/home_screen.dart';
+import 'package:wavify/screens/google_signin_screen.dart';
+import 'package:wavify/services/music_service.dart';
 
 class _MockHomeDataNotifier extends HomeDataNotifier {
   final HomeData mockData;
@@ -45,6 +47,65 @@ void main() {
       expect(fromJson.sapisid, 'sample_sapisid_token');
       expect(fromJson.initials, 'AR');
       expect(fromJson.isPersonalizedEnabled, isTrue);
+    });
+
+    test('UserAccount serializes and deserializes BitChord session metadata', () {
+      final now = DateTime.now();
+      final account = UserAccount(
+        id: 'user_bitchord_1',
+        displayName: 'BitChord Listener',
+        email: 'listener@youtube.com',
+        avatarUrl: 'https://lh3.googleusercontent.com/a/sample_avatar',
+        cookies: '__Secure-3PAPISID=token_3papisid_val; SID=sid_token;',
+        connectedAt: now,
+        isPersonalizedEnabled: true,
+        dataSyncId: '123456789_datasync',
+        pageId: 'page_id_brand_channel',
+        authUser: '0',
+        visitorData: 'CgtzYW1wbGVfdmlzaXRvcg',
+      );
+
+      final json = account.toJson();
+      final restored = UserAccount.fromJson(json);
+
+      expect(restored.dataSyncId, '123456789_datasync');
+      expect(restored.pageId, 'page_id_brand_channel');
+      expect(restored.authUser, '0');
+      expect(restored.visitorData, 'CgtzYW1wbGVfdmlzaXRvcg');
+      expect(restored.avatarUrl, 'https://lh3.googleusercontent.com/a/sample_avatar');
+      expect(restored.sapisid, 'token_3papisid_val');
+    });
+
+    test('UserAccount sapisid getter resolves SAPISID, __Secure-3PAPISID, and __Secure-1PAPISID', () {
+      const c1 = 'FOO=bar; SAPISID=plain_sapisid; BAR=baz;';
+      final a1 = UserAccount(
+        id: '1',
+        displayName: 'Test',
+        email: '',
+        cookies: c1,
+        connectedAt: DateTime.now(),
+      );
+      expect(a1.sapisid, 'plain_sapisid');
+
+      const c2 = 'FOO=bar; __Secure-3PAPISID=secure_3p_val; BAR=baz;';
+      final a2 = UserAccount(
+        id: '2',
+        displayName: 'Test',
+        email: '',
+        cookies: c2,
+        connectedAt: DateTime.now(),
+      );
+      expect(a2.sapisid, 'secure_3p_val');
+
+      const c3 = 'FOO=bar; __Secure-1PAPISID=secure_1p_val; BAR=baz;';
+      final a3 = UserAccount(
+        id: '3',
+        displayName: 'Test',
+        email: '',
+        cookies: c3,
+        connectedAt: DateTime.now(),
+      );
+      expect(a3.sapisid, 'secure_1p_val');
     });
 
     test('UserAccount initials generation handles single and multi-word names', () {
@@ -216,6 +277,163 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       expect(find.text('Sign in with Google'), findsOneWidget);
+    });
+  });
+
+  group('InnerTube Account Menu Parser Tests (BitChord Engine)', () {
+    test('MusicService.extractSapisid retrieves SAPISID from various cookie formats', () {
+      expect(
+        MusicService.extractSapisid('SAPISID=auth_token_123; SID=sid_123;'),
+        'auth_token_123',
+      );
+      expect(
+        MusicService.extractSapisid('__Secure-3PAPISID=secure_token_456; SID=sid_123;'),
+        'secure_token_456',
+      );
+      expect(
+        MusicService.extractSapisid('__Secure-1PAPISID=first_party_789; SID=sid_123;'),
+        'first_party_789',
+      );
+      expect(
+        MusicService.extractSapisid('LOGIN_INFO=only_login_no_sapisid;'),
+        isNull,
+      );
+    });
+
+    test('MusicService.computeSapisidHash produces valid SAPISIDHASH header', () {
+      final header = MusicService.computeSapisidHash('sample_sapisid_token');
+      expect(header, startsWith('SAPISIDHASH '));
+      final parts = header.substring('SAPISIDHASH '.length).split('_');
+      expect(parts.length, 2);
+      expect(int.tryParse(parts[0]), isNotNull);
+      expect(parts[1].length, 40); // 40-character SHA1 hex digest
+    });
+
+    test('MusicService.parseAccountMenu parses activeAccountHeaderRenderer with runs & avatar', () {
+      final mockData = {
+        'actions': [
+          {
+            'openPopupAction': {
+              'popup': {
+                'multiPageMenuRenderer': {
+                  'header': {
+                    'activeAccountHeaderRenderer': {
+                      'accountName': {
+                        'runs': [
+                          {'text': 'Utkarsh Kumar'}
+                        ]
+                      },
+                      'email': {
+                        'runs': [
+                          {'text': 'utkarsh@example.com'}
+                        ]
+                      },
+                      'channelHandle': {
+                        'runs': [
+                          {'text': '@utkarshkumar'}
+                        ]
+                      },
+                      'accountPhoto': {
+                        'thumbnails': [
+                          {
+                            'url': '//lh3.googleusercontent.com/a/avatar_low=s88-c-k-c0x00ffffff-no-rj',
+                            'width': 88,
+                            'height': 88,
+                          },
+                          {
+                            'url': '//lh3.googleusercontent.com/a/avatar_high=s88-c-k-c0x00ffffff-no-rj',
+                            'width': 176,
+                            'height': 176,
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      };
+
+      final profile = MusicService.parseAccountMenu(mockData);
+      expect(profile, isNotNull);
+      expect(profile!.displayName, 'Utkarsh Kumar');
+      expect(profile.email, 'utkarsh@example.com');
+      // Should upgrade leading '//' to 'https://' and resolution to '=s256'
+      expect(profile.avatarUrl, startsWith('https://lh3.googleusercontent.com/a/avatar_high=s256'));
+    });
+
+    test('MusicService.parseAccountMenu falls back to channelHandle when email is missing', () {
+      final mockData = {
+        'header': {
+          'activeAccountHeaderRenderer': {
+            'accountName': {'simpleText': 'Music Enthusiast'},
+            'channelHandle': {'simpleText': '@musiclover'},
+            'accountPhoto': {
+              'thumbnails': [
+                {'url': 'https://yt3.ggpht.com/channel_avatar'}
+              ]
+            }
+          }
+        }
+      };
+
+      final profile = MusicService.parseAccountMenu(mockData);
+      expect(profile, isNotNull);
+      expect(profile!.displayName, 'Music Enthusiast');
+      expect(profile.email, '@musiclover');
+      expect(profile.avatarUrl, 'https://yt3.ggpht.com/channel_avatar');
+    });
+
+    test('MusicService.parseAccountMenu falls back to accountItem when header is missing', () {
+      final mockData = {
+        'contents': [
+          {
+            'accountItem': {
+              'accountName': {'simpleText': 'Channel Name'},
+              'accountByline': {'simpleText': 'handle_or_email@channel.com'},
+              'accountPhoto': {
+                'thumbnails': [
+                  {'url': 'https://yt3.ggpht.com/avatar_item'}
+                ]
+              }
+            }
+          }
+        ]
+      };
+
+      final profile = MusicService.parseAccountMenu(mockData);
+      expect(profile, isNotNull);
+      expect(profile!.displayName, 'Channel Name');
+      expect(profile.email, 'handle_or_email@channel.com');
+      expect(profile.avatarUrl, 'https://yt3.ggpht.com/avatar_item');
+    });
+
+    test('MusicService.parseAccountMenu returns null on empty or invalid data', () {
+      expect(MusicService.parseAccountMenu(null), isNull);
+      expect(MusicService.parseAccountMenu({}), isNull);
+      expect(MusicService.parseAccountMenu({'random': 'data'}), isNull);
+    });
+  });
+
+  group('GoogleSignInScreen Widget Smoke Tests', () {
+    testWidgets('GoogleSignInScreen mounts with Apple AppBar and close button',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const ProviderScope(
+          child: MaterialApp(
+            home: GoogleSignInScreen(),
+          ),
+        ),
+      );
+
+      await tester.pump();
+
+      // Verify AppBar header elements
+      expect(find.text('Sign in with Google'), findsOneWidget);
+      expect(find.byIcon(CupertinoIcons.xmark), findsOneWidget);
+      expect(find.byIcon(CupertinoIcons.lock_fill), findsOneWidget);
     });
   });
 }

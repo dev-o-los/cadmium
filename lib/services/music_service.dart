@@ -154,14 +154,242 @@ class MusicService {
     }
   }
 
-  /// Computes SAPISIDHASH authorization header if authenticated with a Google account
-  String? getSapisidHash() {
-    final sapisid = _currentAccount?.sapisid;
-    if (sapisid == null || sapisid.isEmpty) return null;
+  /// Extracts SAPISID, __Secure-3PAPISID, or __Secure-1PAPISID from cookie header
+  static String? extractSapisid(String cookies) {
+    final jar = <String, String>{};
+    for (final part in cookies.split(';')) {
+      final trimmed = part.trim();
+      final eq = trimmed.indexOf('=');
+      if (eq > 0) {
+        final name = trimmed.substring(0, eq).trim();
+        final val = trimmed.substring(eq + 1).trim();
+        if (name.isNotEmpty && val.isNotEmpty) {
+          jar[name] = val;
+        }
+      }
+    }
+    return jar['SAPISID'] ?? jar['__Secure-3PAPISID'] ?? jar['__Secure-1PAPISID'];
+  }
+
+  /// Computes SAPISIDHASH authorization header from a SAPISID token
+  static String computeSapisidHash(String sapisid, {String origin = 'https://music.youtube.com'}) {
     final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final payload = '$timestamp $sapisid https://music.youtube.com';
+    final payload = '$timestamp $sapisid $origin';
     final digest = sha1.convert(utf8.encode(payload)).toString();
     return 'SAPISIDHASH ${timestamp}_$digest';
+  }
+
+  /// Computes SAPISIDHASH authorization header if authenticated with a Google account
+  String? getSapisidHash({String origin = 'https://music.youtube.com'}) {
+    final sapisid = _currentAccount?.sapisid;
+    if (sapisid == null || sapisid.isEmpty) return null;
+    return computeSapisidHash(sapisid, origin: origin);
+  }
+
+  /// Recursively collects all objects named [targetKey] anywhere inside a JSON structure
+  static List<Map<String, dynamic>> _collectRenderers(dynamic root, String targetKey) {
+    final results = <Map<String, dynamic>>[];
+    void search(dynamic node) {
+      if (node is List) {
+        for (final item in node) {
+          search(item);
+        }
+      } else if (node is Map<String, dynamic>) {
+        for (final entry in node.entries) {
+          if (entry.key == targetKey && entry.value is Map<String, dynamic>) {
+            results.add(entry.value as Map<String, dynamic>);
+          }
+          search(entry.value);
+        }
+      } else if (node is Map) {
+        for (final entry in node.entries) {
+          if (entry.key == targetKey && entry.value is Map) {
+            results.add(Map<String, dynamic>.from(entry.value as Map));
+          }
+          search(entry.value);
+        }
+      }
+    }
+    search(root);
+    return results;
+  }
+
+  /// Extracts textual representation from YouTube runs, simpleText, or raw string
+  static String _extractNodeText(dynamic node) {
+    if (node == null) return '';
+    if (node is String) return node;
+    if (node is Map) {
+      if (node['simpleText'] is String) return node['simpleText'] as String;
+      if (node['runs'] is List) {
+        final buffer = StringBuffer();
+        for (final r in node['runs'] as List) {
+          if (r is Map && r['text'] != null) {
+            buffer.write(r['text']);
+          } else if (r is String) {
+            buffer.write(r);
+          }
+        }
+        return buffer.toString();
+      }
+    }
+    return '';
+  }
+
+  /// Extracts the highest resolution photo from an account renderer
+  static String? _extractNodePhoto(Map<String, dynamic> item) {
+    final photoObj = item['accountPhoto'] ?? item['thumbnail'];
+    if (photoObj is Map) {
+      final thumbnails = photoObj['thumbnails'];
+      if (thumbnails is List && thumbnails.isNotEmpty) {
+        final last = thumbnails.last;
+        if (last is Map && last['url'] != null) {
+          String url = last['url'].toString();
+          if (url.startsWith('//')) url = 'https:$url';
+          // Upgrade thumbnail to higher resolution (256x256)
+          if (url.contains('=s88') || url.contains('=s64') || url.contains('=s32')) {
+            url = url.replaceAll(RegExp(r'=s\d+'), '=s256');
+          }
+          return url;
+        }
+      }
+    }
+    return null;
+  }
+
+  /// Parses YouTube Music account menu response to extract verified Google profile info
+  static ({String displayName, String email, String? avatarUrl})? parseAccountMenu(dynamic data) {
+    if (data == null) return null;
+
+    final activeHeaders = _collectRenderers(data, 'activeAccountHeaderRenderer');
+    if (activeHeaders.isNotEmpty) {
+      final header = activeHeaders.first;
+      final name = _extractNodeText(header['accountName']).trim();
+      var email = _extractNodeText(header['email']).trim();
+      if (email.isEmpty) {
+        email = _extractNodeText(header['channelHandle']).trim();
+      }
+      final avatar = _extractNodePhoto(header);
+
+      if (name.isNotEmpty || email.isNotEmpty) {
+        return (
+          displayName: name.isNotEmpty ? name : 'YouTube Music User',
+          email: email,
+          avatarUrl: avatar,
+        );
+      }
+    }
+
+    final accountItems = _collectRenderers(data, 'accountItem');
+    if (accountItems.isNotEmpty) {
+      final item = accountItems.first;
+      final name = _extractNodeText(item['accountName']).trim();
+      var email = _extractNodeText(item['email']).trim();
+      if (email.isEmpty) {
+        email = _extractNodeText(item['channelHandle']).trim();
+      }
+      if (email.isEmpty) {
+        email = _extractNodeText(item['accountByline']).trim();
+      }
+      final avatar = _extractNodePhoto(item);
+
+      if (name.isNotEmpty || email.isNotEmpty) {
+        return (
+          displayName: name.isNotEmpty ? name : 'YouTube Music User',
+          email: email,
+          avatarUrl: avatar,
+        );
+      }
+    }
+
+    return null;
+  }
+
+  /// Connects to YouTube Music InnerTube account_menu endpoint using authentic
+  /// session cookies and SAPISIDHASH to retrieve the user's verified profile.
+  Future<({String displayName, String email, String? avatarUrl})?> fetchAccountProfile({
+    required String cookies,
+    String? dataSyncId,
+    String? pageId,
+    String? authUser,
+    String? visitorData,
+    String? clientVersion,
+  }) async {
+    final sapisid = extractSapisid(cookies);
+    if (sapisid == null || sapisid.isEmpty) {
+      debugPrint('fetchAccountProfile: No SAPISID found in cookies');
+      return null;
+    }
+
+    final sapisidHash = computeSapisidHash(sapisid);
+    final version = clientVersion ?? '1.20240101.01.00';
+    final uri = Uri.parse('https://music.youtube.com/youtubei/v1/account/account_menu?prettyPrint=false&hl=en');
+
+    final userContext = <String, dynamic>{
+      'lockedSafetyMode': false,
+    };
+    if (dataSyncId != null && dataSyncId.isNotEmpty) {
+      userContext['onBehalfOfUser'] = dataSyncId;
+    }
+
+    final body = jsonEncode({
+      'context': {
+        'client': {
+          'clientName': 'WEB_REMIX',
+          'clientVersion': version,
+          'hl': 'en',
+          'gl': 'US',
+          if (visitorData != null && visitorData.isNotEmpty) 'visitorData': visitorData,
+        },
+        'user': userContext,
+        'request': {
+          'useSsl': true,
+        },
+      },
+    });
+
+    HttpClient? client;
+    try {
+      client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+      final request = await client.postUrl(uri);
+      request.headers.contentType = ContentType.json;
+      request.headers.set(
+        'User-Agent',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+      );
+      request.headers.set('Accept-Language', 'en-US,en;q=0.9');
+      request.headers.set('X-Origin', 'https://music.youtube.com');
+      request.headers.set('Origin', 'https://music.youtube.com');
+      request.headers.set('Referer', 'https://music.youtube.com/');
+      request.headers.set('X-YouTube-Client-Name', '67');
+      request.headers.set('X-YouTube-Client-Version', version);
+      request.headers.set('Cookie', cookies);
+      request.headers.set('Authorization', sapisidHash);
+      request.headers.set('X-Goog-AuthUser', authUser ?? '0');
+      if (pageId != null && pageId.isNotEmpty) {
+        request.headers.set('X-Goog-PageId', pageId);
+      }
+      if (visitorData != null && visitorData.isNotEmpty) {
+        request.headers.set('X-Goog-Visitor-Id', visitorData);
+      }
+
+      request.write(body);
+
+      final response = await request.close().timeout(const Duration(seconds: 8));
+      if (response.statusCode != 200) {
+        debugPrint('fetchAccountProfile: InnerTube account_menu returned status ${response.statusCode}');
+        await response.drain();
+        return null;
+      }
+
+      final responseBody = await utf8.decoder.bind(response).join();
+      final data = jsonDecode(responseBody);
+      return parseAccountMenu(data);
+    } catch (e) {
+      debugPrint('fetchAccountProfile error: $e');
+      return null;
+    } finally {
+      client?.close(force: true);
+    }
   }
 
   // Cached streams to prevent duplicate Innertube player requests (5 min TTL)

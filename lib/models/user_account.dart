@@ -9,6 +9,10 @@ class UserAccount {
   final String cookies;
   final DateTime connectedAt;
   final bool isPersonalizedEnabled;
+  final String? dataSyncId;
+  final String? pageId;
+  final String? authUser;
+  final String? visitorData;
 
   const UserAccount({
     required this.id,
@@ -18,13 +22,23 @@ class UserAccount {
     required this.cookies,
     required this.connectedAt,
     this.isPersonalizedEnabled = true,
+    this.dataSyncId,
+    this.pageId,
+    this.authUser,
+    this.visitorData,
   });
 
-  /// Extracts SAPISID or __Secure-3PAPISID token from the cookie string
+  /// Extracts SAPISID, __Secure-3PAPISID, or __Secure-1PAPISID token from the cookie string
   String? get sapisid {
-    final regex = RegExp(r'(?:SAPISID|__Secure-3PAPISID)=([^;]+)');
-    final match = regex.firstMatch(cookies);
-    return match?.group(1)?.trim();
+    final jar = <String, String>{};
+    for (final part in cookies.split(';')) {
+      final trimmed = part.trim();
+      final eq = trimmed.indexOf('=');
+      if (eq > 0) {
+        jar[trimmed.substring(0, eq).trim()] = trimmed.substring(eq + 1).trim();
+      }
+    }
+    return jar['SAPISID'] ?? jar['__Secure-3PAPISID'] ?? jar['__Secure-1PAPISID'];
   }
 
   /// Initial letters of display name for fallback avatar circle
@@ -43,6 +57,10 @@ class UserAccount {
     String? cookies,
     DateTime? connectedAt,
     bool? isPersonalizedEnabled,
+    String? dataSyncId,
+    String? pageId,
+    String? authUser,
+    String? visitorData,
   }) {
     return UserAccount(
       id: id ?? this.id,
@@ -53,6 +71,10 @@ class UserAccount {
       connectedAt: connectedAt ?? this.connectedAt,
       isPersonalizedEnabled:
           isPersonalizedEnabled ?? this.isPersonalizedEnabled,
+      dataSyncId: dataSyncId ?? this.dataSyncId,
+      pageId: pageId ?? this.pageId,
+      authUser: authUser ?? this.authUser,
+      visitorData: visitorData ?? this.visitorData,
     );
   }
 
@@ -65,6 +87,10 @@ class UserAccount {
       'cookies': cookies,
       'connectedAt': connectedAt.toIso8601String(),
       'isPersonalizedEnabled': isPersonalizedEnabled,
+      'dataSyncId': dataSyncId,
+      'pageId': pageId,
+      'authUser': authUser,
+      'visitorData': visitorData,
     };
   }
 
@@ -79,6 +105,10 @@ class UserAccount {
           ? DateTime.tryParse(json['connectedAt'] as String) ?? DateTime.now()
           : DateTime.now(),
       isPersonalizedEnabled: json['isPersonalizedEnabled'] as bool? ?? true,
+      dataSyncId: json['dataSyncId'] as String?,
+      pageId: json['pageId'] as String?,
+      authUser: json['authUser'] as String?,
+      visitorData: json['visitorData'] as String?,
     );
   }
 
