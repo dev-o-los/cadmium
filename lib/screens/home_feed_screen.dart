@@ -828,7 +828,7 @@ class HomeFeedScreen extends ConsumerWidget {
             itemBuilder: (context, index) {
               final album = albums[index];
               return ApplePressable(
-                onTap: () => playAlbumOrSingle(context, ref, album),
+                onTap: () => openAlbumScreen(context, album),
                 borderRadius: BorderRadius.circular(14),
                 child: SizedBox(
                   width: cardWidth,

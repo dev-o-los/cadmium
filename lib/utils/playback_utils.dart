@@ -9,6 +9,7 @@ import '../models/playlist_item.dart';
 import '../models/song_item.dart';
 import '../providers/music_service_provider.dart';
 import '../providers/player_provider.dart';
+import '../screens/album_screen.dart';
 import '../screens/player_screen.dart';
 
 /// Shows a floating dark Apple Music-style snackbar with the provided message.
@@ -31,6 +32,16 @@ void openPlayerScreen(BuildContext context) {
     useSafeArea: false,
     backgroundColor: Colors.transparent,
     builder: (context) => const PlayerScreen(),
+  );
+}
+
+/// Opens the dedicated full-page [AlbumScreen] with ambient artwork blur, metadata, and tracklist.
+void openAlbumScreen(BuildContext context, AlbumItem album) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => AlbumScreen(album: album),
+    ),
   );
 }
 

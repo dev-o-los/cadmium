@@ -500,7 +500,7 @@ class LibraryScreen extends ConsumerWidget {
     double cardWidth,
   ) {
     return ApplePressable(
-      onTap: () => playAlbumOrSingle(context, ref, album),
+      onTap: () => openAlbumScreen(context, album),
       borderRadius: BorderRadius.circular(14),
       child: SizedBox(
         width: cardWidth,

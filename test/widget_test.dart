@@ -166,12 +166,18 @@ void main() {
     expect(find.text('Starboy'), findsOneWidget);
     expect(find.text('Albums & singles'), findsOneWidget);
 
-    // Tap on the album single card
+    // Tap on the album card
     await tester.tap(find.text('Starboy'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    // Player screen should now be directly mounted in the modal bottom sheet!
+    // Dedicated AlbumScreen should now be mounted!
+    expect(find.byType(AlbumScreen), findsOneWidget);
+
+    // Tapping Play on AlbumScreen launches the full player
+    await tester.tap(find.text('Play'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(PlayerScreen), findsOneWidget);
   });
 

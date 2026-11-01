@@ -415,6 +415,16 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     state = state.copyWith(volume: val);
   }
 
+  void addToQueue(SongItem song) {
+    final updated = List<SongItem>.from(state.queue)..add(song);
+    state = state.copyWith(queue: updated);
+  }
+
+  void playNext(SongItem song) {
+    final updated = [song, ...state.queue];
+    state = state.copyWith(queue: updated);
+  }
+
   void removeFromQueue(int index) {
     if (index >= 0 && index < state.queue.length) {
       final updated = List<SongItem>.from(state.queue)..removeAt(index);

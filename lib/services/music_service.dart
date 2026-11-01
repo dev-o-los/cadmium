@@ -678,6 +678,42 @@ class MusicService {
     return [];
   }
 
+  /// Fetches complete album details including upgraded artwork, all track listings,
+  /// and total calculated duration for the Album Screen.
+  Future<AlbumDetails> getAlbumDetails(
+    AlbumItem initialAlbum, {
+    String? queryFallback,
+  }) async {
+    final tracks = await getAlbumSongs(
+      initialAlbum.id,
+      queryFallback:
+          queryFallback ?? '${initialAlbum.title} ${initialAlbum.artist}',
+    );
+
+    String? artwork = initialAlbum.thumbnailUrl;
+    if (artwork == null || artwork.isEmpty) {
+      artwork = await getAlbumArtwork(
+        initialAlbum.id,
+        title: initialAlbum.title,
+        artist: initialAlbum.artist,
+      );
+    }
+
+    final totalDuration =
+        tracks.fold<int>(0, (sum, t) => sum + (t.durationSeconds ?? 0));
+    final updatedAlbum = initialAlbum.copyWith(
+      thumbnailUrl: artwork,
+      trackCount: tracks.length,
+      durationMinutes: totalDuration > 0 ? (totalDuration ~/ 60) : null,
+    );
+
+    return AlbumDetails(
+      album: updatedAlbum,
+      tracks: tracks,
+      totalDurationSeconds: totalDuration,
+    );
+  }
+
   /// Extracts clean playlist ID from URLs (e.g. music.youtube.com/playlist?list=... or youtube.com/playlist?list=...)
   /// or directly returns the raw input if it's already an ID.
   static String extractPlaylistId(String input) {

@@ -1,3 +1,5 @@
+import 'song_item.dart';
+
 class AlbumItem {
   final String id;
   final String title;
@@ -6,6 +8,9 @@ class AlbumItem {
   final String type; // 'Single', 'EP', 'Album'
   final int? year;
   final bool isCustom;
+  final String? description;
+  final int? trackCount;
+  final int? durationMinutes;
 
   const AlbumItem({
     required this.id,
@@ -15,6 +20,9 @@ class AlbumItem {
     this.type = 'Album',
     this.year,
     this.isCustom = false,
+    this.description,
+    this.trackCount,
+    this.durationMinutes,
   });
 
   String get subtitle {
@@ -30,6 +38,9 @@ class AlbumItem {
     String? type,
     int? year,
     bool? isCustom,
+    String? description,
+    int? trackCount,
+    int? durationMinutes,
   }) {
     return AlbumItem(
       id: id ?? this.id,
@@ -39,6 +50,9 @@ class AlbumItem {
       type: type ?? this.type,
       year: year ?? this.year,
       isCustom: isCustom ?? this.isCustom,
+      description: description ?? this.description,
+      trackCount: trackCount ?? this.trackCount,
+      durationMinutes: durationMinutes ?? this.durationMinutes,
     );
   }
 
@@ -50,6 +64,9 @@ class AlbumItem {
         'type': type,
         'year': year,
         'isCustom': isCustom,
+        'description': description,
+        'trackCount': trackCount,
+        'durationMinutes': durationMinutes,
       };
 
   factory AlbumItem.fromJson(Map<String, dynamic> json) => AlbumItem(
@@ -60,6 +77,9 @@ class AlbumItem {
         type: json['type'] as String? ?? 'Album',
         year: json['year'] as int?,
         isCustom: json['isCustom'] as bool? ?? false,
+        description: json['description'] as String?,
+        trackCount: json['trackCount'] as int?,
+        durationMinutes: json['durationMinutes'] as int?,
       );
 
   @override
@@ -69,4 +89,29 @@ class AlbumItem {
 
   @override
   int get hashCode => id.hashCode;
+}
+
+/// Detailed domain model combining an [AlbumItem] with its resolved tracks
+/// and total calculated duration.
+class AlbumDetails {
+  final AlbumItem album;
+  final List<SongItem> tracks;
+  final int totalDurationSeconds;
+
+  const AlbumDetails({
+    required this.album,
+    required this.tracks,
+    required this.totalDurationSeconds,
+  });
+
+  String get formattedTotalDuration {
+    if (totalDurationSeconds <= 0) return '';
+    final minutes = totalDurationSeconds ~/ 60;
+    if (minutes >= 60) {
+      final hours = minutes ~/ 60;
+      final remainingMins = minutes % 60;
+      return '$hours hr $remainingMins min';
+    }
+    return '$minutes min';
+  }
 }
