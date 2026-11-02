@@ -395,9 +395,10 @@ class LyricsService {
       }
 
       parsedLines.sort((a, b) => (a.startTimeMs ?? 0).compareTo(b.startTimeMs ?? 0));
+      final linesWithGaps = withInstrumentalGaps(parsedLines);
 
       return LyricsResult(
-        lines: parsedLines,
+        lines: linesWithGaps,
         source: LyricsProviderType.lrcRed.attributionName,
         songwriters: songwriters,
         hasWordSync: anyWordSync,
@@ -406,6 +407,43 @@ class LyricsService {
       debugPrint('[LyricsService] Error parsing TTML: $e');
       return LyricsResult.empty;
     }
+  }
+
+  static const int minGapMs = 4000;
+
+  /// Inserts blank instrumental gap lines for musical intros or breaks >= 4s.
+  /// Matches Benjamin's am-lyrics withInstrumentalGaps (LyricGaps.kt).
+  static List<LyricLine> withInstrumentalGaps(List<LyricLine> lines) {
+    if (lines.isEmpty) return lines;
+    final out = <LyricLine>[];
+
+    // If initial intro is >= 3000ms, mark intro gap
+    final firstStart = lines.first.startTimeMs ?? 0;
+    if (firstStart >= 3000) {
+      out.add(LyricLine(
+        text: '',
+        startTimeMs: 0,
+        endTimeMs: firstStart,
+      ));
+    }
+
+    for (int i = 0; i < lines.length; i++) {
+      final current = lines[i];
+      out.add(current);
+      if (i < lines.length - 1) {
+        final next = lines[i + 1];
+        final currentEnd = current.endTimeMs ?? current.startTimeMs ?? 0;
+        final nextStart = next.startTimeMs ?? 0;
+        if (nextStart - currentEnd >= minGapMs && currentEnd > (current.startTimeMs ?? 0)) {
+          out.add(LyricLine(
+            text: '',
+            startTimeMs: currentEnd,
+            endTimeMs: nextStart,
+          ));
+        }
+      }
+    }
+    return out;
   }
 
   static void _collectPieces(

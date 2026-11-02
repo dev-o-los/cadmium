@@ -175,5 +175,46 @@ void main() {
       await tester.pump();
       expect(switchedProvider, LyricsProviderType.youTube);
     });
+
+    testWidgets('renders three animated dots during instrumental music intro', (tester) async {
+      final testLyrics = [
+        const LyricLine(
+          text: 'Hello from the other side',
+          startTimeMs: 6000,
+          endTimeMs: 9000,
+          isWordSynced: true,
+        ),
+      ];
+
+      LyricLine? soughtLine;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            backgroundColor: Colors.black,
+            body: AppleLyricsView(
+              lyrics: testLyrics,
+              activeLyricIndex: 0,
+              currentPositionMs: 1500, // In intro: 1.5s < 6.0s
+              isPlaying: true,
+              selectedProvider: LyricsProviderType.lrcRed,
+              onSeekToLyric: (line) {
+                soughtLine = line;
+              },
+            ),
+          ),
+        ),
+      );
+
+      // Verify AppleInstrumentalDots is displayed at top of lyrics
+      expect(find.byType(AppleInstrumentalDots), findsOneWidget);
+
+      // Verify tapping three dots seeks to intro
+      await tester.tap(find.byType(AppleInstrumentalDots));
+      await tester.pump();
+      expect(soughtLine, isNotNull);
+      expect(soughtLine!.text, '');
+      expect(soughtLine!.startTimeMs, 0);
+    });
   });
 }

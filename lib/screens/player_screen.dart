@@ -1104,6 +1104,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
       lyrics: playerState.lyrics,
       activeLyricIndex: playerState.activeLyricIndex,
       currentPositionMs: playerState.position.inMilliseconds,
+      isPlaying: playerState.isPlaying,
       isLoading: playerState.isLoadingLyrics,
       lyricsSource: playerState.lyricsSource,
       lyricsSongwriters: playerState.lyricsSongwriters,
