@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wavify/models/lyric_line.dart';
@@ -47,7 +48,7 @@ void main() {
   });
 
   group('AppleLyricsView Widget Tests', () {
-    testWidgets('renders word-by-word synced syllables and attribution', (tester) async {
+    testWidgets('renders word-by-word synced syllables and provider toggle', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 2.5;
       addTearDown(() {
@@ -78,6 +79,7 @@ void main() {
       ];
 
       LyricLine? tappedLine;
+      LyricsProviderType? switchedProvider;
 
       await tester.pumpWidget(
         MaterialApp(
@@ -87,8 +89,10 @@ void main() {
               lyrics: testLyrics,
               activeLyricIndex: 0,
               currentPositionMs: 1500, // Inside 'been '
-              lyricsSource: 'Apple Music (via BiniLyrics)',
+              selectedProvider: LyricsProviderType.lrcRed,
+              lyricsSource: 'Apple Music (via lrc.red)',
               lyricsSongwriters: 'Abel Tesfaye, Max Martin',
+              onProviderChanged: (p) => switchedProvider = p,
               onSeekToLyric: (line) {
                 tappedLine = line;
               },
@@ -96,6 +100,10 @@ void main() {
           ),
         ),
       );
+
+      // Verify provider toggle pills are rendered
+      expect(find.text('lrc.red'), findsWidgets);
+      expect(find.text('YouTube'), findsWidgets);
 
       // Verify syllables rendered
       expect(find.text('I '), findsOneWidget);
@@ -105,9 +113,14 @@ void main() {
       // Verify background vocal rendered
       expect(find.text("(Can't you hear me?)"), findsOneWidget);
 
-      // Verify Apple Music attribution footer
-      expect(find.text('Lyrics provided by Apple Music (via BiniLyrics)'), findsOneWidget);
+      // Verify attribution footer
+      expect(find.text('Lyrics provided by Apple Music (via lrc.red)'), findsOneWidget);
       expect(find.text('Written by Abel Tesfaye, Max Martin'), findsOneWidget);
+
+      // Verify tap on YouTube capsule triggers onProviderChanged
+      await tester.tap(find.text('YouTube').first);
+      await tester.pump();
+      expect(switchedProvider, LyricsProviderType.youTube);
 
       // Verify tap on second line triggers seek callback
       await tester.tap(find.text("(Can't you hear me?)"));
@@ -116,7 +129,7 @@ void main() {
       expect(tappedLine!.text, "(Can't you hear me?)");
     });
 
-    testWidgets('renders loading state cleanly', (tester) async {
+    testWidgets('renders loading state cleanly with selected provider name', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -125,17 +138,20 @@ void main() {
               activeLyricIndex: -1,
               currentPositionMs: 0,
               isLoading: true,
+              selectedProvider: LyricsProviderType.lrcRed,
               onSeekToLyric: (_) {},
             ),
           ),
         ),
       );
 
-      expect(find.text('Connecting lyrics...'), findsOneWidget);
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text('Connecting lrc.red lyrics...'), findsOneWidget);
+      expect(find.byType(CupertinoActivityIndicator), findsWidgets);
     });
 
-    testWidgets('renders empty state cleanly', (tester) async {
+    testWidgets('renders empty state with quick switch action button', (tester) async {
+      LyricsProviderType? switchedProvider;
+
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -144,6 +160,8 @@ void main() {
               activeLyricIndex: -1,
               currentPositionMs: 0,
               isLoading: false,
+              selectedProvider: LyricsProviderType.lrcRed,
+              onProviderChanged: (p) => switchedProvider = p,
               onSeekToLyric: (_) {},
             ),
           ),
@@ -151,7 +169,11 @@ void main() {
       );
 
       expect(find.text('No lyrics available right now'), findsOneWidget);
+      expect(find.text('Switch to YouTube'), findsOneWidget);
+
+      await tester.tap(find.text('Switch to YouTube'));
+      await tester.pump();
+      expect(switchedProvider, LyricsProviderType.youTube);
     });
   });
 }
-

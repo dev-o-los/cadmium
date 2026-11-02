@@ -1107,6 +1107,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
       isLoading: playerState.isLoadingLyrics,
       lyricsSource: playerState.lyricsSource,
       lyricsSongwriters: playerState.lyricsSongwriters,
+      selectedProvider: playerState.selectedLyricsProvider,
+      onProviderChanged: (provider) {
+        ref.read(playerProvider.notifier).setLyricsProvider(provider);
+        _resetAutoHideTimer();
+      },
       onSeekToLyric: (line) {
         ref.read(playerProvider.notifier).seekToLyric(line);
         _resetAutoHideTimer();

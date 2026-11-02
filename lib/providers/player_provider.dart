@@ -11,6 +11,7 @@ import '../models/lyric_line.dart';
 import '../services/artwork_cache_service.dart';
 import '../services/audio_cache_service.dart';
 import '../services/song_metrics_cache_service.dart';
+import '../services/lyrics_service.dart';
 import 'music_service_provider.dart';
 
 /// Immutable model representing the active player playback state.
@@ -33,6 +34,7 @@ class PlayerStateModel {
   final String? lyricsSource;
   final String? lyricsSongwriters;
   final bool hasWordSyncedLyrics;
+  final LyricsProviderType selectedLyricsProvider;
   final String? animatedArtworkUrl;
   final Map<String, String>? animatedArtworkHeaders;
   final AudioDeviceItem connectedDevice;
@@ -58,6 +60,7 @@ class PlayerStateModel {
     this.lyricsSource,
     this.lyricsSongwriters,
     this.hasWordSyncedLyrics = false,
+    this.selectedLyricsProvider = LyricsProviderType.lrcRed,
     this.animatedArtworkUrl,
     this.animatedArtworkHeaders,
     this.connectedDevice = const AudioDeviceItem(
@@ -102,6 +105,7 @@ class PlayerStateModel {
     String? lyricsSongwriters,
     bool clearLyricsSongwriters = false,
     bool? hasWordSyncedLyrics,
+    LyricsProviderType? selectedLyricsProvider,
     String? animatedArtworkUrl,
     Map<String, String>? animatedArtworkHeaders,
     bool clearAnimatedArtwork = false,
@@ -128,6 +132,7 @@ class PlayerStateModel {
       lyricsSource: clearLyricsSource ? null : (lyricsSource ?? this.lyricsSource),
       lyricsSongwriters: clearLyricsSongwriters ? null : (lyricsSongwriters ?? this.lyricsSongwriters),
       hasWordSyncedLyrics: hasWordSyncedLyrics ?? this.hasWordSyncedLyrics,
+      selectedLyricsProvider: selectedLyricsProvider ?? this.selectedLyricsProvider,
       animatedArtworkUrl: clearAnimatedArtwork ? null : (animatedArtworkUrl ?? this.animatedArtworkUrl),
       animatedArtworkHeaders: clearAnimatedArtwork ? null : (animatedArtworkHeaders ?? this.animatedArtworkHeaders),
       connectedDevice: connectedDevice ?? this.connectedDevice,
@@ -471,8 +476,29 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     }
   }
 
-  Future<void> _fetchLyrics(SongItem song) async {
+  /// Changes the active lyrics provider (lrc.red or YouTube) and fetches the lyrics.
+  void setLyricsProvider(LyricsProviderType provider) {
+    if (state.selectedLyricsProvider == provider) return;
+    state = state.copyWith(
+      selectedLyricsProvider: provider,
+      isLoadingLyrics: true,
+      lyrics: const [],
+      clearLyricsSource: true,
+      clearLyricsSongwriters: true,
+      hasWordSyncedLyrics: false,
+    );
+    final song = state.currentSong;
+    if (song != null) {
+      _fetchLyrics(song, provider: provider);
+    } else {
+      state = state.copyWith(isLoadingLyrics: false);
+    }
+  }
+
+  Future<void> _fetchLyrics(SongItem song, {LyricsProviderType? provider}) async {
+    final targetProvider = provider ?? state.selectedLyricsProvider;
     try {
+      state = state.copyWith(isLoadingLyrics: true);
       final musicService = _ref.read(musicServiceProvider);
       final cachedDur = SongMetricsCacheService.instance.getDuration(song.id);
       final durSec = (song.durationSeconds != null && song.durationSeconds! > 0)
@@ -485,8 +511,9 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         artist: song.artist,
         album: song.album,
         durationSeconds: durSec,
+        provider: targetProvider,
       );
-      if (state.currentSong?.id == song.id) {
+      if (state.currentSong?.id == song.id && state.selectedLyricsProvider == targetProvider) {
         state = state.copyWith(
           lyrics: result.lines,
           lyricsSource: result.source,
@@ -496,11 +523,11 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         );
       }
     } catch (e) {
-      if (state.currentSong?.id == song.id) {
+      if (state.currentSong?.id == song.id && state.selectedLyricsProvider == targetProvider) {
         state = state.copyWith(
           lyrics: const [],
-          lyricsSource: null,
-          lyricsSongwriters: null,
+          clearLyricsSource: true,
+          clearLyricsSongwriters: true,
           hasWordSyncedLyrics: false,
           isLoadingLyrics: false,
         );

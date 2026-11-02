@@ -4,19 +4,20 @@ import 'dart:ui' as ui;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../models/lyric_line.dart';
+import '../services/lyrics_service.dart';
 import 'apple_pressable.dart';
 
-/// Apple Music-style Karaoke Lyrics View inspired by binimum/am-lyrics (Benjamin).
+/// Apple Music-style Karaoke Lyrics View with lrc.red / YouTube provider switching.
 /// Features:
-/// - Live active lyric correctly positioned in the prime upper-middle viewing area below album art
-/// - Previously sung verses smoothly scroll upwards and dissolve beneath the top bar / album art
-/// - Word-by-word / Syllable progressive gradient wipe synchronization for real-time karaoke
-/// - Distance-based Gaussian blur (depth-of-field) and scale falloff for inactive lines
+/// - Fast segmented glass capsule toggle for lrc.red & YouTube lyrics
+/// - Live active lyric correctly positioned below header
+/// - Word-by-word / Syllable progressive gradient wipe synchronization
+/// - Distance-based Gaussian blur and scale falloff for inactive lines
 /// - Dynamic Apple duet alignment (right-aligned for opposing singer, left-aligned for lead)
 /// - Background vocal italicization and subtle indentation
 /// - Fluid auto-scrolling with user-drag pause detection
 /// - ApplePressable haptic tap-to-seek interaction on any lyric line
-/// - Multi-provider attribution footer (Apple Music via lrc.red / BiniLyrics / LRCLIB)
+/// - Multi-provider attribution footer with one-tap switcher
 class AppleLyricsView extends StatefulWidget {
   final List<LyricLine> lyrics;
   final int activeLyricIndex;
@@ -24,6 +25,8 @@ class AppleLyricsView extends StatefulWidget {
   final bool isLoading;
   final String? lyricsSource;
   final String? lyricsSongwriters;
+  final LyricsProviderType selectedProvider;
+  final ValueChanged<LyricsProviderType>? onProviderChanged;
   final ValueChanged<LyricLine> onSeekToLyric;
   final VoidCallback? onTapBackground;
 
@@ -35,6 +38,8 @@ class AppleLyricsView extends StatefulWidget {
     this.isLoading = false,
     this.lyricsSource,
     this.lyricsSongwriters,
+    this.selectedProvider = LyricsProviderType.lrcRed,
+    this.onProviderChanged,
     required this.onSeekToLyric,
     this.onTapBackground,
   });
@@ -87,7 +92,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView> {
     if (targetContext != null) {
       Scrollable.ensureVisible(
         targetContext,
-        alignment: 0.0, // Positions live lyric directly below the album art header
+        alignment: 0.0, // Positions live lyric directly below top header
         duration: immediate ? Duration.zero : const Duration(milliseconds: 380),
         curve: Curves.easeOutCubic,
       );
@@ -109,14 +114,16 @@ class _AppleLyricsViewState extends State<AppleLyricsView> {
   }
 
   void _handleUserScroll(ScrollNotification notification) {
-    if (notification is ScrollStartNotification && notification.dragDetails != null) {
+    if (notification is ScrollStartNotification) {
       _isUserScrolling = true;
       _userScrollDebounce?.cancel();
     } else if (notification is ScrollEndNotification) {
       _userScrollDebounce?.cancel();
-      _userScrollDebounce = Timer(const Duration(seconds: 4), () {
+      _userScrollDebounce = Timer(const Duration(milliseconds: 2500), () {
         if (mounted) {
-          setState(() => _isUserScrolling = false);
+          setState(() {
+            _isUserScrolling = false;
+          });
           _scrollToActiveLine();
         }
       });
@@ -132,16 +139,132 @@ class _AppleLyricsViewState extends State<AppleLyricsView> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.isLoading) {
-      return const Center(
+    return GestureDetector(
+      onTap: widget.onTapBackground,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        children: [
+          // Sleek Apple-style segmented glass capsule for provider selection
+          _buildProviderSelector(),
+
+          // Center Content: Loading, Empty State, or Synced Lyrics
+          Expanded(
+            child: _buildBody(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProviderSelector() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.14),
+              width: 0.8,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildProviderSegment(
+                type: LyricsProviderType.lrcRed,
+                label: 'lrc.red',
+                icon: CupertinoIcons.sparkles,
+              ),
+              const SizedBox(width: 2),
+              _buildProviderSegment(
+                type: LyricsProviderType.youTube,
+                label: 'YouTube',
+                icon: CupertinoIcons.play_rectangle,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProviderSegment({
+    required LyricsProviderType type,
+    required String label,
+    required IconData icon,
+  }) {
+    final isSelected = widget.selectedProvider == type;
+    return ApplePressable(
+      onTap: () {
+        if (!isSelected) {
+          widget.onProviderChanged?.call(type);
+        }
+      },
+      pressedScale: 0.95,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Colors.white.withValues(alpha: 0.22)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 13,
+              color: isSelected ? Colors.white : Colors.white60,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.white60,
+                fontSize: 12.5,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                letterSpacing: -0.2,
+              ),
+            ),
+            if (isSelected && widget.isLoading) ...[
+              const SizedBox(width: 6),
+              const CupertinoActivityIndicator(
+                radius: 6,
+                color: Colors.white,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (widget.isLoading && widget.lyrics.isEmpty) {
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(color: Colors.white),
-            SizedBox(height: 16),
+            const CupertinoActivityIndicator(radius: 14, color: Colors.white70),
+            const SizedBox(height: 16),
             Text(
-              'Connecting lyrics...',
-              style: TextStyle(color: Color(0xFF8E8E93), fontSize: 14),
+              'Connecting ${widget.selectedProvider.displayName} lyrics...',
+              style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 14),
             ),
           ],
         ),
@@ -149,6 +272,10 @@ class _AppleLyricsViewState extends State<AppleLyricsView> {
     }
 
     if (widget.lyrics.isEmpty) {
+      final otherProvider = widget.selectedProvider == LyricsProviderType.lrcRed
+          ? LyricsProviderType.youTube
+          : LyricsProviderType.lrcRed;
+
       return Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -162,10 +289,12 @@ class _AppleLyricsViewState extends State<AppleLyricsView> {
                   shape: BoxShape.circle,
                   color: Colors.white.withValues(alpha: 0.08),
                 ),
-                child: const Icon(
-                  CupertinoIcons.quote_bubble,
-                  color: Color(0xFF8E8E93),
-                  size: 36,
+                child: Icon(
+                  widget.selectedProvider == LyricsProviderType.lrcRed
+                      ? CupertinoIcons.music_mic
+                      : CupertinoIcons.quote_bubble,
+                  color: const Color(0xFF8E8E93),
+                  size: 34,
                 ),
               ),
               const SizedBox(height: 18),
@@ -174,18 +303,57 @@ class _AppleLyricsViewState extends State<AppleLyricsView> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 20,
+                  fontSize: 19,
                   fontWeight: FontWeight.bold,
                   letterSpacing: -0.4,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
-                'Lyrics for this track haven\'t been published yet.',
+                widget.selectedProvider == LyricsProviderType.lrcRed
+                    ? 'Synced syllables for this track are not yet available on lrc.red.'
+                    : 'YouTube lyrics for this track haven\'t been published.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.6),
-                  fontSize: 14,
+                  fontSize: 13.5,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ApplePressable(
+                onTap: () => widget.onProviderChanged?.call(otherProvider),
+                pressedScale: 0.96,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.22),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        otherProvider == LyricsProviderType.lrcRed
+                            ? CupertinoIcons.sparkles
+                            : CupertinoIcons.play_rectangle,
+                        size: 14,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Switch to ${otherProvider.displayName}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -194,51 +362,47 @@ class _AppleLyricsViewState extends State<AppleLyricsView> {
       );
     }
 
-    return GestureDetector(
-      onTap: widget.onTapBackground,
-      behavior: HitTestBehavior.opaque,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: ShaderMask(
-              shaderCallback: (bounds) {
-                return const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black,
-                    Colors.black,
-                    Colors.transparent,
-                  ],
-                  stops: [0.0, 0.02, 0.90, 1.0],
-                ).createShader(bounds);
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: ShaderMask(
+            shaderCallback: (bounds) {
+              return const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  Colors.black,
+                  Colors.black,
+                  Colors.transparent,
+                ],
+                stops: [0.0, 0.03, 0.90, 1.0],
+              ).createShader(bounds);
+            },
+            blendMode: BlendMode.dstIn,
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                _handleUserScroll(notification);
+                return false;
               },
-              blendMode: BlendMode.dstIn,
-              child: NotificationListener<ScrollNotification>(
-                onNotification: (notification) {
-                  _handleUserScroll(notification);
-                  return false;
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.only(top: 14, bottom: 220),
-                    itemCount: widget.lyrics.length + 1,
-                    itemBuilder: (context, index) {
-                      if (index == widget.lyrics.length) {
-                        return _buildAttributionFooter();
-                      }
-                      return _buildLyricLineItem(index);
-                    },
-                  ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.only(top: 10, bottom: 220),
+                  itemCount: widget.lyrics.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == widget.lyrics.length) {
+                      return _buildAttributionFooter();
+                    }
+                    return _buildLyricLineItem(index);
+                  },
                 ),
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -311,7 +475,6 @@ class _AppleLyricsViewState extends State<AppleLyricsView> {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: line.syllables.map((syllable) {
         if (!isActive) {
-          // Line is inactive: render all syllables in standard inactive style
           return Text(
             syllable.text,
             style: TextStyle(
@@ -327,7 +490,6 @@ class _AppleLyricsViewState extends State<AppleLyricsView> {
 
         // Line is active: compute syllable wipe progress
         if (currentMs >= syllable.endTimeMs) {
-          // Syllable has finished singing: solid bright white with subtle glow
           return Text(
             syllable.text,
             style: TextStyle(
@@ -346,7 +508,6 @@ class _AppleLyricsViewState extends State<AppleLyricsView> {
             ),
           );
         } else if (currentMs < syllable.startTimeMs) {
-          // Syllable hasn't started yet: secondary inactive tone
           return Text(
             syllable.text,
             style: TextStyle(
@@ -359,26 +520,25 @@ class _AppleLyricsViewState extends State<AppleLyricsView> {
             ),
           );
         } else {
-          // Currently singing this syllable: progressive gradient wipe!
+          // In-flight syllable: progressive gradient wipe
           final progress = syllable.getProgress(currentMs);
 
           return ShaderMask(
             shaderCallback: (bounds) {
-              final stopA = (progress - 0.05).clamp(0.0, 1.0);
-              final stopB = (progress + 0.12).clamp(0.0, 1.0);
               return LinearGradient(
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
                 colors: const [
                   Colors.white,
                   Colors.white,
-                  Color(0x60FFFFFF),
-                  Color(0x60FFFFFF),
+                  Colors.transparent,
                 ],
-                stops: [0.0, stopA, stopB, 1.0],
+                stops: [
+                  0.0,
+                  progress.clamp(0.0, 1.0),
+                  (progress + 0.10).clamp(0.0, 1.0),
+                ],
               ).createShader(bounds);
             },
-            blendMode: BlendMode.srcIn,
+            blendMode: BlendMode.dstIn,
             child: Text(
               syllable.text,
               style: TextStyle(
@@ -390,8 +550,8 @@ class _AppleLyricsViewState extends State<AppleLyricsView> {
                 height: 1.3,
                 shadows: [
                   Shadow(
-                    color: Colors.white.withValues(alpha: 0.60),
-                    blurRadius: 12,
+                    color: Colors.white.withValues(alpha: 0.30),
+                    blurRadius: 8,
                   ),
                 ],
               ),
@@ -402,16 +562,19 @@ class _AppleLyricsViewState extends State<AppleLyricsView> {
     );
   }
 
-  /// Line-synced or plain text fallback rendering
-  Widget _buildStaticOrLineSyncedText(LyricLine line, bool isActive, TextAlign textAlign) {
-    final baseFontSize = line.isBackground ? 20.0 : (isActive ? 30.0 : 23.0);
+  Widget _buildStaticOrLineSyncedText(
+    LyricLine line,
+    bool isActive,
+    TextAlign textAlign,
+  ) {
+    final baseFontSize = line.isBackground ? 21.0 : (isActive ? 30.0 : 24.0);
     final fontStyle = line.isBackground ? FontStyle.italic : FontStyle.normal;
 
     return Text(
       line.text,
       textAlign: textAlign,
       style: TextStyle(
-        color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.38),
+        color: Colors.white,
         fontSize: baseFontSize,
         fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
         fontStyle: fontStyle,
@@ -430,8 +593,11 @@ class _AppleLyricsViewState extends State<AppleLyricsView> {
   }
 
   Widget _buildAttributionFooter() {
-    final source = widget.lyricsSource ?? 'Apple Music (via BiniLyrics)';
+    final source = widget.lyricsSource ?? widget.selectedProvider.attributionName;
     final songwriters = widget.lyricsSongwriters;
+    final otherProvider = widget.selectedProvider == LyricsProviderType.lrcRed
+        ? LyricsProviderType.youTube
+        : LyricsProviderType.lrcRed;
 
     return Padding(
       padding: const EdgeInsets.only(top: 36, bottom: 48),
@@ -464,24 +630,40 @@ class _AppleLyricsViewState extends State<AppleLyricsView> {
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.1),
+              ApplePressable(
+                onTap: () => widget.onProviderChanged?.call(otherProvider),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    color: Colors.white.withValues(alpha: 0.1),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      width: 0.6,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        otherProvider == LyricsProviderType.lrcRed
+                            ? CupertinoIcons.sparkles
+                            : CupertinoIcons.play_rectangle,
+                        color: Colors.white70,
+                        size: 13,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        otherProvider.displayName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                child: const Icon(CupertinoIcons.music_mic, color: Colors.white70, size: 16),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.1),
-                ),
-                child: const Icon(CupertinoIcons.sparkles, color: Colors.white70, size: 16),
               ),
             ],
           ),

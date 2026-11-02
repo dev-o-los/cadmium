@@ -2714,19 +2714,22 @@ class MusicService {
     }
   }
 
-  /// Fetches synchronized Apple Music-style lyrics (word-by-word synced where available)
-  /// using the binimum/am-lyrics provider chain (lrc.red -> LyricsPlus/BiniLyrics -> LRCLIB -> YTMusic).
+  /// Fetches lyrics using either lrc.red (Apple Music TTML / word-synced) or YouTube Music.
   Future<LyricsResult> getLyricsWithMetadata({
     required String videoId,
     required String title,
     required String artist,
     String? album,
+    String? isrc,
     int? durationSeconds,
+    LyricsProviderType provider = LyricsProviderType.lrcRed,
   }) async {
-    return _lyricsService.fetchLyrics(
+    return _lyricsService.fetchLyricsForProvider(
+      provider: provider,
       title: title,
       artist: artist,
-      album: album,
+      videoId: videoId,
+      isrc: isrc,
       durationSeconds: durationSeconds,
       ytFallback: () => _fetchYtMusicLyrics(videoId),
     );

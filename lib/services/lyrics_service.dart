@@ -1,7 +1,59 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
+import 'package:xml/xml.dart';
 import '../models/lyric_line.dart';
+
+/// Supported lyrics providers in Wavify.
+enum LyricsProviderType {
+  lrcRed,
+  youTube,
+}
+
+extension LyricsProviderTypeExt on LyricsProviderType {
+  String get displayName {
+    switch (this) {
+      case LyricsProviderType.lrcRed:
+        return 'lrc.red';
+      case LyricsProviderType.youTube:
+        return 'YouTube';
+    }
+  }
+
+  String get attributionName {
+    switch (this) {
+      case LyricsProviderType.lrcRed:
+        return 'Apple Music (via lrc.red)';
+      case LyricsProviderType.youTube:
+        return 'YouTube Music';
+    }
+  }
+}
+
+/// A hit returned by the lrc.red search endpoint.
+class LrcRedHit {
+  final String? isrc;
+  final String? title;
+  final String? artist;
+  final double? duration;
+
+  const LrcRedHit({
+    this.isrc,
+    this.title,
+    this.artist,
+    this.duration,
+  });
+
+  factory LrcRedHit.fromJson(Map<String, dynamic> json) {
+    return LrcRedHit(
+      isrc: json['isrc'] as String?,
+      title: json['title'] as String?,
+      artist: json['artist'] as String?,
+      duration: (json['duration'] as num?)?.toDouble(),
+    );
+  }
+}
 
 /// Result object holding parsed lyrics, provider source attribution, and metadata.
 class LyricsResult {
@@ -24,27 +76,61 @@ class LyricsResult {
   );
 }
 
-/// Apple Music-style Multi-Tier Lyrics Provider Service
-/// Inspired by binimum/am-lyrics (Benjamin):
-/// 1. lrc.red (Apple Music TTML / Word-Synced JSON via ISRC & track matching)
-/// 2. BiniLyrics / LyricsPlus (KPoe) (Word-Synced Apple Music syllabus format)
-/// 3. LRCLIB (Synced LRC & plain text fallback)
-/// 4. YouTube Music Timed Lyrics fallback
+/// Helper model for TTML syllable parsing.
+class _TtmlPiece {
+  final String text;
+  final bool isTimed;
+  final int startMs;
+  final int endMs;
+
+  const _TtmlPiece({
+    required this.text,
+    required this.isTimed,
+    this.startMs = 0,
+    this.endMs = 0,
+  });
+}
+
+class _TtmlWord {
+  final int startMs;
+  final int endMs;
+  final String text;
+  final List<LyricSyllable> syllables;
+
+  const _TtmlWord({
+    required this.startMs,
+    required this.endMs,
+    required this.text,
+    required this.syllables,
+  });
+}
+
+/// Lyrics Service supporting lrc.red (Apple Music TTML / Word-Synced) and YouTube Music.
 class LyricsService {
   final HttpClient _httpClient;
-  final Map<String, LyricsResult> _cache = {};
+  final Map<String, LyricsResult> _lrcRedCache = {};
+  final Map<String, LyricsResult> _youTubeCache = {};
 
   LyricsService({HttpClient? httpClient})
-      : _httpClient = httpClient ?? (HttpClient()..connectionTimeout = const Duration(seconds: 4));
+      : _httpClient = httpClient ?? (HttpClient()..connectionTimeout = const Duration(seconds: 5));
 
-  static const List<String> _kpoeServers = [
-    'https://lyricsplus.binimum.org',
-    'https://lyricsplus-seven.vercel.app',
-    'https://lyrics-plus-backend.vercel.app',
-  ];
+  static const String lrcRedBaseUrl = 'https://lrc.red';
+  static final RegExp _isrcRegex = RegExp(r'^[A-Z]{2}[A-Z0-9]{3}\d{7}$', caseSensitive: false);
+  static final RegExp _bracketedRegex = RegExp(r'[\(\[][^\)\]]*[\)\]]');
+  static final RegExp _artistSeparators = RegExp(
+    r'\s*(?:,|&|;|\/|\s+and\s+|\s+x\s+|\s+with\s+|\s+feat\.?\s+|\s+ft\.?\s+)\s*',
+    caseSensitive: false,
+  );
+  static final RegExp _nonAlphaNum = RegExp(r'[^a-zA-Z0-9\s]');
+  static final RegExp _multiSpace = RegExp(r'\s+');
 
-  /// Cleans track title by stripping visualizer, official video, and featured artist tags
-  /// that commonly pollute YouTube Music song names and interfere with exact lyrics matching.
+  static const Set<String> _versionWords = {
+    'live', 'remix', 'remixed', 'mix', 'acoustic', 'unplugged', 'instrumental',
+    'karaoke', 'cappella', 'acapella', 'demo', 'edit', 'version', 'cover',
+    'sped', 'slowed', 'reverb', 'nightcore', 'lofi', 'orchestral', 'extended',
+  };
+
+  /// Cleans track title by stripping visualizer, official video, and featured artist tags.
   static String cleanTrackTitle(String rawTitle) {
     var title = rawTitle;
     title = title.replaceAll(
@@ -61,424 +147,545 @@ class LyricsService {
 
   /// Cleans artist name by extracting the primary artist name.
   static String cleanArtistName(String rawArtist) {
-    final parts = rawArtist.split(RegExp(r'[,&]|\s+feat\.?|\s+ft\.?', caseSensitive: false));
+    final parts = rawArtist.split(_artistSeparators);
     return parts.first.trim();
   }
 
-  /// Fetches lyrics using the binimum/am-lyrics provider chain.
-  Future<LyricsResult> fetchLyrics({
+  static String _stripDiacritics(String text) {
+    const withDia = 'ÀÁÂÃÄÅàáâãäåÒÓÔÕÖØòóôõöøÈÉÊËèéêëÌÍÎÏìíîïÙÚÛÜùúûüÑñÇçÿýÝ';
+    const withoutDia = 'AAAAAAaaaaaaOOOOOOooooooEEEEeeeeIIIIiiiiUUUUuuuuNnCcyyY';
+    var result = text;
+    for (int i = 0; i < withDia.length; i++) {
+      result = result.replaceAll(withDia[i], withoutDia[i]);
+    }
+    return result;
+  }
+
+  /// Lower case, accents off, letters and digits only.
+  static String normalize(String value) {
+    final stripped = _stripDiacritics(value).toLowerCase();
+    return stripped.replaceAll(_nonAlphaNum, ' ').replaceAll(_multiSpace, ' ').trim();
+  }
+
+  static String coreOf(String title) {
+    final withoutBrackets = title.replaceAll(_bracketedRegex, ' ');
+    final beforeDash = withoutBrackets.split(' - ').first;
+    final norm = normalize(beforeDash);
+    return norm.isNotEmpty ? norm : normalize(title);
+  }
+
+  static Set<String> versionOf(String title) {
+    final bracketMatches = _bracketedRegex.allMatches(title).map((m) => m.group(0)!).join(' ');
+    final dashSuffix = title.contains(' - ') ? title.substring(title.indexOf(' - ') + 3) : '';
+    final words = normalize('$bracketMatches $dashSuffix').split(' ');
+    return words.where((w) => _versionWords.contains(w)).toSet();
+  }
+
+  static Set<String> artistsOf(String artist) {
+    return artist
+        .split(_artistSeparators)
+        .map(normalize)
+        .where((s) => s.isNotEmpty)
+        .toSet();
+  }
+
+  static bool _sameSet(Set<String> a, Set<String> b) {
+    return a.length == b.length && a.every((element) => b.contains(element));
+  }
+
+  static bool isValidIsrc(String? isrc) {
+    if (isrc == null) return false;
+    return _isrcRegex.hasMatch(isrc.trim());
+  }
+
+  /// Ported from lrc.red / web bestLrcRedHit:
+  /// Evaluates title core, version tags, artist matches, and duration within 3s.
+  static LrcRedHit? bestLrcRedHit({
+    required List<LrcRedHit> hits,
     required String title,
     required String artist,
-    String? album,
+    required int durationMs,
+  }) {
+    final wantedTitle = coreOf(title);
+    final wantedVersion = versionOf(title);
+    final wantedArtists = artistsOf(artist);
+    final secs = durationMs / 1000.0;
+
+    double distance(LrcRedHit hit) {
+      if (durationMs > 0 && hit.duration != null) {
+        return (hit.duration! - secs).abs();
+      }
+      return 0.0;
+    }
+
+    final passing = hits.where((hit) {
+      if (hit.title == null || !isValidIsrc(hit.isrc)) return false;
+      if (coreOf(hit.title!) != wantedTitle) return false;
+      if (!_sameSet(versionOf(hit.title!), wantedVersion)) return false;
+      if (wantedArtists.isNotEmpty) {
+        final hitArtists = artistsOf(hit.artist ?? '');
+        if (!hitArtists.any((a) => wantedArtists.contains(a))) return false;
+      }
+      if (durationMs > 0 && distance(hit) > 3.0) return false;
+      return true;
+    }).toList();
+
+    if (passing.isEmpty) return null;
+    passing.sort((a, b) => distance(a).compareTo(distance(b)));
+    return passing.first;
+  }
+
+  /// TTML clock values: 27.395, 1:05.20, 1:02:03.4, or a number with s/ms.
+  static int? ttmlTimeToMs(String? value) {
+    if (value == null) return null;
+    final raw = value.trim();
+    if (raw.isEmpty) return null;
+    if (raw.endsWith('ms')) {
+      final ms = double.tryParse(raw.substring(0, raw.length - 2));
+      return ms?.round();
+    }
+    final stripped = raw.endsWith('s') ? raw.substring(0, raw.length - 1) : raw;
+    final parts = stripped.split(':');
+    if (parts.length > 3) return null;
+
+    double totalSeconds = 0;
+    for (final part in parts) {
+      final numVal = double.tryParse(part);
+      if (numVal == null) return null;
+      totalSeconds = totalSeconds * 60 + numVal;
+    }
+    return (totalSeconds * 1000).round();
+  }
+
+  /// Parses a TTML XML string (from lrc.red) into structured LyricLines.
+  static LyricsResult parseTtml(String ttmlContent) {
+    try {
+      final document = XmlDocument.parse(ttmlContent);
+
+      // Extract songwriters from <sourceMetadata><songwriters><songwriter>
+      final songwritersList = <String>[];
+      for (final sw in document.findAllElements('songwriter')) {
+        final name = sw.innerText.trim();
+        if (name.isNotEmpty && !songwritersList.contains(name)) {
+          songwritersList.add(name);
+        }
+      }
+      final songwriters = songwritersList.isNotEmpty ? songwritersList.join(', ') : null;
+
+      final parsedLines = <LyricLine>[];
+      bool anyWordSync = false;
+
+      final paragraphs = document.findAllElements('p').toList();
+
+      for (final p in paragraphs) {
+        final pBegin = ttmlTimeToMs(p.getAttribute('begin'));
+        final pEnd = ttmlTimeToMs(p.getAttribute('end'));
+        final agent = p.getAttribute('ttm:agent') ?? p.getAttribute('agent');
+        final isOpposite = agent != null && agent.toLowerCase() != 'v1' && agent.toLowerCase() != 'a';
+
+        final leadPieces = <_TtmlPiece>[];
+        final backingPieces = <_TtmlPiece>[];
+        _collectPieces(p, leadPieces, backingPieces);
+
+        final leadWords = _mergeIntoWords(leadPieces);
+        final backingWords = _mergeIntoWords(backingPieces);
+
+        if (leadWords.isNotEmpty) {
+          anyWordSync = true;
+          final leadSyllables = <LyricSyllable>[];
+          for (int wIdx = 0; wIdx < leadWords.length; wIdx++) {
+            final w = leadWords[wIdx];
+            final isLastWord = wIdx == leadWords.length - 1;
+
+            if (w.syllables.isEmpty) {
+              leadSyllables.add(LyricSyllable(
+                text: isLastWord ? w.text : '${w.text} ',
+                startTimeMs: w.startMs,
+                endTimeMs: w.endMs,
+                isPartOfWord: false,
+              ));
+            } else {
+              for (int sIdx = 0; sIdx < w.syllables.length; sIdx++) {
+                final s = w.syllables[sIdx];
+                final isLastSyl = sIdx == w.syllables.length - 1;
+                final space = (isLastSyl && !isLastWord) ? ' ' : '';
+                leadSyllables.add(LyricSyllable(
+                  text: '${s.text}$space',
+                  startTimeMs: s.startTimeMs,
+                  endTimeMs: s.endTimeMs,
+                  isPartOfWord: !isLastSyl,
+                ));
+              }
+            }
+          }
+
+          final lineStart = pBegin ?? (leadWords.isNotEmpty ? leadWords.first.startMs : 0);
+          final lineEnd = pEnd ?? (leadWords.isNotEmpty ? leadWords.last.endMs : lineStart + 3500);
+
+          parsedLines.add(LyricLine(
+            text: leadWords.map((w) => w.text).join(' '),
+            startTimeMs: math.min(lineStart, leadWords.first.startMs),
+            endTimeMs: math.max(lineEnd, leadWords.last.endMs),
+            syllables: leadSyllables,
+            isWordSynced: leadSyllables.isNotEmpty,
+            isBackground: false,
+            isOppositeTurn: isOpposite,
+            singer: agent,
+          ));
+        } else {
+          // Line without timed span children (line-timed or untimed)
+          final text = p.innerText.trim();
+          if (text.isNotEmpty) {
+            final lineStart = pBegin ?? 0;
+            final lineEnd = pEnd ?? (lineStart + 3500);
+            parsedLines.add(LyricLine(
+              text: text,
+              startTimeMs: lineStart,
+              endTimeMs: lineEnd,
+              syllables: const [],
+              isWordSynced: false,
+              isBackground: text.startsWith('(') && text.endsWith(')'),
+              isOppositeTurn: isOpposite,
+              singer: agent,
+            ));
+          }
+        }
+
+        // Add backing vocals if separate
+        if (backingWords.isNotEmpty) {
+          final backingSyllables = <LyricSyllable>[];
+          for (int wIdx = 0; wIdx < backingWords.length; wIdx++) {
+            final w = backingWords[wIdx];
+            final isLastWord = wIdx == backingWords.length - 1;
+
+            if (w.syllables.isEmpty) {
+              backingSyllables.add(LyricSyllable(
+                text: isLastWord ? w.text : '${w.text} ',
+                startTimeMs: w.startMs,
+                endTimeMs: w.endMs,
+                isPartOfWord: false,
+              ));
+            } else {
+              for (int sIdx = 0; sIdx < w.syllables.length; sIdx++) {
+                final s = w.syllables[sIdx];
+                final isLastSyl = sIdx == w.syllables.length - 1;
+                final space = (isLastSyl && !isLastWord) ? ' ' : '';
+                backingSyllables.add(LyricSyllable(
+                  text: '${s.text}$space',
+                  startTimeMs: s.startTimeMs,
+                  endTimeMs: s.endTimeMs,
+                  isPartOfWord: !isLastSyl,
+                ));
+              }
+            }
+          }
+
+          final bgText = backingWords.map((w) => w.text).join(' ');
+          parsedLines.add(LyricLine(
+            text: bgText.startsWith('(') ? bgText : '($bgText)',
+            startTimeMs: backingWords.first.startMs,
+            endTimeMs: backingWords.last.endMs,
+            syllables: backingSyllables,
+            isWordSynced: backingSyllables.isNotEmpty,
+            isBackground: true,
+            isOppositeTurn: isOpposite,
+            singer: agent,
+          ));
+        }
+      }
+
+      parsedLines.sort((a, b) => (a.startTimeMs ?? 0).compareTo(b.startTimeMs ?? 0));
+
+      return LyricsResult(
+        lines: parsedLines,
+        source: LyricsProviderType.lrcRed.attributionName,
+        songwriters: songwriters,
+        hasWordSync: anyWordSync,
+      );
+    } catch (e) {
+      debugPrint('[LyricsService] Error parsing TTML: $e');
+      return LyricsResult.empty;
+    }
+  }
+
+  static void _collectPieces(
+    XmlNode node,
+    List<_TtmlPiece> out,
+    List<_TtmlPiece> backing,
+  ) {
+    for (final child in node.children) {
+      if (child is XmlElement) {
+        final role = child.getAttribute('ttm:role') ?? child.getAttribute('role');
+        if (role == 'x-annotation' || role == 'x-translation') continue;
+        final targetSink = (role == 'x-bg' || role == 'background') ? backing : out;
+
+        final begin = ttmlTimeToMs(child.getAttribute('begin'));
+        final end = ttmlTimeToMs(child.getAttribute('end'));
+
+        final hasTimedChildren = child.children
+            .whereType<XmlElement>()
+            .any((el) => el.getAttribute('begin') != null);
+
+        if (begin != null && end != null && !hasTimedChildren) {
+          targetSink.add(_TtmlPiece(
+            text: child.innerText,
+            isTimed: true,
+            startMs: begin,
+            endMs: end,
+          ));
+        } else {
+          _collectPieces(child, targetSink, backing);
+        }
+      } else if (child is XmlText) {
+        final text = child.value;
+        if (text.isNotEmpty) {
+          out.add(_TtmlPiece(text: text, isTimed: false));
+        }
+      }
+    }
+  }
+
+  static List<_TtmlWord> _mergeIntoWords(List<_TtmlPiece> pieces) {
+    final words = <_TtmlWord>[];
+    String currentText = '';
+    final currentSyllables = <LyricSyllable>[];
+    int start = 0;
+    int end = 0;
+    bool timed = false;
+
+    void flush() {
+      final trimmed = currentText.trim();
+      currentText = '';
+      if (trimmed.isNotEmpty && timed) {
+        words.add(_TtmlWord(
+          startMs: start,
+          endMs: end,
+          text: trimmed,
+          syllables: List.from(currentSyllables),
+        ));
+      }
+      currentSyllables.clear();
+      timed = false;
+    }
+
+    for (final piece in pieces) {
+      if (!piece.isTimed) {
+        if (piece.text.trim().isEmpty) {
+          flush();
+        } else if (timed) {
+          currentText += piece.text;
+        }
+        continue;
+      }
+
+      if (piece.text.trim().isEmpty) continue;
+      if (piece.text.startsWith(RegExp(r'\s'))) {
+        flush();
+      }
+
+      if (currentText.isEmpty) {
+        start = piece.startMs;
+      }
+      currentText += piece.text.trim();
+      currentSyllables.add(LyricSyllable(
+        text: piece.text.trim(),
+        startTimeMs: piece.startMs,
+        endTimeMs: piece.endMs,
+        isPartOfWord: true,
+      ));
+      end = math.max(end, piece.endMs);
+      timed = true;
+
+      if (piece.text.endsWith(' ')) {
+        flush();
+      }
+    }
+    flush();
+    return words;
+  }
+
+  /// Fetches lyrics for the requested provider (lrc.red or YouTube).
+  Future<LyricsResult> fetchLyricsForProvider({
+    required LyricsProviderType provider,
+    required String title,
+    required String artist,
+    required String videoId,
+    String? isrc,
     int? durationSeconds,
     Future<List<LyricLine>> Function()? ytFallback,
   }) async {
     final cleanTitle = cleanTrackTitle(title);
     final cleanArtist = cleanArtistName(artist);
-    final cacheKey = '$cleanTitle::$cleanArtist';
+    final lrcCacheKey = '$cleanTitle::$cleanArtist';
+    final ytCacheKey = videoId.trim();
 
-    if (_cache.containsKey(cacheKey)) {
-      return _cache[cacheKey]!;
-    }
-
-    // 1. Try lrc.red (Apple Music word-by-word synced TTML/JSON)
-    try {
-      final lrcRedResult = await _fetchFromLrcRed(cleanTitle, cleanArtist, album: album, durationSeconds: durationSeconds);
-      if (lrcRedResult != null && lrcRedResult.lines.isNotEmpty) {
-        _cache[cacheKey] = lrcRedResult;
-        return lrcRedResult;
+    if (provider == LyricsProviderType.lrcRed) {
+      if (_lrcRedCache.containsKey(lrcCacheKey)) {
+        return _lrcRedCache[lrcCacheKey]!;
       }
-    } catch (e) {
-      debugPrint('[LyricsService] lrc.red lookup error: $e');
-    }
 
-    // 2. Try LyricsPlus / BiniLyrics (Word-by-word Apple syllabus format)
-    try {
-      final lyricsPlusResult = await _fetchFromLyricsPlus(cleanTitle, cleanArtist, album: album, durationSeconds: durationSeconds);
-      if (lyricsPlusResult != null && lyricsPlusResult.lines.isNotEmpty) {
-        _cache[cacheKey] = lyricsPlusResult;
-        return lyricsPlusResult;
+      try {
+        final result = await _fetchFromLrcRed(
+          title: cleanTitle,
+          artist: cleanArtist,
+          isrc: isrc,
+          durationSeconds: durationSeconds,
+        );
+        if (result != null && result.lines.isNotEmpty) {
+          _lrcRedCache[lrcCacheKey] = result;
+          return result;
+        }
+      } catch (e) {
+        debugPrint('[LyricsService] lrc.red fetch error: $e');
       }
-    } catch (e) {
-      debugPrint('[LyricsService] LyricsPlus lookup error: $e');
+      return LyricsResult.empty;
     }
 
-    // 3. Try LRCLIB (LRC synced lyrics)
-    try {
-      final lrclibResult = await _fetchFromLrclib(cleanTitle, cleanArtist, durationSeconds: durationSeconds);
-      if (lrclibResult != null && lrclibResult.lines.isNotEmpty) {
-        _cache[cacheKey] = lrclibResult;
-        return lrclibResult;
-      }
-    } catch (e) {
-      debugPrint('[LyricsService] LRCLIB lookup error: $e');
+    // Provider == YouTube
+    if (_youTubeCache.containsKey(ytCacheKey)) {
+      return _youTubeCache[ytCacheKey]!;
     }
 
-    // 4. Fallback to YouTube Music Timed Lyrics
     if (ytFallback != null) {
       try {
         final ytLines = await ytFallback();
         if (ytLines.isNotEmpty) {
           final result = LyricsResult(
             lines: ytLines,
-            source: 'YouTube Music',
+            source: LyricsProviderType.youTube.attributionName,
             hasWordSync: false,
           );
-          _cache[cacheKey] = result;
+          _youTubeCache[ytCacheKey] = result;
           return result;
         }
       } catch (e) {
-        debugPrint('[LyricsService] YouTube Music fallback error: $e');
+        debugPrint('[LyricsService] YouTube lyrics error: $e');
       }
     }
 
     return LyricsResult.empty;
   }
 
-  // =========================================================================
-  // PROVIDER 1: lrc.red
-  // =========================================================================
-  Future<LyricsResult?> _fetchFromLrcRed(
-    String title,
-    String artist, {
-    String? album,
+  /// Fetches lyrics with primary provider and fallback if primary has no results.
+  Future<LyricsResult> fetchLyrics({
+    required String title,
+    required String artist,
+    required String videoId,
+    String? isrc,
     int? durationSeconds,
+    LyricsProviderType preferredProvider = LyricsProviderType.lrcRed,
+    Future<List<LyricLine>> Function()? ytFallback,
   }) async {
-    final queryParams = {
-      'track': title,
-      'artist': artist,
-      if (album != null && album.isNotEmpty) 'album': album,
-      if (durationSeconds != null && durationSeconds > 0) 'duration': durationSeconds.toString(),
-    };
+    // 1. Try preferred provider
+    final primaryResult = await fetchLyricsForProvider(
+      provider: preferredProvider,
+      title: title,
+      artist: artist,
+      videoId: videoId,
+      isrc: isrc,
+      durationSeconds: durationSeconds,
+      ytFallback: ytFallback,
+    );
 
-    final uri = Uri.https('lrc.red', '/match.json', queryParams);
-    final matchData = await _getJson(uri);
-    if (matchData == null) return null;
-
-    final hits = matchData['hits'] as List<dynamic>?;
-    if (hits == null || hits.isEmpty) return null;
-
-    final firstHit = hits.first as Map<String, dynamic>;
-    final isrc = firstHit['isrc'] as String?;
-    if (isrc == null || isrc.trim().isEmpty) return null;
-
-    final songUri = Uri.https('lrc.red', '/s/${isrc.trim()}.song.json');
-    final songData = await _getJson(songUri);
-    if (songData == null) return null;
-
-    return _parseLrcRedJson(songData);
-  }
-
-  LyricsResult? _parseLrcRedJson(Map<String, dynamic> songData) {
-    final lyricsObj = songData['lyrics'] as Map<String, dynamic>?;
-    if (lyricsObj == null) return null;
-
-    final rawLines = lyricsObj['lines'] as List<dynamic>?;
-    if (rawLines == null || rawLines.isEmpty) return null;
-
-    final isWordSync = lyricsObj['sync'] == 'word';
-    final songwritersList = songData['songwriters'] as List<dynamic>?;
-    final songwriters = songwritersList?.map((s) => s.toString()).join(', ');
-
-    final List<LyricLine> lines = [];
-
-    for (final raw in rawLines) {
-      if (raw is! Map<String, dynamic>) continue;
-      final text = (raw['text'] as String?)?.trim() ?? '';
-      if (text.isEmpty) continue;
-
-      final beginSec = (raw['begin'] as num?)?.toDouble() ?? 0.0;
-      final endSec = (raw['end'] as num?)?.toDouble() ?? beginSec;
-      final startTimeMs = (beginSec * 1000).round();
-      final endTimeMs = (endSec * 1000).round();
-
-      final voice = (raw['voice'] as String?)?.toLowerCase();
-      final isOppositeTurn = voice != null && voice != 'a' && voice != 'v1';
-      final part = raw['part'] as String?;
-      final isBackground = part?.toLowerCase() == 'background' || (text.startsWith('(') && text.endsWith(')'));
-
-      final List<LyricSyllable> syllables = [];
-      if (isWordSync && raw['words'] is List) {
-        final wordsList = raw['words'] as List<dynamic>;
-        for (int wIdx = 0; wIdx < wordsList.length; wIdx++) {
-          final wordGroup = wordsList[wIdx];
-          if (wordGroup is List) {
-            for (int sIdx = 0; sIdx < wordGroup.length; sIdx++) {
-              final syl = wordGroup[sIdx];
-              if (syl is Map<String, dynamic>) {
-                final sylText = (syl['text'] as String?) ?? '';
-                final isPartOfWord = sIdx < wordGroup.length - 1;
-                final space = (!isPartOfWord && wIdx < wordsList.length - 1) ? ' ' : '';
-                final sBegin = (syl['begin'] as num?)?.toDouble() ?? beginSec;
-                final sEnd = (syl['end'] as num?)?.toDouble() ?? endSec;
-
-                syllables.add(LyricSyllable(
-                  text: '$sylText$space',
-                  startTimeMs: (sBegin * 1000).round(),
-                  endTimeMs: (sEnd * 1000).round(),
-                  isPartOfWord: isPartOfWord,
-                ));
-              }
-            }
-          }
-        }
-      }
-
-      var resolvedEndMs = endTimeMs;
-      if (syllables.isNotEmpty && syllables.last.endTimeMs > resolvedEndMs) {
-        resolvedEndMs = syllables.last.endTimeMs;
-      }
-      if (resolvedEndMs <= startTimeMs) {
-        resolvedEndMs = startTimeMs + 3500;
-      }
-
-      lines.add(LyricLine(
-        text: text,
-        startTimeMs: startTimeMs,
-        endTimeMs: resolvedEndMs,
-        syllables: syllables,
-        isWordSynced: isWordSync && syllables.isNotEmpty,
-        isBackground: isBackground,
-        isOppositeTurn: isOppositeTurn,
-        singer: voice,
-        songPart: part,
-      ));
+    if (primaryResult.lines.isNotEmpty) {
+      return primaryResult;
     }
 
-    if (lines.isEmpty) return null;
+    // 2. Fallback to alternative supported provider
+    final fallbackProvider = preferredProvider == LyricsProviderType.lrcRed
+        ? LyricsProviderType.youTube
+        : LyricsProviderType.lrcRed;
 
-    return LyricsResult(
-      lines: lines,
-      source: 'Apple Music (via lrc.red)',
-      songwriters: songwriters,
-      hasWordSync: isWordSync,
+    return fetchLyricsForProvider(
+      provider: fallbackProvider,
+      title: title,
+      artist: artist,
+      videoId: videoId,
+      isrc: isrc,
+      durationSeconds: durationSeconds,
+      ytFallback: ytFallback,
     );
   }
 
   // =========================================================================
-  // PROVIDER 2: LyricsPlus / BiniLyrics (KPoe)
+  // lrc.red PROVIDER IMPLEMENTATION
   // =========================================================================
-  Future<LyricsResult?> _fetchFromLyricsPlus(
-    String title,
-    String artist, {
-    String? album,
+
+  Future<LyricsResult?> _fetchFromLrcRed({
+    required String title,
+    required String artist,
+    String? isrc,
     int? durationSeconds,
   }) async {
-    final queryParams = {
-      'title': title,
-      'artist': artist,
-      if (album != null && album.isNotEmpty) 'album': album,
-      if (durationSeconds != null && durationSeconds > 0) 'duration': durationSeconds.toString(),
-    };
-
-    for (final baseUrl in _kpoeServers) {
-      try {
-        final uri = Uri.parse('$baseUrl/v2/lyrics/get').replace(queryParameters: queryParams);
-        final payload = await _getJson(uri);
-        if (payload != null && payload['lyrics'] is List) {
-          final result = _parseLyricsPlusJson(payload);
-          if (result != null && result.lines.isNotEmpty) {
-            return result;
-          }
-        }
-      } catch (_) {
-        // Continue to fallback server
+    // 1. Direct ISRC lookup if available
+    if (isValidIsrc(isrc)) {
+      final directUri = Uri.parse('$lrcRedBaseUrl/s/${isrc!.trim().toUpperCase()}.ttml');
+      final ttml = await _getString(directUri);
+      if (ttml != null && ttml.isNotEmpty) {
+        final result = parseTtml(ttml);
+        if (result.lines.isNotEmpty) return result;
       }
     }
-    return null;
-  }
 
-  LyricsResult? _parseLyricsPlusJson(Map<String, dynamic> payload) {
-    final rawLyrics = payload['lyrics'] as List<dynamic>?;
-    if (rawLyrics == null || rawLyrics.isEmpty) return null;
+    // 2. Search query lookup: https://lrc.red/search.json?q={title} {artist}
+    final searchQuery = '$title $artist'.trim();
+    final searchUri = Uri.https('lrc.red', '/search.json', {'q': searchQuery});
+    final searchData = await _getJson(searchUri);
+    if (searchData == null) return null;
 
-    final metadata = payload['metadata'] as Map<String, dynamic>?;
-    final songwritersList = metadata?['songWriters'] as List<dynamic>?;
-    final songwriters = songwritersList?.map((s) => s.toString()).join(', ');
-    final isWordType = payload['type'] == 'Word';
+    final hitsRaw = searchData['hits'] as List<dynamic>?;
+    if (hitsRaw == null || hitsRaw.isEmpty) return null;
 
-    final List<LyricLine> lines = [];
+    final hits = hitsRaw
+        .whereType<Map<String, dynamic>>()
+        .map((h) => LrcRedHit.fromJson(h))
+        .toList();
 
-    for (final item in rawLyrics) {
-      if (item is! Map<String, dynamic>) continue;
-      final text = (item['text'] as String?)?.trim() ?? '';
-      if (text.isEmpty) continue;
-
-      final timeMs = (item['time'] as num?)?.toInt() ?? 0;
-      final durationMs = (item['duration'] as num?)?.toInt() ?? 0;
-      var endTimeMs = durationMs > 0 ? timeMs + durationMs : timeMs + 3500;
-
-      final element = item['element'] as Map<String, dynamic>?;
-      final singer = element?['singer'] as String?;
-      final isOppositeTurn = singer != null && singer != 'v1';
-      final isBackground = text.startsWith('(') && text.endsWith(')');
-
-      final List<LyricSyllable> syllables = [];
-      final rawSyllabus = item['syllabus'] as List<dynamic>?;
-      if (rawSyllabus != null && rawSyllabus.isNotEmpty) {
-        for (int i = 0; i < rawSyllabus.length; i++) {
-          final s = rawSyllabus[i];
-          if (s is Map<String, dynamic>) {
-            final sText = (s['text'] as String?) ?? '';
-            final sTime = (s['time'] as num?)?.toInt() ?? timeMs;
-            final sDuration = (s['duration'] as num?)?.toInt() ?? 0;
-
-            syllables.add(LyricSyllable(
-              text: sText,
-              startTimeMs: sTime,
-              endTimeMs: sTime + sDuration,
-              isPartOfWord: !sText.endsWith(' ') && i < rawSyllabus.length - 1,
-            ));
-          }
-        }
-      }
-
-      if (syllables.isNotEmpty && syllables.last.endTimeMs > endTimeMs) {
-        endTimeMs = syllables.last.endTimeMs;
-      }
-
-      lines.add(LyricLine(
-        text: text,
-        startTimeMs: timeMs,
-        endTimeMs: endTimeMs,
-        syllables: syllables,
-        isWordSynced: isWordType && syllables.isNotEmpty,
-        isBackground: isBackground,
-        isOppositeTurn: isOppositeTurn,
-        singer: singer,
-      ));
-    }
-
-    if (lines.isEmpty) return null;
-
-    return LyricsResult(
-      lines: lines,
-      source: 'Apple Music (via BiniLyrics)',
-      songwriters: songwriters,
-      hasWordSync: isWordType,
+    final durMs = (durationSeconds != null && durationSeconds > 0) ? durationSeconds * 1000 : 0;
+    final hit = bestLrcRedHit(
+      hits: hits,
+      title: title,
+      artist: artist,
+      durationMs: durMs,
     );
-  }
 
-  // =========================================================================
-  // PROVIDER 3: LRCLIB
-  // =========================================================================
-  Future<LyricsResult?> _fetchFromLrclib(
-    String title,
-    String artist, {
-    int? durationSeconds,
-  }) async {
-    // 1. Try exact match
-    final queryParams = {
-      'track_name': title,
-      'artist_name': artist,
-      if (durationSeconds != null && durationSeconds > 0) 'duration': durationSeconds.toString(),
-    };
+    if (hit == null || !isValidIsrc(hit.isrc)) return null;
 
-    final uri = Uri.https('lrclib.net', '/api/get', queryParams);
-    var data = await _getJson(uri);
+    final hitTtmlUri = Uri.parse('$lrcRedBaseUrl/s/${hit.isrc!.trim().toUpperCase()}.ttml');
+    final ttml = await _getString(hitTtmlUri);
+    if (ttml == null || ttml.isEmpty) return null;
 
-    // 2. Fallback to search query
-    if (data == null || (data['syncedLyrics'] == null && data['plainLyrics'] == null)) {
-      final searchUri = Uri.https('lrclib.net', '/api/search', {'q': '$artist $title'});
-      final searchData = await _getJsonList(searchUri);
-      if (searchData != null && searchData.isNotEmpty) {
-        data = searchData.firstWhere(
-          (item) => item['syncedLyrics'] != null,
-          orElse: () => searchData.first,
-        ) as Map<String, dynamic>;
-      }
-    }
-
-    if (data == null) return null;
-
-    final syncedLyrics = data['syncedLyrics'] as String?;
-    if (syncedLyrics != null && syncedLyrics.isNotEmpty) {
-      final lines = _parseLrcSubtitles(syncedLyrics);
-      if (lines.isNotEmpty) {
-        return LyricsResult(
-          lines: lines,
-          source: 'LRCLIB (Synced)',
-          hasWordSync: false,
-        );
-      }
-    }
-
-    final plainLyrics = data['plainLyrics'] as String?;
-    if (plainLyrics != null && plainLyrics.isNotEmpty) {
-      final lines = plainLyrics
-          .split('\n')
-          .map((l) => l.trim())
-          .where((l) => l.isNotEmpty)
-          .map((l) => LyricLine(text: l))
-          .toList();
-
-      if (lines.isNotEmpty) {
-        return LyricsResult(
-          lines: lines,
-          source: 'LRCLIB',
-          hasWordSync: false,
-        );
-      }
-    }
-
-    return null;
-  }
-
-  List<LyricLine> _parseLrcSubtitles(String lrcContent) {
-    final List<LyricLine> parsedLines = [];
-    final lrcRegex = RegExp(r'^\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\](.*)$');
-
-    final rawLines = lrcContent.split('\n');
-    for (final raw in rawLines) {
-      final trimmed = raw.trim();
-      final match = lrcRegex.firstMatch(trimmed);
-      if (match != null) {
-        final minutes = int.parse(match.group(1)!);
-        final seconds = int.parse(match.group(2)!);
-        final subSecondsStr = match.group(3) ?? '00';
-        final subSeconds = int.parse(subSecondsStr.padRight(3, '0').substring(0, 3));
-
-        final timestampMs = (minutes * 60 * 1000) + (seconds * 1000) + subSeconds;
-        final text = match.group(4)?.trim() ?? '';
-
-        if (text.isNotEmpty) {
-          parsedLines.add(LyricLine(
-            text: text,
-            startTimeMs: timestampMs,
-            isBackground: text.startsWith('(') && text.endsWith(')'),
-          ));
-        }
-      }
-    }
-
-    // Infer endTimeMs from subsequent line's startTimeMs
-    for (int i = 0; i < parsedLines.length; i++) {
-      if (i < parsedLines.length - 1) {
-        final nextStart = parsedLines[i + 1].startTimeMs;
-        if (nextStart != null) {
-          parsedLines[i] = parsedLines[i].copyWith(endTimeMs: nextStart);
-        }
-      } else {
-        // Last line default 5s duration
-        if (parsedLines[i].startTimeMs != null) {
-          parsedLines[i] = parsedLines[i].copyWith(endTimeMs: parsedLines[i].startTimeMs! + 5000);
-        }
-      }
-    }
-
-    return parsedLines;
+    final result = parseTtml(ttml);
+    return result.lines.isNotEmpty ? result : null;
   }
 
   // =========================================================================
   // HTTP HELPERS
   // =========================================================================
+
+  Future<String?> _getString(Uri uri) async {
+    try {
+      final request = await _httpClient.getUrl(uri).timeout(const Duration(seconds: 5));
+      request.headers.set('User-Agent', 'Wavify-Lyrics/1.0 (Flutter; Mobile)');
+      request.headers.set('Accept', 'application/xml, text/xml, */*');
+
+      final response = await request.close().timeout(const Duration(seconds: 5));
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return await response.transform(utf8.decoder).join();
+      }
+    } catch (_) {
+      // Network failure
+    }
+    return null;
+  }
+
   Future<Map<String, dynamic>?> _getJson(Uri uri) async {
     try {
-      final request = await _httpClient.getUrl(uri).timeout(const Duration(seconds: 4));
-      request.headers.set('User-Agent', 'Wavify-AmLyrics/1.0 (Flutter; Mobile)');
+      final request = await _httpClient.getUrl(uri).timeout(const Duration(seconds: 5));
+      request.headers.set('User-Agent', 'Wavify-Lyrics/1.0 (Flutter; Mobile)');
       request.headers.set('Accept', 'application/json');
 
-      final response = await request.close().timeout(const Duration(seconds: 4));
+      final response = await request.close().timeout(const Duration(seconds: 5));
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final body = await response.transform(utf8.decoder).join();
         final decoded = jsonDecode(body);
@@ -492,29 +699,9 @@ class LyricsService {
     return null;
   }
 
-  Future<List<dynamic>?> _getJsonList(Uri uri) async {
-    try {
-      final request = await _httpClient.getUrl(uri).timeout(const Duration(seconds: 4));
-      request.headers.set('User-Agent', 'Wavify-AmLyrics/1.0 (Flutter; Mobile)');
-      request.headers.set('Accept', 'application/json');
-
-      final response = await request.close().timeout(const Duration(seconds: 4));
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        final body = await response.transform(utf8.decoder).join();
-        final decoded = jsonDecode(body);
-        if (decoded is List<dynamic>) {
-          return decoded;
-        }
-      }
-    } catch (_) {
-      // Network or decode failure
-    }
-    return null;
-  }
-
   void dispose() {
-    _cache.clear();
+    _lrcRedCache.clear();
+    _youTubeCache.clear();
     _httpClient.close();
   }
 }
-
