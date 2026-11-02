@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
-import 'apple_pressable.dart';
-
 /// An Apple Music-inspired unified sliding pill segmented bar:
-/// - A single continuous grey pill container with stadium border radius.
+/// - A single continuous grey pill container with stadium border radius fixed on screen.
 /// - Contains all category tabs (All, Songs, Videos, Albums, Artists, Playlists).
 /// - An animated white highlight pill that smoothly glides and resizes between tabs.
 /// - High-contrast crisp jet-black text on the active tab and crisp light-grey text on inactive tabs.
+/// - Mathematical symmetry: identical horizontal padding on both left and right sides of the white pill.
 /// - Automatic centering scroll behavior with iOS bouncing physics.
 class SlidingPillSegmentedBar extends StatefulWidget {
   final List<String> categories;
@@ -29,26 +29,25 @@ class SlidingPillSegmentedBar extends StatefulWidget {
 
 class _SlidingPillSegmentedBarState extends State<SlidingPillSegmentedBar> {
   final ScrollController _scrollController = ScrollController();
-  final GlobalKey _stackKey = GlobalKey();
-  late List<GlobalKey> _itemKeys;
 
-  // Offsets and widths for each tab relative to the track
-  late List<double> _tabOffsets;
-  late List<double> _tabWidths;
+  // Metrics for each tab relative to the track
+  List<double> _tabOffsets = [];
+  List<double> _tabWidths = [];
 
-  static const double _tabHorizontalPadding = 16.0;
-  static const double _tabVerticalPadding = 7.0;
-  static const double _pillHeight = 42.0;
-  static const double _innerPadding = 3.5;
+  static const double _tabHorizontalPadding = 20.0;
+  static const double _pillHeight = 40.0;
+  static const double _innerPadding = 3.0;
+
+  static const TextStyle _tabTextStyle = TextStyle(
+    fontSize: 13.5,
+    fontWeight: FontWeight.w600,
+    letterSpacing: -0.2,
+  );
 
   @override
   void initState() {
     super.initState();
-    _itemKeys = List.generate(widget.categories.length, (_) => GlobalKey());
-    _precomputeMetrics();
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _measureExactMetrics();
       _scrollToActiveTab(animate: false);
     });
   }
@@ -56,14 +55,6 @@ class _SlidingPillSegmentedBarState extends State<SlidingPillSegmentedBar> {
   @override
   void didUpdateWidget(covariant SlidingPillSegmentedBar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.categories != widget.categories) {
-      _itemKeys = List.generate(widget.categories.length, (_) => GlobalKey());
-      _precomputeMetrics();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _measureExactMetrics();
-      });
-    }
-
     if (oldWidget.selectedCategory != widget.selectedCategory) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToActiveTab(animate: true);
@@ -77,59 +68,36 @@ class _SlidingPillSegmentedBarState extends State<SlidingPillSegmentedBar> {
     super.dispose();
   }
 
-  /// Instant synchronous measurement using TextPainter for zero-delay frame 0 rendering.
-  void _precomputeMetrics() {
-    _tabOffsets = [];
-    _tabWidths = [];
+  /// Synchronously computes the exact offsets and widths using the active context
+  /// (ensuring true device font metrics and textScaler are matched with 100% precision).
+  void _calculateMetrics(BuildContext context) {
+    final textScaler = MediaQuery.textScalerOf(context);
+    final directionality = Directionality.of(context);
+
+    final offsets = <double>[];
+    final widths = <double>[];
     double currentOffset = 0.0;
 
     for (final category in widget.categories) {
       final textPainter = TextPainter(
         text: TextSpan(
           text: category,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.2,
-          ),
+          style: _tabTextStyle,
         ),
-        textDirection: TextDirection.ltr,
+        textDirection: directionality,
+        textScaler: textScaler,
         maxLines: 1,
       )..layout();
 
+      // Ensure exact symmetric padding: text is centered in a container of width textWidth + 2 * padding
       final width = textPainter.width + (_tabHorizontalPadding * 2);
-      _tabOffsets.add(currentOffset);
-      _tabWidths.add(width);
+      offsets.add(currentOffset);
+      widths.add(width);
       currentOffset += width;
     }
-  }
 
-  /// Post-frame precision measurement using rendered RenderBoxes.
-  void _measureExactMetrics() {
-    if (!mounted) return;
-    final stackRenderBox = _stackKey.currentContext?.findRenderObject() as RenderBox?;
-    if (stackRenderBox == null) return;
-
-    final newOffsets = <double>[];
-    final newWidths = <double>[];
-
-    for (int i = 0; i < _itemKeys.length; i++) {
-      final itemRenderBox = _itemKeys[i].currentContext?.findRenderObject() as RenderBox?;
-      if (itemRenderBox == null) return;
-
-      final localOffset = stackRenderBox.globalToLocal(
-        itemRenderBox.localToGlobal(Offset.zero),
-      );
-      newOffsets.add(localOffset.dx);
-      newWidths.add(itemRenderBox.size.width);
-    }
-
-    if (newOffsets.length == widget.categories.length && mounted) {
-      setState(() {
-        _tabOffsets = newOffsets;
-        _tabWidths = newWidths;
-      });
-    }
+    _tabOffsets = offsets;
+    _tabWidths = widths;
   }
 
   void _scrollToActiveTab({bool animate = true}) {
@@ -142,8 +110,9 @@ class _SlidingPillSegmentedBarState extends State<SlidingPillSegmentedBar> {
     final targetWidth = _tabWidths[activeIndex];
     final viewportWidth = _scrollController.position.viewportDimension;
 
-    // Center the active tab in the viewport
-    final desiredScroll = targetOffset + (targetWidth / 2) - (viewportWidth / 2) + 16.0;
+    // Center the active tab in the fixed pill viewport
+    final targetCenter = targetOffset + (targetWidth / 2);
+    final desiredScroll = targetCenter - (viewportWidth / 2);
     final clampedScroll = desiredScroll.clamp(
       0.0,
       _scrollController.position.maxScrollExtent,
@@ -162,126 +131,181 @@ class _SlidingPillSegmentedBarState extends State<SlidingPillSegmentedBar> {
 
   @override
   Widget build(BuildContext context) {
+    _calculateMetrics(context);
+
     final activeIndex = widget.categories.indexOf(widget.selectedCategory);
     final validIndex = activeIndex >= 0 ? activeIndex : 0;
 
     final activeLeft = _tabOffsets.isNotEmpty ? _tabOffsets[validIndex] : 0.0;
     final activeWidth = _tabWidths.isNotEmpty ? _tabWidths[validIndex] : 60.0;
 
-    return SizedBox(
-      height: _pillHeight + 4.0,
-      child: SingleChildScrollView(
-        controller: _scrollController,
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        padding: widget.padding,
-        child: Center(
-          child: Container(
-            height: _pillHeight,
-            padding: const EdgeInsets.all(_innerPadding),
-            decoration: BoxDecoration(
-              // Sleek Apple Dark Mode Grey track
-              color: const Color(0xFF222224),
-              borderRadius: BorderRadius.circular(_pillHeight / 2),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.09),
-                width: 0.75,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.35),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
+    const innerHeight = _pillHeight - (_innerPadding * 2); // 34.0
+    const innerRadius = innerHeight / 2; // 17.0 (exact stadium capsule)
+
+    return Padding(
+      padding: widget.padding,
+      child: Container(
+        height: _pillHeight,
+        decoration: BoxDecoration(
+          // Sleek, authentic Apple Dark Mode segmented track
+          color: const Color(0xFF1C1C1E),
+          borderRadius: BorderRadius.circular(_pillHeight / 2),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 0.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.25),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
             ),
-            child: Stack(
-              key: _stackKey,
-              children: [
-                // 1. Sliding White Highlight Pill (animates smoothly between tabs)
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.fastOutSlowIn,
-                  left: activeLeft,
-                  width: activeWidth,
-                  top: 0,
-                  bottom: 0,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular((_pillHeight - (_innerPadding * 2)) / 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.28),
-                          blurRadius: 6,
-                          offset: const Offset(0, 1.5),
-                        ),
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.10),
-                          blurRadius: 2,
-                          offset: const Offset(0, 0.5),
-                        ),
-                      ],
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular((_pillHeight / 2) - 0.5),
+          child: AnimatedBuilder(
+            animation: _scrollController,
+            builder: (context, child) {
+              final offset = _scrollController.hasClients ? _scrollController.offset : 0.0;
+              final maxScroll = _scrollController.hasClients
+                  ? _scrollController.position.maxScrollExtent
+                  : 1.0;
+
+              // Only show dissolve on the left when scrolled away from the left (offset > 0)
+              final leftFadeProgress = (offset / 16.0).clamp(0.0, 1.0);
+              final leftEdgeColor = Color.lerp(
+                Colors.black,
+                Colors.transparent,
+                leftFadeProgress,
+              )!;
+
+              // Only show dissolve on the right when there is more content to the right
+              final rightRemaining = maxScroll > 0 ? (maxScroll - offset) : 0.0;
+              final rightFadeProgress = (rightRemaining / 16.0).clamp(0.0, 1.0);
+              final rightEdgeColor = Color.lerp(
+                Colors.black,
+                Colors.transparent,
+                rightFadeProgress,
+              )!;
+
+              return ShaderMask(
+                shaderCallback: (Rect bounds) {
+                  return LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [
+                      leftEdgeColor,
+                      Colors.black,
+                      Colors.black,
+                      rightEdgeColor,
+                    ],
+                    stops: const [0.0, 0.025, 0.975, 1.0],
+                  ).createShader(bounds);
+                },
+                blendMode: BlendMode.dstIn,
+                child: child,
+              );
+            },
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(
+                horizontal: _innerPadding,
+                vertical: _innerPadding,
+              ),
+              child: Stack(
+                children: [
+                  // Smooth White Highlight Pill with Natural Physical Elevation
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeInOutCubic,
+                    left: activeLeft,
+                    width: activeWidth,
+                    top: 0,
+                    bottom: 0,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(innerRadius),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.22),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1.5),
+                          ),
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 1,
+                            offset: const Offset(0, 0.5),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
 
-                // 2. Tab Items Row with Crisp Text
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (int i = 0; i < widget.categories.length; i++)
-                      _buildTabItem(
-                        index: i,
-                        category: widget.categories[i],
-                        isSelected: i == activeIndex,
-                      ),
-                  ],
-                ),
-              ],
+                  // Tab Items Row with explicitly matching widths and true Center alignment
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (int i = 0; i < widget.categories.length; i++)
+                        _buildTabItem(
+                          index: i,
+                          category: widget.categories[i],
+                          isSelected: i == activeIndex,
+                          tabWidth: _tabWidths.isNotEmpty ? _tabWidths[i] : 60.0,
+                          tabHeight: innerHeight,
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
     )
         .animate()
-        .fadeIn(duration: 250.ms, curve: Curves.easeOutCubic)
-        .slideY(begin: -0.08, end: 0, duration: 250.ms, curve: Curves.easeOutCubic);
+        .fadeIn(duration: 200.ms, curve: Curves.easeOutCubic)
+        .slideY(begin: -0.06, end: 0, duration: 200.ms, curve: Curves.easeOutCubic);
   }
 
   Widget _buildTabItem({
     required int index,
     required String category,
     required bool isSelected,
+    required double tabWidth,
+    required double tabHeight,
   }) {
-    return ApplePressable(
-      key: _itemKeys[index],
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () {
         if (widget.selectedCategory != category) {
+          HapticFeedback.lightImpact();
           widget.onCategorySelected(category);
         }
       },
-      borderRadius: BorderRadius.circular((_pillHeight - (_innerPadding * 2)) / 2),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: _tabHorizontalPadding,
-          vertical: _tabVerticalPadding,
-        ),
-        alignment: Alignment.center,
-        child: AnimatedDefaultTextStyle(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          style: TextStyle(
-            // Crisp jet-black text on white highlight; crisp light-grey on dark track
-            color: isSelected ? Colors.black : const Color(0xFF9E9EA2),
-            fontSize: 14,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-            letterSpacing: -0.2,
-          ),
-          child: Text(
-            category,
-            maxLines: 1,
-            overflow: TextOverflow.clip,
+      child: SizedBox(
+        width: tabWidth,
+        height: tabHeight,
+        child: Center(
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOutCubic,
+            style: TextStyle(
+              // Crisp jet-black text on white highlight; crisp secondary-grey on dark track
+              color: isSelected ? Colors.black : const Color(0xFF8E8E93),
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.2,
+            ),
+            child: Text(
+              category,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.clip,
+            ),
           ),
         ),
       ),

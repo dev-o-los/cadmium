@@ -174,9 +174,23 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
 
           const SizedBox(height: 6),
 
-          // Content Area
+          // Content Area with gentle natural dissolve towards the pill
           Expanded(
-            child: _buildBodyContent(searchState, isQueryActive),
+            child: ShaderMask(
+              shaderCallback: (Rect bounds) {
+                return const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black,
+                  ],
+                  stops: [0.0, 0.025],
+                ).createShader(bounds);
+              },
+              blendMode: BlendMode.dstIn,
+              child: _buildBodyContent(searchState, isQueryActive),
+            ),
           ),
         ],
       ),
