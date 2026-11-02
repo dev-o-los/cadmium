@@ -2636,6 +2636,26 @@ class MusicService {
     if (searchResultSet.songs.isNotEmpty) {
       unawaited(ArtworkCacheService.instance.prefetchArtworks(searchResultSet.songs));
     }
+    if (searchResultSet.artists.isNotEmpty) {
+      unawaited(ArtworkCacheService.instance.prefetchImageUrls(
+        searchResultSet.artists.map((a) => a.thumbnailUrl).toList(),
+      ));
+    }
+    if (searchResultSet.albums.isNotEmpty) {
+      unawaited(ArtworkCacheService.instance.prefetchImageUrls(
+        searchResultSet.albums.map((a) => a.thumbnailUrl).toList(),
+      ));
+    }
+    if (searchResultSet.playlists.isNotEmpty) {
+      unawaited(ArtworkCacheService.instance.prefetchImageUrls(
+        searchResultSet.playlists.map((p) => p.thumbnailUrl).toList(),
+      ));
+    }
+    if (searchResultSet.videos.isNotEmpty) {
+      unawaited(ArtworkCacheService.instance.prefetchImageUrls(
+        searchResultSet.videos.map((v) => v.thumbnailUrl).toList(),
+      ));
+    }
 
     _searchAllMemoryCache[cacheKey] = searchResultSet;
     return searchResultSet;

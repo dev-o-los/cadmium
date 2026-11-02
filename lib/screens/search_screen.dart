@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,6 +23,7 @@ import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/sliding_pill_segmented_bar.dart';
 import '../widgets/track_options_sheet.dart';
+import '../widgets/wavify_cached_image.dart';
 import 'google_signin_screen.dart';
 
 /// The Apple Music-inspired Search Screen featuring:
@@ -35,10 +37,7 @@ import 'google_signin_screen.dart';
 class SearchScreen extends ConsumerStatefulWidget {
   final TextEditingController? searchController;
 
-  const SearchScreen({
-    super.key,
-    this.searchController,
-  });
+  const SearchScreen({super.key, this.searchController});
 
   @override
   ConsumerState<SearchScreen> createState() => SearchScreenState();
@@ -89,7 +88,9 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
     }
 
     // Save query to recent searches
-    ref.read(recentSearchProvider.notifier).addRecent(
+    ref
+        .read(recentSearchProvider.notifier)
+        .addRecent(
           RecentSearchItem(
             id: 'query_${q.toLowerCase()}',
             title: q,
@@ -155,9 +156,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
             child: Row(
               children: [
-                Expanded(
-                  child: _buildLiquidGlassSearchBar(),
-                ),
+                Expanded(child: _buildLiquidGlassSearchBar()),
                 const SizedBox(width: 12),
                 _buildProfileAvatarButton(),
               ],
@@ -168,7 +167,9 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
           if (isQueryActive || searchState.hasSearched) ...[
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
-              child: _buildSlidingPillSegmentedBar(searchState.selectedCategory),
+              child: _buildSlidingPillSegmentedBar(
+                searchState.selectedCategory,
+              ),
             ),
           ],
 
@@ -181,10 +182,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                 return const LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black,
-                  ],
+                  colors: [Colors.transparent, Colors.black],
                   stops: [0.0, 0.025],
                 ).createShader(bounds);
               },
@@ -307,23 +305,23 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                   ? AppColors.appleRed
                   : AppColors.appleDarkSurfaceHigh,
               backgroundImage: account?.avatarUrl != null
-                  ? NetworkImage(account!.avatarUrl!)
+                  ? WavifyCachedImage.provider(account!.avatarUrl!)
                   : null,
               child: account?.avatarUrl == null
                   ? (account != null
-                      ? Text(
-                          account.initials,
-                          style: const TextStyle(
+                        ? Text(
+                            account.initials,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          )
+                        : const Icon(
+                            CupertinoIcons.person_crop_circle_fill,
                             color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        )
-                      : const Icon(
-                          CupertinoIcons.person_crop_circle_fill,
-                          color: Colors.white,
-                          size: 24,
-                        ))
+                            size: 24,
+                          ))
                   : null,
             ),
           ),
@@ -353,10 +351,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
     // 2. Loading state
     if (searchState.isLoading) {
       return const Center(
-        child: CupertinoActivityIndicator(
-          radius: 16,
-          color: Colors.white,
-        ),
+        child: CupertinoActivityIndicator(radius: 16, color: Colors.white),
       );
     }
 
@@ -387,14 +382,20 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                 onTap: () => search(),
                 borderRadius: BorderRadius.circular(10),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.appleDarkSurfaceHigh,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Text(
                     'Try Again',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
@@ -417,37 +418,38 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
       );
     }
 
-    // 5. Categorized results based on selected capsule
-    switch (searchState.selectedCategory) {
-      case 'Songs':
-        return _buildFullCategoryList(
+    // 5. Categorized results based on selected capsule using IndexedStack so tabs preserve scroll & image cache
+    final categoryIndex = kSearchFilterCategories.indexOf(
+      searchState.selectedCategory,
+    );
+    final activeIndex = categoryIndex >= 0 ? categoryIndex : 0;
+
+    return IndexedStack(
+      index: activeIndex,
+      children: [
+        _buildAllCategoriesGrouped(searchState.results),
+        _buildFullCategoryList(
           items: searchState.results.songs,
           itemBuilder: (song) => _buildSongRow(song),
-        );
-      case 'Videos':
-        return _buildFullCategoryList(
+        ),
+        _buildFullCategoryList(
           items: searchState.results.videos,
           itemBuilder: (video) => _buildVideoRow(video),
-        );
-      case 'Albums':
-        return _buildFullCategoryList(
+        ),
+        _buildFullCategoryList(
           items: searchState.results.albums,
           itemBuilder: (album) => _buildAlbumRow(album),
-        );
-      case 'Artists':
-        return _buildFullCategoryList(
+        ),
+        _buildFullCategoryList(
           items: searchState.results.artists,
           itemBuilder: (artist) => _buildArtistRow(artist),
-        );
-      case 'Playlists':
-        return _buildFullCategoryList(
+        ),
+        _buildFullCategoryList(
           items: searchState.results.playlists,
           itemBuilder: (playlist) => _buildPlaylistRow(playlist),
-        );
-      case 'All':
-      default:
-        return _buildAllCategoriesGrouped(searchState.results);
-    }
+        ),
+      ],
+    );
   }
 
   /// Recent Searches view matching Screenshot 2 or Empty Placeholder.
@@ -563,43 +565,45 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
             children: [
               if (isArtist)
                 ClipOval(
-                  child: item.thumbnailUrl != null
-                      ? Image.network(
-                          item.thumbnailUrl!,
-                          width: 48,
-                          height: 48,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              _fallbackSquareArt(
-                            size: 48,
-                            icon: CupertinoIcons.person_fill,
-                            isCircle: true,
-                          ),
-                        )
-                      : _fallbackSquareArt(
-                          size: 48,
-                          icon: CupertinoIcons.person_fill,
-                          isCircle: true,
-                        ),
+                  child: WavifyCachedImage(
+                    imageUrl: item.thumbnailUrl,
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    placeholder: _fallbackSquareArt(
+                      size: 48,
+                      icon: CupertinoIcons.person_fill,
+                      isCircle: true,
+                    ),
+                    errorWidget: _fallbackSquareArt(
+                      size: 48,
+                      icon: CupertinoIcons.person_fill,
+                      isCircle: true,
+                    ),
+                  ),
                 )
               else
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: item.thumbnailUrl != null
-                      ? Image.network(
-                          item.thumbnailUrl!,
-                          width: 48,
-                          height: 48,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              _fallbackSquareArt(size: 48),
-                        )
-                      : _fallbackSquareArt(
-                          size: 48,
-                          icon: item.type == RecentSearchType.query
-                              ? CupertinoIcons.search
-                              : CupertinoIcons.music_note,
-                        ),
+                  child: WavifyCachedImage(
+                    imageUrl: item.thumbnailUrl,
+                    songId: item.type == RecentSearchType.song ? item.id : null,
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    placeholder: _fallbackSquareArt(
+                      size: 48,
+                      icon: item.type == RecentSearchType.query
+                          ? CupertinoIcons.search
+                          : CupertinoIcons.music_note,
+                    ),
+                    errorWidget: _fallbackSquareArt(
+                      size: 48,
+                      icon: item.type == RecentSearchType.query
+                          ? CupertinoIcons.search
+                          : CupertinoIcons.music_note,
+                    ),
+                  ),
                 ),
               const SizedBox(width: 14),
               Expanded(
@@ -639,8 +643,9 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                   color: Color(0xFF8E8E93),
                   size: 16,
                 ),
-                onPressed: () =>
-                    ref.read(recentSearchProvider.notifier).removeRecent(item.id),
+                onPressed: () => ref
+                    .read(recentSearchProvider.notifier)
+                    .removeRecent(item.id),
               ),
             ],
           ),
@@ -747,7 +752,9 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                 ref.read(searchProvider.notifier).setCategory('Playlists'),
           ),
           const SizedBox(height: 6),
-          ...results.playlists.take(5).map((playlist) => _buildPlaylistRow(playlist)),
+          ...results.playlists
+              .take(5)
+              .map((playlist) => _buildPlaylistRow(playlist)),
           const SizedBox(height: 20),
         ],
 
@@ -814,7 +821,9 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
     return ApplePressable(
       onTap: () {
         // Record song to recent searches
-        ref.read(recentSearchProvider.notifier).addRecent(
+        ref
+            .read(recentSearchProvider.notifier)
+            .addRecent(
               RecentSearchItem(
                 id: song.id,
                 title: displayTitle,
@@ -851,16 +860,15 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    song.thumbnailUrl != null
-                        ? Image.network(
-                            song.thumbnailUrl!,
-                            width: 50,
-                            height: 50,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                _fallbackSquareArt(),
-                          )
-                        : _fallbackSquareArt(),
+                    WavifyCachedImage(
+                      imageUrl: song.thumbnailUrl,
+                      songId: song.id,
+                      width: 50,
+                      height: 50,
+                      fit: BoxFit.cover,
+                      placeholder: _fallbackSquareArt(),
+                      errorWidget: _fallbackSquareArt(),
+                    ),
                     if (isSelected)
                       Container(
                         width: 50,
@@ -897,10 +905,13 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: isSelected ? AppColors.appleRed : Colors.white,
+                              color: isSelected
+                                  ? AppColors.appleRed
+                                  : Colors.white,
                               fontSize: 16,
-                              fontWeight:
-                                  isSelected ? FontWeight.bold : FontWeight.w600,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.w600,
                               letterSpacing: -0.3,
                             ),
                           ),
@@ -959,7 +970,9 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
   Widget _buildArtistRow(ArtistItem artist) {
     return ApplePressable(
       onTap: () {
-        ref.read(recentSearchProvider.notifier).addRecent(
+        ref
+            .read(recentSearchProvider.notifier)
+            .addRecent(
               RecentSearchItem(
                 id: artist.id,
                 title: artist.name,
@@ -985,24 +998,22 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
           child: Row(
             children: [
               ClipOval(
-                child: artist.thumbnailUrl != null
-                    ? Image.network(
-                        artist.thumbnailUrl!,
-                        width: 52,
-                        height: 52,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            _fallbackSquareArt(
-                          size: 52,
-                          icon: CupertinoIcons.person_fill,
-                          isCircle: true,
-                        ),
-                      )
-                    : _fallbackSquareArt(
-                        size: 52,
-                        icon: CupertinoIcons.person_fill,
-                        isCircle: true,
-                      ),
+                child: WavifyCachedImage(
+                  imageUrl: artist.thumbnailUrl,
+                  width: 52,
+                  height: 52,
+                  fit: BoxFit.cover,
+                  placeholder: _fallbackSquareArt(
+                    size: 52,
+                    icon: CupertinoIcons.person_fill,
+                    isCircle: true,
+                  ),
+                  errorWidget: _fallbackSquareArt(
+                    size: 52,
+                    icon: CupertinoIcons.person_fill,
+                    isCircle: true,
+                  ),
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -1046,7 +1057,9 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
   Widget _buildAlbumRow(AlbumItem album) {
     return ApplePressable(
       onTap: () {
-        ref.read(recentSearchProvider.notifier).addRecent(
+        ref
+            .read(recentSearchProvider.notifier)
+            .addRecent(
               RecentSearchItem(
                 id: album.id,
                 title: album.title,
@@ -1068,16 +1081,14 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: album.thumbnailUrl != null
-                    ? Image.network(
-                        album.thumbnailUrl!,
-                        width: 50,
-                        height: 50,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            _fallbackSquareArt(),
-                      )
-                    : _fallbackSquareArt(),
+                child: WavifyCachedImage(
+                  imageUrl: album.thumbnailUrl,
+                  width: 50,
+                  height: 50,
+                  fit: BoxFit.cover,
+                  placeholder: _fallbackSquareArt(),
+                  errorWidget: _fallbackSquareArt(),
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -1121,7 +1132,9 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
   Widget _buildPlaylistRow(PlaylistItem playlist) {
     return ApplePressable(
       onTap: () {
-        ref.read(recentSearchProvider.notifier).addRecent(
+        ref
+            .read(recentSearchProvider.notifier)
+            .addRecent(
               RecentSearchItem(
                 id: playlist.id,
                 title: playlist.title,
@@ -1143,16 +1156,14 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: playlist.thumbnailUrl != null
-                    ? Image.network(
-                        playlist.thumbnailUrl!,
-                        width: 50,
-                        height: 50,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            _fallbackSquareArt(),
-                      )
-                    : _fallbackSquareArt(),
+                child: WavifyCachedImage(
+                  imageUrl: playlist.thumbnailUrl,
+                  width: 50,
+                  height: 50,
+                  fit: BoxFit.cover,
+                  placeholder: _fallbackSquareArt(),
+                  errorWidget: _fallbackSquareArt(),
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -1194,7 +1205,8 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
   /// Video row matching Screenshot 4:
   /// 16:9 widescreen thumbnail, Title, Channel, Duration, 3-dots menu.
   Widget _buildVideoRow(VideoItem video) {
-    final durationStr = video.durationSeconds != null && video.durationSeconds! > 0
+    final durationStr =
+        video.durationSeconds != null && video.durationSeconds! > 0
         ? '${video.durationSeconds! ~/ 60}:${(video.durationSeconds! % 60).toString().padLeft(2, '0')}'
         : '';
 
@@ -1208,7 +1220,9 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
           durationSeconds: video.durationSeconds,
         );
 
-        ref.read(recentSearchProvider.notifier).addRecent(
+        ref
+            .read(recentSearchProvider.notifier)
+            .addRecent(
               RecentSearchItem(
                 id: video.id,
                 title: video.title,
@@ -1230,16 +1244,14 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: video.thumbnailUrl != null
-                    ? Image.network(
-                        video.thumbnailUrl!,
-                        width: 104,
-                        height: 58,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            _fallbackWidescreenArt(),
-                      )
-                    : _fallbackWidescreenArt(),
+                child: WavifyCachedImage(
+                  imageUrl: video.thumbnailUrl,
+                  width: 104,
+                  height: 58,
+                  fit: BoxFit.cover,
+                  placeholder: _fallbackWidescreenArt(),
+                  errorWidget: _fallbackWidescreenArt(),
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(

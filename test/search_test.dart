@@ -14,6 +14,7 @@ import 'package:wavify/providers/music_service_provider.dart';
 import 'package:wavify/providers/search_provider.dart';
 import 'package:wavify/screens/search_screen.dart';
 import 'package:wavify/services/music_service.dart';
+import 'package:wavify/widgets/wavify_cached_image.dart';
 
 class MockMusicService extends Fake implements MusicService {
   @override
@@ -326,6 +327,51 @@ void main() {
       // Full 16:9 video item is displayed
       expect(find.text('OKTOBER FEST GOA 2025'), findsOneWidget);
       expect(find.text('Travel Goa With Sandeep'), findsOneWidget);
+    });
+
+    testWidgets('switching between tabs maintains IndexedStack and WavifyCachedImage across categories',
+        (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            musicServiceProvider.overrideWithValue(MockMusicService()),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: SearchScreen(),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Enter search text and settle
+      await tester.enterText(find.byType(TextField), 'tsumyoki');
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      // Verify IndexedStack is present to preserve views & image caches
+      expect(find.byType(IndexedStack), findsOneWidget);
+
+      // Verify WavifyCachedImage is used for rendering artworks
+      expect(find.byType(WavifyCachedImage), findsWidgets);
+
+      // Switch to Songs tab
+      await tester.tap(find.text('Songs').first);
+      await tester.pumpAndSettle();
+      expect(find.text('YAH YAH'), findsOneWidget);
+
+      // Switch to Artists tab
+      await tester.tap(find.text('Artists').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Tsumyoki'), findsWidgets);
+
+      // Switch back to Songs tab: instantaneously visible without reloading
+      await tester.tap(find.text('Songs').first);
+      await tester.pumpAndSettle();
+      expect(find.text('YAH YAH'), findsOneWidget);
+      expect(find.byType(WavifyCachedImage), findsWidgets);
     });
   });
 }

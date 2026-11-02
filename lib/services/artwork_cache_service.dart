@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -206,6 +207,19 @@ class ArtworkCacheService {
       if (getCachedArtworkFile(song.id) == null) {
         // Run unawaited so it doesn't block the UI thread
         cacheSongArtwork(song, forceHighRes: false);
+      }
+    }
+  }
+
+  /// Pre-fetches and warms disk/memory cache for arbitrary image URLs (e.g. artists, albums, playlists, videos).
+  Future<void> prefetchImageUrls(List<String?> urls) async {
+    if (!kIsWeb && Platform.environment.containsKey('FLUTTER_TEST')) return;
+    for (final url in urls) {
+      if (url != null && url.trim().isNotEmpty) {
+        final cleanUrl = url.trim().startsWith('//') ? 'https:${url.trim()}' : url.trim();
+        try {
+          unawaited(DefaultCacheManager().downloadFile(cleanUrl, key: cleanUrl));
+        } catch (_) {}
       }
     }
   }
