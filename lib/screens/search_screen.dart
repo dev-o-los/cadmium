@@ -20,6 +20,7 @@ import '../widgets/account_modal_sheet.dart';
 import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_pressable.dart';
+import '../widgets/sliding_pill_segmented_bar.dart';
 import '../widgets/track_options_sheet.dart';
 import 'google_signin_screen.dart';
 
@@ -163,11 +164,11 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
             ),
           ),
 
-          // Horizontal Filter Capsules (Only when searching or results active)
+          // Unified Sliding Pill Segmented Bar (Only when searching or results active)
           if (isQueryActive || searchState.hasSearched) ...[
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
-              child: _buildCapsuleFilterBar(searchState.selectedCategory),
+              child: _buildSlidingPillSegmentedBar(searchState.selectedCategory),
             ),
           ],
 
@@ -317,45 +318,14 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  /// Horizontal Capsule Filter Bar (All, Songs, Videos, Albums, Artists, Playlists).
-  Widget _buildCapsuleFilterBar(String selectedCategory) {
-    return SizedBox(
-      height: 38,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: kSearchFilterCategories.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final category = kSearchFilterCategories[index];
-          final isSelected = category == selectedCategory;
-
-          return ApplePressable(
-            onTap: () => ref.read(searchProvider.notifier).setCategory(category),
-            borderRadius: BorderRadius.circular(19),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? const Color(0xFF505054)
-                    : const Color(0xFF222224),
-                borderRadius: BorderRadius.circular(19),
-              ),
-              child: Center(
-                child: Text(
-                  category,
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : Colors.white70,
-                    fontSize: 14,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
+  /// Unified sliding pill segmented bar with animated white highlight pill.
+  Widget _buildSlidingPillSegmentedBar(String selectedCategory) {
+    return SlidingPillSegmentedBar(
+      categories: kSearchFilterCategories,
+      selectedCategory: selectedCategory,
+      onCategorySelected: (category) {
+        ref.read(searchProvider.notifier).setCategory(category);
+      },
     );
   }
 

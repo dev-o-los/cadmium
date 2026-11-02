@@ -46,6 +46,7 @@ dependencies:
   flutter_cache_manager: ^3.4.6
   path_provider: ^2.1.6
   video_player: ^2.14.1
+  flutter_animate: ^4.5.2
 
 dev_dependencies:
   flutter_test:
