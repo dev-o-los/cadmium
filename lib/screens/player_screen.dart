@@ -12,6 +12,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../models/song_item.dart';
 import '../providers/favorites_provider.dart';
 import '../providers/player_provider.dart';
+import '../services/lyrics_service.dart';
 import '../services/song_metrics_cache_service.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/ambient_video_canvas.dart';
@@ -251,15 +252,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1C1C1E),
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
                   width: 36,
@@ -302,6 +305,74 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                       maxLines: 1,
                       style: TextStyle(color: Colors.white.withValues(alpha: 0.75)),
                     ),
+                  ),
+                ),
+                const Divider(color: Color(0xFF2C2C2E)),
+                // Sleek Apple-style Lyrics Provider switcher
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                  child: Consumer(
+                    builder: (context, ref, _) {
+                      final selectedProvider = ref.watch(playerProvider.select((s) => s.selectedLyricsProvider));
+                      final isLoadingLyrics = ref.watch(playerProvider.select((s) => s.isLoadingLyrics));
+
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: const [
+                              Icon(CupertinoIcons.quote_bubble, color: Colors.white, size: 20),
+                              SizedBox(width: 14),
+                              Text(
+                                'Lyrics Provider',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.14),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildOptionsProviderSegment(
+                                  type: LyricsProviderType.lrcRed,
+                                  label: 'lrc.red',
+                                  icon: CupertinoIcons.sparkles,
+                                  isSelected: selectedProvider == LyricsProviderType.lrcRed,
+                                  isLoading: isLoadingLyrics && selectedProvider == LyricsProviderType.lrcRed,
+                                  onTap: () {
+                                    ref.read(playerProvider.notifier).setLyricsProvider(LyricsProviderType.lrcRed);
+                                  },
+                                ),
+                                const SizedBox(width: 2),
+                                _buildOptionsProviderSegment(
+                                  type: LyricsProviderType.youTube,
+                                  label: 'YouTube',
+                                  icon: CupertinoIcons.play_rectangle,
+                                  isSelected: selectedProvider == LyricsProviderType.youTube,
+                                  isLoading: isLoadingLyrics && selectedProvider == LyricsProviderType.youTube,
+                                  onTap: () {
+                                    ref.read(playerProvider.notifier).setLyricsProvider(LyricsProviderType.youTube);
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ),
                 const Divider(color: Color(0xFF2C2C2E)),
@@ -348,9 +419,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
               ],
             ),
           ),
-        );
-      },
-    );
+        ),
+      );
+    },
+  );
   }
 
   @override
@@ -1513,6 +1585,65 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
       height: 40,
       color: const Color(0xFF2C2C2E),
       child: const Icon(CupertinoIcons.music_note, color: Colors.white38, size: 22),
+    );
+  }
+
+  Widget _buildOptionsProviderSegment({
+    required LyricsProviderType type,
+    required String label,
+    required IconData icon,
+    required bool isSelected,
+    bool isLoading = false,
+    required VoidCallback onTap,
+  }) {
+    return ApplePressable(
+      onTap: onTap,
+      pressedScale: 0.95,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white.withValues(alpha: 0.22) : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 13,
+              color: isSelected ? Colors.white : Colors.white60,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.white60,
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                letterSpacing: -0.2,
+              ),
+            ),
+            if (isSelected && isLoading) ...[
+              const SizedBox(width: 5),
+              const CupertinoActivityIndicator(
+                radius: 5,
+                color: Colors.white,
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

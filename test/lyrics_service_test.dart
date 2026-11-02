@@ -1,9 +1,13 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wavify/models/lyric_line.dart';
+import 'package:wavify/models/song_item.dart';
+import 'package:wavify/providers/player_provider.dart';
 import 'package:wavify/services/lyrics_service.dart';
 import 'package:wavify/widgets/apple_lyrics_view.dart';
+import 'package:wavify/widgets/track_options_sheet.dart';
 
 void main() {
   group('LyricsService Unit Tests', () {
@@ -48,7 +52,7 @@ void main() {
   });
 
   group('AppleLyricsView Widget Tests', () {
-    testWidgets('renders word-by-word synced syllables and provider toggle', (tester) async {
+    testWidgets('renders word-by-word synced syllables and attribution footer', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 2.5;
       addTearDown(() {
@@ -79,7 +83,6 @@ void main() {
       ];
 
       LyricLine? tappedLine;
-      LyricsProviderType? switchedProvider;
 
       await tester.pumpWidget(
         MaterialApp(
@@ -92,7 +95,6 @@ void main() {
               selectedProvider: LyricsProviderType.lrcRed,
               lyricsSource: 'Apple Music (via lrc.red)',
               lyricsSongwriters: 'Abel Tesfaye, Max Martin',
-              onProviderChanged: (p) => switchedProvider = p,
               onSeekToLyric: (line) {
                 tappedLine = line;
               },
@@ -100,10 +102,6 @@ void main() {
           ),
         ),
       );
-
-      // Verify provider toggle pills are rendered
-      expect(find.text('lrc.red'), findsWidgets);
-      expect(find.text('YouTube'), findsWidgets);
 
       // Verify syllables rendered
       expect(find.text('I '), findsOneWidget);
@@ -116,11 +114,6 @@ void main() {
       // Verify attribution footer
       expect(find.text('Lyrics provided by Apple Music (via lrc.red)'), findsOneWidget);
       expect(find.text('Written by Abel Tesfaye, Max Martin'), findsOneWidget);
-
-      // Verify tap on YouTube capsule triggers onProviderChanged
-      await tester.tap(find.text('YouTube').first);
-      await tester.pump();
-      expect(switchedProvider, LyricsProviderType.youTube);
 
       // Verify tap on second line triggers seek callback
       await tester.tap(find.text("(Can't you hear me?)"));
@@ -215,6 +208,58 @@ void main() {
       expect(soughtLine, isNotNull);
       expect(soughtLine!.text, '');
       expect(soughtLine!.startTimeMs, 0);
+    });
+
+    testWidgets('track options sheet renders lyrics provider switcher and allows switching', (tester) async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      const testSong = SongItem(
+        id: 'test_song_123',
+        title: 'Starboy',
+        artist: 'The Weeknd',
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) {
+                  return Consumer(
+                    builder: (context, ref, _) {
+                      return ElevatedButton(
+                        onPressed: () => showTrackOptionsModal(context, ref, testSong),
+                        child: const Text('Open Menu'),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // Open the track options 3-dots sheet
+      await tester.tap(find.text('Open Menu'));
+      await tester.pumpAndSettle();
+
+      // Verify Lyrics Provider title and toggle buttons are present
+      expect(find.text('Lyrics Provider'), findsOneWidget);
+      expect(find.text('lrc.red'), findsOneWidget);
+      expect(find.text('YouTube'), findsOneWidget);
+
+      // Default provider is lrcRed
+      expect(container.read(playerProvider).selectedLyricsProvider, LyricsProviderType.lrcRed);
+
+      // Tap YouTube in the options sheet
+      await tester.tap(find.text('YouTube'));
+      await tester.pumpAndSettle();
+
+      // Verify provider updated in state
+      expect(container.read(playerProvider).selectedLyricsProvider, LyricsProviderType.youTube);
     });
   });
 }
