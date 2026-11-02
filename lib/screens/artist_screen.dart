@@ -22,6 +22,7 @@ import '../providers/navigation_provider.dart';
 import '../providers/player_provider.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/account_modal_sheet.dart';
+import '../widgets/apple_glass_bottom_sheet.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/liquid_glass_bottom_bar.dart';
 import '../widgets/player_controls.dart';
@@ -1623,46 +1624,52 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
   }
 
   void _openAlbumListModal(String title, List<AlbumItem> items) {
-    showModalBottomSheet(
+    showAppleGlassBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1C1C1E),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+      builder: (modalCtx) {
+        final maxHeight = MediaQuery.sizeOf(modalCtx).height * 0.72;
+        return SizedBox(
+          height: maxHeight,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    ApplePressable(
+                      onTap: () => Navigator.pop(modalCtx),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
                         ),
+                        child: const Icon(CupertinoIcons.xmark, color: Colors.white, size: 16),
                       ),
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: const Icon(CupertinoIcons.xmark_circle_fill, color: Color(0xFF8E8E93)),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const Divider(color: Color(0xFF2C2C2E)),
-                Expanded(
-                  child: ListView.builder(
+              ),
+              Expanded(
+                child: AppleSheetGroup(
+                  child: ListView.separated(
+                    padding: EdgeInsets.zero,
                     itemCount: items.length,
+                    separatorBuilder: (context, index) => const AppleSheetDivider(),
                     itemBuilder: (context, index) {
                       final item = items[index];
-                      return ListTile(
+                      return AppleSheetActionTile(
                         leading: ClipRRect(
                           borderRadius: BorderRadius.circular(6),
                           child: item.thumbnailUrl != null
@@ -1675,21 +1682,21 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                                 )
                               : _fallbackSquareArt(44),
                         ),
-                        title: Text(item.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                        subtitle: Text(
-                          item.year != null ? '${item.type.isNotEmpty ? item.type : 'Release'} • ${item.year}' : item.type,
-                          style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 12),
-                        ),
+                        title: item.title,
+                        subtitle: item.year != null
+                            ? '${item.type.isNotEmpty ? item.type : 'Release'} • ${item.year}'
+                            : item.type,
+                        trailing: const Icon(CupertinoIcons.chevron_right, color: Colors.white38, size: 16),
                         onTap: () {
-                          Navigator.pop(context);
+                          Navigator.pop(modalCtx);
                           openAlbumScreen(context, item);
                         },
                       );
                     },
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },

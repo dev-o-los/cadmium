@@ -13,6 +13,7 @@ import '../providers/library_provider.dart';
 import '../providers/music_service_provider.dart';
 import '../providers/player_provider.dart';
 import '../utils/playback_utils.dart';
+import '../widgets/apple_glass_bottom_sheet.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/dynamic_album_artwork.dart';
 
@@ -896,231 +897,219 @@ class LibraryScreen extends ConsumerWidget {
     bool isLoading = false;
     String? errorMessage;
 
-    showModalBottomSheet(
+    showAppleGlassBottomSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (modalCtx) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(modalCtx).viewInsets.bottom,
-              ),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF1C1C1E),
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Save from YouTube',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.4,
+                  ),
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 36,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: Colors.white24,
-                          borderRadius: BorderRadius.circular(2.5),
+                const SizedBox(height: 6),
+                const Text(
+                  'Paste a YouTube Music or YouTube playlist link or ID to save it directly to your library.',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      width: 0.8,
+                    ),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        CupertinoIcons.link,
+                        color: Colors.white70,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: controller,
+                          autofocus: true,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                          ),
+                          decoration: const InputDecoration(
+                            hintText: 'https://music.youtube.com/playlist?list=...',
+                            hintStyle: TextStyle(
+                              color: Colors.white38,
+                              fontSize: 13,
+                            ),
+                            border: InputBorder.none,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 18),
-                    const Text(
-                      'Save from YouTube',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Paste a YouTube Music or YouTube playlist link or ID to save it directly to your library.',
-                      style: TextStyle(
-                        color: AppColors.appleSecondaryText,
-                        fontSize: 13,
-                        height: 1.3,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2C2C2E),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            CupertinoIcons.link,
-                            color: AppColors.appleSecondaryText,
-                            size: 20,
+                      if (controller.text.isNotEmpty)
+                        GestureDetector(
+                          onTap: () {
+                            setModalState(() {
+                              controller.clear();
+                            });
+                          },
+                          child: const Icon(
+                            CupertinoIcons.clear_circled_solid,
+                            color: Colors.white60,
+                            size: 18,
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: TextField(
-                              controller: controller,
-                              autofocus: true,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                              ),
-                              decoration: const InputDecoration(
-                                hintText: 'https://music.youtube.com/playlist?list=...',
-                                hintStyle: TextStyle(
-                                  color: Colors.white38,
-                                  fontSize: 13,
-                                ),
-                                border: InputBorder.none,
-                              ),
-                            ),
-                          ),
-                          if (controller.text.isNotEmpty)
-                            GestureDetector(
-                              onTap: () {
-                                setModalState(() {
-                                  controller.clear();
-                                });
-                              },
-                              child: const Icon(
-                                CupertinoIcons.clear_circled_solid,
-                                color: AppColors.appleSecondaryText,
-                                size: 18,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    if (errorMessage != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        errorMessage!,
-                        style: const TextStyle(
-                          color: Colors.redAccent,
-                          fontSize: 12,
                         ),
-                      ),
                     ],
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ApplePressable(
-                            onTap: () => Navigator.pop(modalCtx),
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              height: 48,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Text(
-                                'Cancel',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
+                  ),
+                ),
+                if (errorMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    errorMessage!,
+                    style: const TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ApplePressable(
+                        onTap: () => Navigator.pop(modalCtx),
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          height: 48,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.12),
+                              width: 0.7,
+                            ),
+                          ),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ApplePressable(
-                            onTap: isLoading
-                                ? null
-                                : () async {
-                                    final input = controller.text.trim();
-                                    if (input.isEmpty) {
-                                      setModalState(() {
-                                        errorMessage = 'Please enter a playlist URL or ID.';
-                                      });
-                                      return;
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ApplePressable(
+                        onTap: isLoading
+                            ? null
+                            : () async {
+                                final input = controller.text.trim();
+                                if (input.isEmpty) {
+                                  setModalState(() {
+                                    errorMessage = 'Please enter a playlist URL or ID.';
+                                  });
+                                  return;
+                                }
+
+                                setModalState(() {
+                                  isLoading = true;
+                                  errorMessage = null;
+                                });
+
+                                try {
+                                  final musicService = ref.read(
+                                    musicServiceProvider,
+                                  );
+                                  final playlist = await musicService
+                                      .fetchYouTubePlaylist(input);
+
+                                  if (playlist != null) {
+                                    ref
+                                        .read(
+                                          savedPlaylistsProvider.notifier,
+                                        )
+                                        .addPlaylist(playlist);
+                                    if (modalCtx.mounted) {
+                                      Navigator.pop(modalCtx);
                                     }
-
-                                    setModalState(() {
-                                      isLoading = true;
-                                      errorMessage = null;
-                                    });
-
-                                    try {
-                                      final musicService = ref.read(
-                                        musicServiceProvider,
+                                    if (context.mounted) {
+                                      showWavifySnackBar(
+                                        context,
+                                        'Saved "${playlist.title}" to Playlists',
                                       );
-                                      final playlist = await musicService
-                                          .fetchYouTubePlaylist(input);
-
-                                      if (playlist != null) {
-                                        ref
-                                            .read(
-                                              savedPlaylistsProvider.notifier,
-                                            )
-                                            .addPlaylist(playlist);
-                                        if (modalCtx.mounted) {
-                                          Navigator.pop(modalCtx);
-                                        }
-                                        if (context.mounted) {
-                                          showWavifySnackBar(
-                                            context,
-                                            'Saved "${playlist.title}" to Playlists',
-                                          );
-                                        }
-                                      } else {
-                                        setModalState(() {
-                                          isLoading = false;
-                                          errorMessage = 'Could not resolve playlist. Check link and try again.';
-                                        });
-                                      }
-                                    } catch (e) {
-                                      setModalState(() {
-                                        isLoading = false;
-                                        errorMessage =
-                                            'Error saving playlist: $e';
-                                      });
                                     }
-                                  },
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              height: 48,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: AppColors.appleRed,
-                                borderRadius: BorderRadius.circular(12),
+                                  } else {
+                                    setModalState(() {
+                                      isLoading = false;
+                                      errorMessage =
+                                          'Could not resolve playlist. Check link and try again.';
+                                    });
+                                  }
+                                } catch (e) {
+                                  setModalState(() {
+                                    isLoading = false;
+                                    errorMessage =
+                                        'Error saving playlist: $e';
+                                  });
+                                }
+                              },
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          height: 48,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.white.withValues(alpha: 0.25),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
                               ),
-                              child: isLoading
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              Colors.white,
-                                            ),
-                                      ),
-                                    )
-                                  : const Text(
-                                      'Save Playlist',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                            ),
+                            ],
                           ),
+                          child: isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                                  ),
+                                )
+                              : const Text(
+                                  'Save Playlist',
+                                  style: TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                         ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
-              ),
+              ],
             );
           },
         );
@@ -1133,10 +1122,8 @@ class LibraryScreen extends ConsumerWidget {
     List<ArtistItem> searchResults = [];
     bool isSearching = false;
 
-    showModalBottomSheet(
+    showAppleGlassBottomSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (modalCtx) {
         return StatefulBuilder(
           builder: (context, setModalState) {
@@ -1161,108 +1148,97 @@ class LibraryScreen extends ConsumerWidget {
               }
             }
 
-            return Container(
-              height: MediaQuery.of(modalCtx).size.height * 0.75,
-              decoration: const BoxDecoration(
-                color: Color(0xFF1C1C1E),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              ),
+            final maxHeight = MediaQuery.sizeOf(modalCtx).height * 0.72;
+            return SizedBox(
+              height: maxHeight,
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Add Favorite Artist',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 19,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: -0.4,
+                        ),
+                      ),
+                      ApplePressable(
+                        onTap: () => Navigator.pop(modalCtx),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(CupertinoIcons.xmark, color: Colors.white, size: 16),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 12),
-                  Center(
-                    child: Container(
-                      width: 36,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: Colors.white24,
-                        borderRadius: BorderRadius.circular(2.5),
+                  Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        width: 0.8,
                       ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: Row(
                       children: [
-                        const Expanded(
-                          child: Text(
-                            'Add Favorite Artist',
-                            style: TextStyle(
+                        const Icon(
+                          CupertinoIcons.search,
+                          color: Colors.white70,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: searchController,
+                            autofocus: true,
+                            style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: -0.5,
+                              fontSize: 15,
                             ),
+                            decoration: const InputDecoration(
+                              hintText: 'Search artists on YouTube...',
+                              hintStyle: TextStyle(
+                                color: Colors.white38,
+                                fontSize: 14,
+                              ),
+                              border: InputBorder.none,
+                            ),
+                            onSubmitted: executeSearch,
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(
-                            CupertinoIcons.xmark_circle_fill,
-                            color: Colors.white54,
-                          ),
-                          onPressed: () => Navigator.pop(modalCtx),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Container(
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2C2C2E),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            CupertinoIcons.search,
-                            color: AppColors.appleSecondaryText,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextField(
-                              controller: searchController,
-                              autofocus: true,
-                              style: const TextStyle(
+                        if (isSearching)
+                          const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        else if (searchController.text.isNotEmpty)
+                          GestureDetector(
+                            onTap: () => executeSearch(searchController.text),
+                            child: const Text(
+                              'Search',
+                              style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
                               ),
-                              decoration: const InputDecoration(
-                                hintText: 'Search artists on YouTube...',
-                                hintStyle: TextStyle(
-                                  color: Colors.white38,
-                                  fontSize: 14,
-                                ),
-                                border: InputBorder.none,
-                              ),
-                              onSubmitted: executeSearch,
                             ),
                           ),
-                          if (isSearching)
-                            const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.appleRed,
-                              ),
-                            )
-                          else if (searchController.text.isNotEmpty)
-                            GestureDetector(
-                              onTap: () => executeSearch(searchController.text),
-                              child: const Text(
-                                'Search',
-                                style: TextStyle(
-                                  color: AppColors.appleRed,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -1273,19 +1249,15 @@ class LibraryScreen extends ConsumerWidget {
                               'Search for an artist and tap + to add them to your library.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                color: AppColors.appleSecondaryText,
+                                color: Colors.white60,
                                 fontSize: 14,
                               ),
                             ),
                           )
                         : ListView.separated(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 8,
-                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 4),
                             itemCount: searchResults.length,
-                            separatorBuilder: (context, index) =>
-                                const SizedBox(height: 8),
+                            separatorBuilder: (context, index) => const SizedBox(height: 6),
                             itemBuilder: (context, index) {
                               final artist = searchResults[index];
                               final isSaved = savedArtists.any(
@@ -1298,8 +1270,12 @@ class LibraryScreen extends ConsumerWidget {
                                   horizontal: 12,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.04),
-                                  borderRadius: BorderRadius.circular(12),
+                                  color: Colors.white.withValues(alpha: 0.06),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.10),
+                                    width: 0.6,
+                                  ),
                                 ),
                                 child: Row(
                                   children: [
@@ -1312,15 +1288,11 @@ class LibraryScreen extends ConsumerWidget {
                                               height: 44,
                                               fit: BoxFit.cover,
                                               errorBuilder:
-                                                  (
-                                                    context,
-                                                    error,
-                                                    stackTrace,
-                                                  ) => _fallbackSquareArt(
-                                                    size: 44,
-                                                    icon: CupertinoIcons
-                                                        .person_solid,
-                                                  ),
+                                                  (context, error, stackTrace) =>
+                                                      _fallbackSquareArt(
+                                                size: 44,
+                                                icon: CupertinoIcons.person_solid,
+                                              ),
                                             )
                                           : _fallbackSquareArt(
                                               size: 44,
@@ -1330,8 +1302,7 @@ class LibraryScreen extends ConsumerWidget {
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             artist.name,
@@ -1345,8 +1316,7 @@ class LibraryScreen extends ConsumerWidget {
                                           Text(
                                             artist.subtitle,
                                             style: const TextStyle(
-                                              color:
-                                                  AppColors.appleSecondaryText,
+                                              color: Colors.white70,
                                               fontSize: 12,
                                             ),
                                           ),
@@ -1356,12 +1326,9 @@ class LibraryScreen extends ConsumerWidget {
                                     IconButton(
                                       icon: Icon(
                                         isSaved
-                                            ? CupertinoIcons
-                                                  .checkmark_circle_fill
+                                            ? CupertinoIcons.checkmark_circle_fill
                                             : CupertinoIcons.plus_circle,
-                                        color: isSaved
-                                            ? Colors.greenAccent
-                                            : AppColors.appleRed,
+                                        color: Colors.white,
                                         size: 26,
                                       ),
                                       onPressed: () {
@@ -1390,10 +1357,8 @@ class LibraryScreen extends ConsumerWidget {
     List<AlbumItem> searchResults = [];
     bool isSearching = false;
 
-    showModalBottomSheet(
+    showAppleGlassBottomSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (modalCtx) {
         return StatefulBuilder(
           builder: (context, setModalState) {
@@ -1418,108 +1383,97 @@ class LibraryScreen extends ConsumerWidget {
               }
             }
 
-            return Container(
-              height: MediaQuery.of(modalCtx).size.height * 0.75,
-              decoration: const BoxDecoration(
-                color: Color(0xFF1C1C1E),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              ),
+            final maxHeight = MediaQuery.sizeOf(modalCtx).height * 0.72;
+            return SizedBox(
+              height: maxHeight,
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Add Favorite Album',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 19,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: -0.4,
+                        ),
+                      ),
+                      ApplePressable(
+                        onTap: () => Navigator.pop(modalCtx),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(CupertinoIcons.xmark, color: Colors.white, size: 16),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 12),
-                  Center(
-                    child: Container(
-                      width: 36,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: Colors.white24,
-                        borderRadius: BorderRadius.circular(2.5),
+                  Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        width: 0.8,
                       ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: Row(
                       children: [
-                        const Expanded(
-                          child: Text(
-                            'Add Favorite Album',
-                            style: TextStyle(
+                        const Icon(
+                          CupertinoIcons.search,
+                          color: Colors.white70,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: searchController,
+                            autofocus: true,
+                            style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: -0.5,
+                              fontSize: 15,
                             ),
+                            decoration: const InputDecoration(
+                              hintText: 'Search albums on YouTube...',
+                              hintStyle: TextStyle(
+                                color: Colors.white38,
+                                fontSize: 14,
+                              ),
+                              border: InputBorder.none,
+                            ),
+                            onSubmitted: executeSearch,
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(
-                            CupertinoIcons.xmark_circle_fill,
-                            color: Colors.white54,
-                          ),
-                          onPressed: () => Navigator.pop(modalCtx),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Container(
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2C2C2E),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            CupertinoIcons.search,
-                            color: AppColors.appleSecondaryText,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextField(
-                              controller: searchController,
-                              autofocus: true,
-                              style: const TextStyle(
+                        if (isSearching)
+                          const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        else if (searchController.text.isNotEmpty)
+                          GestureDetector(
+                            onTap: () => executeSearch(searchController.text),
+                            child: const Text(
+                              'Search',
+                              style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
                               ),
-                              decoration: const InputDecoration(
-                                hintText: 'Search albums on YouTube...',
-                                hintStyle: TextStyle(
-                                  color: Colors.white38,
-                                  fontSize: 14,
-                                ),
-                                border: InputBorder.none,
-                              ),
-                              onSubmitted: executeSearch,
                             ),
                           ),
-                          if (isSearching)
-                            const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.appleRed,
-                              ),
-                            )
-                          else if (searchController.text.isNotEmpty)
-                            GestureDetector(
-                              onTap: () => executeSearch(searchController.text),
-                              child: const Text(
-                                'Search',
-                                style: TextStyle(
-                                  color: AppColors.appleRed,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -1530,19 +1484,15 @@ class LibraryScreen extends ConsumerWidget {
                               'Search for an album and tap + to add it to your library.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                color: AppColors.appleSecondaryText,
+                                color: Colors.white60,
                                 fontSize: 14,
                               ),
                             ),
                           )
                         : ListView.separated(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 8,
-                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 4),
                             itemCount: searchResults.length,
-                            separatorBuilder: (context, index) =>
-                                const SizedBox(height: 8),
+                            separatorBuilder: (context, index) => const SizedBox(height: 6),
                             itemBuilder: (context, index) {
                               final album = searchResults[index];
                               final isSaved = savedAlbums.any(
@@ -1555,8 +1505,12 @@ class LibraryScreen extends ConsumerWidget {
                                   horizontal: 12,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.04),
-                                  borderRadius: BorderRadius.circular(12),
+                                  color: Colors.white.withValues(alpha: 0.06),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.10),
+                                    width: 0.6,
+                                  ),
                                 ),
                                 child: Row(
                                   children: [
@@ -1569,15 +1523,11 @@ class LibraryScreen extends ConsumerWidget {
                                               height: 44,
                                               fit: BoxFit.cover,
                                               errorBuilder:
-                                                  (
-                                                    context,
-                                                    error,
-                                                    stackTrace,
-                                                  ) => _fallbackSquareArt(
-                                                    size: 44,
-                                                    icon: CupertinoIcons
-                                                        .music_albums,
-                                                  ),
+                                                  (context, error, stackTrace) =>
+                                                      _fallbackSquareArt(
+                                                size: 44,
+                                                icon: CupertinoIcons.music_albums,
+                                              ),
                                             )
                                           : _fallbackSquareArt(
                                               size: 44,
@@ -1587,8 +1537,7 @@ class LibraryScreen extends ConsumerWidget {
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             album.title,
@@ -1602,8 +1551,7 @@ class LibraryScreen extends ConsumerWidget {
                                           Text(
                                             album.subtitle,
                                             style: const TextStyle(
-                                              color:
-                                                  AppColors.appleSecondaryText,
+                                              color: Colors.white70,
                                               fontSize: 12,
                                             ),
                                           ),
@@ -1613,12 +1561,9 @@ class LibraryScreen extends ConsumerWidget {
                                     IconButton(
                                       icon: Icon(
                                         isSaved
-                                            ? CupertinoIcons
-                                                  .checkmark_circle_fill
+                                            ? CupertinoIcons.checkmark_circle_fill
                                             : CupertinoIcons.plus_circle,
-                                        color: isSaved
-                                            ? Colors.greenAccent
-                                            : AppColors.appleRed,
+                                        color: Colors.white,
                                         size: 26,
                                       ),
                                       onPressed: () {

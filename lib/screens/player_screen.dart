@@ -18,6 +18,7 @@ import '../services/song_metrics_cache_service.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/ambient_video_canvas.dart';
 import '../widgets/animated_cupertino_icon.dart';
+import '../widgets/apple_glass_bottom_sheet.dart';
 import '../widgets/apple_music_slider.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/apple_lyrics_view.dart';
@@ -221,12 +222,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     final notifier = ref.read(playerProvider.notifier);
     notifier.refreshAudioDevices();
 
-    showModalBottomSheet(
+    showAppleGlassBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1C1C1E),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
       builder: (context) {
         return Consumer(
           builder: (context, ref, _) {
@@ -238,76 +235,76 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
 
             return StatefulBuilder(
               builder: (context, setModalState) {
-                return SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 14),
+                      child: Text(
+                        'Audio Output',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                    ),
+                    AppleSheetGroup(
                       children: [
-                        Container(
-                          width: 36,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: Colors.white24,
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        const Text(
-                          'Audio Output',
-                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 16),
-                        ...devices.map((device) {
-                          final isCurrent = device.id == playerState.connectedDevice.id;
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: AnimatedCupertinoIcon(
-                              icon: device.icon,
-                              color: Colors.white,
-                              size: 28,
-                            ),
-                            title: Text(
-                              device.name,
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                            ),
-                            subtitle: Text(
-                              device.subtitle,
-                              style: const TextStyle(color: appleSecondaryText),
-                            ),
-                            trailing: isCurrent
-                                ? const Icon(CupertinoIcons.checkmark_circle_fill, color: appleRed)
-                                : null,
-                            onTap: () {
-                              notifier.selectAudioDevice(device);
-                            },
-                          );
-                        }),
-                        const Divider(color: Color(0xFF2C2C2E)),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            const Icon(CupertinoIcons.volume_mute, color: appleSecondaryText, size: 20),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: AppleMusicSlider(
-                                value: localVolume,
-                                min: 0.0,
-                                max: 1.0,
-                                showTimestamps: false,
-                                onChanged: (v) {
-                                  setModalState(() => localVolume = v);
-                                  notifier.setVolume(v);
+                        for (int i = 0; i < devices.length; i++) ...[
+                          if (i > 0) const AppleSheetDivider(),
+                          Builder(
+                            builder: (context) {
+                              final device = devices[i];
+                              final isCurrent = device.id == playerState.connectedDevice.id;
+                              return AppleSheetActionTile(
+                                icon: device.icon,
+                                title: device.name,
+                                subtitle: device.subtitle,
+                                trailing: isCurrent
+                                    ? const Icon(CupertinoIcons.checkmark_circle_fill, color: Colors.white, size: 22)
+                                    : null,
+                                onTap: () {
+                                  notifier.selectAudioDevice(device);
                                 },
+                              );
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    AppleSheetGroup(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          child: Row(
+                            children: [
+                              const Icon(CupertinoIcons.volume_mute, color: Colors.white70, size: 20),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: AppleMusicSlider(
+                                  value: localVolume,
+                                  min: 0.0,
+                                  max: 1.0,
+                                  showTimestamps: false,
+                                  onChanged: (v) {
+                                    setModalState(() => localVolume = v);
+                                    notifier.setVolume(v);
+                                  },
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            const Icon(CupertinoIcons.volume_up, color: appleSecondaryText, size: 20),
-                          ],
+                              const SizedBox(width: 10),
+                              const Icon(CupertinoIcons.volume_up, color: Colors.white70, size: 20),
+                            ],
+                          ),
                         ),
                       ],
                     ),
-                  ),
+                  ],
                 );
               },
             );
@@ -320,68 +317,76 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
   void _showSongOptionsSheet(SongItem song) {
     final isFav = ref.read(favoritesProvider.notifier).isFavorite(song.id);
 
-    showModalBottomSheet(
+    showAppleGlassBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1C1C1E),
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
       builder: (context) {
-        return SafeArea(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 36,
-                  height: 4.5,
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Track Header
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14, left: 2, right: 2),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
                     child: song.thumbnailUrl != null
                         ? WavifyCachedImage(
                             imageUrl: song.highResThumbnailUrl ?? song.thumbnailUrl!,
                             songId: song.id,
-                            width: 44,
-                            height: 44,
+                            width: 50,
+                            height: 50,
                             fit: BoxFit.cover,
                             filterQuality: FilterQuality.medium,
                             errorWidget: _fallbackMiniArt(),
                           )
                         : _fallbackMiniArt(),
                   ),
-                  title: Text(
-                    song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: GestureDetector(
-                    onTap: () {
-                      Navigator.pop(context);
-                      openArtistScreen(context, artistName: song.artist);
-                    },
-                    child: Text(
-                      song.artist,
-                      maxLines: 1,
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.75)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.pop(context);
+                            openArtistScreen(context, artistName: song.artist);
+                          },
+                          child: Text(
+                            song.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                const Divider(color: Color(0xFF2C2C2E)),
-                // Sleek Apple-style Lyrics Provider switcher
+                ],
+              ),
+            ),
+            // Sleek Apple-style Lyrics Provider switcher
+            AppleSheetGroup(
+              children: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   child: Consumer(
                     builder: (context, ref, _) {
                       final selectedProvider = ref.watch(playerProvider.select((s) => s.selectedLyricsProvider));
@@ -393,13 +398,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                           Row(
                             children: const [
                               Icon(CupertinoIcons.quote_bubble, color: Colors.white, size: 20),
-                              SizedBox(width: 14),
+                              SizedBox(width: 12),
                               Text(
                                 'Lyrics Provider',
                                 style: TextStyle(
                                   color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ],
@@ -407,10 +412,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                           Container(
                             padding: const EdgeInsets.all(3),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.08),
+                              color: Colors.white.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.14),
+                                color: Colors.white.withValues(alpha: 0.22),
                                 width: 0.8,
                               ),
                             ),
@@ -427,7 +432,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                                     ref.read(playerProvider.notifier).setLyricsProvider(LyricsProviderType.lrcRed);
                                   },
                                 ),
-                                const SizedBox(width: 2),
+                                const SizedBox(width: 3),
                                 _buildOptionsProviderSegment(
                                   type: LyricsProviderType.youTube,
                                   label: 'YouTube',
@@ -446,54 +451,53 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                     },
                   ),
                 ),
-                const Divider(color: Color(0xFF2C2C2E)),
-                ListTile(
-                  leading: Icon(
-                    isFav ? CupertinoIcons.star_fill : CupertinoIcons.star,
-                    color: isFav ? appleRed : Colors.white,
-                  ),
-                  title: Text(
-                    isFav ? 'Remove from Favorites' : 'Add to Favorites',
-                    style: const TextStyle(color: Colors.white),
-                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Actions
+            AppleSheetGroup(
+              children: [
+                AppleSheetActionTile(
+                  icon: isFav ? CupertinoIcons.star_fill : CupertinoIcons.star,
+                  title: isFav ? 'Remove from Favorites' : 'Add to Favorites',
                   onTap: () {
                     Navigator.pop(context);
                     ref.read(favoritesProvider.notifier).toggleFavorite(song);
                   },
                 ),
-                ListTile(
-                  leading: const Icon(CupertinoIcons.text_badge_plus, color: Colors.white),
-                  title: const Text('Add to a Playlist...', style: TextStyle(color: Colors.white)),
+                const AppleSheetDivider(),
+                AppleSheetActionTile(
+                  icon: CupertinoIcons.text_badge_plus,
+                  title: 'Add to a Playlist...',
                   onTap: () => Navigator.pop(context),
                 ),
-                ListTile(
-                  leading: const Icon(CupertinoIcons.music_albums, color: Colors.white),
-                  title: Text(
-                    (song.album != null && song.album!.isNotEmpty) ? 'View Album (${song.album})' : 'View Album',
-                    style: const TextStyle(color: Colors.white),
-                  ),
+                const AppleSheetDivider(),
+                AppleSheetActionTile(
+                  icon: CupertinoIcons.music_albums,
+                  title: (song.album != null && song.album!.isNotEmpty) ? 'View Album (${song.album})' : 'View Album',
                   onTap: () => Navigator.pop(context),
                 ),
-                ListTile(
-                  leading: const Icon(CupertinoIcons.person_fill, color: Colors.white),
-                  title: Text('Go to Artist (${song.artist})', style: const TextStyle(color: Colors.white)),
+                const AppleSheetDivider(),
+                AppleSheetActionTile(
+                  icon: CupertinoIcons.person_fill,
+                  title: 'Go to Artist (${song.artist})',
                   onTap: () {
                     Navigator.pop(context);
                     openArtistScreen(context, artistName: song.artist);
                   },
                 ),
-                ListTile(
-                  leading: const Icon(CupertinoIcons.share, color: Colors.white),
-                  title: const Text('Share Song...', style: TextStyle(color: Colors.white)),
+                const AppleSheetDivider(),
+                AppleSheetActionTile(
+                  icon: CupertinoIcons.share,
+                  title: 'Share Song...',
                   onTap: () => Navigator.pop(context),
                 ),
               ],
             ),
-          ),
-        ),
-      );
-    },
-  );
+          ],
+        );
+      },
+    );
   }
 
   @override

@@ -17,6 +17,7 @@ import '../services/song_metrics_cache_service.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/apple_pressable.dart';
+import '../widgets/apple_glass_bottom_sheet.dart';
 import '../widgets/liquid_glass_bottom_bar.dart';
 import '../widgets/player_controls.dart';
 import '../widgets/track_options_sheet.dart';
@@ -211,38 +212,33 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   }
 
   void _showSortOptions() {
-    showModalBottomSheet(
+    showAppleGlassBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1C1C1E),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
       builder: (modalCtx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Sort Tracks',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(bottom: 14),
+              child: Text(
+                'Sort Tracks',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: -0.3,
                 ),
-                ListTile(
-                  leading: const Icon(CupertinoIcons.list_number, color: Colors.white),
-                  title: const Text('Album Order (Original)', style: TextStyle(color: Colors.white)),
+              ),
+            ),
+            AppleSheetGroup(
+              children: [
+                AppleSheetActionTile(
+                  icon: CupertinoIcons.list_number,
+                  title: 'Album Order (Original)',
                   trailing: _sortBy == 'default'
-                      ? const Icon(CupertinoIcons.checkmark_alt, color: AppColors.appleRed)
+                      ? const Icon(CupertinoIcons.checkmark, color: Colors.white, size: 20)
                       : null,
                   onTap: () {
                     Navigator.pop(modalCtx);
@@ -252,11 +248,12 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     });
                   },
                 ),
-                ListTile(
-                  leading: const Icon(CupertinoIcons.textformat_abc, color: Colors.white),
-                  title: const Text('Title (A to Z)', style: TextStyle(color: Colors.white)),
+                const AppleSheetDivider(),
+                AppleSheetActionTile(
+                  icon: CupertinoIcons.textformat_abc,
+                  title: 'Title (A to Z)',
                   trailing: _sortBy == 'title'
-                      ? const Icon(CupertinoIcons.checkmark_alt, color: AppColors.appleRed)
+                      ? const Icon(CupertinoIcons.checkmark, color: Colors.white, size: 20)
                       : null,
                   onTap: () {
                     Navigator.pop(modalCtx);
@@ -266,11 +263,12 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     });
                   },
                 ),
-                ListTile(
-                  leading: const Icon(CupertinoIcons.time, color: Colors.white),
-                  title: const Text('Duration (Longest First)', style: TextStyle(color: Colors.white)),
+                const AppleSheetDivider(),
+                AppleSheetActionTile(
+                  icon: CupertinoIcons.time,
+                  title: 'Duration (Longest First)',
                   trailing: _sortBy == 'duration'
-                      ? const Icon(CupertinoIcons.checkmark_alt, color: AppColors.appleRed)
+                      ? const Icon(CupertinoIcons.checkmark, color: Colors.white, size: 20)
                       : null,
                   onTap: () {
                     Navigator.pop(modalCtx);
@@ -282,7 +280,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 ),
               ],
             ),
-          ),
+          ],
         );
       },
     );
@@ -291,21 +289,19 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   void _showAlbumOptions() {
     final isSaved = ref.read(savedAlbumsProvider.notifier).isAlbumSaved(_album.id);
 
-    showModalBottomSheet(
+    showAppleGlassBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1C1C1E),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
       builder: (modalCtx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: ClipRRect(
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Album Header
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14, left: 2, right: 2),
+              child: Row(
+                children: [
+                  ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: _resolvedArtwork != null
                         ? Image.network(
@@ -317,56 +313,59 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                           )
                         : _fallbackCover(50),
                   ),
-                  title: Text(
-                    _album.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _album.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.pop(modalCtx);
+                            openArtistScreen(context, artistName: _album.artist);
+                          },
+                          child: Text(
+                            _album.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  subtitle: GestureDetector(
-                    onTap: () {
-                      Navigator.pop(modalCtx);
-                      openArtistScreen(context, artistName: _album.artist);
-                    },
-                    child: Text(
-                      _album.artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.appleSecondaryText,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ),
-                const Divider(color: Color(0xFF2C2C2E)),
-                ListTile(
-                  leading: const Icon(
-                    CupertinoIcons.person_crop_circle,
-                    color: Colors.white,
-                  ),
-                  title: Text(
-                    'View Artist: ${_album.artist}',
-                    style: const TextStyle(color: Colors.white),
-                  ),
+                ],
+              ),
+            ),
+            AppleSheetGroup(
+              children: [
+                AppleSheetActionTile(
+                  icon: CupertinoIcons.person_crop_circle,
+                  title: 'View Artist: ${_album.artist}',
                   onTap: () {
                     Navigator.pop(modalCtx);
                     openArtistScreen(context, artistName: _album.artist);
                   },
                 ),
-                ListTile(
-                  leading: Icon(
-                    isSaved ? CupertinoIcons.bookmark_fill : CupertinoIcons.bookmark,
-                    color: isSaved ? AppColors.appleRed : Colors.white,
-                  ),
-                  title: Text(
-                    isSaved ? 'Remove from Library' : 'Save to Library',
-                    style: const TextStyle(color: Colors.white),
-                  ),
+                const AppleSheetDivider(),
+                AppleSheetActionTile(
+                  icon: isSaved ? CupertinoIcons.bookmark_fill : CupertinoIcons.bookmark,
+                  title: isSaved ? 'Remove from Library' : 'Save to Library',
                   onTap: () {
                     Navigator.pop(modalCtx);
                     ref.read(savedAlbumsProvider.notifier).toggleAlbum(_album);
@@ -378,9 +377,10 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     );
                   },
                 ),
-                ListTile(
-                  leading: const Icon(CupertinoIcons.text_badge_plus, color: Colors.white),
-                  title: const Text('Play Album Next', style: TextStyle(color: Colors.white)),
+                const AppleSheetDivider(),
+                AppleSheetActionTile(
+                  icon: CupertinoIcons.text_badge_plus,
+                  title: 'Play Album Next',
                   onTap: () {
                     Navigator.pop(modalCtx);
                     if (_allTracks.isNotEmpty) {
@@ -389,9 +389,10 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     }
                   },
                 ),
-                ListTile(
-                  leading: const Icon(CupertinoIcons.list_bullet_indent, color: Colors.white),
-                  title: const Text('Add All to Queue', style: TextStyle(color: Colors.white)),
+                const AppleSheetDivider(),
+                AppleSheetActionTile(
+                  icon: CupertinoIcons.list_bullet_indent,
+                  title: 'Add All to Queue',
                   onTap: () {
                     Navigator.pop(modalCtx);
                     for (final track in _allTracks) {
@@ -403,9 +404,10 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     );
                   },
                 ),
-                ListTile(
-                  leading: const Icon(CupertinoIcons.share, color: Colors.white),
-                  title: const Text('Share Album', style: TextStyle(color: Colors.white)),
+                const AppleSheetDivider(),
+                AppleSheetActionTile(
+                  icon: CupertinoIcons.share,
+                  title: 'Share Album',
                   onTap: () {
                     Navigator.pop(modalCtx);
                     showWavifySnackBar(context, 'Sharing "${_album.title}"');
@@ -413,7 +415,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 ),
               ],
             ),
-          ),
+          ],
         );
       },
     );

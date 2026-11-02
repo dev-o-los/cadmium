@@ -26,11 +26,11 @@ void main() async {
   SongMetricsCacheService.instance.init();
   HomeCacheService.instance.loadHomeData();
 
-  runApp(const ProviderScope(child: WavifyApp()));
+  runApp(const ProviderScope(child: MelomaniacApp()));
 }
 
-class WavifyApp extends StatelessWidget {
-  const WavifyApp({super.key});
+class MelomaniacApp extends StatelessWidget {
+  const MelomaniacApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +40,7 @@ class WavifyApp extends StatelessWidget {
     const appleDarkSurfaceHigh = Color(0xFF2C2C2E);
 
     return MaterialApp(
-      title: 'Wavify',
+      title: 'Melomaniac',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.dark, // Dark mode only as requested
       darkTheme: ThemeData(
@@ -96,3 +96,6 @@ class WavifyApp extends StatelessWidget {
     );
   }
 }
+
+/// Backwards-compatible alias for [MelomaniacApp].
+typedef WavifyApp = MelomaniacApp;

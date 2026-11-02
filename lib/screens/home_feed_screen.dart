@@ -98,14 +98,30 @@ class HomeFeedScreen extends ConsumerWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(0, 10, 0, 160),
         children: [
-          // Top Header: 3-Wave Sound Logo on Left + Profile Avatar on Right
+          // Top Header: Melomaniac Logo & Wordmark on Left + Profile Avatar on Right
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Signature 3-wave sound logo
-                const WavifyLogo(size: 32, color: Colors.white),
+                // Redesigned Melomaniac logo & brand title with balanced distancing
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    MelomaniacLogo(size: 28, color: Colors.white),
+                    SizedBox(width: 10),
+                    Text(
+                      'Melomaniac',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.6,
+                      ),
+                    ),
+                  ],
+                ),
 
                 // Interactive Top Right Google / YouTube Music Profile Button
                 Consumer(

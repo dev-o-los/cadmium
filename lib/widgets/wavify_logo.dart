@@ -1,7 +1,90 @@
 import 'package:flutter/material.dart';
 
-/// The signature 3-wave sound logo seen in Wavify's top header
-/// and on the top-right corner of each Mood card.
+/// The signature Apple-style musical frequency 'M' monogram logo for Melomaniac.
+/// Features twin harmonic audio wave peaks forming the letter 'M' with resonance.
+class MelomaniacLogo extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const MelomaniacLogo({
+    super.key,
+    this.size = 28,
+    this.color = Colors.white,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size(size, size * 0.85),
+      painter: _MelomaniacLogoPainter(color: color),
+    );
+  }
+}
+
+class _MelomaniacLogoPainter extends CustomPainter {
+  final Color color;
+
+  const _MelomaniacLogoPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final strokeWidth = w * 0.11;
+
+    final linePaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    // Harmonic 'M' wave path with smooth musical curvature
+    final path = Path();
+    path.moveTo(w * 0.12, h * 0.88);
+    path.cubicTo(
+      w * 0.12, h * 0.40,
+      w * 0.26, h * 0.10,
+      w * 0.38, h * 0.10,
+    );
+    path.cubicTo(
+      w * 0.46, h * 0.10,
+      w * 0.47, h * 0.58,
+      w * 0.50, h * 0.65,
+    );
+    path.cubicTo(
+      w * 0.53, h * 0.58,
+      w * 0.54, h * 0.10,
+      w * 0.62, h * 0.10,
+    );
+    path.cubicTo(
+      w * 0.74, h * 0.10,
+      w * 0.88, h * 0.40,
+      w * 0.88, h * 0.88,
+    );
+
+    canvas.drawPath(path, linePaint);
+
+    // Subtle resonant frequency pulse bar at center bottom
+    final pulsePaint = Paint()
+      ..color = color.withValues(alpha: 0.85)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth * 0.9
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawLine(
+      Offset(w * 0.50, h * 0.86),
+      Offset(w * 0.50, h * 0.62),
+      pulsePaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _MelomaniacLogoPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+/// Backwards-compatible alias for [MelomaniacLogo].
 class WavifyLogo extends StatelessWidget {
   final double size;
   final Color color;
@@ -14,56 +97,8 @@ class WavifyLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(size, size * 0.75),
-      painter: _WavifyLogoPainter(color: color),
-    );
+    return MelomaniacLogo(size: size, color: color);
   }
-}
-
-class _WavifyLogoPainter extends CustomPainter {
-  final Color color;
-
-  const _WavifyLogoPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final strokeWidth = size.height * 0.18;
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round;
-
-    final w = size.width;
-    final h = size.height;
-
-    // 3 vertically stacked wave curves
-    final yOffsets = [h * 0.20, h * 0.52, h * 0.84];
-    final arcWidths = [w * 0.82, w * 0.94, w * 1.0];
-
-    for (int i = 0; i < 3; i++) {
-      final path = Path();
-      final currentW = arcWidths[i];
-      final startX = (w - currentW) / 2;
-      final endX = startX + currentW;
-      final y = yOffsets[i];
-
-      path.moveTo(startX, y);
-      path.quadraticBezierTo(
-        w * 0.5,
-        y - (h * 0.18),
-        endX,
-        y,
-      );
-
-      canvas.drawPath(path, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _WavifyLogoPainter oldDelegate) =>
-      oldDelegate.color != color;
 }
 
 /// Zen balancing stones line-art icon seen in the "Relax" mood card.
