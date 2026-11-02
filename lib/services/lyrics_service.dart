@@ -465,18 +465,21 @@ class LyricsService {
   /// Computes the exact active lyric line index for [currentMs] within [lyrics].
   ///
   /// Features:
+  /// - Automatic 180ms lead-in anticipation so that upcoming lines scroll into
+  ///   position right as vocal delivery begins, eliminating perceived lag.
   /// - Priority-based matching for overlapping vocals (duets, backing vocals):
   ///   Lead vocals (!isBackground) are prioritized over background vocals.
   ///   The line that began most recently (highest startTimeMs <= currentMs) takes precedence.
   /// - Instrumental gap lines (text == '') are matched directly when [currentMs] falls in their range.
   /// - Natural vocal pauses (< 2.5s) keep the preceding lyric active.
   /// - Returns -1 if playback is in an unvoiced intro or break before any line starts.
-  static int computeActiveLyricIndex(int currentMs, List<LyricLine> lyrics) {
+  static int computeActiveLyricIndex(int currentMs, List<LyricLine> lyrics, {int leadInMs = 180}) {
     if (lyrics.isEmpty) return -1;
 
     // 1. Guard: If before first line starts and first line is not an intro gap
     final first = lyrics.first;
-    if (first.startTimeMs != null && currentMs < first.startTimeMs!) {
+    final firstLead = first.text.isEmpty ? 0 : leadInMs;
+    if (first.startTimeMs != null && currentMs < math.max(0, first.startTimeMs! - firstLead)) {
       return -1;
     }
 
@@ -489,8 +492,9 @@ class LyricsService {
       final line = lyrics[i];
       if (line.startTimeMs == null) continue;
 
-      final start = line.startTimeMs!;
-      final end = line.endTimeMs ?? (start + 3500);
+      final lineLead = line.text.isEmpty ? 0 : leadInMs;
+      final start = math.max(0, line.startTimeMs! - lineLead);
+      final end = line.endTimeMs ?? (line.startTimeMs! + 3500);
 
       if (currentMs >= start && currentMs < end) {
         final isLead = !line.isBackground && line.text.isNotEmpty;
@@ -521,7 +525,11 @@ class LyricsService {
       final line = lyrics[i];
       if (line.startTimeMs == null) continue;
 
-      final nextStart = (i < lyrics.length - 1) ? lyrics[i + 1].startTimeMs : null;
+      final nextLine = (i < lyrics.length - 1) ? lyrics[i + 1] : null;
+      final nextLead = (nextLine != null && nextLine.text.isNotEmpty) ? leadInMs : 0;
+      final nextStart = nextLine?.startTimeMs != null
+          ? math.max(0, nextLine!.startTimeMs! - nextLead)
+          : null;
       if (currentMs >= line.startTimeMs! && (nextStart == null || currentMs < nextStart)) {
         final lineEnd = line.endTimeMs ?? (line.startTimeMs! + 3500);
         // If there is an unvoiced break (> 2.5s after lineEnd and > 3.5s to next line), un-highlight

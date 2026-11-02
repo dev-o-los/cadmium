@@ -1099,31 +1099,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     return Column(
       key: ValueKey('mode_${_currentMode.name}'),
       children: [
-        // Top Centered Drag Handle Pill (matching Apple Music)
+        // Top Artwork Header (cleanly below punch-hole camera with generous top padding)
         Padding(
           padding: EdgeInsets.only(
-            top: math.max(topPadding, 24) + 6,
-            bottom: 4,
+            top: math.max(topPadding, 48) + 18,
+            left: 24,
+            right: 20,
+            bottom: 12,
           ),
-          child: GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
-            behavior: HitTestBehavior.opaque,
-            child: Center(
-              child: Container(
-                width: 38,
-                height: 4.5,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.35),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        // Top Artwork Header (enlarged artwork with generous padding on all sides)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 6, 20, 10),
           child: Row(
             children: [
               GestureDetector(

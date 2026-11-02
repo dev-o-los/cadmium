@@ -338,7 +338,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     return LyricsService.computeActiveLyricIndex(currentMs, _displayLyrics);
   }
 
-  /// Positions the active line near the top below the album art header,
+  /// Positions the active line exactly down below the album art header,
   /// with upcoming lines visible below it (matching Apple Music layout).
   void _scrollToActiveLine({bool immediate = false}) {
     if (!_scrollController.hasClients) return;
@@ -358,8 +358,8 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     if (targetContext != null) {
       Scrollable.ensureVisible(
         targetContext,
-        alignment: 0.06, // Keeps active line cleanly near top below album art, with room for previous line peeking
-        duration: immediate ? Duration.zero : const Duration(milliseconds: 400),
+        alignment: 0.0, // Positions active live lyric exactly down below the album art header
+        duration: immediate ? Duration.zero : const Duration(milliseconds: 260),
         curve: Curves.easeOutCubic,
       );
     } else {
@@ -372,7 +372,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
       } else {
         _scrollController.animateTo(
           targetOffset,
-          duration: const Duration(milliseconds: 400),
+          duration: const Duration(milliseconds: 260),
           curve: Curves.easeOutCubic,
         );
       }
@@ -542,7 +542,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
                   Colors.black,
                   Colors.transparent,
                 ],
-                stops: [0.0, 0.06, 0.88, 1.0],
+                stops: [0.0, 0.02, 0.88, 1.0],
               ).createShader(bounds);
             },
             blendMode: BlendMode.dstIn,
@@ -551,7 +551,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
               child: ListView.builder(
                 controller: _scrollController,
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.only(top: 12, bottom: 120),
+                padding: const EdgeInsets.only(top: 6, bottom: 120),
                 itemCount: displayLines.length + 1,
                 itemBuilder: (context, index) {
                   if (index == displayLines.length) {
