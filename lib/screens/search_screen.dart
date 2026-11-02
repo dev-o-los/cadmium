@@ -13,7 +13,6 @@ import '../models/search_result_set.dart';
 import '../models/song_item.dart';
 import '../models/video_item.dart';
 import '../providers/auth_provider.dart';
-import '../providers/home_data_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/search_provider.dart';
 import '../utils/playback_utils.dart';
@@ -467,12 +466,12 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
     }
   }
 
-  /// Recent Searches view matching Screenshot 2.
+  /// Recent Searches view matching Screenshot 2 or Empty Placeholder.
   Widget _buildRecentSearchesSection() {
     final recentSearches = ref.watch(recentSearchProvider);
 
     if (recentSearches.isEmpty) {
-      return _buildExploreCategoriesFallback();
+      return _buildEmptySearchState();
     }
 
     return ListView(
@@ -666,55 +665,51 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  /// Browse categories fallback when recent search history is empty.
-  Widget _buildExploreCategoriesFallback() {
-    final homeDataAsync = ref.watch(homeDataProvider);
-    final genres = homeDataAsync.valueOrNull?.genres ?? [];
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 160),
-      children: [
-        const Text(
-          'Browse Categories',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 14),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: genres.take(16).map((g) {
-            return ApplePressable(
-              onTap: () {
-                _controller.text = g.title;
-                search(g.title);
-              },
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.appleDarkSurface,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.1),
-                  ),
-                ),
-                child: Text(
-                  g.title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+  /// Aesthetic Apple Music empty search placeholder shown when no search has been performed yet.
+  Widget _buildEmptySearchState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 36),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 74,
+              height: 74,
+              decoration: BoxDecoration(
+                color: AppColors.appleDarkSurfaceHigh.withValues(alpha: 0.6),
+                shape: BoxShape.circle,
               ),
-            );
-          }).toList(),
+              child: const Icon(
+                CupertinoIcons.search,
+                color: AppColors.appleSecondaryText,
+                size: 34,
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Search Millions of Songs',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                letterSpacing: -0.4,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Try searching for a song, artist, album, playlist, or video.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.appleSecondaryText,
+                fontSize: 14,
+                height: 1.35,
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 

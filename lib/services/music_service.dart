@@ -120,6 +120,10 @@ class MusicService {
   // In-memory cache for dynamically resolved HD video streams (720p/1080p MP4)
   final Map<String, VideoStreamInfo?> _videoStreamCache = {};
 
+  // In-memory caches for search results to avoid re-fetching on tab switches
+  final Map<String, SearchResultSet> _searchAllMemoryCache = {};
+  final Map<String, List<SongItem>> _searchSongsMemoryCache = {};
+
   // Apple Music-style lyrics provider service (binimum/am-lyrics pipeline)
   final LyricsService _lyricsService = LyricsService();
 
@@ -2569,11 +2573,16 @@ class MusicService {
   }
 
   /// Bundled multi-category search (Songs, Artists, Albums, Playlists, Videos)
-  /// querying all categories concurrently.
+  /// querying all categories concurrently with in-memory caching.
   Future<SearchResultSet> searchAll(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) {
       return const SearchResultSet();
+    }
+
+    final cacheKey = trimmed.toLowerCase();
+    if (_searchAllMemoryCache.containsKey(cacheKey)) {
+      return _searchAllMemoryCache[cacheKey]!;
     }
 
     if (!_isInitialized) {
@@ -2610,13 +2619,26 @@ class MusicService {
       videoFuture,
     ]);
 
-    return SearchResultSet(
+    final searchResultSet = SearchResultSet(
       songs: results[0] as List<SongItem>,
       artists: results[1] as List<ArtistItem>,
       albums: results[2] as List<AlbumItem>,
       playlists: results[3] as List<PlaylistItem>,
       videos: results[4] as List<VideoItem>,
     );
+
+    // Warm duration & artwork cache for discovered songs
+    for (final song in searchResultSet.songs) {
+      if (song.durationSeconds != null && song.durationSeconds! > 0) {
+        unawaited(SongMetricsCacheService.instance.setDuration(song.id, song.durationSeconds!));
+      }
+    }
+    if (searchResultSet.songs.isNotEmpty) {
+      unawaited(ArtworkCacheService.instance.prefetchArtworks(searchResultSet.songs));
+    }
+
+    _searchAllMemoryCache[cacheKey] = searchResultSet;
+    return searchResultSet;
   }
 
   Future<({List<MusicCategory> moods, List<MusicCategory> genres})> _fetchMoodsAndGenres() async {
@@ -2759,11 +2781,16 @@ class MusicService {
     return [];
   }
 
-  /// Searches for songs by query string.
+  /// Searches for songs by query string with in-memory caching.
   Future<List<SongItem>> searchSongs(String query) async {
     final trimmedQuery = query.trim();
     if (trimmedQuery.isEmpty) {
       return [];
+    }
+
+    final cacheKey = trimmedQuery.toLowerCase();
+    if (_searchSongsMemoryCache.containsKey(cacheKey)) {
+      return _searchSongsMemoryCache[cacheKey]!;
     }
 
     if (!_isInitialized) {
@@ -2772,7 +2799,7 @@ class MusicService {
 
     final results = await _ytMusic.searchSongs(trimmedQuery);
 
-    return results
+    final songs = results
         .where((song) => song.videoId.isNotEmpty)
         .map((song) {
           final artistName = song.artist.name.isNotEmpty
@@ -2794,6 +2821,18 @@ class MusicService {
           );
         })
         .toList();
+
+    for (final song in songs) {
+      if (song.durationSeconds != null && song.durationSeconds! > 0) {
+        unawaited(SongMetricsCacheService.instance.setDuration(song.id, song.durationSeconds!));
+      }
+    }
+    if (songs.isNotEmpty) {
+      unawaited(ArtworkCacheService.instance.prefetchArtworks(songs));
+    }
+
+    _searchSongsMemoryCache[cacheKey] = songs;
+    return songs;
   }
 
   /// Resolves the audio stream info (URL, matching headers, bitrate, mimeType)

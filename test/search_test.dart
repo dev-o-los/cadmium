@@ -67,6 +67,25 @@ class MockMusicService extends Fake implements MusicService {
   }
 }
 
+class MockCountingMusicService extends Fake implements MusicService {
+  final VoidCallback onSearch;
+  MockCountingMusicService(this.onSearch);
+
+  @override
+  Future<SearchResultSet> searchAll(String query) async {
+    onSearch();
+    return const SearchResultSet(
+      songs: [
+        SongItem(
+          id: 'test_song_1',
+          title: 'Cached Song',
+          artist: 'Cached Artist',
+        ),
+      ],
+    );
+  }
+}
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
@@ -167,6 +186,26 @@ void main() {
       expect(state.results.playlists.length, 1);
       expect(state.results.videos.length, 1);
     });
+
+    test('memory cache serves repeated queries immediately without network calls', () async {
+      int apiCallCount = 0;
+      final countingService = MockCountingMusicService(() => apiCallCount++);
+      final container = ProviderContainer(
+        overrides: [
+          musicServiceProvider.overrideWithValue(countingService),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final notifier = container.read(searchProvider.notifier);
+      await notifier.search('tsumyoki');
+      expect(apiCallCount, 1);
+
+      // Search again with same query (different case)
+      await notifier.search('TSUMYOKI');
+      expect(apiCallCount, 1); // Served directly from memory cache!
+      expect(container.read(searchProvider).results.songs.first.title, 'Cached Song');
+    });
   });
 
   group('SearchScreen Widget Tests', () {
@@ -189,7 +228,8 @@ void main() {
 
       // Search bar placeholder
       expect(find.text('Artists, Songs, Lyrics and More'), findsOneWidget);
-      expect(find.byIcon(CupertinoIcons.search), findsOneWidget);
+      expect(find.byIcon(CupertinoIcons.search), findsNWidgets(2));
+      expect(find.text('Search Millions of Songs'), findsOneWidget);
 
       // Top right profile avatar button
       expect(find.byType(CircleAvatar), findsOneWidget);
@@ -238,7 +278,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Tsumyoki'), findsNothing);
-      expect(find.text('Browse Categories'), findsOneWidget);
+      expect(find.text('Search Millions of Songs'), findsOneWidget);
     });
 
     testWidgets('typing triggers debounced search and renders capsule filters',
