@@ -13,7 +13,10 @@ import 'package:wavify/widgets/player_controls.dart';
 
 class MockMusicService extends MusicService {
   @override
-  Future<AudioStreamInfo> resolveAudioStream(String videoId) async {
+  Future<AudioStreamInfo> resolveAudioStream(
+    String videoId, {
+    bool forceRefresh = false,
+  }) async {
     return const AudioStreamInfo(
       url: 'https://example.com/audio.mp3',
       headers: {},

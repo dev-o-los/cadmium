@@ -2858,12 +2858,25 @@ class MusicService {
     return songs;
   }
 
+  /// Invalidates any cached audio stream URL for [videoId].
+  void invalidateStream(String videoId) {
+    _streamCache.remove(videoId.trim());
+  }
+
   /// Resolves the audio stream info (URL, matching headers, bitrate, mimeType)
   /// using client fallback rotation and stream probing.
-  Future<AudioStreamInfo> resolveAudioStream(String videoId) async {
+  /// Pass [forceRefresh] = true to bypass memory cache and get a fresh streaming URL.
+  Future<AudioStreamInfo> resolveAudioStream(
+    String videoId, {
+    bool forceRefresh = false,
+  }) async {
     final trimmedId = videoId.trim();
     if (trimmedId.isEmpty) {
       throw ArgumentError('Video ID cannot be empty');
+    }
+
+    if (forceRefresh) {
+      _streamCache.remove(trimmedId);
     }
 
     // Check memory cache with smart URL expiry check
@@ -2875,13 +2888,16 @@ class MusicService {
         final expireSec = int.tryParse(expireMatch.group(1) ?? '');
         if (expireSec != null) {
           final expireDate = DateTime.fromMillisecondsSinceEpoch(expireSec * 1000);
-          if (DateTime.now().isBefore(expireDate.subtract(const Duration(minutes: 15)))) {
+          final age = DateTime.now().difference(cached.timestamp);
+          // Only trust cached URL if within 1 hour and at least 30 min before expire
+          if (age < const Duration(hours: 1) &&
+              DateTime.now().isBefore(expireDate.subtract(const Duration(minutes: 30)))) {
             isCacheValid = true;
           }
         }
       } else {
         final age = DateTime.now().difference(cached.timestamp);
-        if (age < const Duration(hours: 3)) {
+        if (age < const Duration(hours: 1)) {
           isCacheValid = true;
         }
       }

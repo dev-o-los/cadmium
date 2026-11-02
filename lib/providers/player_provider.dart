@@ -156,6 +156,8 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   StreamSubscription<void>? _becomingNoisySub;
   AudioSession? _audioSession;
   int _currentStreamRequestId = 0;
+  int _recoveryAttempts = 0;
+  String? _lastRecoveredSongId;
 
   PlayerNotifier(this._ref) : super(const PlayerStateModel()) {
     _initAudioListeners();
@@ -172,6 +174,18 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
           processing == ProcessingState.loading;
 
       if (processing == ProcessingState.completed) {
+        // Guard against premature stream EOF (e.g. network blip or socket dropped mid-song)
+        final currentPos = _audioPlayer.position;
+        final totalDur = state.duration;
+        final isNearEnd = totalDur > Duration.zero && currentPos >= totalDur - const Duration(seconds: 4);
+
+        if (!isNearEnd && totalDur > const Duration(seconds: 15)) {
+          // Playback cut off prematurely! Keep it playing by recovering stream:
+          debugPrint('Premature stream EOF detected at $currentPos / $totalDur. Auto-recovering...');
+          _recoverAndResumePlayback(currentPos);
+          return;
+        }
+
         if (state.loopMode == LoopMode.one) {
           seek(Duration.zero);
           play();
@@ -239,14 +253,80 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       (_) {},
       onError: (Object e, StackTrace st) {
         debugPrint('Player playback event error: $e');
-        state = state.copyWith(
-          isResolvingStream: false,
-          isPlaying: false,
-          isBuffering: false,
-          errorMessage: 'Unable to stream audio track.',
-        );
+        final currentPos = _audioPlayer.position;
+        if (state.currentSong != null && currentPos > Duration.zero) {
+          _recoverAndResumePlayback(currentPos);
+        } else {
+          state = state.copyWith(
+            isResolvingStream: false,
+            isPlaying: false,
+            isBuffering: false,
+            errorMessage: 'Unable to stream audio track.',
+          );
+        }
       },
     );
+  }
+
+  /// Auto-recovers an interrupted or prematurely severed audio stream and resumes
+  /// playback seamlessly from [resumePosition].
+  Future<void> _recoverAndResumePlayback(Duration resumePosition) async {
+    final song = state.currentSong;
+    if (song == null) return;
+
+    if (_lastRecoveredSongId == song.id) {
+      _recoveryAttempts++;
+      if (_recoveryAttempts > 3) {
+        debugPrint('Max recovery attempts reached for ${song.title}');
+        state = state.copyWith(
+          isPlaying: false,
+          isBuffering: false,
+          isResolvingStream: false,
+          errorMessage: 'Playback error: Unable to keep stream alive.',
+        );
+        return;
+      }
+    } else {
+      _lastRecoveredSongId = song.id;
+      _recoveryAttempts = 1;
+    }
+
+    state = state.copyWith(isBuffering: true);
+
+    try {
+      final musicService = _ref.read(musicServiceProvider);
+      musicService.invalidateStream(song.id);
+      final streamInfo = await musicService.resolveAudioStream(song.id, forceRefresh: true);
+
+      final audioSource = await AudioCacheService.instance.createAudioSource(
+        song.id,
+        streamInfo.url,
+        streamInfo.headers,
+      );
+
+      await _audioPlayer.setAudioSource(
+        audioSource,
+        initialPosition: resumePosition,
+        preload: true,
+      );
+      await _audioPlayer.play();
+
+      state = state.copyWith(
+        isPlaying: true,
+        isBuffering: false,
+        isResolvingStream: false,
+        errorMessage: null,
+      );
+      _recoveryAttempts = 0;
+    } catch (e) {
+      debugPrint('Stream auto-recovery failed: $e');
+      state = state.copyWith(
+        isPlaying: false,
+        isBuffering: false,
+        isResolvingStream: false,
+        errorMessage: 'Unable to stream "${song.title}".',
+      );
+    }
   }
 
   int _computeActiveLyricIndex(int currentMs, List<LyricLine> lyrics) {
@@ -335,6 +415,8 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     }
 
     final requestId = ++_currentStreamRequestId;
+    _recoveryAttempts = 0;
+    _lastRecoveredSongId = null;
 
     // Immediately stop previous audio playback
     try {
@@ -430,6 +512,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
             song.id,
             streamInfo.url,
             streamInfo.headers,
+            contentLength: streamInfo.contentLength,
           );
         }
       }
