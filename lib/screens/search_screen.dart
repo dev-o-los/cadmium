@@ -1,21 +1,37 @@
-import 'dart:io';
-
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../constants/app_colors.dart';
+import '../models/album_item.dart';
+import '../models/artist_item.dart';
+import '../models/playlist_item.dart';
+import '../models/recent_search_item.dart';
+import '../models/search_result_set.dart';
 import '../models/song_item.dart';
+import '../models/video_item.dart';
+import '../providers/auth_provider.dart';
 import '../providers/home_data_provider.dart';
-import '../providers/music_service_provider.dart';
 import '../providers/player_provider.dart';
+import '../providers/search_provider.dart';
 import '../utils/playback_utils.dart';
+import '../widgets/account_modal_sheet.dart';
 import '../widgets/animated_cupertino_icon.dart';
+import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/track_options_sheet.dart';
+import 'google_signin_screen.dart';
 
-/// The Search Tab screen allowing searching for tracks, artists, and albums on YouTube Music,
-/// or exploring genres and categories.
+/// The Apple Music-inspired Search Screen featuring:
+/// - Liquid Glass Search Bar with search icon, text field, clear button, and profile avatar
+/// - Horizontal Capsule Filter Bar (All, Songs, Videos, Albums, Artists, Playlists)
+/// - Real-time searching with 380ms Debouncer
+/// - Recent Searches history with individual delete ("x") and "Clear" all
+/// - Live animated equalizer indicator for playing songs
+/// - Explicit [E] badges, durations, 3-dots modal options
+/// - Responsive categorization matching Apple Music OLED aesthetics
 class SearchScreen extends ConsumerStatefulWidget {
   final TextEditingController? searchController;
 
@@ -30,12 +46,9 @@ class SearchScreen extends ConsumerStatefulWidget {
 
 class SearchScreenState extends ConsumerState<SearchScreen> {
   late final TextEditingController _controller;
+  late final FocusNode _focusNode;
   bool _isInternalController = false;
-
-  List<SongItem> _searchResults = [];
-  bool _isSearching = false;
-  String? _searchError;
-  bool _hasSearched = false;
+  Timer? _debounceTimer;
 
   @override
   void initState() {
@@ -46,10 +59,19 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
       _controller = TextEditingController();
       _isInternalController = true;
     }
+    _focusNode = FocusNode();
+
+    // Sync controller with current search state if exists
+    final activeQuery = ref.read(searchProvider).query;
+    if (activeQuery.isNotEmpty && _controller.text.isEmpty) {
+      _controller.text = activeQuery;
+    }
   }
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
+    _focusNode.dispose();
     if (_isInternalController) {
       _controller.dispose();
     }
@@ -61,183 +83,619 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
     final q = query ?? _controller.text.trim();
     if (q.isEmpty) return;
 
+    _debounceTimer?.cancel();
     if (query != null && _controller.text != query) {
       _controller.text = query;
     }
 
-    setState(() {
-      _isSearching = true;
-      _searchError = null;
-      _hasSearched = true;
-    });
+    // Save query to recent searches
+    ref.read(recentSearchProvider.notifier).addRecent(
+          RecentSearchItem(
+            id: 'query_${q.toLowerCase()}',
+            title: q,
+            subtitle: 'Search query',
+            type: RecentSearchType.query,
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+          ),
+        );
 
-    try {
-      final musicService = ref.read(musicServiceProvider);
-      final results = await musicService.searchSongs(q);
-      if (!mounted) return;
-      setState(() {
-        _searchResults = results;
-        _isSearching = false;
-      });
-    } on SocketException {
-      if (!mounted) return;
-      setState(() {
-        _isSearching = false;
-        _searchError = 'Network error. Please check your connection.';
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isSearching = false;
-        _searchError = 'Search failed: ${e.toString()}';
-      });
+    await ref.read(searchProvider.notifier).search(q, force: true);
+  }
+
+  void _onTextChanged(String text) {
+    setState(() {}); // Updates clear button visibility
+    _debounceTimer?.cancel();
+
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      ref.read(searchProvider.notifier).clearQuery();
+      return;
     }
+
+    _debounceTimer = Timer(const Duration(milliseconds: 380), () {
+      if (!mounted) return;
+      ref.read(searchProvider.notifier).search(trimmed);
+    });
+  }
+
+  void _clearSearch() {
+    _debounceTimer?.cancel();
+    _controller.clear();
+    ref.read(searchProvider.notifier).clearQuery();
+    setState(() {});
+  }
+
+  bool _isExplicit(String title, [String? album]) {
+    final lower = '$title ${album ?? ''}'.toLowerCase();
+    return lower.contains('(explicit') ||
+        lower.contains('[explicit') ||
+        lower.contains('explicit version') ||
+        lower.contains('dirty version');
+  }
+
+  String _cleanTitle(String title) {
+    return title
+        .replaceAll(RegExp(r'\s*\(explicit.*?\)', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\s*\[explicit.*?\]', caseSensitive: false), '')
+        .trim();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(20, 12, 20, 10),
-          child: Text(
-            'Search',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 34,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -1.2,
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-          child: Container(
-            height: 44,
-            decoration: BoxDecoration(
-              color: AppColors.appleDarkSurfaceHigh,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+    final searchState = ref.watch(searchProvider);
+    final isQueryActive = _controller.text.trim().isNotEmpty;
+
+    return SafeArea(
+      bottom: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top Liquid Glass Search Bar & Avatar Row
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
             child: Row(
               children: [
-                const Icon(
-                  CupertinoIcons.search,
-                  color: AppColors.appleSecondaryText,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
                 Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    style: const TextStyle(color: Colors.white, fontSize: 16),
-                    cursorColor: Colors.white,
-                    decoration: const InputDecoration(
-                      hintText: 'Artists, Songs, Lyrics, and More',
-                      hintStyle: TextStyle(
-                        color: AppColors.appleSecondaryText,
-                        fontSize: 15,
-                      ),
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    onSubmitted: (_) => search(),
-                    onChanged: (_) => setState(() {}),
-                  ),
+                  child: _buildLiquidGlassSearchBar(),
                 ),
-                if (_controller.text.isNotEmpty)
-                  GestureDetector(
-                    onTap: () {
-                      _controller.clear();
-                      setState(() {
-                        _searchResults.clear();
-                        _hasSearched = false;
-                      });
-                    },
-                    child: const AnimatedCupertinoIcon(
-                      icon: CupertinoIcons.clear_thick_circled,
-                      color: AppColors.appleSecondaryText,
-                      size: 18,
-                    ),
-                  ),
+                const SizedBox(width: 12),
+                _buildProfileAvatarButton(),
               ],
             ),
           ),
-        ),
-        const SizedBox(height: 10),
-        Expanded(
-          child: _isSearching
-              ? const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
-                )
-              : _hasSearched
-                  ? _buildSearchResultsList()
-                  : _buildSearchExploration(),
-        ),
-      ],
+
+          // Horizontal Filter Capsules (Only when searching or results active)
+          if (isQueryActive || searchState.hasSearched) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: _buildCapsuleFilterBar(searchState.selectedCategory),
+            ),
+          ],
+
+          const SizedBox(height: 6),
+
+          // Content Area
+          Expanded(
+            child: _buildBodyContent(searchState, isQueryActive),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildSearchResultsList() {
-    if (_searchError != null) {
-      return Center(
-        child: Text(_searchError!, style: const TextStyle(color: AppColors.appleRed)),
-      );
-    }
-
-    if (_searchResults.isEmpty) {
-      return const Center(
-        child: Text(
-          'No results found.',
-          style: TextStyle(color: AppColors.appleSecondaryText),
+  /// Liquid Glass frosted container for search input matching Apple Music style.
+  Widget _buildLiquidGlassSearchBar() {
+    return GlassContainer(
+      height: 48,
+      useOwnLayer: true,
+      shape: const LiquidRoundedSuperellipse(borderRadius: 24),
+      color: const Color(0x30FFFFFF),
+      settings: const LiquidGlassSettings(
+        thickness: 18,
+        blur: 24,
+        refractiveIndex: 1.15,
+        lightIntensity: 0.45,
+        specularSharpness: GlassSpecularSharpness.sharp,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        child: Row(
+          children: [
+            const Icon(
+              CupertinoIcons.search,
+              color: AppColors.appleSecondaryText,
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextField(
+                controller: _controller,
+                focusNode: _focusNode,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
+                ),
+                cursorColor: Colors.white,
+                textInputAction: TextInputAction.search,
+                decoration: const InputDecoration(
+                  hintText: 'Artists, Songs, Lyrics and More',
+                  hintStyle: TextStyle(
+                    color: AppColors.appleSecondaryText,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                onChanged: _onTextChanged,
+                onSubmitted: (val) {
+                  if (val.trim().isNotEmpty) {
+                    search(val.trim());
+                  }
+                },
+              ),
+            ),
+            if (_controller.text.isNotEmpty)
+              GestureDetector(
+                onTap: _clearSearch,
+                child: const Padding(
+                  padding: EdgeInsets.only(left: 6),
+                  child: AnimatedCupertinoIcon(
+                    icon: CupertinoIcons.clear_thick_circled,
+                    color: AppColors.appleSecondaryText,
+                    size: 18,
+                  ),
+                ),
+              ),
+          ],
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 160),
-      itemCount: _searchResults.length,
-      separatorBuilder: (context, index) =>
-          const Divider(color: Color(0xFF2C2C2E), height: 1, indent: 62),
-      itemBuilder: (context, index) {
-        final song = _searchResults[index];
-        return _buildSongRow(song);
+  /// Profile Avatar button on top right opening account modal sheet.
+  Widget _buildProfileAvatarButton() {
+    return Consumer(
+      builder: (context, ref, child) {
+        final account = ref.watch(authProvider);
+
+        return ApplePressable(
+          onTap: () {
+            if (account != null) {
+              showAccountModalSheet(context, ref);
+            } else {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const GoogleSignInScreen(),
+                ),
+              );
+            }
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: account != null
+                    ? AppColors.appleRed.withValues(alpha: 0.85)
+                    : Colors.white.withValues(alpha: 0.4),
+                width: 1.5,
+              ),
+            ),
+            child: CircleAvatar(
+              radius: 19,
+              backgroundColor: account != null
+                  ? AppColors.appleRed
+                  : AppColors.appleDarkSurfaceHigh,
+              backgroundImage: account?.avatarUrl != null
+                  ? NetworkImage(account!.avatarUrl!)
+                  : null,
+              child: account?.avatarUrl == null
+                  ? (account != null
+                      ? Text(
+                          account.initials,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : const Icon(
+                          CupertinoIcons.person_crop_circle_fill,
+                          color: Colors.white,
+                          size: 24,
+                        ))
+                  : null,
+            ),
+          ),
+        );
       },
     );
   }
 
-  Widget _buildSearchExploration() {
+  /// Horizontal Capsule Filter Bar (All, Songs, Videos, Albums, Artists, Playlists).
+  Widget _buildCapsuleFilterBar(String selectedCategory) {
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: kSearchFilterCategories.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final category = kSearchFilterCategories[index];
+          final isSelected = category == selectedCategory;
+
+          return ApplePressable(
+            onTap: () => ref.read(searchProvider.notifier).setCategory(category),
+            borderRadius: BorderRadius.circular(19),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? const Color(0xFF505054)
+                    : const Color(0xFF222224),
+                borderRadius: BorderRadius.circular(19),
+              ),
+              child: Center(
+                child: Text(
+                  category,
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : Colors.white70,
+                    fontSize: 14,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Main body routing based on search state and query.
+  Widget _buildBodyContent(SearchState searchState, bool isQueryActive) {
+    // 1. Idle state (no active query): Show Recent Searches
+    if (!isQueryActive && !searchState.hasSearched) {
+      return _buildRecentSearchesSection();
+    }
+
+    // 2. Loading state
+    if (searchState.isLoading) {
+      return const Center(
+        child: CupertinoActivityIndicator(
+          radius: 16,
+          color: Colors.white,
+        ),
+      );
+    }
+
+    // 3. Error state
+    if (searchState.errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                CupertinoIcons.exclamationmark_triangle_fill,
+                color: AppColors.appleRed,
+                size: 40,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                searchState.errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.appleSecondaryText,
+                  fontSize: 15,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ApplePressable(
+                onTap: () => search(),
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.appleDarkSurfaceHigh,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    'Try Again',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // 4. Empty results state
+    if (searchState.results.isEmpty) {
+      return Center(
+        child: Text(
+          'No results found for "${searchState.query}"',
+          style: const TextStyle(
+            color: AppColors.appleSecondaryText,
+            fontSize: 16,
+          ),
+        ),
+      );
+    }
+
+    // 5. Categorized results based on selected capsule
+    switch (searchState.selectedCategory) {
+      case 'Songs':
+        return _buildFullCategoryList(
+          items: searchState.results.songs,
+          itemBuilder: (song) => _buildSongRow(song),
+        );
+      case 'Videos':
+        return _buildFullCategoryList(
+          items: searchState.results.videos,
+          itemBuilder: (video) => _buildVideoRow(video),
+        );
+      case 'Albums':
+        return _buildFullCategoryList(
+          items: searchState.results.albums,
+          itemBuilder: (album) => _buildAlbumRow(album),
+        );
+      case 'Artists':
+        return _buildFullCategoryList(
+          items: searchState.results.artists,
+          itemBuilder: (artist) => _buildArtistRow(artist),
+        );
+      case 'Playlists':
+        return _buildFullCategoryList(
+          items: searchState.results.playlists,
+          itemBuilder: (playlist) => _buildPlaylistRow(playlist),
+        );
+      case 'All':
+      default:
+        return _buildAllCategoriesGrouped(searchState.results);
+    }
+  }
+
+  /// Recent Searches view matching Screenshot 2.
+  Widget _buildRecentSearchesSection() {
+    final recentSearches = ref.watch(recentSearchProvider);
+
+    if (recentSearches.isEmpty) {
+      return _buildExploreCategoriesFallback();
+    }
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 160),
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Recent searches',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                letterSpacing: -0.5,
+              ),
+            ),
+            ApplePressable(
+              onTap: () => ref.read(recentSearchProvider.notifier).clearAll(),
+              borderRadius: BorderRadius.circular(6),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                child: Text(
+                  'Clear',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ...recentSearches.map((item) => _buildRecentSearchRow(item)),
+      ],
+    );
+  }
+
+  Widget _buildRecentSearchRow(RecentSearchItem item) {
+    final isArtist = item.type == RecentSearchType.artist;
+
+    return ApplePressable(
+      onTap: () {
+        _controller.text = item.title;
+        switch (item.type) {
+          case RecentSearchType.song:
+            playSong(
+              context,
+              ref,
+              SongItem(
+                id: item.id,
+                title: item.title,
+                artist: item.subtitle,
+                thumbnailUrl: item.thumbnailUrl,
+              ),
+              forceReload: true,
+            );
+            search(item.title);
+            break;
+          case RecentSearchType.artist:
+            openArtistScreen(
+              context,
+              artistId: item.id.startsWith('query_') ? null : item.id,
+              artistName: item.title,
+              thumbnailUrl: item.thumbnailUrl,
+            );
+            break;
+          case RecentSearchType.album:
+            openAlbumScreen(
+              context,
+              AlbumItem(
+                id: item.id,
+                title: item.title,
+                artist: item.subtitle,
+                thumbnailUrl: item.thumbnailUrl,
+              ),
+            );
+            break;
+          case RecentSearchType.playlist:
+            playPlaylist(
+              context,
+              ref,
+              PlaylistItem(
+                id: item.id,
+                title: item.title,
+                author: item.subtitle,
+                thumbnailUrl: item.thumbnailUrl,
+              ),
+            );
+            break;
+          case RecentSearchType.video:
+          case RecentSearchType.query:
+            search(item.title);
+            break;
+        }
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 56),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              if (isArtist)
+                ClipOval(
+                  child: item.thumbnailUrl != null
+                      ? Image.network(
+                          item.thumbnailUrl!,
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              _fallbackSquareArt(
+                            size: 48,
+                            icon: CupertinoIcons.person_fill,
+                            isCircle: true,
+                          ),
+                        )
+                      : _fallbackSquareArt(
+                          size: 48,
+                          icon: CupertinoIcons.person_fill,
+                          isCircle: true,
+                        ),
+                )
+              else
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: item.thumbnailUrl != null
+                      ? Image.network(
+                          item.thumbnailUrl!,
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              _fallbackSquareArt(size: 48),
+                        )
+                      : _fallbackSquareArt(
+                          size: 48,
+                          icon: item.type == RecentSearchType.query
+                              ? CupertinoIcons.search
+                              : CupertinoIcons.music_note,
+                        ),
+                ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    if (item.subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        item.subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.appleSecondaryText,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(
+                  CupertinoIcons.clear,
+                  color: Color(0xFF8E8E93),
+                  size: 16,
+                ),
+                onPressed: () =>
+                    ref.read(recentSearchProvider.notifier).removeRecent(item.id),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Browse categories fallback when recent search history is empty.
+  Widget _buildExploreCategoriesFallback() {
     final homeDataAsync = ref.watch(homeDataProvider);
     final genres = homeDataAsync.valueOrNull?.genres ?? [];
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 160),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 160),
       children: [
         const Text(
           'Browse Categories',
           style: TextStyle(
             color: Colors.white,
-            fontSize: 20,
+            fontSize: 22,
             fontWeight: FontWeight.bold,
+            letterSpacing: -0.5,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: genres.take(16).map((g) {
-            return GestureDetector(
+            return ApplePressable(
               onTap: () {
                 _controller.text = g.title;
                 search(g.title);
               },
+              borderRadius: BorderRadius.circular(10),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: AppColors.appleDarkSurface,
                   borderRadius: BorderRadius.circular(10),
@@ -260,60 +718,220 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
+  /// "All" tab: sectioned results (Songs, Artists, Albums, Playlists, Videos)
+  /// matching Screenshot 1 & 3.
+  Widget _buildAllCategoriesGrouped(SearchResultSet results) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 160),
+      children: [
+        // 1. Songs Section
+        if (results.songs.isNotEmpty) ...[
+          _buildSectionHeader(
+            'Songs',
+            onSeeAll: () =>
+                ref.read(searchProvider.notifier).setCategory('Songs'),
+          ),
+          const SizedBox(height: 6),
+          ...results.songs.take(9).map((song) => _buildSongRow(song)),
+          const SizedBox(height: 20),
+        ],
+
+        // 2. Artists Section (Screenshot 3)
+        if (results.artists.isNotEmpty) ...[
+          _buildSectionHeader(
+            'Artists',
+            onSeeAll: () =>
+                ref.read(searchProvider.notifier).setCategory('Artists'),
+          ),
+          const SizedBox(height: 6),
+          ...results.artists.take(5).map((artist) => _buildArtistRow(artist)),
+          const SizedBox(height: 20),
+        ],
+
+        // 3. Albums Section (Screenshot 3)
+        if (results.albums.isNotEmpty) ...[
+          _buildSectionHeader(
+            'Albums',
+            onSeeAll: () =>
+                ref.read(searchProvider.notifier).setCategory('Albums'),
+          ),
+          const SizedBox(height: 6),
+          ...results.albums.take(5).map((album) => _buildAlbumRow(album)),
+          const SizedBox(height: 20),
+        ],
+
+        // 4. Playlists Section (Screenshot 3)
+        if (results.playlists.isNotEmpty) ...[
+          _buildSectionHeader(
+            'Playlists',
+            onSeeAll: () =>
+                ref.read(searchProvider.notifier).setCategory('Playlists'),
+          ),
+          const SizedBox(height: 6),
+          ...results.playlists.take(5).map((playlist) => _buildPlaylistRow(playlist)),
+          const SizedBox(height: 20),
+        ],
+
+        // 5. Videos Section
+        if (results.videos.isNotEmpty) ...[
+          _buildSectionHeader(
+            'Videos',
+            onSeeAll: () =>
+                ref.read(searchProvider.notifier).setCategory('Videos'),
+          ),
+          const SizedBox(height: 6),
+          ...results.videos.take(5).map((video) => _buildVideoRow(video)),
+        ],
+      ],
+    );
+  }
+
+  /// Full category list when a specific capsule filter is active.
+  Widget _buildFullCategoryList<T>({
+    required List<T> items,
+    required Widget Function(T item) itemBuilder,
+  }) {
+    if (items.isEmpty) {
+      return const Center(
+        child: Text(
+          'No results found in this category.',
+          style: TextStyle(color: AppColors.appleSecondaryText),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 160),
+      itemCount: items.length,
+      itemBuilder: (context, index) => itemBuilder(items[index]),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, {VoidCallback? onSeeAll}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          letterSpacing: -0.4,
+        ),
+      ),
+    );
+  }
+
+  /// Song row matching Screenshot 1:
+  /// Artwork with animated equalizer overlay if currently playing,
+  /// Song title with [E] badge, Artist subtitle, Duration, 3-dots menu.
   Widget _buildSongRow(SongItem song) {
     final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
+    final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
     final isSelected = currentSong?.id == song.id;
+    final explicit = _isExplicit(song.title, song.album);
+    final displayTitle = _cleanTitle(song.title);
 
     return ApplePressable(
-      onTap: () => playSong(
-        context,
-        ref,
-        song,
-        contextQueue: _searchResults.where((s) => s.id != song.id).toList(),
-        forceReload: true,
-      ),
+      onTap: () {
+        // Record song to recent searches
+        ref.read(recentSearchProvider.notifier).addRecent(
+              RecentSearchItem(
+                id: song.id,
+                title: displayTitle,
+                subtitle: song.artist,
+                thumbnailUrl: song.thumbnailUrl,
+                type: RecentSearchType.song,
+                timestamp: DateTime.now().millisecondsSinceEpoch,
+              ),
+            );
+
+        playSong(
+          context,
+          ref,
+          song,
+          contextQueue: ref
+              .read(searchProvider)
+              .results
+              .songs
+              .where((s) => s.id != song.id)
+              .toList(),
+          forceReload: true,
+        );
+      },
       borderRadius: BorderRadius.circular(10),
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 58),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          padding: const EdgeInsets.symmetric(vertical: 5),
           child: Row(
             children: [
+              // Artwork with Now-Playing Animated Equalizer
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: song.thumbnailUrl != null
-                    ? Image.network(
-                        song.thumbnailUrl!,
-                        width: 48,
-                        height: 48,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            _fallbackSquareArt(),
-                      )
-                    : _fallbackSquareArt(),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    song.thumbnailUrl != null
+                        ? Image.network(
+                            song.thumbnailUrl!,
+                            width: 50,
+                            height: 50,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                _fallbackSquareArt(),
+                          )
+                        : _fallbackSquareArt(),
+                    if (isSelected)
+                      Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Center(
+                          child: AnimatedEqualizerBars(
+                            isPlaying: isPlaying,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
+
+              // Title, Explicit Badge, Artist
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: isSelected ? AppColors.appleRed : Colors.white,
-                        fontSize: 15,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                        letterSpacing: -0.3,
-                        height: 1.25,
-                      ),
+                    Row(
+                      children: [
+                        if (explicit) _buildExplicitBadge(),
+                        Expanded(
+                          child: Text(
+                            displayTitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: isSelected ? AppColors.appleRed : Colors.white,
+                              fontSize: 16,
+                              fontWeight:
+                                  isSelected ? FontWeight.bold : FontWeight.w600,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 3),
                     ApplePressable(
-                      onTap: () => openArtistScreen(context, artistName: song.artist),
+                      onTap: () =>
+                          openArtistScreen(context, artistName: song.artist),
                       child: Text(
                         song.artist,
                         maxLines: 1,
@@ -321,18 +939,27 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                         style: const TextStyle(
                           color: AppColors.appleSecondaryText,
                           fontSize: 13,
-                          fontWeight: FontWeight.w400,
-                          height: 1.2,
                         ),
                       ),
                     ),
                   ],
                 ),
               ),
-              if (isSelected) ...[
-                const Icon(CupertinoIcons.waveform, color: AppColors.appleRed, size: 20),
-                const SizedBox(width: 6),
-              ],
+
+              // Duration
+              if (song.formattedDuration.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Text(
+                    song.formattedDuration,
+                    style: const TextStyle(
+                      color: AppColors.appleSecondaryText,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+
+              // 3-dots Menu
               IconButton(
                 icon: const AnimatedCupertinoIcon(
                   icon: CupertinoIcons.ellipsis_vertical,
@@ -348,20 +975,410 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
+  /// Artist row matching Screenshot 3:
+  /// Circular avatar (52x52), Artist name, Audience/Subscribers subtitle.
+  Widget _buildArtistRow(ArtistItem artist) {
+    return ApplePressable(
+      onTap: () {
+        ref.read(recentSearchProvider.notifier).addRecent(
+              RecentSearchItem(
+                id: artist.id,
+                title: artist.name,
+                subtitle: artist.subtitle,
+                thumbnailUrl: artist.thumbnailUrl,
+                type: RecentSearchType.artist,
+                timestamp: DateTime.now().millisecondsSinceEpoch,
+              ),
+            );
+
+        openArtistScreen(
+          context,
+          artistId: artist.id,
+          artistName: artist.name,
+          thumbnailUrl: artist.thumbnailUrl,
+        );
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 60),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              ClipOval(
+                child: artist.thumbnailUrl != null
+                    ? Image.network(
+                        artist.thumbnailUrl!,
+                        width: 52,
+                        height: 52,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _fallbackSquareArt(
+                          size: 52,
+                          icon: CupertinoIcons.person_fill,
+                          isCircle: true,
+                        ),
+                      )
+                    : _fallbackSquareArt(
+                        size: 52,
+                        icon: CupertinoIcons.person_fill,
+                        isCircle: true,
+                      ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      artist.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      artist.subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.appleSecondaryText,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Album row matching Screenshot 3:
+  /// Artwork (50x50), Album title, EP/Album Year subtitle.
+  Widget _buildAlbumRow(AlbumItem album) {
+    return ApplePressable(
+      onTap: () {
+        ref.read(recentSearchProvider.notifier).addRecent(
+              RecentSearchItem(
+                id: album.id,
+                title: album.title,
+                subtitle: album.subtitle,
+                thumbnailUrl: album.thumbnailUrl,
+                type: RecentSearchType.album,
+                timestamp: DateTime.now().millisecondsSinceEpoch,
+              ),
+            );
+
+        openAlbumScreen(context, album);
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 58),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: album.thumbnailUrl != null
+                    ? Image.network(
+                        album.thumbnailUrl!,
+                        width: 50,
+                        height: 50,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _fallbackSquareArt(),
+                      )
+                    : _fallbackSquareArt(),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      album.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      album.subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.appleSecondaryText,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Playlist row matching Screenshot 3:
+  /// Artwork (50x50), Playlist title, Subtitle.
+  Widget _buildPlaylistRow(PlaylistItem playlist) {
+    return ApplePressable(
+      onTap: () {
+        ref.read(recentSearchProvider.notifier).addRecent(
+              RecentSearchItem(
+                id: playlist.id,
+                title: playlist.title,
+                subtitle: playlist.subtitle,
+                thumbnailUrl: playlist.thumbnailUrl,
+                type: RecentSearchType.playlist,
+                timestamp: DateTime.now().millisecondsSinceEpoch,
+              ),
+            );
+
+        playPlaylist(context, ref, playlist);
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 58),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: playlist.thumbnailUrl != null
+                    ? Image.network(
+                        playlist.thumbnailUrl!,
+                        width: 50,
+                        height: 50,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _fallbackSquareArt(),
+                      )
+                    : _fallbackSquareArt(),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      playlist.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      playlist.subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.appleSecondaryText,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Video row matching Screenshot 4:
+  /// 16:9 widescreen thumbnail, Title, Channel, Duration, 3-dots menu.
+  Widget _buildVideoRow(VideoItem video) {
+    final durationStr = video.durationSeconds != null && video.durationSeconds! > 0
+        ? '${video.durationSeconds! ~/ 60}:${(video.durationSeconds! % 60).toString().padLeft(2, '0')}'
+        : '';
+
+    return ApplePressable(
+      onTap: () {
+        final videoSong = SongItem(
+          id: video.id,
+          title: video.title,
+          artist: video.artist,
+          thumbnailUrl: video.thumbnailUrl,
+          durationSeconds: video.durationSeconds,
+        );
+
+        ref.read(recentSearchProvider.notifier).addRecent(
+              RecentSearchItem(
+                id: video.id,
+                title: video.title,
+                subtitle: video.artist,
+                thumbnailUrl: video.thumbnailUrl,
+                type: RecentSearchType.video,
+                timestamp: DateTime.now().millisecondsSinceEpoch,
+              ),
+            );
+
+        playSong(context, ref, videoSong, forceReload: true);
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 68),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: video.thumbnailUrl != null
+                    ? Image.network(
+                        video.thumbnailUrl!,
+                        width: 104,
+                        height: 58,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _fallbackWidescreenArt(),
+                      )
+                    : _fallbackWidescreenArt(),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      video.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      video.artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.appleSecondaryText,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (durationStr.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Text(
+                    durationStr,
+                    style: const TextStyle(
+                      color: AppColors.appleSecondaryText,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              IconButton(
+                icon: const AnimatedCupertinoIcon(
+                  icon: CupertinoIcons.ellipsis_vertical,
+                  color: AppColors.appleSecondaryText,
+                  size: 18,
+                ),
+                onPressed: () {
+                  final videoSong = SongItem(
+                    id: video.id,
+                    title: video.title,
+                    artist: video.artist,
+                    thumbnailUrl: video.thumbnailUrl,
+                    durationSeconds: video.durationSeconds,
+                  );
+                  showTrackOptionsModal(context, ref, videoSong);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Explicit [E] badge widget.
+  Widget _buildExplicitBadge() {
+    return Container(
+      margin: const EdgeInsets.only(right: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 4.5, vertical: 1.5),
+      decoration: BoxDecoration(
+        color: const Color(0xFF636366),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: const Text(
+        'E',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          height: 1.0,
+        ),
+      ),
+    );
+  }
+
   Widget _fallbackSquareArt({
-    double size = 48,
+    double size = 50,
     IconData icon = CupertinoIcons.music_note,
+    bool isCircle = false,
   }) {
     return Container(
       width: size,
       height: size,
-      color: AppColors.appleDarkSurfaceHigh,
+      decoration: BoxDecoration(
+        color: AppColors.appleDarkSurfaceHigh,
+        shape: isCircle ? BoxShape.circle : BoxShape.rectangle,
+      ),
       child: Icon(
         icon,
         color: Colors.white30,
-        size: (size * 0.5).clamp(20.0, 48.0),
+        size: (size * 0.45).clamp(18.0, 32.0),
+      ),
+    );
+  }
+
+  Widget _fallbackWidescreenArt() {
+    return Container(
+      width: 104,
+      height: 58,
+      color: AppColors.appleDarkSurfaceHigh,
+      child: const Icon(
+        CupertinoIcons.play_rectangle_fill,
+        color: Colors.white30,
+        size: 26,
       ),
     );
   }
 }
-

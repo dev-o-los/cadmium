@@ -17,6 +17,7 @@ import '../models/user_account.dart';
 import '../models/playlist_item.dart';
 import '../models/artist_details.dart';
 import '../models/artist_item.dart';
+import '../models/search_result_set.dart';
 import 'artwork_cache_service.dart';
 import 'home_cache_service.dart';
 import 'lyrics_service.dart';
@@ -2532,6 +2533,90 @@ class MusicService {
       debugPrint('searchVideos error: $e');
       return [];
     }
+  }
+
+  /// Searches playlists on YouTube Music.
+  Future<List<PlaylistItem>> searchPlaylists(String query) async {
+    final trimmedQuery = query.trim();
+    if (trimmedQuery.isEmpty) return [];
+
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    try {
+      final results = await _ytMusic.searchPlaylists(trimmedQuery);
+      return results
+          .where((p) => p.playlistId.isNotEmpty)
+          .map((p) {
+            String? thumb;
+            if (p.thumbnails.isNotEmpty) {
+              final raw = p.thumbnails.last.url;
+              thumb = SongItem.upgradeThumbnail(raw.startsWith('//') ? 'https:$raw' : raw);
+            }
+            return PlaylistItem(
+              id: p.playlistId,
+              title: p.name.isNotEmpty ? p.name : 'Untitled Playlist',
+              author: p.artist.name.isNotEmpty ? p.artist.name : 'YouTube Music',
+              thumbnailUrl: thumb,
+            );
+          })
+          .toList();
+    } catch (e) {
+      debugPrint('searchPlaylists error: $e');
+      return [];
+    }
+  }
+
+  /// Bundled multi-category search (Songs, Artists, Albums, Playlists, Videos)
+  /// querying all categories concurrently.
+  Future<SearchResultSet> searchAll(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) {
+      return const SearchResultSet();
+    }
+
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    // Run searches concurrently with safe fallbacks
+    final songFuture = searchSongs(trimmed).catchError((e) {
+      debugPrint('searchSongs error in searchAll: $e');
+      return <SongItem>[];
+    });
+    final artistFuture = searchArtists(trimmed).catchError((e) {
+      debugPrint('searchArtists error in searchAll: $e');
+      return <ArtistItem>[];
+    });
+    final albumFuture = searchAlbums(trimmed).catchError((e) {
+      debugPrint('searchAlbums error in searchAll: $e');
+      return <AlbumItem>[];
+    });
+    final playlistFuture = searchPlaylists(trimmed).catchError((e) {
+      debugPrint('searchPlaylists error in searchAll: $e');
+      return <PlaylistItem>[];
+    });
+    final videoFuture = searchVideos(trimmed).catchError((e) {
+      debugPrint('searchVideos error in searchAll: $e');
+      return <VideoItem>[];
+    });
+
+    final results = await Future.wait([
+      songFuture,
+      artistFuture,
+      albumFuture,
+      playlistFuture,
+      videoFuture,
+    ]);
+
+    return SearchResultSet(
+      songs: results[0] as List<SongItem>,
+      artists: results[1] as List<ArtistItem>,
+      albums: results[2] as List<AlbumItem>,
+      playlists: results[3] as List<PlaylistItem>,
+      videos: results[4] as List<VideoItem>,
+    );
   }
 
   Future<({List<MusicCategory> moods, List<MusicCategory> genres})> _fetchMoodsAndGenres() async {
