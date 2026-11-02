@@ -1059,35 +1059,51 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     double bottomPadding,
     bool isFavorite,
   ) {
+    const double artworkSize = 58.0;
+
     return Column(
       key: ValueKey('mode_${_currentMode.name}'),
       children: [
-        // Top Mini Artwork Header (chevron removed, spaced comfortably below camera cutout)
+        // Top Artwork Header (enlarged artwork with generous padding on all sides)
         Padding(
           padding: EdgeInsets.only(
-            top: math.max(topPadding, 48) + 14,
-            left: 20,
-            right: 16,
-            bottom: 6,
+            top: math.max(topPadding, 48) + 18,
+            left: 24,
+            right: 20,
+            bottom: 16,
           ),
           child: Row(
             children: [
               GestureDetector(
                 onTap: () => _switchMode(PlayerViewMode.nowPlaying),
                 behavior: HitTestBehavior.opaque,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: song.thumbnailUrl != null
-                      ? WavifyCachedImage(
-                          imageUrl: song.highResThumbnailUrl ?? song.thumbnailUrl!,
-                          songId: song.id,
-                          width: 44,
-                          height: 44,
-                          fit: BoxFit.cover,
-                          filterQuality: FilterQuality.medium,
-                          errorWidget: _fallbackMiniArt(),
-                        )
-                      : _fallbackMiniArt(),
+                child: Container(
+                  width: artworkSize,
+                  height: artworkSize,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        blurRadius: 14,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: song.thumbnailUrl != null
+                        ? WavifyCachedImage(
+                            imageUrl: song.highResThumbnailUrl ?? song.thumbnailUrl!,
+                            songId: song.id,
+                            width: artworkSize,
+                            height: artworkSize,
+                            fit: BoxFit.cover,
+                            filterQuality: FilterQuality.medium,
+                            errorWidget: _fallbackMiniArt(size: artworkSize, borderRadius: 12),
+                          )
+                        : _fallbackMiniArt(size: artworkSize, borderRadius: 12),
+                  ),
                 )
                 .animate(key: ValueKey('player_header_art_${song.id}'))
                 .fadeIn(
@@ -1101,7 +1117,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                   curve: Curves.easeOutCubic,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1112,12 +1128,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 15,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                         letterSpacing: -0.3,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     ApplePressable(
                       onTap: () => openArtistScreen(context, artistName: song.artist),
                       child: Text(
@@ -1135,7 +1151,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                 ),
               ),
               _buildLiquidGlassButton(
-                size: 38,
+                size: 40,
                 onTap: () => ref.read(favoritesProvider.notifier).toggleFavorite(song),
                 icon: AnimatedCupertinoIcon(
                   icon: isFavorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
@@ -1145,7 +1161,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
               ),
               const SizedBox(width: 8),
               _buildLiquidGlassButton(
-                size: 38,
+                size: 40,
                 onTap: () => _showSongOptionsSheet(song),
                 icon: const AnimatedCupertinoIcon(
                   icon: CupertinoIcons.ellipsis,
@@ -1625,12 +1641,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     );
   }
 
-  Widget _fallbackMiniArt() {
+  Widget _fallbackMiniArt({double size = 40, double borderRadius = 8}) {
     return Container(
-      width: 40,
-      height: 40,
-      color: const Color(0xFF2C2C2E),
-      child: const Icon(CupertinoIcons.music_note, color: Colors.white38, size: 22),
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: const Color(0xFF2C2C2E),
+        borderRadius: BorderRadius.circular(borderRadius),
+      ),
+      child: Icon(
+        CupertinoIcons.music_note,
+        color: Colors.white38,
+        size: size > 48 ? 26 : 22,
+      ),
     );
   }
 

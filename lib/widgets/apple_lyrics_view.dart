@@ -338,7 +338,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     return LyricsService.computeActiveLyricIndex(currentMs, _displayLyrics);
   }
 
-  /// Centers the active line cleanly at top 10% of viewport (am-lyrics layout).
+  /// Positions the active line directly below the album art header at the top of the viewport.
   void _scrollToActiveLine({bool immediate = false}) {
     if (!_scrollController.hasClients) return;
     final lines = _displayLyrics;
@@ -357,12 +357,12 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     if (targetContext != null) {
       Scrollable.ensureVisible(
         targetContext,
-        alignment: 0.10, // Positions live lyric in the top 10% breathing zone
+        alignment: 0.0, // Positions active live lyric right at top, just below album art header
         duration: immediate ? Duration.zero : const Duration(milliseconds: 380),
         curve: Curves.easeOutCubic,
       );
     } else {
-      final double estimatedLineHeight = 72.0;
+      final double estimatedLineHeight = 68.0;
       final double targetOffset = (targetIndex * estimatedLineHeight)
           .clamp(0.0, _scrollController.position.maxScrollExtent);
 
@@ -384,7 +384,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
         if (refreshedContext != null) {
           Scrollable.ensureVisible(
             refreshedContext,
-            alignment: 0.10,
+            alignment: 0.0,
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeOutCubic,
           );
@@ -549,7 +549,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: ListView.builder(
               controller: _scrollController,
-              padding: const EdgeInsets.only(top: 10, bottom: 220),
+              padding: const EdgeInsets.only(top: 8, bottom: 220),
               itemCount: displayLines.length + 1,
               itemBuilder: (context, index) {
                 if (index == displayLines.length) {
