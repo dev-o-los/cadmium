@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../providers/player_provider.dart';
+import '../utils/playback_utils.dart';
 import 'animated_cupertino_icon.dart';
 import 'wavify_cached_image.dart';
 
@@ -106,31 +107,35 @@ class PlayerControls extends ConsumerWidget {
             GestureDetector(
               onTap: onTap,
               behavior: HitTestBehavior.opaque,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: highResArt != null
-                    ? WavifyCachedImage(
-                        imageUrl: highResArt,
-                        placeholderImageUrl: thumbArt,
-                        songId: songId,
-                        width: 34,
-                        height: 34,
-                        fit: BoxFit.cover,
-                        filterQuality: FilterQuality.medium,
-                        errorWidget: _fallbackArtwork(size: 34),
-                      )
-                    : _fallbackArtwork(size: 34),
-              )
-              .animate(key: ValueKey('mini_art_inline_$songId'))
-              .fadeIn(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOut,
-              )
-              .scale(
-                begin: const Offset(0.85, 0.85),
-                end: const Offset(1.0, 1.0),
-                duration: const Duration(milliseconds: 350),
-                curve: Curves.easeOutCubic,
+              child: Hero(
+                tag: 'player_album_art_$songId',
+                flightShuttleBuilder: playerHeroFlightShuttleBuilder,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: highResArt != null
+                      ? WavifyCachedImage(
+                          imageUrl: highResArt,
+                          placeholderImageUrl: thumbArt,
+                          songId: songId,
+                          width: 34,
+                          height: 34,
+                          fit: BoxFit.cover,
+                          filterQuality: FilterQuality.medium,
+                          errorWidget: _fallbackArtwork(size: 34),
+                        )
+                      : _fallbackArtwork(size: 34),
+                )
+                .animate(key: ValueKey('mini_art_inline_$songId'))
+                .fadeIn(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                )
+                .scale(
+                  begin: const Offset(0.85, 0.85),
+                  end: const Offset(1.0, 1.0),
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeOutCubic,
+                ),
               ),
             ),
             const SizedBox(width: 8),
@@ -263,31 +268,35 @@ class PlayerControls extends ConsumerWidget {
                     child: Row(
                       children: [
                         // Album Artwork with High-Res Upgrade & bicubic filtering
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: highResArt != null
-                              ? WavifyCachedImage(
-                                  imageUrl: highResArt,
-                                  placeholderImageUrl: thumbArt,
-                                  songId: songId,
-                                  width: 40,
-                                  height: 40,
-                                  fit: BoxFit.cover,
-                                  filterQuality: FilterQuality.medium,
-                                  errorWidget: _fallbackArtwork(size: 40),
-                                )
-                              : _fallbackArtwork(size: 40),
-                        )
-                        .animate(key: ValueKey('mini_art_expanded_$songId'))
-                        .fadeIn(
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeOut,
-                        )
-                        .scale(
-                          begin: const Offset(0.85, 0.85),
-                          end: const Offset(1.0, 1.0),
-                          duration: const Duration(milliseconds: 350),
-                          curve: Curves.easeOutCubic,
+                        Hero(
+                          tag: 'player_album_art_$songId',
+                          flightShuttleBuilder: playerHeroFlightShuttleBuilder,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: highResArt != null
+                                ? WavifyCachedImage(
+                                    imageUrl: highResArt,
+                                    placeholderImageUrl: thumbArt,
+                                    songId: songId,
+                                    width: 40,
+                                    height: 40,
+                                    fit: BoxFit.cover,
+                                    filterQuality: FilterQuality.medium,
+                                    errorWidget: _fallbackArtwork(size: 40),
+                                  )
+                                : _fallbackArtwork(size: 40),
+                          )
+                          .animate(key: ValueKey('mini_art_expanded_$songId'))
+                          .fadeIn(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeOut,
+                          )
+                          .scale(
+                            begin: const Offset(0.85, 0.85),
+                            end: const Offset(1.0, 1.0),
+                            duration: const Duration(milliseconds: 350),
+                            curve: Curves.easeOutCubic,
+                          ),
                         ),
                         const SizedBox(width: 10),
 

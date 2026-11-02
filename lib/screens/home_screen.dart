@@ -11,7 +11,6 @@ import '../widgets/player_controls.dart';
 import 'explore_screen.dart';
 import 'home_feed_screen.dart';
 import 'library_screen.dart';
-import 'player_screen.dart';
 import 'search_screen.dart';
 
 export 'album_screen.dart';
@@ -87,20 +86,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     super.dispose();
   }
 
-  bool _isPlayerOpen = false;
-
   void _openPlayerScreen() {
-    if (_isPlayerOpen || !mounted) return;
-    _isPlayerOpen = true;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: false,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const PlayerScreen(),
-    ).whenComplete(() {
-      _isPlayerOpen = false;
-    });
+    if (!mounted) return;
+    openPlayerScreen(context);
   }
 
   void _navigateToSearchWithQuery(String query) {

@@ -25,15 +25,123 @@ void showWavifySnackBar(BuildContext context, String message) {
   );
 }
 
-/// Opens the full-screen modal [PlayerScreen] extending behind the status bar.
-void openPlayerScreen(BuildContext context) {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: false,
-    backgroundColor: Colors.transparent,
-    builder: (context) => const PlayerScreen(),
+/// Flight shuttle builder for smooth, lag-free morphing of album artwork between
+/// the mini player and full player screen, gradually interpolating corner radii.
+Widget playerHeroFlightShuttleBuilder(
+  BuildContext flightContext,
+  Animation<double> animation,
+  HeroFlightDirection flightDirection,
+  BuildContext fromHeroContext,
+  BuildContext toHeroContext,
+) {
+  final Hero toHero = toHeroContext.widget as Hero;
+  final curved = CurvedAnimation(
+    parent: animation,
+    curve: Curves.fastOutSlowIn,
+    reverseCurve: Curves.easeInCubic,
   );
+
+  return AnimatedBuilder(
+    animation: curved,
+    builder: (context, _) {
+      final t = curved.value;
+      final radius = flightDirection == HeroFlightDirection.push
+          ? (8.0 * (1.0 - t)).clamp(0.0, 8.0)
+          : (8.0 * t).clamp(0.0, 8.0);
+
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: Material(
+          color: Colors.transparent,
+          child: toHero.child,
+        ),
+      );
+    },
+  );
+}
+
+/// Modal PageRoute extending [PageRoute] so Flutter's [HeroController] automatically
+/// orchestrates continuous, high-performance album artwork morph transitions.
+class PlayerModalPageRoute<T> extends PageRoute<T> {
+  PlayerModalPageRoute({
+    required this.builder,
+    super.settings,
+  });
+
+  final WidgetBuilder builder;
+
+  @override
+  bool get opaque => false;
+
+  @override
+  bool get barrierDismissible => true;
+
+  @override
+  Color? get barrierColor => Colors.black.withValues(alpha: 0.65);
+
+  @override
+  String? get barrierLabel => 'Dismiss';
+
+  @override
+  bool get maintainState => true;
+
+  @override
+  Duration get transitionDuration => const Duration(milliseconds: 440);
+
+  @override
+  Duration get reverseTransitionDuration => const Duration(milliseconds: 360);
+
+  @override
+  Widget buildPage(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+  ) {
+    return builder(context);
+  }
+
+  @override
+  Widget buildTransitions(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final curvedAnimation = CurvedAnimation(
+      parent: animation,
+      curve: Curves.fastOutSlowIn,
+      reverseCurve: Curves.easeInCubic,
+    );
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(0.0, 1.0),
+        end: Offset.zero,
+      ).animate(curvedAnimation),
+      child: FadeTransition(
+        opacity: Tween<double>(begin: 0.9, end: 1.0).animate(curvedAnimation),
+        child: child,
+      ),
+    );
+  }
+}
+
+bool _isPlayerScreenPushing = false;
+
+/// Opens the full-screen modal [PlayerScreen] extending behind the status bar.
+/// Uses [PlayerModalPageRoute] to enable 60/120fps hardware-accelerated Hero artwork morphing.
+void openPlayerScreen(BuildContext context) {
+  if (_isPlayerScreenPushing) return;
+  _isPlayerScreenPushing = true;
+
+  Navigator.of(context, rootNavigator: true)
+      .push(
+    PlayerModalPageRoute(
+      builder: (context) => const PlayerScreen(),
+    ),
+  )
+      .whenComplete(() {
+    _isPlayerScreenPushing = false;
+  });
 }
 
 /// Opens the dedicated full-page [AlbumScreen] with ambient artwork blur, metadata, and tracklist.
