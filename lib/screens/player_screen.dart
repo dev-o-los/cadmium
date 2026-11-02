@@ -134,7 +134,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     });
 
     // Bring controls into view smoothly when switching modes,
-    // and start the 7s auto-hide timer to animate downside gradually
+    // and start the auto-hide timer to animate downside gradually
     _controlsAnimController.forward();
     _startAutoHideTimer();
   }
@@ -967,6 +967,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     );
   }
 
+  bool _isExplicit(String title, [String? album]) {
+    final lower = (title + (album ?? '')).toLowerCase();
+    return lower.contains('(explicit') ||
+        lower.contains('[explicit') ||
+        lower.contains('explicit version') ||
+        lower.contains('explicit');
+  }
+
+  Widget _buildExplicitBadge() {
+    return Container(
+      margin: const EdgeInsets.only(right: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: const Text(
+        'E',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          height: 1.1,
+        ),
+      ),
+    );
+  }
+
   /// Metadata Row: Song Title + Artist on Left (aligned flush), Liquid Glass Star & 3-dots on Right
   Widget _buildMetadataRow(SongItem song, bool isFavorite) {
     return GestureDetector(
@@ -985,16 +1013,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  song.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: -0.4,
-                  ),
+                Row(
+                  children: [
+                    if (_isExplicit(song.title, song.album)) _buildExplicitBadge(),
+                    Expanded(
+                      child: Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: -0.4,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 4),
                 ApplePressable(
@@ -1064,14 +1099,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     return Column(
       key: ValueKey('mode_${_currentMode.name}'),
       children: [
-        // Top Artwork Header (enlarged artwork with generous padding on all sides)
+        // Top Centered Drag Handle Pill (matching Apple Music)
         Padding(
           padding: EdgeInsets.only(
-            top: math.max(topPadding, 48) + 18,
-            left: 24,
-            right: 20,
-            bottom: 16,
+            top: math.max(topPadding, 24) + 6,
+            bottom: 4,
           ),
+          child: GestureDetector(
+            onTap: () => Navigator.of(context).pop(),
+            behavior: HitTestBehavior.opaque,
+            child: Center(
+              child: Container(
+                width: 38,
+                height: 4.5,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        // Top Artwork Header (enlarged artwork with generous padding on all sides)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 6, 20, 10),
           child: Row(
             children: [
               GestureDetector(
@@ -1121,17 +1173,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: -0.3,
-                      ),
+                    Row(
+                      children: [
+                        if (_isExplicit(song.title, song.album)) _buildExplicitBadge(),
+                        Expanded(
+                          child: Text(
+                            song.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 3),
                     ApplePressable(
