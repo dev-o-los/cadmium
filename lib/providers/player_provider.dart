@@ -158,6 +158,9 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   int _currentStreamRequestId = 0;
   int _recoveryAttempts = 0;
   String? _lastRecoveredSongId;
+  int _lyricsRequestId = 0;
+  Duration? _pendingSeekPosition;
+  DateTime? _pendingSeekTime;
 
   PlayerNotifier(this._ref) : super(const PlayerStateModel()) {
     _initAudioListeners();
@@ -218,6 +221,23 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     });
 
     _positionSub = _audioPlayer.positionStream.listen((pos) {
+      // Guard against stale position packets arriving during asynchronous seek transitions
+      if (_pendingSeekPosition != null && _pendingSeekTime != null) {
+        final diff = (pos - _pendingSeekPosition!).abs();
+        if (diff < const Duration(milliseconds: 600)) {
+          // Seek completed and caught up!
+          _pendingSeekPosition = null;
+          _pendingSeekTime = null;
+        } else if (DateTime.now().difference(_pendingSeekTime!) < const Duration(milliseconds: 800)) {
+          // Stale pre-seek packet: discard so it doesn't clobber the user's seek position!
+          return;
+        } else {
+          // Seek window expired
+          _pendingSeekPosition = null;
+          _pendingSeekTime = null;
+        }
+      }
+
       final newLyricIdx = _computeActiveLyricIndex(pos.inMilliseconds, state.lyrics);
 
       // Once playback position advances, audio is unequivocally playing out of speakers:
@@ -415,8 +435,11 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     }
 
     final requestId = ++_currentStreamRequestId;
+    _lyricsRequestId++;
     _recoveryAttempts = 0;
     _lastRecoveredSongId = null;
+    _pendingSeekPosition = null;
+    _pendingSeekTime = null;
 
     // Immediately stop previous audio playback
     try {
@@ -562,10 +585,12 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   /// Changes the active lyrics provider (lrc.red or YouTube) and fetches the lyrics.
   void setLyricsProvider(LyricsProviderType provider) {
     if (state.selectedLyricsProvider == provider) return;
+    _lyricsRequestId++;
     state = state.copyWith(
       selectedLyricsProvider: provider,
       isLoadingLyrics: true,
       lyrics: const [],
+      activeLyricIndex: -1,
       clearLyricsSource: true,
       clearLyricsSongwriters: true,
       hasWordSyncedLyrics: false,
@@ -580,6 +605,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
 
   Future<void> _fetchLyrics(SongItem song, {LyricsProviderType? provider}) async {
     final targetProvider = provider ?? state.selectedLyricsProvider;
+    final requestId = ++_lyricsRequestId;
     try {
       state = state.copyWith(isLoadingLyrics: true);
       final musicService = _ref.read(musicServiceProvider);
@@ -596,9 +622,16 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         durationSeconds: durSec,
         provider: targetProvider,
       );
-      if (state.currentSong?.id == song.id && state.selectedLyricsProvider == targetProvider) {
+      if (requestId == _lyricsRequestId &&
+          state.currentSong?.id == song.id &&
+          state.selectedLyricsProvider == targetProvider) {
+        final currentMs = state.position.inMilliseconds > 0
+            ? state.position.inMilliseconds
+            : _audioPlayer.position.inMilliseconds;
+        final newActiveIdx = _computeActiveLyricIndex(currentMs, result.lines);
         state = state.copyWith(
           lyrics: result.lines,
+          activeLyricIndex: newActiveIdx,
           lyricsSource: result.source,
           lyricsSongwriters: result.songwriters,
           hasWordSyncedLyrics: result.hasWordSync,
@@ -606,9 +639,12 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         );
       }
     } catch (e) {
-      if (state.currentSong?.id == song.id && state.selectedLyricsProvider == targetProvider) {
+      if (requestId == _lyricsRequestId &&
+          state.currentSong?.id == song.id &&
+          state.selectedLyricsProvider == targetProvider) {
         state = state.copyWith(
           lyrics: const [],
+          activeLyricIndex: -1,
           clearLyricsSource: true,
           clearLyricsSongwriters: true,
           hasWordSyncedLyrics: false,
@@ -711,12 +747,27 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   }
 
   void seek(Duration position) {
+    _pendingSeekPosition = position;
+    _pendingSeekTime = DateTime.now();
+    final newLyricIdx = _computeActiveLyricIndex(position.inMilliseconds, state.lyrics);
+    state = state.copyWith(
+      position: position,
+      activeLyricIndex: newLyricIdx,
+    );
     _audioPlayer.seek(position);
   }
 
   void seekToLyric(LyricLine line) {
     if (line.startTimeMs != null) {
-      seek(Duration(milliseconds: line.startTimeMs!));
+      final pos = Duration(milliseconds: line.startTimeMs!);
+      _pendingSeekPosition = pos;
+      _pendingSeekTime = DateTime.now();
+      final idx = state.lyrics.indexOf(line);
+      state = state.copyWith(
+        position: pos,
+        activeLyricIndex: idx >= 0 ? idx : _computeActiveLyricIndex(pos.inMilliseconds, state.lyrics),
+      );
+      _audioPlayer.seek(pos);
     }
   }
 

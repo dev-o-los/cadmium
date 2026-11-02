@@ -173,7 +173,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     return _lineKeys.putIfAbsent(index, () => GlobalKey());
   }
 
-  /// Ensures instrumental intros (>= 3000ms) start with an instrumental gap line.
+  /// Display lyrics matching withInstrumentalGaps structure.
   List<LyricLine> get _displayLyrics {
     if (widget.lyrics.isEmpty) return widget.lyrics;
     final first = widget.lyrics.first;
@@ -190,13 +190,35 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     return widget.lyrics;
   }
 
+  void _handleLyricTap(LyricLine line, int index) {
+    _isUserScrolling = false;
+    _userScrollDebounce?.cancel();
+
+    final targetMs = line.startTimeMs ?? 0;
+    _discontinuity++;
+    _lastReportedMs = targetMs;
+    final nowMs = DateTime.now().millisecondsSinceEpoch.toDouble();
+    _clock.hold(targetMs.toDouble(), nowMs);
+    _clock.restart();
+    _smoothPositionNotifier.value = targetMs;
+
+    setState(() {
+      _activeLyricIndex = index;
+    });
+
+    _scrollToActiveLine();
+    widget.onSeekToLyric(line);
+  }
+
   @override
   void initState() {
     super.initState();
     _clock = LyricClock(widget.currentPositionMs.toDouble());
     _smoothPositionNotifier = ValueNotifier<int>(widget.currentPositionMs);
     _lastReportedMs = widget.currentPositionMs;
-    _activeLyricIndex = _computeActiveIndex(widget.currentPositionMs);
+    _activeLyricIndex = widget.activeLyricIndex >= 0
+        ? widget.activeLyricIndex
+        : _computeActiveIndex(widget.currentPositionMs);
 
     // High-frequency 60Hz/120Hz frame ticker driven by LyricClock
     _ticker = createTicker((_) {
@@ -253,14 +275,42 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
       }
     }
 
-    // Detect announced seek or large player scrub
-    final diff = (widget.currentPositionMs - _lastReportedMs).abs();
-    if (diff > 1200) {
+    final bool lyricsChanged = !listEquals(widget.lyrics, oldWidget.lyrics);
+    final bool providerChanged = widget.selectedProvider != oldWidget.selectedProvider;
+
+    if (lyricsChanged || providerChanged) {
+      _lineKeys.clear();
       _discontinuity++;
       _lastReportedMs = widget.currentPositionMs;
+      final nowMs = DateTime.now().millisecondsSinceEpoch.toDouble();
+      _clock.hold(widget.currentPositionMs.toDouble(), nowMs);
       _clock.restart();
       _smoothPositionNotifier.value = widget.currentPositionMs;
-      final newIdx = _computeActiveIndex(widget.currentPositionMs);
+      final newIdx = widget.activeLyricIndex >= 0
+          ? widget.activeLyricIndex
+          : _computeActiveIndex(widget.currentPositionMs);
+      setState(() {
+        _activeLyricIndex = newIdx;
+      });
+      _scrollToActiveLine(immediate: true);
+      return;
+    }
+
+    // Detect announced seek, slider scrub, or activeLyricIndex jump
+    final diff = (widget.currentPositionMs - _lastReportedMs).abs();
+    final bool lyricIndexChanged = widget.activeLyricIndex != oldWidget.activeLyricIndex &&
+        widget.activeLyricIndex != _activeLyricIndex;
+
+    if (diff > 300 || lyricIndexChanged) {
+      _discontinuity++;
+      _lastReportedMs = widget.currentPositionMs;
+      final nowMs = DateTime.now().millisecondsSinceEpoch.toDouble();
+      _clock.hold(widget.currentPositionMs.toDouble(), nowMs);
+      _clock.restart();
+      _smoothPositionNotifier.value = widget.currentPositionMs;
+      final newIdx = widget.activeLyricIndex >= 0
+          ? widget.activeLyricIndex
+          : _computeActiveIndex(widget.currentPositionMs);
       if (newIdx != _activeLyricIndex) {
         setState(() {
           _activeLyricIndex = newIdx;
@@ -278,22 +328,42 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     final list = _displayLyrics;
     if (list.isEmpty) return -1;
 
+    // Guard: Before first timed line begins (e.g. intro)
+    final firstStart = list.first.startTimeMs;
+    if (firstStart != null && currentMs < firstStart) {
+      return -1;
+    }
+
+    // 1. Direct active range check: line currently being sung / active
     for (int i = 0; i < list.length; i++) {
       final line = list[i];
-      final start = line.startTimeMs ?? 0;
+      if (line.startTimeMs == null) continue;
+
+      final start = line.startTimeMs!;
       final end = line.endTimeMs ?? (start + 3500);
-      if (currentMs >= start && currentMs <= end) {
+
+      if (currentMs >= start && currentMs < end) {
         return i;
       }
     }
 
-    for (int i = list.length - 1; i >= 0; i--) {
+    // 2. Inter-line gap handling (between line i end and line i+1 start)
+    for (int i = 0; i < list.length; i++) {
       final line = list[i];
-      if (line.startTimeMs != null && currentMs >= line.startTimeMs!) {
+      if (line.startTimeMs == null) continue;
+
+      final nextStart = (i < list.length - 1) ? list[i + 1].startTimeMs : null;
+      if (currentMs >= line.startTimeMs! && (nextStart == null || currentMs < nextStart)) {
+        if (line.endTimeMs != null && (currentMs - line.endTimeMs!) > 2500) {
+          if (nextStart != null && (nextStart - line.endTimeMs!) > 3500) {
+            return -1; // In instrumental break
+          }
+        }
         return i;
       }
     }
-    return 0;
+
+    return -1;
   }
 
   /// Centers the active line cleanly at top 10% of viewport (am-lyrics layout).
@@ -621,7 +691,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
           gapStartMs: line.startTimeMs ?? 0,
           gapEndMs: line.endTimeMs ?? ((line.startTimeMs ?? 0) + 7000),
           currentPositionListenable: _smoothPositionNotifier,
-          onTap: () => widget.onSeekToLyric(line),
+          onTap: () => _handleLyricTap(line, index),
         ),
       );
     }
@@ -642,7 +712,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
 
     return ApplePressable(
       key: _getKeyForIndex(index),
-      onTap: () => widget.onSeekToLyric(line),
+      onTap: () => _handleLyricTap(line, index),
       pressedScale: 0.96,
       pressedOpacity: 0.85,
       child: AnimatedContainer(

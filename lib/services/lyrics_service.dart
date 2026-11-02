@@ -588,8 +588,9 @@ class LyricsService {
       try {
         final ytLines = await ytFallback();
         if (ytLines.isNotEmpty) {
+          final processedLines = withInstrumentalGaps(ytLines);
           final result = LyricsResult(
-            lines: ytLines,
+            lines: processedLines,
             source: LyricsProviderType.youTube.attributionName,
             hasWordSync: false,
           );
