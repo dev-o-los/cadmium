@@ -161,6 +161,10 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   int _lyricsRequestId = 0;
   Duration? _pendingSeekPosition;
   int _seekGeneration = 0;
+  // Throttle: only emit a Riverpod position update every 250 ms to avoid
+  // rebuilding the entire widget tree 10 times per second.
+  // Start at -1000 so the very first position event always passes through.
+  int _lastPositionEmitMs = -1000;
 
   PlayerNotifier(this._ref) : super(const PlayerStateModel()) {
     _initAudioListeners();
@@ -214,6 +218,13 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         return;
       }
 
+      // When audio idles while we are NOT resolving a stream and NOT buffering,
+      // the player genuinely stopped: sync the play-button state to reality.
+      if (processing == ProcessingState.idle && !state.isResolvingStream && !isPlaying) {
+        state = state.copyWith(isPlaying: false, isBuffering: false);
+        return;
+      }
+
       state = state.copyWith(
         isPlaying: isPlaying,
         isBuffering: isBuffering,
@@ -227,6 +238,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       }
 
       final newLyricIdx = LyricsService.computeActiveLyricIndex(pos.inMilliseconds, state.lyrics);
+      final bool lyricChanged = newLyricIdx != state.activeLyricIndex;
 
       // Once playback position advances, audio is unequivocally playing out of speakers:
       // clear any residual loading or resolving states immediately!
@@ -238,9 +250,18 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
           isBuffering: false,
           isPlaying: true,
         );
+        _lastPositionEmitMs = pos.inMilliseconds;
         return;
       }
 
+      // Throttle position-only Riverpod rebuilds to ≤4 Hz (250 ms).
+      // Always allow through if the lyric index changed so the lyrics view
+      // snaps to the new active line without perceptible delay.
+      final int nowMs = pos.inMilliseconds;
+      final bool throttleExpired = (nowMs - _lastPositionEmitMs).abs() >= 250;
+      if (!lyricChanged && !throttleExpired) return;
+
+      _lastPositionEmitMs = nowMs;
       state = state.copyWith(
         position: pos,
         activeLyricIndex: newLyricIdx,

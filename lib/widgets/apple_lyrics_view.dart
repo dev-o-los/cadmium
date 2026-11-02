@@ -167,6 +167,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
   Ticker? _ticker;
   int _discontinuity = 0;
   int _lastReportedMs = 0;
+  double _lastPositionReceivedAtMs = double.nan; // wall-clock ms when currentPositionMs last changed
   int _activeLyricIndex = -1;
 
   GlobalKey _getKeyForIndex(int index) {
@@ -216,6 +217,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     _clock = LyricClock(widget.currentPositionMs.toDouble());
     _smoothPositionNotifier = ValueNotifier<int>(widget.currentPositionMs);
     _lastReportedMs = widget.currentPositionMs;
+    _lastPositionReceivedAtMs = DateTime.now().millisecondsSinceEpoch.toDouble();
     _activeLyricIndex = _computeActiveIndex(widget.currentPositionMs);
 
     // High-frequency 60Hz/120Hz frame ticker driven by LyricClock
@@ -224,10 +226,12 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
       if (!widget.isPlaying) return;
 
       final nowMs = DateTime.now().millisecondsSinceEpoch.toDouble();
+      // Pass the actual wall-clock time when the position reading was sampled so
+      // LyricClock can correctly compensate for polling + network delivery delay.
       final displayed = _clock.frame(
         nowMs,
         widget.currentPositionMs.toDouble(),
-        nowMs,
+        _lastPositionReceivedAtMs,
         _discontinuity,
       ).round();
 
@@ -260,6 +264,13 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
   @override
   void didUpdateWidget(covariant AppleLyricsView oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    // Record the wall-clock time whenever the reported playback position changes.
+    // This is passed as sampledAtMs to LyricClock.frame() so it can accurately
+    // compensate for the ~100-500 ms polling + delivery delay.
+    if (widget.currentPositionMs != oldWidget.currentPositionMs) {
+      _lastPositionReceivedAtMs = DateTime.now().millisecondsSinceEpoch.toDouble();
+    }
 
     if (widget.isPlaying != oldWidget.isPlaying) {
       if (widget.isPlaying && widget.lyrics.isNotEmpty) {
