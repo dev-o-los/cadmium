@@ -211,5 +211,74 @@ void main() {
       expect(lrcState.lyrics.first.text, equals('')); // Intro gap
       expect(lrcState.activeLyricIndex, equals(2)); // At 9000ms, LRC Line 2 (8000-12000)
     });
+
+    test('jumping into overlapping duet/backing vocal section prioritizes lead vocal line', () {
+      final lines = [
+        const LyricLine(text: '', startTimeMs: 0, endTimeMs: 4000),
+        const LyricLine(text: 'Lead Line 1', startTimeMs: 4000, endTimeMs: 10000, isBackground: false),
+        const LyricLine(text: 'Backing Echo', startTimeMs: 6000, endTimeMs: 9000, isBackground: true),
+        const LyricLine(text: 'Lead Line 2', startTimeMs: 9500, endTimeMs: 14000, isBackground: false),
+      ];
+
+      // At 7000ms, both Lead Line 1 (4-10s) and Backing Echo (6-9s) are singing.
+      // Lead line must take precedence.
+      final idxAt7000 = LyricsService.computeActiveLyricIndex(7000, lines);
+      expect(idxAt7000, equals(1)); // Lead Line 1
+
+      // At 9800ms, Lead Line 2 has started while Backing Echo ended and Lead Line 1 is ending.
+      // Lead Line 2 (newest) must be active.
+      final idxAt9800 = LyricsService.computeActiveLyricIndex(9800, lines);
+      expect(idxAt9800, equals(3)); // Lead Line 2
+    });
+
+    test('jumping into instrumental break or natural pause resolves closest section for scrolling', () {
+      final lines = [
+        const LyricLine(text: '', startTimeMs: 0, endTimeMs: 5000),
+        const LyricLine(text: 'Verse 1', startTimeMs: 5000, endTimeMs: 10000),
+        const LyricLine(text: '', startTimeMs: 10000, endTimeMs: 20000), // 10s guitar solo
+        const LyricLine(text: 'Chorus', startTimeMs: 20000, endTimeMs: 28000),
+      ];
+
+      // Seeking to 15s (middle of guitar solo)
+      final activeSolo = LyricsService.computeActiveLyricIndex(15000, lines);
+      expect(activeSolo, equals(2)); // Instrumental dots gap
+
+      // Closest line for scrolling at 15s targets the solo gap (index 2)
+      final closestSolo = LyricsService.findClosestLineIndex(15000, lines);
+      expect(closestSolo, equals(2));
+
+      // Closest line for scrolling before song (at 2s) targets intro
+      final closestIntro = LyricsService.findClosestLineIndex(2000, lines);
+      expect(closestIntro, equals(0));
+    });
+
+    test('withInstrumentalGaps prevents duplicate gaps and handles missing endTimeMs cleanly', () {
+      final rawLines = [
+        const LyricLine(text: 'Line 1', startTimeMs: 5000), // No endTimeMs provided
+        const LyricLine(text: 'Line 2', startTimeMs: 16000), // 11s gap from Line 1 start
+      ];
+
+      final processed = LyricsService.withInstrumentalGaps(rawLines);
+
+      // Intro gap (0-5s) should be inserted
+      expect(processed.first.text, equals(''));
+      expect(processed.first.startTimeMs, equals(0));
+      expect(processed.first.endTimeMs, equals(5000));
+
+      // Line 1 should be present
+      expect(processed[1].text, equals('Line 1'));
+
+      // Instrumental gap between Line 1 (estimated 5s + 3.5s = 8.5s) and Line 2 (16s)
+      expect(processed[2].text, equals(''));
+      expect(processed[2].startTimeMs, equals(8500));
+      expect(processed[2].endTimeMs, equals(16000));
+
+      // Line 2 present
+      expect(processed[3].text, equals('Line 2'));
+
+      // Running withInstrumentalGaps again on already processed list should not duplicate gaps
+      final reprocessed = LyricsService.withInstrumentalGaps(processed);
+      expect(reprocessed.length, equals(processed.length));
+    });
   });
 }

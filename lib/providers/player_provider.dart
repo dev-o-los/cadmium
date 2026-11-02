@@ -160,7 +160,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   String? _lastRecoveredSongId;
   int _lyricsRequestId = 0;
   Duration? _pendingSeekPosition;
-  DateTime? _pendingSeekTime;
+  int _seekGeneration = 0;
 
   PlayerNotifier(this._ref) : super(const PlayerStateModel()) {
     _initAudioListeners();
@@ -222,23 +222,11 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
 
     _positionSub = _audioPlayer.positionStream.listen((pos) {
       // Guard against stale position packets arriving during asynchronous seek transitions
-      if (_pendingSeekPosition != null && _pendingSeekTime != null) {
-        final diff = (pos - _pendingSeekPosition!).abs();
-        if (diff < const Duration(milliseconds: 600)) {
-          // Seek completed and caught up!
-          _pendingSeekPosition = null;
-          _pendingSeekTime = null;
-        } else if (DateTime.now().difference(_pendingSeekTime!) < const Duration(milliseconds: 800)) {
-          // Stale pre-seek packet: discard so it doesn't clobber the user's seek position!
-          return;
-        } else {
-          // Seek window expired
-          _pendingSeekPosition = null;
-          _pendingSeekTime = null;
-        }
+      if (_pendingSeekPosition != null) {
+        return;
       }
 
-      final newLyricIdx = _computeActiveLyricIndex(pos.inMilliseconds, state.lyrics);
+      final newLyricIdx = LyricsService.computeActiveLyricIndex(pos.inMilliseconds, state.lyrics);
 
       // Once playback position advances, audio is unequivocally playing out of speakers:
       // clear any residual loading or resolving states immediately!
@@ -349,48 +337,6 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     }
   }
 
-  int _computeActiveLyricIndex(int currentMs, List<LyricLine> lyrics) {
-    if (lyrics.isEmpty) return -1;
-
-    // Guard: Before the first timed lyric starts (song intro), no lyric should be active
-    final firstStart = lyrics.first.startTimeMs;
-    if (firstStart != null && currentMs < firstStart) {
-      return -1;
-    }
-
-    // 1. Direct active range check: line currently being sung
-    for (int i = 0; i < lyrics.length; i++) {
-      final line = lyrics[i];
-      if (line.startTimeMs == null) continue;
-
-      final start = line.startTimeMs!;
-      final end = line.endTimeMs ?? (start + 3500);
-
-      if (currentMs >= start && currentMs < end) {
-        return i;
-      }
-    }
-
-    // 2. Inter-line gap handling (between line i end and line i+1 start)
-    for (int i = 0; i < lyrics.length; i++) {
-      final line = lyrics[i];
-      if (line.startTimeMs == null) continue;
-
-      final nextStart = (i < lyrics.length - 1) ? lyrics[i + 1].startTimeMs : null;
-      if (currentMs >= line.startTimeMs! && (nextStart == null || currentMs < nextStart)) {
-        // If there's an instrumental break (> 3.5s gap after endTimeMs), un-highlight
-        if (line.endTimeMs != null && (currentMs - line.endTimeMs!) > 2500) {
-          if (nextStart != null && (nextStart - line.endTimeMs!) > 3500) {
-            return -1; // In instrumental break
-          }
-        }
-        return i;
-      }
-    }
-
-    return -1;
-  }
-
   /// Optimistically primes the player UI with song metadata (e.g. from an album or single)
   /// so that the full player screen opens immediately while the audio stream resolves.
   void prepareSong(SongItem song) {
@@ -439,7 +385,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     _recoveryAttempts = 0;
     _lastRecoveredSongId = null;
     _pendingSeekPosition = null;
-    _pendingSeekTime = null;
+    _seekGeneration++;
 
     // Immediately stop previous audio playback
     try {
@@ -625,12 +571,13 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       if (requestId == _lyricsRequestId &&
           state.currentSong?.id == song.id &&
           state.selectedLyricsProvider == targetProvider) {
+        final linesWithGaps = LyricsService.withInstrumentalGaps(result.lines);
         final currentMs = state.position.inMilliseconds > 0
             ? state.position.inMilliseconds
             : _audioPlayer.position.inMilliseconds;
-        final newActiveIdx = _computeActiveLyricIndex(currentMs, result.lines);
+        final newActiveIdx = LyricsService.computeActiveLyricIndex(currentMs, linesWithGaps);
         state = state.copyWith(
-          lyrics: result.lines,
+          lyrics: linesWithGaps,
           activeLyricIndex: newActiveIdx,
           lyricsSource: result.source,
           lyricsSongwriters: result.songwriters,
@@ -746,28 +693,28 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     state = state.copyWith(isPlaying: true);
   }
 
-  void seek(Duration position) {
+  Future<void> seek(Duration position) async {
+    final thisSeekGen = ++_seekGeneration;
     _pendingSeekPosition = position;
-    _pendingSeekTime = DateTime.now();
-    final newLyricIdx = _computeActiveLyricIndex(position.inMilliseconds, state.lyrics);
+    final newLyricIdx = LyricsService.computeActiveLyricIndex(position.inMilliseconds, state.lyrics);
     state = state.copyWith(
       position: position,
       activeLyricIndex: newLyricIdx,
+      isBuffering: true,
     );
-    _audioPlayer.seek(position);
+
+    try {
+      await _audioPlayer.seek(position).timeout(const Duration(seconds: 2));
+    } catch (_) {}
+
+    if (_seekGeneration == thisSeekGen) {
+      _pendingSeekPosition = null;
+    }
   }
 
   void seekToLyric(LyricLine line) {
     if (line.startTimeMs != null) {
-      final pos = Duration(milliseconds: line.startTimeMs!);
-      _pendingSeekPosition = pos;
-      _pendingSeekTime = DateTime.now();
-      final idx = state.lyrics.indexOf(line);
-      state = state.copyWith(
-        position: pos,
-        activeLyricIndex: idx >= 0 ? idx : _computeActiveLyricIndex(pos.inMilliseconds, state.lyrics),
-      );
-      _audioPlayer.seek(pos);
+      seek(Duration(milliseconds: line.startTimeMs!));
     }
   }
 

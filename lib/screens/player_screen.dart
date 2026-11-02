@@ -1100,11 +1100,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
   }
 
   Widget _buildLyricsContent(PlayerStateModel playerState) {
+    final effectivePositionMs = _isDraggingSlider
+        ? _dragSliderValue.toInt()
+        : playerState.position.inMilliseconds;
+    final isActuallyPlaying = playerState.isPlaying &&
+        !playerState.isBuffering &&
+        !playerState.isResolvingStream &&
+        !_isDraggingSlider;
+
     return AppleLyricsView(
       lyrics: playerState.lyrics,
       activeLyricIndex: playerState.activeLyricIndex,
-      currentPositionMs: playerState.position.inMilliseconds,
-      isPlaying: playerState.isPlaying,
+      currentPositionMs: effectivePositionMs,
+      isPlaying: isActuallyPlaying,
       isLoading: playerState.isLoadingLyrics,
       lyricsSource: playerState.lyricsSource,
       lyricsSongwriters: playerState.lyricsSongwriters,

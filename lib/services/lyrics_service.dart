@@ -415,35 +415,149 @@ class LyricsService {
   /// Matches Benjamin's am-lyrics withInstrumentalGaps (LyricGaps.kt).
   static List<LyricLine> withInstrumentalGaps(List<LyricLine> lines) {
     if (lines.isEmpty) return lines;
+
+    // Filter out existing blank gap lines to prevent duplicate gaps on repeated processing
+    final meaningfulLines = lines.where((l) => l.text.isNotEmpty || (l.startTimeMs != null && l.endTimeMs != null)).toList();
+    if (meaningfulLines.isEmpty) return lines;
+
     final out = <LyricLine>[];
 
-    // If initial intro is >= 3000ms, mark intro gap
-    final firstStart = lines.first.startTimeMs ?? 0;
-    if (firstStart >= 3000) {
+    // 1. Initial intro gap: If first timed line begins >= 3000ms, insert intro dots
+    final first = meaningfulLines.first;
+    if (first.text.isNotEmpty && first.startTimeMs != null && first.startTimeMs! >= 3000) {
       out.add(LyricLine(
         text: '',
         startTimeMs: 0,
-        endTimeMs: firstStart,
+        endTimeMs: first.startTimeMs!,
       ));
     }
 
-    for (int i = 0; i < lines.length; i++) {
-      final current = lines[i];
+    int maxEndSoFar = 0;
+    for (int i = 0; i < meaningfulLines.length; i++) {
+      final current = meaningfulLines[i];
       out.add(current);
-      if (i < lines.length - 1) {
-        final next = lines[i + 1];
-        final currentEnd = current.endTimeMs ?? current.startTimeMs ?? 0;
-        final nextStart = next.startTimeMs ?? 0;
-        if (nextStart - currentEnd >= minGapMs && currentEnd > (current.startTimeMs ?? 0)) {
-          out.add(LyricLine(
-            text: '',
-            startTimeMs: currentEnd,
-            endTimeMs: nextStart,
-          ));
+
+      if (current.startTimeMs == null) continue;
+
+      final currentStart = current.startTimeMs!;
+      final currentEnd = current.endTimeMs ?? (currentStart + 3500);
+      maxEndSoFar = math.max(maxEndSoFar, currentEnd);
+
+      if (i < meaningfulLines.length - 1) {
+        final next = meaningfulLines[i + 1];
+        if (next.startTimeMs != null) {
+          final nextStart = next.startTimeMs!;
+          // Instrumental gap only occurs if singing has completely stopped for >= minGapMs
+          if (nextStart - maxEndSoFar >= minGapMs && maxEndSoFar > 0) {
+            out.add(LyricLine(
+              text: '',
+              startTimeMs: maxEndSoFar,
+              endTimeMs: nextStart,
+            ));
+            maxEndSoFar = nextStart;
+          }
         }
       }
     }
     return out;
+  }
+
+  /// Computes the exact active lyric line index for [currentMs] within [lyrics].
+  ///
+  /// Features:
+  /// - Priority-based matching for overlapping vocals (duets, backing vocals):
+  ///   Lead vocals (!isBackground) are prioritized over background vocals.
+  ///   The line that began most recently (highest startTimeMs <= currentMs) takes precedence.
+  /// - Instrumental gap lines (text == '') are matched directly when [currentMs] falls in their range.
+  /// - Natural vocal pauses (< 2.5s) keep the preceding lyric active.
+  /// - Returns -1 if playback is in an unvoiced intro or break before any line starts.
+  static int computeActiveLyricIndex(int currentMs, List<LyricLine> lyrics) {
+    if (lyrics.isEmpty) return -1;
+
+    // 1. Guard: If before first line starts and first line is not an intro gap
+    final first = lyrics.first;
+    if (first.startTimeMs != null && currentMs < first.startTimeMs!) {
+      return -1;
+    }
+
+    // 2. Direct active range check: line currently being sung
+    int bestActiveIdx = -1;
+    int bestStartMs = -1;
+    bool bestIsLead = false;
+
+    for (int i = 0; i < lyrics.length; i++) {
+      final line = lyrics[i];
+      if (line.startTimeMs == null) continue;
+
+      final start = line.startTimeMs!;
+      final end = line.endTimeMs ?? (start + 3500);
+
+      if (currentMs >= start && currentMs < end) {
+        final isLead = !line.isBackground && line.text.isNotEmpty;
+        if (bestActiveIdx == -1) {
+          bestActiveIdx = i;
+          bestStartMs = start;
+          bestIsLead = isLead;
+        } else {
+          // Priority: Lead over background, then newer start time
+          if (isLead && !bestIsLead) {
+            bestActiveIdx = i;
+            bestStartMs = start;
+            bestIsLead = isLead;
+          } else if (isLead == bestIsLead && start >= bestStartMs) {
+            bestActiveIdx = i;
+            bestStartMs = start;
+          }
+        }
+      }
+    }
+
+    if (bestActiveIdx != -1) {
+      return bestActiveIdx;
+    }
+
+    // 3. Inter-line gap handling (between line i end and line i+1 start)
+    for (int i = 0; i < lyrics.length; i++) {
+      final line = lyrics[i];
+      if (line.startTimeMs == null) continue;
+
+      final nextStart = (i < lyrics.length - 1) ? lyrics[i + 1].startTimeMs : null;
+      if (currentMs >= line.startTimeMs! && (nextStart == null || currentMs < nextStart)) {
+        final lineEnd = line.endTimeMs ?? (line.startTimeMs! + 3500);
+        // If there is an unvoiced break (> 2.5s after lineEnd and > 3.5s to next line), un-highlight
+        if (line.text.isNotEmpty && (currentMs - lineEnd) > 2500) {
+          if (nextStart != null && (nextStart - lineEnd) > 3500) {
+            return -1; // In unvoiced break
+          }
+        }
+        return i;
+      }
+    }
+
+    return -1;
+  }
+
+  /// Finds the target line to center in view when seeking to [currentMs], even if
+  /// [currentMs] falls in an unvoiced gap where [computeActiveLyricIndex] returns -1.
+  static int findClosestLineIndex(int currentMs, List<LyricLine> lyrics) {
+    if (lyrics.isEmpty) return -1;
+
+    // 1. If before first line: target line 0
+    final firstStart = lyrics.first.startTimeMs;
+    if (firstStart != null && currentMs < firstStart) {
+      return 0;
+    }
+
+    // 2. Find the line active at or immediately preceding currentMs
+    for (int i = lyrics.length - 1; i >= 0; i--) {
+      final start = lyrics[i].startTimeMs;
+      if (start != null && currentMs >= start) {
+        return i;
+      }
+    }
+
+    // 3. Fallback to first line
+    return 0;
   }
 
   static void _collectPieces(

@@ -182,7 +182,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
         LyricLine(
           text: '',
           startTimeMs: 0,
-          endTimeMs: first.startTimeMs,
+          endTimeMs: first.startTimeMs!,
         ),
         ...widget.lyrics,
       ];
@@ -216,13 +216,13 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     _clock = LyricClock(widget.currentPositionMs.toDouble());
     _smoothPositionNotifier = ValueNotifier<int>(widget.currentPositionMs);
     _lastReportedMs = widget.currentPositionMs;
-    _activeLyricIndex = widget.activeLyricIndex >= 0
-        ? widget.activeLyricIndex
-        : _computeActiveIndex(widget.currentPositionMs);
+    _activeLyricIndex = _computeActiveIndex(widget.currentPositionMs);
 
     // High-frequency 60Hz/120Hz frame ticker driven by LyricClock
     _ticker = createTicker((_) {
       if (!mounted) return;
+      if (!widget.isPlaying) return;
+
       final nowMs = DateTime.now().millisecondsSinceEpoch.toDouble();
       final displayed = _clock.frame(
         nowMs,
@@ -298,26 +298,25 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
 
     // Detect announced seek, slider scrub, or activeLyricIndex jump
     final diff = (widget.currentPositionMs - _lastReportedMs).abs();
+    final bool positionJumped = diff > 200 || widget.currentPositionMs < (_lastReportedMs - 50);
     final bool lyricIndexChanged = widget.activeLyricIndex != oldWidget.activeLyricIndex &&
         widget.activeLyricIndex != _activeLyricIndex;
 
-    if (diff > 300 || lyricIndexChanged) {
+    if (positionJumped || lyricIndexChanged) {
       _discontinuity++;
       _lastReportedMs = widget.currentPositionMs;
       final nowMs = DateTime.now().millisecondsSinceEpoch.toDouble();
       _clock.hold(widget.currentPositionMs.toDouble(), nowMs);
       _clock.restart();
       _smoothPositionNotifier.value = widget.currentPositionMs;
-      final newIdx = widget.activeLyricIndex >= 0
-          ? widget.activeLyricIndex
-          : _computeActiveIndex(widget.currentPositionMs);
+      final newIdx = _computeActiveIndex(widget.currentPositionMs);
       if (newIdx != _activeLyricIndex) {
         setState(() {
           _activeLyricIndex = newIdx;
         });
-        if (!_isUserScrolling) {
-          _scrollToActiveLine();
-        }
+      }
+      if (!_isUserScrolling) {
+        _scrollToActiveLine();
       }
     } else {
       _lastReportedMs = widget.currentPositionMs;
@@ -325,76 +324,61 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
   }
 
   int _computeActiveIndex(int currentMs) {
-    final list = _displayLyrics;
-    if (list.isEmpty) return -1;
-
-    // Guard: Before first timed line begins (e.g. intro)
-    final firstStart = list.first.startTimeMs;
-    if (firstStart != null && currentMs < firstStart) {
-      return -1;
-    }
-
-    // 1. Direct active range check: line currently being sung / active
-    for (int i = 0; i < list.length; i++) {
-      final line = list[i];
-      if (line.startTimeMs == null) continue;
-
-      final start = line.startTimeMs!;
-      final end = line.endTimeMs ?? (start + 3500);
-
-      if (currentMs >= start && currentMs < end) {
-        return i;
-      }
-    }
-
-    // 2. Inter-line gap handling (between line i end and line i+1 start)
-    for (int i = 0; i < list.length; i++) {
-      final line = list[i];
-      if (line.startTimeMs == null) continue;
-
-      final nextStart = (i < list.length - 1) ? list[i + 1].startTimeMs : null;
-      if (currentMs >= line.startTimeMs! && (nextStart == null || currentMs < nextStart)) {
-        if (line.endTimeMs != null && (currentMs - line.endTimeMs!) > 2500) {
-          if (nextStart != null && (nextStart - line.endTimeMs!) > 3500) {
-            return -1; // In instrumental break
-          }
-        }
-        return i;
-      }
-    }
-
-    return -1;
+    return LyricsService.computeActiveLyricIndex(currentMs, _displayLyrics);
   }
 
   /// Centers the active line cleanly at top 10% of viewport (am-lyrics layout).
   void _scrollToActiveLine({bool immediate = false}) {
-    if (!_scrollController.hasClients || _activeLyricIndex < 0) return;
-    final displayLines = _displayLyrics;
-    if (_activeLyricIndex >= displayLines.length) return;
+    if (!_scrollController.hasClients) return;
+    final lines = _displayLyrics;
+    if (lines.isEmpty) return;
 
-    final key = _lineKeys[_activeLyricIndex];
+    // Use active lyric index if valid; otherwise scroll to the closest line for the position
+    int targetIndex = _activeLyricIndex;
+    if (targetIndex < 0 || targetIndex >= lines.length) {
+      targetIndex = LyricsService.findClosestLineIndex(_smoothPositionNotifier.value, lines);
+    }
+    if (targetIndex < 0 || targetIndex >= lines.length) return;
+
+    final key = _lineKeys[targetIndex];
     final targetContext = key?.currentContext;
 
     if (targetContext != null) {
       Scrollable.ensureVisible(
         targetContext,
         alignment: 0.10, // Positions live lyric in the top 10% breathing zone
-        duration: immediate ? Duration.zero : const Duration(milliseconds: 400),
+        duration: immediate ? Duration.zero : const Duration(milliseconds: 380),
         curve: Curves.easeOutCubic,
       );
     } else {
-      final targetOffset = _activeLyricIndex * 60.0;
+      final double estimatedLineHeight = 72.0;
+      final double targetOffset = (targetIndex * estimatedLineHeight)
+          .clamp(0.0, _scrollController.position.maxScrollExtent);
+
       if (immediate) {
-        _scrollController.jumpTo(
-          targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
-        );
+        _scrollController.jumpTo(targetOffset);
       } else {
         _scrollController.animateTo(
-          targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
-          duration: const Duration(milliseconds: 400),
+          targetOffset,
+          duration: const Duration(milliseconds: 380),
           curve: Curves.easeOutCubic,
         );
       }
+
+      // After scrolling into the vicinity, the target item is mounted and built.
+      // Precisely refine scroll position using its actual RenderBox context.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _isUserScrolling) return;
+        final refreshedContext = _lineKeys[targetIndex]?.currentContext;
+        if (refreshedContext != null) {
+          Scrollable.ensureVisible(
+            refreshedContext,
+            alignment: 0.10,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+          );
+        }
+      });
     }
   }
 
