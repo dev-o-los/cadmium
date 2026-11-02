@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
@@ -119,6 +120,17 @@ class PlayerControls extends ConsumerWidget {
                         errorWidget: _fallbackArtwork(size: 34),
                       )
                     : _fallbackArtwork(size: 34),
+              )
+              .animate(key: ValueKey('mini_art_inline_$songId'))
+              .fadeIn(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOut,
+              )
+              .scale(
+                begin: const Offset(0.85, 0.85),
+                end: const Offset(1.0, 1.0),
+                duration: const Duration(milliseconds: 350),
+                curve: Curves.easeOutCubic,
               ),
             ),
             const SizedBox(width: 8),
@@ -265,6 +277,17 @@ class PlayerControls extends ConsumerWidget {
                                   errorWidget: _fallbackArtwork(size: 40),
                                 )
                               : _fallbackArtwork(size: 40),
+                        )
+                        .animate(key: ValueKey('mini_art_expanded_$songId'))
+                        .fadeIn(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOut,
+                        )
+                        .scale(
+                          begin: const Offset(0.85, 0.85),
+                          end: const Offset(1.0, 1.0),
+                          duration: const Duration(milliseconds: 350),
+                          curve: Curves.easeOutCubic,
                         ),
                         const SizedBox(width: 10),
 

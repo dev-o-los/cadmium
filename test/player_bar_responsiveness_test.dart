@@ -78,6 +78,7 @@ void main() {
         ),
       );
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
 
       // Ensure song title and artist are visible
       expect(find.text('Starboy'), findsOneWidget);
@@ -116,6 +117,7 @@ void main() {
         ),
       );
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
 
       // In play mode, pause_fill icon should be displayed
       expect(find.byIcon(CupertinoIcons.pause_fill), findsOneWidget);
@@ -124,6 +126,7 @@ void main() {
       // Tap pause
       await tester.tap(find.byIcon(CupertinoIcons.pause_fill));
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
       await tester.pump(const Duration(milliseconds: 300));
 
       // State is immediately in pause mode
@@ -134,6 +137,7 @@ void main() {
       // Tap play again
       await tester.tap(find.byIcon(CupertinoIcons.play_fill));
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
 
       // State is immediately in play mode
       expect(container.read(playerProvider).isPlaying, isTrue);
@@ -160,10 +164,12 @@ void main() {
         ),
       );
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
 
       // Tap once
       await tester.tap(find.text('Track Item'));
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(tapCount, equals(1));
     });

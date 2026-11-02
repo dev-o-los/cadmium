@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
@@ -594,6 +595,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                         ),
                       ),
                     ),
+                  )
+                  .animate(key: ValueKey('player_screen_ambient_${song.id}'))
+                  .fadeIn(
+                    duration: const Duration(milliseconds: 500),
+                    curve: Curves.easeOut,
+                  )
+                  .scale(
+                    begin: const Offset(0.75, 0.75),
+                    end: const Offset(1.0, 1.0),
+                    duration: const Duration(milliseconds: 550),
+                    curve: Curves.easeOutCubic,
                   ),
                 ),
 
@@ -659,6 +671,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                         ),
                       ),
                     ),
+                  )
+                  .animate(key: ValueKey('player_screen_artwork_${song.id}'))
+                  .fadeIn(
+                    duration: const Duration(milliseconds: 400),
+                    curve: Curves.easeOutCubic,
+                  )
+                  .scale(
+                    begin: const Offset(0.38, 0.38),
+                    end: const Offset(1.0, 1.0),
+                    alignment: Alignment.bottomLeft,
+                    duration: const Duration(milliseconds: 480),
+                    curve: Curves.easeOutCubic,
+                  )
+                  .move(
+                    begin: const Offset(-28, 150),
+                    end: Offset.zero,
+                    duration: const Duration(milliseconds: 480),
+                    curve: Curves.easeOutCubic,
                   ),
                 ),
 
@@ -726,6 +756,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                         ),
                       ),
                     ),
+                  )
+                  .animate(key: ValueKey('player_screen_lyrics_bg_${song.id}'))
+                  .fadeIn(
+                    duration: const Duration(milliseconds: 350),
+                    curve: Curves.easeOut,
                   ),
                 ),
                 Positioned.fill(
@@ -1053,6 +1088,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                           errorWidget: _fallbackMiniArt(),
                         )
                       : _fallbackMiniArt(),
+                )
+                .animate(key: ValueKey('player_header_art_${song.id}'))
+                .fadeIn(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOut,
+                )
+                .scale(
+                  begin: const Offset(0.85, 0.85),
+                  end: const Offset(1.0, 1.0),
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutCubic,
                 ),
               ),
               const SizedBox(width: 12),
