@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'screens/home_screen.dart';
 import 'services/artwork_cache_service.dart';
 import 'services/audio_cache_service.dart';
@@ -25,11 +26,7 @@ void main() async {
   SongMetricsCacheService.instance.init();
   HomeCacheService.instance.loadHomeData();
 
-  runApp(
-    const ProviderScope(
-      child: WavifyApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: WavifyApp()));
 }
 
 class WavifyApp extends StatelessWidget {
@@ -55,9 +52,7 @@ class WavifyApp extends StatelessWidget {
         splashColor: Colors.transparent,
         highlightColor: Colors.transparent,
         hoverColor: Colors.transparent,
-        listTileTheme: const ListTileThemeData(
-          enableFeedback: false,
-        ),
+        listTileTheme: const ListTileThemeData(enableFeedback: false),
         colorScheme: const ColorScheme.dark(
           primary: appleMusicRed,
           onPrimary: Colors.white,
