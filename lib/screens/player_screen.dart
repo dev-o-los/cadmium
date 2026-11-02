@@ -8,7 +8,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../models/song_item.dart';
 import '../providers/favorites_provider.dart';
@@ -18,6 +17,7 @@ import '../services/song_metrics_cache_service.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/ambient_video_canvas.dart';
 import '../widgets/animated_cupertino_icon.dart';
+import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_glass_bottom_sheet.dart';
 import '../widgets/apple_music_slider.dart';
 import '../widgets/apple_pressable.dart';
@@ -913,31 +913,42 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
 
             return Stack(
               children: [
-                // 1. Now Playing Top Header: "Playing from <Album/Artist>"
+                // 1. Now Playing Top Header: Grab Bar + "Playing from <Album/Artist>"
                 if (modeVal < 0.95)
                   Positioned(
-                    top: headerTop,
-                    left: 48,
-                    right: 48,
+                    top: headerTop - 14,
+                    left: 36,
+                    right: 36,
                     child: Opacity(
                       opacity: (1.0 - (modeVal * 2.5)).clamp(0.0, 1.0),
                       child: GestureDetector(
                         onTap: () => Navigator.of(context).pop(),
                         behavior: HitTestBehavior.opaque,
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: Text(
-                            playingFromText,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.70),
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w500,
-                              letterSpacing: -0.2,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 36,
+                              height: 4.5,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.38),
+                                borderRadius: BorderRadius.circular(2.25),
+                              ),
                             ),
-                          ),
+                            const SizedBox(height: 8),
+                            Text(
+                              playingFromText,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.70),
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -1039,11 +1050,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
           return const SizedBox.shrink();
         }
 
-        final opacity = ((modeVal - 0.25) / 0.75).clamp(0.0, 1.0);
-        final slideUp = (1.0 - modeVal) * 36.0;
+        final opacity = ((modeVal - 0.20) / 0.80).clamp(0.0, 1.0);
+        final slideUp = (1.0 - modeVal) * 28.0;
 
         // Space occupied by bottom controls when expanded vs collapsed
-        final controlsHeight = _controlsAnimController.value > 0.05 ? 275.0 : 65.0;
+        final controlsHeight = _controlsAnimController.value > 0.05 ? 260.0 : 65.0;
 
         return Positioned(
           top: headerTop + 54,
@@ -1054,9 +1065,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
             opacity: opacity,
             child: Transform.translate(
               offset: Offset(0, slideUp),
-              child: _currentMode == PlayerViewMode.lyrics
-                  ? _buildLyricsContent(playerState)
-                  : _buildQueueContent(playerState, song),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 260),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0.0, 0.04),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
+                    ),
+                  );
+                },
+                child: _currentMode == PlayerViewMode.lyrics
+                    ? KeyedSubtree(
+                        key: const ValueKey('lyrics_mode'),
+                        child: _buildLyricsContent(playerState),
+                      )
+                    : KeyedSubtree(
+                        key: const ValueKey('queue_mode'),
+                        child: _buildQueueContent(playerState, song),
+                      ),
+              ),
             ),
           ),
         );
@@ -1070,19 +1104,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     required double bottomPadding,
     required bool isFavorite,
   }) {
-    final activeLyric = playerState.activeLyricIndex >= 0 &&
-            playerState.activeLyricIndex < playerState.lyrics.length
-        ? playerState.lyrics[playerState.activeLyricIndex].text
-        : 'The hook is on the way';
+    String activeLyric = 'The hook is on the way';
+    if (playerState.lyrics.isNotEmpty) {
+      if (playerState.activeLyricIndex >= 0 &&
+          playerState.activeLyricIndex < playerState.lyrics.length) {
+        final lyricText = playerState.lyrics[playerState.activeLyricIndex].text.trim();
+        if (lyricText.isNotEmpty) {
+          activeLyric = lyricText;
+        }
+      } else if (playerState.lyrics.first.text.trim().isNotEmpty) {
+        activeLyric = playerState.lyrics.first.text.trim();
+      }
+    }
 
     return Positioned(
       left: 0,
       right: 0,
-      bottom: math.max(bottomPadding, 16) + 48,
+      bottom: math.max(bottomPadding, 16) + 40,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 26),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Now Playing Metadata Row (Title, Artist, Star, 3-dots)
             // Fades out as lyrics mode opens
@@ -1134,50 +1177,94 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                       },
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // Lyrics Hook Preview Banner (only in Now Playing mode)
-                          AnimatedBuilder(
-                            animation: _modeAnimController,
-                            builder: (context, _) {
-                              final modeVal = _modeAnimController.value;
-                              if (modeVal > 0.05) {
-                                return const SizedBox.shrink();
-                              }
+                          const SizedBox(height: 14),
 
-                              return GestureDetector(
-                                onTap: () => _switchMode(PlayerViewMode.lyrics),
-                                behavior: HitTestBehavior.opaque,
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 0),
-                                  child: Row(
-                                    children: [
-                                      const AnimatedCupertinoIcon(
-                                        icon: CupertinoIcons.music_note,
-                                        color: Colors.white70,
-                                        size: 13,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Expanded(
+                          // Lyrics Hook Preview Banner (visible in Now Playing and Queue modes)
+                          if (_currentMode != PlayerViewMode.lyrics) ...[
+                            ApplePressable(
+                              onTap: () => _switchMode(PlayerViewMode.lyrics),
+                              pressedScale: 0.98,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 2),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    const Icon(
+                                      CupertinoIcons.music_note_2,
+                                      color: Colors.white,
+                                      size: 15,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: AnimatedSwitcher(
+                                        duration: const Duration(milliseconds: 320),
+                                        layoutBuilder: (currentChild, previousChildren) {
+                                          return Stack(
+                                            alignment: Alignment.centerLeft,
+                                            children: [
+                                              ...previousChildren,
+                                              ?currentChild,
+                                            ],
+                                          );
+                                        },
+                                        transitionBuilder: (child, animation) {
+                                          final isEntering = (child.key as ValueKey<String>?)?.value == activeLyric;
+                                          final offsetAnimation = isEntering
+                                              ? Tween<Offset>(
+                                                  begin: const Offset(0.0, 0.9),
+                                                  end: Offset.zero,
+                                                ).animate(CurvedAnimation(
+                                                  parent: animation,
+                                                  curve: Curves.easeOutCubic,
+                                                ))
+                                              : Tween<Offset>(
+                                                  begin: const Offset(0.0, -0.9),
+                                                  end: Offset.zero,
+                                                ).animate(CurvedAnimation(
+                                                  parent: animation,
+                                                  curve: Curves.easeInCubic,
+                                                ));
+
+                                          return ClipRect(
+                                            child: SlideTransition(
+                                              position: offsetAnimation,
+                                              child: FadeTransition(
+                                                opacity: animation,
+                                                child: child,
+                                              ),
+                                            ),
+                                          );
+                                        },
                                         child: Text(
                                           activeLyric,
+                                          key: ValueKey<String>(activeLyric),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
                                             color: Colors.white.withValues(alpha: 0.85),
-                                            fontSize: 12.5,
+                                            fontSize: 13.5,
                                             fontWeight: FontWeight.w500,
+                                            letterSpacing: -0.2,
                                           ),
                                         ),
                                       ),
-                                      const Icon(CupertinoIcons.chevron_right, color: appleSecondaryText, size: 13),
-                                    ],
-                                  ),
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Icon(
+                                      CupertinoIcons.chevron_right,
+                                      color: Colors.white.withValues(alpha: 0.45),
+                                      size: 12.5,
+                                    ),
+                                  ],
                                 ),
-                              );
-                            },
-                          ),
-
-                          const SizedBox(height: 6),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                          ] else
+                            const SizedBox(height: 4),
 
                           // Scrubber Slider
                           _buildDurationScrubber(playerState),
@@ -1185,7 +1272,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
 
                           // Transport Controls: Skip prev, Play/Pause, Skip next
                           _buildTransportControls(playerState),
-                          const SizedBox(height: 36),
+                          const SizedBox(height: 30),
 
                           // Bottom Action Dock: Lyrics, Audio Route, Queue
                           _buildActionDock(playerState),
@@ -1206,23 +1293,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
   Widget _buildLiquidGlassButton({
     required Widget icon,
     required VoidCallback onTap,
-    double size = 44,
+    double size = 42,
   }) {
     return ApplePressable(
       onTap: onTap,
       borderRadius: BorderRadius.circular(size / 2),
-      child: GlassContainer(
-        useOwnLayer: true,
+      child: Container(
         width: size,
         height: size,
-        shape: LiquidRoundedSuperellipse(borderRadius: size / 2),
-        color: const Color(0x33FFFFFF),
-        settings: const LiquidGlassSettings(
-          thickness: 20,
-          blur: 24,
-          refractiveIndex: 1.18,
-          lightIntensity: 0.50,
-          specularSharpness: GlassSpecularSharpness.sharp,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.15),
+          shape: BoxShape.circle,
         ),
         child: Center(child: icon),
       ),
@@ -1381,6 +1462,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
   Widget _buildQueueContent(PlayerStateModel playerState, SongItem song) {
     final queue = playerState.queue;
 
+    final nextFromTitle = (song.album != null && song.album!.trim().isNotEmpty)
+        ? 'Next from: ${song.album!.trim()}'
+        : 'Next from: ${song.artist.trim()}';
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
@@ -1390,128 +1475,256 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
             'Queue',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 28,
+              fontSize: 24,
               fontWeight: FontWeight.bold,
-              letterSpacing: -0.8,
+              letterSpacing: -0.5,
             ),
           ),
           const SizedBox(height: 14),
 
           // Now Playing Item
-          const Text('Now playing', style: TextStyle(color: appleSecondaryText, fontSize: 13, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: song.thumbnailUrl != null
-                  ? WavifyCachedImage(
-                      imageUrl: song.highResThumbnailUrl ?? song.thumbnailUrl!,
-                      songId: song.id,
-                      width: 44,
-                      height: 44,
-                      fit: BoxFit.cover,
-                      filterQuality: FilterQuality.medium,
-                      errorWidget: _fallbackMiniArt(),
-                    )
-                  : _fallbackMiniArt(),
-            ),
-            title: Text(
-              song.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
-            ),
-            subtitle: GestureDetector(
-              onTap: () => openArtistScreen(context, artistName: song.artist),
-              child: Text(
-                song.artist,
-                maxLines: 1,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.75),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-            trailing: const Icon(CupertinoIcons.waveform, color: appleRed, size: 22),
-          ),
-          const Divider(color: Color(0xFF2C2C2E), height: 24),
-
-          // Next From Queue List
           Text(
-            (song.album != null && song.album!.isNotEmpty) ? 'Next from: ${song.album}' : 'Next from: ${song.artist}',
-            style: const TextStyle(color: appleSecondaryText, fontSize: 13, fontWeight: FontWeight.w600),
+            'Now playing',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.65),
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.2,
+            ),
           ),
           const SizedBox(height: 8),
-          Expanded(
-            child: queue.isEmpty
-                ? const Center(
-                    child: Text('No more songs in queue', style: TextStyle(color: appleSecondaryText)),
-                  )
-                : ListView.separated(
-                    itemCount: queue.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 6),
-                    itemBuilder: (context, index) {
-                      final item = queue[index];
-                      return Dismissible(
-                        key: Key('queue_${item.id}_$index'),
-                        direction: DismissDirection.endToStart,
-                        onDismissed: (direction) {
-                          ref.read(playerProvider.notifier).removeFromQueue(index);
-                        },
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 16),
-                          color: Colors.redAccent,
-                          child: const Icon(CupertinoIcons.trash, color: Colors.white),
-                        ),
-                        child: ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(CupertinoIcons.bars, color: appleSecondaryText, size: 20),
-                              const SizedBox(width: 8),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(6),
-                                child: item.thumbnailUrl != null
-                                    ? WavifyCachedImage(
-                                        imageUrl: item.highResThumbnailUrl ?? item.thumbnailUrl!,
-                                        songId: item.id,
-                                        width: 40,
-                                        height: 40,
-                                        fit: BoxFit.cover,
-                                        filterQuality: FilterQuality.medium,
-                                        errorWidget: _fallbackMiniArt(),
-                                      )
-                                    : _fallbackMiniArt(),
-                              ),
-                            ],
-                          ),
-                          title: Text(
-                            item.title,
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: song.thumbnailUrl != null
+                    ? WavifyCachedImage(
+                        imageUrl: song.highResThumbnailUrl ?? song.thumbnailUrl!,
+                        songId: song.id,
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                        filterQuality: FilterQuality.medium,
+                        errorWidget: _fallbackMiniArt(size: 48, borderRadius: 8),
+                      )
+                    : _fallbackMiniArt(size: 48, borderRadius: 8),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        if (_isExplicit(song.title, song.album)) _buildExplicitBadge(),
+                        Expanded(
+                          child: Text(
+                            song.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: -0.2,
+                            ),
                           ),
-                          subtitle: Text(
-                            item.artist,
-                            maxLines: 1,
-                            style: const TextStyle(color: appleSecondaryText, fontSize: 12),
-                          ),
-                          trailing: IconButton(
-                            icon: const Icon(CupertinoIcons.xmark, color: appleSecondaryText, size: 16),
-                            onPressed: () {
-                              ref.read(playerProvider.notifier).removeFromQueue(index);
-                            },
-                          ),
-                          onTap: () {
-                            ref.read(playerProvider.notifier).playSong(item, forceReload: true);
-                          },
                         ),
-                      );
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    GestureDetector(
+                      onTap: () => openArtistScreen(context, artistName: song.artist),
+                      child: Text(
+                        song.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.70),
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              AnimatedEqualizerBars(
+                isPlaying: playerState.isPlaying,
+                color: Colors.white,
+                size: 16,
+              ),
+              const SizedBox(width: 12),
+              ApplePressable(
+                onTap: () {
+                  ref.read(playerProvider.notifier).skipNext();
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(
+                    CupertinoIcons.xmark,
+                    color: Colors.white.withValues(alpha: 0.45),
+                    size: 16,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Next From Queue List Header
+          Text(
+            nextFromTitle,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.65),
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // Reorderable Queue Tracklist
+          Expanded(
+            child: queue.isEmpty
+                ? Center(
+                    child: Text(
+                      'No more songs in queue',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.50),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  )
+                : ShaderMask(
+                    shaderCallback: (Rect bounds) {
+                      return const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.white,
+                          Colors.white,
+                          Colors.white,
+                          Colors.transparent,
+                        ],
+                        stops: [0.0, 0.85, 0.94, 1.0],
+                      ).createShader(bounds);
                     },
+                    blendMode: BlendMode.dstIn,
+                    child: Theme(
+                      data: Theme.of(context).copyWith(
+                        canvasColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                      ),
+                      child: ReorderableListView.builder(
+                        padding: const EdgeInsets.only(bottom: 24),
+                        itemCount: queue.length,
+                        physics: const BouncingScrollPhysics(),
+                        buildDefaultDragHandles: false,
+                        // ignore: deprecated_member_use
+                        onReorder: (oldIndex, newIndex) {
+                          ref.read(playerProvider.notifier).reorderQueue(oldIndex, newIndex);
+                        },
+                        itemBuilder: (context, index) {
+                          final item = queue[index];
+                          return Container(
+                            key: ValueKey('queue_item_${item.id}_$index'),
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: Row(
+                              children: [
+                                ReorderableDragStartListener(
+                                  index: index,
+                                  child: Container(
+                                    padding: const EdgeInsets.only(right: 12, top: 10, bottom: 10),
+                                    color: Colors.transparent,
+                                    child: Icon(
+                                      Icons.drag_handle_rounded,
+                                      color: Colors.white.withValues(alpha: 0.40),
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: item.thumbnailUrl != null
+                                      ? WavifyCachedImage(
+                                          imageUrl: item.highResThumbnailUrl ?? item.thumbnailUrl!,
+                                          songId: item.id,
+                                          width: 44,
+                                          height: 44,
+                                          fit: BoxFit.cover,
+                                          filterQuality: FilterQuality.medium,
+                                          errorWidget: _fallbackMiniArt(size: 44, borderRadius: 8),
+                                        )
+                                      : _fallbackMiniArt(size: 44, borderRadius: 8),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      ref.read(playerProvider.notifier).playSong(item, forceReload: true);
+                                    },
+                                    behavior: HitTestBehavior.opaque,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            if (_isExplicit(item.title, item.album)) _buildExplicitBadge(),
+                                            Expanded(
+                                              child: Text(
+                                                item.title,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w600,
+                                                  letterSpacing: -0.2,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          item.artist,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: Colors.white.withValues(alpha: 0.60),
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.normal,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                ApplePressable(
+                                  onTap: () {
+                                    ref.read(playerProvider.notifier).removeFromQueue(index);
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8),
+                                    child: Icon(
+                                      CupertinoIcons.xmark,
+                                      color: Colors.white.withValues(alpha: 0.45),
+                                      size: 16,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
                   ),
           ),
         ],
@@ -1632,78 +1845,113 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     );
   }
 
+  Widget _buildQueueDockSegment({
+    required Widget icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return ApplePressable(
+      onTap: onTap,
+      pressedScale: 0.92,
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white.withValues(alpha: 0.22) : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: icon,
+      ),
+    );
+  }
+
   Widget _buildActionDock(PlayerStateModel playerState) {
     final notifier = ref.read(playerProvider.notifier);
 
     if (_currentMode == PlayerViewMode.queue) {
-      // In Queue mode, display: [Lyrics, Pill(Shuffle, Loop, Infinity), Queue Active]
+      // In Queue mode, display: [Lyrics, Pill(Shuffle, Loop, Infinity), Queue Active Pill]
       return Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          IconButton(
-            icon: AnimatedCupertinoIcon(
-              icon: CupertinoIcons.quote_bubble,
-              color: Colors.white.withValues(alpha: 0.6),
-              size: 22,
+          ApplePressable(
+            onTap: () => _switchMode(PlayerViewMode.lyrics),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: AnimatedCupertinoIcon(
+                icon: CupertinoIcons.quote_bubble,
+                color: Colors.white.withValues(alpha: 0.65),
+                size: 22,
+              ),
             ),
-            onPressed: () => _switchMode(PlayerViewMode.lyrics),
           ),
 
           // Center Pill Dock for Shuffle, Repeat, Infinity
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.12),
+              color: Colors.white.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
+                _buildQueueDockSegment(
                   icon: AnimatedCupertinoIcon(
                     icon: CupertinoIcons.shuffle,
-                    color: playerState.isShuffle ? Colors.white : Colors.white38,
-                    size: 22,
+                    color: playerState.isShuffle ? Colors.white : Colors.white.withValues(alpha: 0.50),
+                    size: 20,
                   ),
-                  onPressed: () {
+                  isSelected: playerState.isShuffle,
+                  onTap: () {
                     notifier.toggleShuffle();
                     _resetAutoHideTimer();
                   },
                 ),
-                IconButton(
+                _buildQueueDockSegment(
                   icon: AnimatedCupertinoIcon(
                     icon: playerState.loopMode == LoopMode.one
                         ? CupertinoIcons.repeat_1
                         : CupertinoIcons.repeat,
-                    color: playerState.loopMode != LoopMode.off ? Colors.white : Colors.white38,
-                    size: 22,
+                    color: playerState.loopMode != LoopMode.off ? Colors.white : Colors.white.withValues(alpha: 0.50),
+                    size: 20,
                   ),
-                  onPressed: () {
+                  isSelected: playerState.loopMode != LoopMode.off,
+                  onTap: () {
                     notifier.cycleLoopMode();
                     _resetAutoHideTimer();
                   },
                 ),
-                IconButton(
-                  icon: const AnimatedCupertinoIcon(
+                _buildQueueDockSegment(
+                  icon: AnimatedCupertinoIcon(
                     icon: CupertinoIcons.infinite,
-                    color: Colors.white,
-                    size: 22,
+                    color: Colors.white.withValues(alpha: 0.70),
+                    size: 20,
                   ),
-                  onPressed: () {},
+                  isSelected: false,
+                  onTap: () {},
                 ),
               ],
             ),
           ),
 
-          // Queue Active Pill (taps to return to Now Playing)
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.22),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              icon: const AnimatedCupertinoIcon(icon: CupertinoIcons.list_bullet, color: Colors.white, size: 22),
-              onPressed: () => _switchMode(PlayerViewMode.nowPlaying),
+          // Queue Active Card (taps to return to Now Playing)
+          ApplePressable(
+            onTap: () => _switchMode(PlayerViewMode.nowPlaying),
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.22),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const AnimatedCupertinoIcon(
+                icon: CupertinoIcons.list_bullet,
+                color: Colors.white,
+                size: 22,
+              ),
             ),
           ),
         ],
@@ -1719,7 +1967,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         // Lyrics Toggle Button
         Container(
           decoration: BoxDecoration(
-            color: isLyricsActive ? Colors.white.withValues(alpha: 0.25) : Colors.transparent,
+            color: isLyricsActive ? Colors.white.withValues(alpha: 0.22) : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
           child: IconButton(

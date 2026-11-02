@@ -811,6 +811,18 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     }
   }
 
+  void reorderQueue(int oldIndex, int newIndex) {
+    if (oldIndex < 0 || oldIndex >= state.queue.length) return;
+    final updated = List<SongItem>.from(state.queue);
+    if (newIndex > oldIndex) {
+      newIndex -= 1;
+    }
+    if (newIndex < 0 || newIndex >= updated.length) return;
+    final item = updated.removeAt(oldIndex);
+    updated.insert(newIndex, item);
+    state = state.copyWith(queue: updated);
+  }
+
   void clearErrorMessage() {
     state = state.copyWith(clearErrorMessage: true);
   }

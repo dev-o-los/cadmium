@@ -55,11 +55,11 @@ class _AppleMusicSliderState extends State<AppleMusicSlider>
       duration: const Duration(milliseconds: 180),
     );
 
-    _trackHeightAnimation = Tween<double>(begin: 5.5, end: 10.0).animate(
+    _trackHeightAnimation = Tween<double>(begin: 6.5, end: 11.0).animate(
       CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
     );
 
-    _thumbRadiusAnimation = Tween<double>(begin: 0.0, end: 8.0).animate(
+    _thumbRadiusAnimation = Tween<double>(begin: 3.5, end: 8.0).animate(
       CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
     );
   }
@@ -163,7 +163,7 @@ class AppleSliderTrackShape extends SliderTrackShape with BaseSliderTrackShape {
   final double trackHeight;
 
   const AppleSliderTrackShape({
-    this.trackHeight = 5.5,
+    this.trackHeight = 6.5,
   });
 
   @override
@@ -235,14 +235,14 @@ class AppleSliderTrackShape extends SliderTrackShape with BaseSliderTrackShape {
 }
 
 /// Custom expanding thumb matching Apple Music.
-/// When resting, thumb radius is 0 (flush with track).
+/// When resting, thumb is a subtle capsule (radius 3.5px) visible on the active progress bar.
 /// When scrubbing, thumb expands into a smooth circle with soft shadow.
 class AppleSliderThumbShape extends SliderComponentShape {
   final double thumbRadius;
   final bool isDragging;
 
   const AppleSliderThumbShape({
-    this.thumbRadius = 0.0,
+    this.thumbRadius = 3.5,
     this.isDragging = false,
   });
 
@@ -274,6 +274,10 @@ class AppleSliderThumbShape extends SliderComponentShape {
       final Path shadowPath = Path()
         ..addOval(Rect.fromCircle(center: center.translate(0, 1.2), radius: thumbRadius));
       canvas.drawShadow(shadowPath, Colors.black.withValues(alpha: 0.45), 4.0, true);
+    } else {
+      final Path shadowPath = Path()
+        ..addOval(Rect.fromCircle(center: center.translate(0, 0.6), radius: thumbRadius));
+      canvas.drawShadow(shadowPath, Colors.black.withValues(alpha: 0.30), 2.0, true);
     }
 
     final Paint thumbPaint = Paint()
