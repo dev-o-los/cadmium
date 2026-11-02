@@ -40,13 +40,13 @@ class LiquidGlassBottomBar extends StatelessWidget {
           label: 'Home',
         ),
         GlassTab(
-          icon: Icon(CupertinoIcons.compass),
-          activeIcon: Icon(CupertinoIcons.compass_fill),
+          icon: Icon(CupertinoIcons.square_grid_2x2),
+          activeIcon: Icon(CupertinoIcons.square_grid_2x2_fill),
           label: 'Explore',
         ),
         GlassTab(
-          icon: Icon(CupertinoIcons.square_stack_3d_up),
-          activeIcon: Icon(CupertinoIcons.square_stack_3d_up_fill),
+          icon: Icon(CupertinoIcons.rectangle_stack),
+          activeIcon: Icon(CupertinoIcons.rectangle_stack_fill),
           label: 'Library',
         ),
       ],
