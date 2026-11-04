@@ -1658,6 +1658,34 @@ class MusicService {
     return [];
   }
 
+  /// Adds a song to the user's Liked Music on YouTube Music via InnerTube.
+  Future<bool> likeSong(String videoId) async {
+    if (_currentAccount == null) return false;
+    try {
+      final res = await postInnerTube('like/like', bodyExtras: {
+        'target': {'videoId': videoId},
+      });
+      return res != null;
+    } catch (e) {
+      debugPrint('likeSong error ($videoId): $e');
+      return false;
+    }
+  }
+
+  /// Removes a song from the user's Liked Music on YouTube Music via InnerTube.
+  Future<bool> unlikeSong(String videoId) async {
+    if (_currentAccount == null) return false;
+    try {
+      final res = await postInnerTube('like/removelike', bodyExtras: {
+        'target': {'videoId': videoId},
+      });
+      return res != null;
+    } catch (e) {
+      debugPrint('unlikeSong error ($videoId): $e');
+      return false;
+    }
+  }
+
   /// Searches artists on YouTube Music.
   Future<List<ArtistItem>> searchArtists(String query) async {
     final trimmed = query.trim();
@@ -2286,7 +2314,7 @@ class MusicService {
     return mixes;
   }
 
-  /// Fetches the user's specific playlists from their YouTube Music account.
+  /// Fetches the user's specific playlists (created and liked) from their YouTube Music account.
   Future<List<PlaylistItem>> getUserPlaylists() async {
     if (!_isInitialized) {
       await initialize();
@@ -2296,33 +2324,76 @@ class MusicService {
     final playlists = <PlaylistItem>[];
     final seenIds = <String>{};
 
-    // 1. Authenticated InnerTube library playlists
-    try {
-      final data = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_library_corpus_playlists'});
-      if (data != null) {
-        final items = _collectRenderers(data, 'musicTwoRowItemRenderer');
-        for (final item in items) {
-          final browseId = traverseString(item, ['navigationEndpoint', 'browseEndpoint', 'browseId']) ??
-              traverseString(item, ['navigationEndpoint', 'watchPlaylistEndpoint', 'playlistId']);
-          if (browseId != null && browseId.isNotEmpty && !seenIds.contains(browseId)) {
-            seenIds.add(browseId);
-            final title = _extractNodeText(item['title']);
-            final author = _extractNodeText(item['subtitle']);
-            final thumb = _extractNodePhoto(item);
-            playlists.add(
-              PlaylistItem(
-                id: browseId,
-                title: title.isNotEmpty ? title : 'Playlist',
-                author: author.isNotEmpty ? author : 'YouTube Music',
-                thumbnailUrl: thumb,
-                isCustom: false,
-              ),
-            );
-          }
+    void extractPlaylistsFromData(dynamic data) {
+      if (data == null) return;
+      // Grid items (Two Row)
+      final twoRowItems = _collectRenderers(data, 'musicTwoRowItemRenderer');
+      for (final item in twoRowItems) {
+        final browseId = traverseString(item, ['navigationEndpoint', 'browseEndpoint', 'browseId']) ??
+            traverseString(item, ['navigationEndpoint', 'watchPlaylistEndpoint', 'playlistId']);
+        if (browseId != null && browseId.isNotEmpty && !seenIds.contains(browseId)) {
+          seenIds.add(browseId);
+          final title = _extractNodeText(item['title']);
+          final author = _extractNodeText(item['subtitle']);
+          final thumb = _extractNodePhoto(item);
+          playlists.add(
+            PlaylistItem(
+              id: browseId,
+              title: title.isNotEmpty ? title : 'Playlist',
+              author: author.isNotEmpty ? author : 'YouTube Music',
+              thumbnailUrl: thumb,
+              isCustom: false,
+            ),
+          );
         }
       }
+
+      // Responsive list items
+      final listItems = _collectRenderers(data, 'musicResponsiveListItemRenderer');
+      for (final item in listItems) {
+        final browseId = traverseString(item, ['navigationEndpoint', 'browseEndpoint', 'browseId']) ??
+            traverseString(item, ['navigationEndpoint', 'watchPlaylistEndpoint', 'playlistId']);
+        if (browseId != null && browseId.isNotEmpty && !seenIds.contains(browseId)) {
+          seenIds.add(browseId);
+          final flexCols = item['flexColumns'] as List? ?? [];
+          String title = 'Playlist';
+          String author = 'YouTube Music';
+          if (flexCols.isNotEmpty) {
+            final t = _extractNodeText(flexCols[0]).trim();
+            if (t.isNotEmpty) title = t;
+          }
+          if (flexCols.length > 1) {
+            final a = _extractNodeText(flexCols[1]).trim();
+            if (a.isNotEmpty) author = a;
+          }
+          final thumb = _extractNodePhoto(item);
+          playlists.add(
+            PlaylistItem(
+              id: browseId,
+              title: title,
+              author: author,
+              thumbnailUrl: thumb,
+              isCustom: false,
+            ),
+          );
+        }
+      }
+    }
+
+    // 1. Authenticated InnerTube liked playlists
+    try {
+      final likedData = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_liked_playlists'});
+      extractPlaylistsFromData(likedData);
     } catch (e) {
-      debugPrint('getUserPlaylists InnerTube error: $e');
+      debugPrint('getUserPlaylists liked playlists error: $e');
+    }
+
+    // 2. Authenticated InnerTube library corpus playlists
+    try {
+      final libData = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_library_corpus_playlists'});
+      extractPlaylistsFromData(libData);
+    } catch (e) {
+      debugPrint('getUserPlaylists corpus playlists error: $e');
     }
 
     // 2. Merge home sections playlists

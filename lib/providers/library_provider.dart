@@ -348,6 +348,22 @@ class YouTubeLikedSongsNotifier extends StateNotifier<AsyncValue<List<SongItem>>
     }
   }
 
+  void addLikedSong(SongItem song) {
+    final current = state.value ?? [];
+    if (!current.any((s) => s.id == song.id)) {
+      state = AsyncValue.data([song, ...current]);
+    }
+  }
+
+  void removeLikedSong(String songId) {
+    final current = state.value ?? [];
+    state = AsyncValue.data(current.where((s) => s.id != songId).toList());
+  }
+
+  void setLikedSongs(List<SongItem> songs) {
+    state = AsyncValue.data(songs);
+  }
+
   Future<void> fetchLikedSongs() async {
     state = const AsyncValue.loading();
     try {
@@ -390,19 +406,18 @@ final userPlaylistsProvider = FutureProvider<List<PlaylistItem>>((ref) async {
   final seen = <String>{};
   final result = <PlaylistItem>[];
 
-  if (ytLikes.isNotEmpty) {
-    seen.add('LM');
-    result.add(
-      PlaylistItem(
-        id: 'LM',
-        title: 'Liked Music',
-        author: 'YouTube Music',
-        thumbnailUrl: ytLikes.first.thumbnailUrl,
-        trackCount: ytLikes.length,
-        isCustom: false,
-      ),
-    );
-  }
+  // Feature user's Liked Music playlist prominently
+  seen.add('LM');
+  result.add(
+    PlaylistItem(
+      id: 'LM',
+      title: 'Liked Music',
+      author: 'YouTube Music',
+      thumbnailUrl: ytLikes.isNotEmpty ? ytLikes.first.thumbnailUrl : null,
+      trackCount: ytLikes.length,
+      isCustom: false,
+    ),
+  );
 
   for (final p in [...customUserPlaylists, ...ytPlaylists]) {
     if (!seen.contains(p.id)) {

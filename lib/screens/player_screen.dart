@@ -1010,7 +1010,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                             onTap: () => ref.read(favoritesProvider.notifier).toggleFavorite(song),
                             icon: AnimatedCupertinoIcon(
                               icon: isFavorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
-                              color: isFavorite ? appleRed : Colors.white70,
+                              color: isFavorite ? Colors.white : Colors.white70,
                               size: 19,
                             ),
                           ),
@@ -1403,7 +1403,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
             },
             icon: AnimatedCupertinoIcon(
               icon: isFavorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
-              color: isFavorite ? appleRed : Colors.white,
+              color: Colors.white,
               size: 21,
             ),
           ),

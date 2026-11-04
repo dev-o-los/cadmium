@@ -13,6 +13,7 @@ import '../providers/library_provider.dart';
 import '../providers/music_service_provider.dart';
 import '../providers/player_provider.dart';
 import '../utils/playback_utils.dart';
+import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_glass_bottom_sheet.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/dynamic_album_artwork.dart';
@@ -124,7 +125,7 @@ class LibraryScreen extends ConsumerWidget {
                     icon: CupertinoIcons.plus,
                     title: 'Save Playlist',
                     subtitle: 'From YouTube',
-                    iconColor: AppColors.appleRed,
+                    iconColor: Colors.white,
                     onTap: () => _showSavePlaylistSheet(context, ref),
                   );
                 }
@@ -443,7 +444,7 @@ class LibraryScreen extends ConsumerWidget {
                     ),
                     child: const Icon(
                       CupertinoIcons.heart_fill,
-                      color: AppColors.appleRed,
+                      color: Colors.white,
                       size: 14,
                     ),
                   ),
@@ -487,7 +488,7 @@ class LibraryScreen extends ConsumerWidget {
       height: size,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFFFA243C), Color(0xFF8E0E1E)],
+          colors: [Color(0xFF2C2C2E), Color(0xFF141416)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -551,15 +552,19 @@ class LibraryScreen extends ConsumerWidget {
                     right: 8,
                     bottom: 8,
                     child: Container(
-                      decoration: const BoxDecoration(
-                        color: AppColors.appleRed,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.75),
                         shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          width: 0.8,
+                        ),
                       ),
                       padding: const EdgeInsets.all(6),
-                      child: const Icon(
-                        CupertinoIcons.waveform,
-                        color: Colors.white,
+                      child: const AnimatedEqualizerBars(
                         size: 14,
+                        color: Colors.white,
+                        isPlaying: true,
                       ),
                     ),
                   ),
@@ -570,8 +575,8 @@ class LibraryScreen extends ConsumerWidget {
               song.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: isCurrent ? AppColors.appleRed : Colors.white,
+              style: const TextStyle(
+                color: Colors.white,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -0.2,
@@ -727,7 +732,7 @@ class LibraryScreen extends ConsumerWidget {
     required String title,
     required String subtitle,
     required VoidCallback onTap,
-    Color iconColor = AppColors.appleRed,
+    Color iconColor = Colors.white,
   }) {
     return ApplePressable(
       onTap: onTap,
@@ -870,7 +875,7 @@ class LibraryScreen extends ConsumerWidget {
                   children: [
                     const Icon(
                       CupertinoIcons.plus,
-                      color: AppColors.appleRed,
+                      color: Colors.white,
                       size: 16,
                     ),
                     const SizedBox(width: 6),

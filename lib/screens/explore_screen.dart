@@ -8,6 +8,7 @@ import '../providers/home_data_provider.dart';
 import '../providers/player_provider.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/animated_cupertino_icon.dart';
+import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/track_options_sheet.dart';
 
@@ -154,10 +155,10 @@ class ExploreScreen extends ConsumerWidget {
                       song.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: isSelected ? AppColors.appleRed : Colors.white,
+                      style: const TextStyle(
+                        color: Colors.white,
                         fontSize: 15,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                        fontWeight: FontWeight.w600,
                         letterSpacing: -0.3,
                         height: 1.25,
                       ),
@@ -178,7 +179,7 @@ class ExploreScreen extends ConsumerWidget {
                 ),
               ),
               if (isSelected) ...[
-                const Icon(CupertinoIcons.waveform, color: AppColors.appleRed, size: 20),
+                const AnimatedEqualizerBars(size: 14, color: Colors.white),
                 const SizedBox(width: 6),
               ],
               IconButton(

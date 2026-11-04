@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import 'apple_pressable.dart';
 
@@ -28,8 +29,8 @@ Future<T?> showAppleGlassBottomSheet<T>({
   );
 }
 
-/// Liquid Glass container wrapper with Gaussian blur, ultra-fine white specular outline,
-/// top grab handle, and balanced, reduced side padding for Apple-style sheets.
+/// Liquid Glass container wrapper with specular highlights, top grab handle,
+/// and balanced padding for Apple-style sheets.
 class AppleGlassBottomSheetContainer extends StatelessWidget {
   final Widget child;
   final bool showGrabber;
@@ -47,53 +48,61 @@ class AppleGlassBottomSheetContainer extends StatelessWidget {
 
     return Padding(
       padding: EdgeInsets.only(bottom: viewInsetsBottom),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 36, sigmaY: 36),
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xEE161619),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.16),
-                width: 0.8,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.45),
-                  blurRadius: 28,
-                  offset: const Offset(0, -6),
-                ),
-              ],
+      child: GlassContainer(
+        useOwnLayer: true,
+        shape: const LiquidVerticalRoundedSuperellipse(
+          topRadius: 28,
+          bottomRadius: 0,
+        ),
+        settings: const LiquidGlassSettings(
+          thickness: 24,
+          blur: 32,
+          refractiveIndex: 1.15,
+          lightIntensity: 0.45,
+          specularSharpness: GlassSpecularSharpness.sharp,
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xDD121215),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.18),
+              width: 0.8,
             ),
-            child: SafeArea(
-              top: false,
-              bottom: false,
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(14, 0, 14, bottomPadding + 6),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (showGrabber) ...[
-                      const SizedBox(height: 10),
-                      Center(
-                        child: Container(
-                          width: 36,
-                          height: 4.5,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.35),
-                            borderRadius: BorderRadius.circular(2.25),
-                          ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.55),
+                blurRadius: 32,
+                offset: const Offset(0, -8),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            bottom: false,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(14, 0, 14, bottomPadding + 6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (showGrabber) ...[
+                    const SizedBox(height: 10),
+                    Center(
+                      child: Container(
+                        width: 36,
+                        height: 4.5,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.35),
+                          borderRadius: BorderRadius.circular(2.25),
                         ),
                       ),
-                      const SizedBox(height: 14),
-                    ] else
-                      const SizedBox(height: 16),
-                    child,
-                  ],
-                ),
+                    ),
+                    const SizedBox(height: 14),
+                  ] else
+                    const SizedBox(height: 16),
+                  child,
+                ],
               ),
             ),
           ),
@@ -103,7 +112,7 @@ class AppleGlassBottomSheetContainer extends StatelessWidget {
   }
 }
 
-/// Apple-style grouped section card for actions inside bottom sheets.
+/// Apple-style grouped section card for actions inside bottom sheets with Liquid Glass effect.
 class AppleSheetGroup extends StatelessWidget {
   final List<Widget>? children;
   final Widget? child;
@@ -118,24 +127,35 @@ class AppleSheetGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.12),
-          width: 0.65,
-        ),
+    return GlassContainer(
+      useOwnLayer: true,
+      shape: const LiquidRoundedSuperellipse(borderRadius: 18),
+      settings: const LiquidGlassSettings(
+        thickness: 16,
+        blur: 18,
+        refractiveIndex: 1.10,
+        lightIntensity: 0.35,
+        specularSharpness: GlassSpecularSharpness.sharp,
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: padding ?? EdgeInsets.zero,
-          child: child ??
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: children!,
-              ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.14),
+            width: 0.75,
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+            padding: padding ?? EdgeInsets.zero,
+            child: child ??
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: children!,
+                ),
+          ),
         ),
       ),
     );

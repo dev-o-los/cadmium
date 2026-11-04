@@ -22,6 +22,7 @@ import '../providers/navigation_provider.dart';
 import '../providers/player_provider.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/account_modal_sheet.dart';
+import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_glass_bottom_sheet.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/liquid_glass_bottom_bar.dart';
@@ -645,7 +646,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
               GlassIconButton(
                 icon: Icon(
                   CupertinoIcons.star_fill,
-                  color: isSaved ? AppColors.appleRed : Colors.white,
+                  color: isSaved ? Colors.white : Colors.white.withValues(alpha: 0.6),
                   size: 22,
                 ),
                 onPressed: () async {
@@ -760,7 +761,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
               GlassIconButton(
                 icon: Icon(
                   isRecentSaved ? CupertinoIcons.checkmark_alt : CupertinoIcons.plus,
-                  color: isRecentSaved ? AppColors.appleRed : Colors.white,
+                  color: Colors.white,
                   size: 20,
                 ),
                 onPressed: () async {
@@ -873,14 +874,12 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                                     if (isCurrent)
                                       Positioned.fill(
                                         child: Container(
-                                          color: Colors.black.withValues(alpha: 0.55),
+                                          color: Colors.black.withValues(alpha: 0.65),
                                           child: Center(
-                                            child: Icon(
-                                              isPlaying
-                                                  ? CupertinoIcons.speaker_2_fill
-                                                  : CupertinoIcons.pause_fill,
-                                              color: AppColors.appleRed,
+                                            child: AnimatedEqualizerBars(
                                               size: 16,
+                                              color: Colors.white,
+                                              isPlaying: isPlaying,
                                             ),
                                           ),
                                         ),
@@ -906,8 +905,8 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                                             song.title,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              color: isCurrent ? AppColors.appleRed : Colors.white,
+                                            style: const TextStyle(
+                                              color: Colors.white,
                                               fontSize: 15,
                                               fontWeight: FontWeight.w600,
                                               letterSpacing: -0.3,

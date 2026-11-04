@@ -294,7 +294,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
               shape: BoxShape.circle,
               border: Border.all(
                 color: account != null
-                    ? AppColors.appleRed.withValues(alpha: 0.85)
+                    ? Colors.white.withValues(alpha: 0.85)
                     : Colors.white.withValues(alpha: 0.4),
                 width: 1.5,
               ),
@@ -302,7 +302,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
             child: CircleAvatar(
               radius: 19,
               backgroundColor: account != null
-                  ? AppColors.appleRed
+                  ? Colors.white.withValues(alpha: 0.20)
                   : AppColors.appleDarkSurfaceHigh,
               backgroundImage: account?.avatarUrl != null
                   ? WavifyCachedImage.provider(account!.avatarUrl!)
@@ -365,7 +365,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
             children: [
               const Icon(
                 CupertinoIcons.exclamationmark_triangle_fill,
-                color: AppColors.appleRed,
+                color: Colors.white70,
                 size: 40,
               ),
               const SizedBox(height: 12),
@@ -904,18 +904,22 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                             displayTitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: isSelected
-                                  ? AppColors.appleRed
-                                  : Colors.white,
+                            style: const TextStyle(
+                              color: Colors.white,
                               fontSize: 16,
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.w600,
+                              fontWeight: FontWeight.w600,
                               letterSpacing: -0.3,
                             ),
                           ),
                         ),
+                        if (isSelected && isPlaying) ...[
+                          const SizedBox(width: 6),
+                          const AnimatedEqualizerBars(
+                            size: 14,
+                            color: Colors.white,
+                            isPlaying: true,
+                          ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 3),

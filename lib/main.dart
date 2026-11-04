@@ -34,7 +34,6 @@ class MelomaniacApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const appleMusicRed = Color(0xFFFA243C);
     const appleDarkBackground = Color(0xFF000000);
     const appleDarkSurface = Color(0xFF1C1C1E);
     const appleDarkSurfaceHigh = Color(0xFF2C2C2E);
@@ -47,16 +46,16 @@ class MelomaniacApp extends StatelessWidget {
         useMaterial3: true,
         brightness: Brightness.dark,
         scaffoldBackgroundColor: appleDarkBackground,
-        primaryColor: appleMusicRed,
+        primaryColor: Colors.white,
         splashFactory: NoSplash.splashFactory,
         splashColor: Colors.transparent,
         highlightColor: Colors.transparent,
         hoverColor: Colors.transparent,
         listTileTheme: const ListTileThemeData(enableFeedback: false),
         colorScheme: const ColorScheme.dark(
-          primary: appleMusicRed,
-          onPrimary: Colors.white,
-          secondary: appleMusicRed,
+          primary: Colors.white,
+          onPrimary: Colors.black,
+          secondary: Colors.white,
           surface: appleDarkSurface,
           onSurface: Colors.white,
           onSurfaceVariant: Color(0xFF8E8E93),
@@ -78,7 +77,7 @@ class MelomaniacApp extends StatelessWidget {
         ),
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           backgroundColor: Color(0xCC161618),
-          selectedItemColor: appleMusicRed,
+          selectedItemColor: Colors.white,
           unselectedItemColor: Color(0xFF8E8E93),
           type: BottomNavigationBarType.fixed,
           elevation: 0,

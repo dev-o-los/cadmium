@@ -31,7 +31,7 @@ void main() {
       durationSeconds: 195,
     );
 
-    test('toggleFavorite adds and removes songs and persists locally', () async {
+    test('toggleFavorite adds and removes songs in-memory without SharedPreferences', () async {
       final notifier = FavoritesNotifier();
       expect(notifier.state, isEmpty);
 
@@ -47,12 +47,9 @@ void main() {
       expect(notifier.state.length, 2);
       expect(notifier.state.first.id, 'fav_song_2');
 
-      // Re-load from SharedPreferences to verify persistence
-      final reloadedNotifier = FavoritesNotifier();
-      // Allow async _loadFavorites to complete
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      expect(reloadedNotifier.state.length, 2);
-      expect(reloadedNotifier.isFavorite('fav_song_1'), isTrue);
+      // Verify no shared preferences are used
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getStringList('wavify_favorite_songs_v1'), isNull);
 
       // Toggle testSong1 again (should remove it)
       final removed = await notifier.toggleFavorite(testSong1);

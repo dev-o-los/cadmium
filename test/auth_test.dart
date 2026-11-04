@@ -234,7 +234,7 @@ void main() {
       expect(find.text('Refresh Recommendations'), findsNothing);
     });
 
-    testWidgets('When not signed in, tapping top-right icon directly opens GoogleSignInScreen',
+    testWidgets('When not signed in, tapping top-right icon opens dialogue and transfers to GoogleSignInScreen',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(800, 1200);
       tester.view.devicePixelRatio = 1.0;
@@ -273,8 +273,15 @@ void main() {
       final iconFinder = find.byIcon(CupertinoIcons.person_crop_circle_fill);
       expect(iconFinder, findsOneWidget);
 
-      // Tapping it directly navigates to GoogleSignInScreen (WebView)
+      // Tapping it opens the account modal sheet dialogue
       await tester.tap(iconFinder);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Sign In with Google Account'), findsOneWidget);
+
+      // Tapping the dialogue button transfers to GoogleSignInScreen
+      await tester.tap(find.text('Sign In with Google Account'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 

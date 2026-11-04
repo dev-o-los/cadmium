@@ -1,14 +1,17 @@
 import 'dart:convert';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import '../constants/app_colors.dart';
 import '../models/user_account.dart';
 import '../providers/auth_provider.dart';
 import '../providers/music_service_provider.dart';
+import '../services/music_service.dart';
 
 /// Screen allowing users to sign in with their Google account to authorize
-/// YouTube Music, fetch their profile, and receive personalized recommendations.
+/// YouTube Music, fetch their verified profile, and receive personalized recommendations.
 class GoogleSignInScreen extends ConsumerStatefulWidget {
   const GoogleSignInScreen({super.key});
 
@@ -24,26 +27,52 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
       '?ltmpl=music&service=youtube&prompt=select_account'
       '&continue=https%3A%2F%2Fmusic.youtube.com%2F';
 
-  // Standard mobile Chrome user agent supported by Google sign-in
-  static const String _mobileChromeUserAgent =
-      'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36';
+  // Platform-appropriate User Agent string free of embedded WebView markers
+  static String get _userAgent {
+    if (kIsWeb) return '';
+    if (defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS) {
+      return 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
+    }
+    return 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36';
+  }
 
-  // ytcfg extraction probe adapted from BitChord
-  static const String _ytcfgProbe = '''
+  // ytcfg & DOM extraction probe adapted from BitChord
+  static const String _sessionProbeScript = '''
 (function () {
   try {
-    if (!window.ytcfg || !window.ytcfg.get) return null;
     var get = function (key) {
-      var value = window.ytcfg.get(key);
-      return (value === undefined || value === null || value === '') ? null : String(value);
+      if (window.ytcfg && window.ytcfg.get) {
+        var val = window.ytcfg.get(key);
+        if (val !== undefined && val !== null && val !== '') return String(val);
+      }
+      if (window.ytcfg && window.ytcfg.data_ && window.ytcfg.data_[key]) {
+        return String(window.ytcfg.data_[key]);
+      }
+      return null;
     };
+
+    var avatarImg = document.querySelector('ytmusic-settings-button img, #avatar-btn img, button#avatar-btn img');
+    var avatarSrc = avatarImg ? avatarImg.src : null;
+    var btn = document.querySelector('#avatar-btn, ytmusic-settings-button button');
+    var ariaLabel = btn ? (btn.getAttribute('aria-label') || btn.getAttribute('title')) : null;
+
+    var loggedIn = false;
+    if (window.ytcfg && window.ytcfg.get) {
+      loggedIn = !!window.ytcfg.get('LOGGED_IN');
+    }
+
     return JSON.stringify({
-      loggedIn: String(!!window.ytcfg.get('LOGGED_IN')),
+      loggedIn: String(loggedIn),
       pageId: get('DELEGATED_SESSION_ID'),
       dataSyncId: get('DATASYNC_ID'),
       authUser: get('SESSION_INDEX'),
       visitorData: get('VISITOR_DATA'),
-      clientVersion: get('INNERTUBE_CLIENT_VERSION')
+      clientVersion: get('INNERTUBE_CLIENT_VERSION'),
+      userName: get('USER_NAME') || get('USER_DISPLAY_NAME'),
+      userEmail: get('USER_EMAIL'),
+      domAvatar: avatarSrc,
+      domLabel: ariaLabel
     });
   } catch (e) {
     return null;
@@ -79,7 +108,7 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
 
       final controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setUserAgent(_mobileChromeUserAgent)
+        ..setUserAgent(_userAgent)
         ..setBackgroundColor(Colors.black)
         ..setNavigationDelegate(
           NavigationDelegate(
@@ -130,30 +159,8 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
     }
   }
 
-  /// Detects when navigation reaches YouTube Music, extracts native session cookies
-  /// and ytcfg data, queries profile via InnerTube, saves credentials, and directly navigates Home.
-  Future<void> _checkSessionTransition(String url) async {
-    if (_isAuthorizing || !mounted) return;
-
-    if (url.contains('music.youtube.com') ||
-        (url.contains('youtube.com') && !url.contains('accounts.google.com'))) {
-      setState(() {
-        _isAuthorizing = true;
-      });
-
-      try {
-        await _performAccountVerification();
-      } catch (e) {
-        debugPrint('Verification error: $e');
-        if (mounted) {
-          _performFallbackSignIn();
-        }
-      }
-    }
-  }
-
-  Future<void> _performAccountVerification() async {
-    // 1. Extract cookies from native platform cookie jar across YouTube and Google domains
+  /// Gathers all native and JavaScript cookies across YouTube and Google domains
+  Future<Map<String, String>> _collectAllCookies() async {
     final cookieJar = <String, String>{};
 
     try {
@@ -163,6 +170,7 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
           Uri.parse('https://music.youtube.com'),
           Uri.parse('https://youtube.com'),
           Uri.parse('https://accounts.google.com'),
+          Uri.parse('https://google.com'),
         ];
 
         for (final domain in domains) {
@@ -178,7 +186,7 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
       debugPrint('Error reading native cookie jar: $e');
     }
 
-    // Also check document.cookie from WebView as complementary source
+    // Also extract document.cookie from WebView context
     try {
       if (_webViewController != null) {
         final jsCookieRes =
@@ -202,20 +210,73 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
       }
     } catch (_) {}
 
+    return cookieJar;
+  }
+
+  /// Detects when navigation reaches YouTube Music with verified authentication cookies,
+  /// extracts native session tokens & profile info, and connects the user's authentic account.
+  Future<void> _checkSessionTransition(String url) async {
+    if (_isAuthorizing || !mounted) return;
+
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+
+    // Strict boundary: Only inspect when genuinely on music.youtube.com
+    // Never intercept intermediate redirects such as accounts.youtube.com or accounts.google.com
+    final isMusicYouTube = uri.host == 'music.youtube.com';
+    if (!isMusicYouTube) return;
+
+    // Verify whether authentic login session cookies exist
+    final cookieJar = await _collectAllCookies();
     final cookiesString =
         cookieJar.entries.map((e) => '${e.key}=${e.value}').join('; ');
+    final sapisid = MusicService.extractSapisid(cookiesString);
 
-    // 2. Extract ytcfg from the live page
+    // If SAPISID is missing, the user is still in the login flow or guest session
+    if (sapisid == null || sapisid.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isAuthorizing = true;
+    });
+
+    try {
+      await _performAccountVerification(cookieJar, cookiesString);
+    } catch (e) {
+      debugPrint('Verification error: $e');
+      if (mounted) {
+        setState(() {
+          _isAuthorizing = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to connect YouTube Music account. Please try again.'),
+            backgroundColor: Color(0xFF1C1C1E),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _performAccountVerification(
+    Map<String, String> cookieJar,
+    String cookiesString,
+  ) async {
+    // 1. Probe ytcfg & DOM for session metadata
     String? pageId;
     String? dataSyncId;
     String? authUser;
     String? visitorData;
     String? clientVersion;
+    String? probedName;
+    String? probedEmail;
+    String? probedAvatar;
 
     try {
       if (_webViewController != null) {
         final probeResult =
-            await _webViewController!.runJavaScriptReturningResult(_ytcfgProbe);
+            await _webViewController!.runJavaScriptReturningResult(_sessionProbeScript);
         var probeStr = probeResult.toString().trim();
         if (probeStr.startsWith('"') &&
             probeStr.endsWith('"') &&
@@ -233,15 +294,22 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
           authUser = probeJson['authUser']?.toString();
           visitorData = probeJson['visitorData']?.toString();
           clientVersion = probeJson['clientVersion']?.toString();
+          probedName = probeJson['userName']?.toString();
+          probedEmail = probeJson['userEmail']?.toString();
+          probedAvatar = probeJson['domAvatar']?.toString();
+
+          if (probedName == null || probedName.isEmpty) {
+            probedName = probeJson['domLabel']?.toString();
+          }
         }
       }
     } catch (e) {
       debugPrint('Error probing ytcfg: $e');
     }
 
-    // 3. Query InnerTube account_menu using SAPISIDHASH to retrieve real name, email, and avatar
+    // 2. Query InnerTube account_menu using SAPISIDHASH to retrieve verified profile
     final musicService = ref.read(musicServiceProvider);
-    final profile = await musicService.fetchAccountProfile(
+    var profile = await musicService.fetchAccountProfile(
       cookies: cookiesString,
       dataSyncId: dataSyncId,
       pageId: pageId,
@@ -250,13 +318,28 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
       clientVersion: clientVersion,
     );
 
+    // If initial query was empty, retry once after a short delay
+    if (profile == null) {
+      await Future<void>.delayed(const Duration(milliseconds: 800));
+      profile = await musicService.fetchAccountProfile(
+        cookies: cookiesString,
+        dataSyncId: dataSyncId,
+        pageId: pageId,
+        authUser: authUser,
+        visitorData: visitorData,
+        clientVersion: clientVersion,
+      );
+    }
+
     final displayName = profile?.displayName.isNotEmpty == true
         ? profile!.displayName
-        : 'YouTube Music User';
-    final email = profile?.email ?? '';
-    final avatarUrl = profile?.avatarUrl;
+        : (probedName != null && probedName.isNotEmpty ? probedName : 'YouTube Music User');
+    final email = profile?.email.isNotEmpty == true
+        ? profile!.email
+        : (probedEmail ?? '');
+    final avatarUrl = profile?.avatarUrl ?? probedAvatar;
 
-    // 4. Construct authentic UserAccount model
+    // 3. Construct verified UserAccount model
     final account = UserAccount(
       id: 'google_ytm_${DateTime.now().millisecondsSinceEpoch}',
       displayName: displayName,
@@ -271,31 +354,13 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
       visitorData: visitorData,
     );
 
-    // 5. Persist account and trigger recommendations refresh
+    // 4. Persist account and trigger recommendations & liked songs refresh
     await ref.read(authProvider.notifier).signInWithGoogleAccount(account);
 
     if (!mounted) return;
 
-    // 6. Directly navigate straight to Home screen without any delay or verify screens
+    // 5. Navigate straight back to Home screen
     Navigator.of(context).popUntil((route) => route.isFirst);
-  }
-
-  void _performFallbackSignIn() async {
-    try {
-      final account = UserAccount(
-        id: 'google_ytm_${DateTime.now().millisecondsSinceEpoch}',
-        displayName: 'YouTube Music User',
-        email: '',
-        cookies: '',
-        connectedAt: DateTime.now(),
-        isPersonalizedEnabled: true,
-      );
-      await ref.read(authProvider.notifier).signInWithGoogleAccount(account);
-    } catch (_) {}
-
-    if (mounted) {
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    }
   }
 
   @override
@@ -323,7 +388,7 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
                 preferredSize: const Size.fromHeight(2),
                 child: LinearProgressIndicator(
                   value: _progress > 0 ? _progress : null,
-                  color: appleRed,
+                  color: Colors.white,
                   backgroundColor: Colors.white10,
                   minHeight: 2,
                 ),
@@ -340,20 +405,42 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
                   : const Center(
                       child: CupertinoActivityIndicator(
                         radius: 14,
-                        color: appleRed,
+                        color: Colors.white,
                       ),
                     ),
             ),
 
-            // Clean dark overlay while credentials are being finalized
+            // Clean dark overlay while credentials and profile are being connected
             if (_isAuthorizing)
               Positioned.fill(
                 child: Container(
-                  color: Colors.black,
-                  child: const Center(
-                    child: CupertinoActivityIndicator(
-                      radius: 14,
-                      color: Colors.white,
+                  color: Colors.black.withValues(alpha: 0.92),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CupertinoActivityIndicator(
+                          radius: 16,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Connecting YouTube Music...',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Syncing profile and recommendations',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.65),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

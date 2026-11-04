@@ -16,6 +16,7 @@ import '../providers/player_provider.dart';
 import '../services/song_metrics_cache_service.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/animated_cupertino_icon.dart';
+import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/apple_glass_bottom_sheet.dart';
 import '../widgets/liquid_glass_bottom_bar.dart';
@@ -927,10 +928,12 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                 SizedBox(
                                   width: 28,
                                   child: isCurrentTrack && isPlaying
-                                      ? const Icon(
-                                          CupertinoIcons.waveform,
-                                          color: AppColors.appleRed,
-                                          size: 18,
+                                      ? Center(
+                                          child: AnimatedEqualizerBars(
+                                            size: 16,
+                                            color: Colors.white,
+                                            isPlaying: true,
+                                          ),
                                         )
                                       : Text(
                                           '${index + 1}',
@@ -979,10 +982,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                               track.title,
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                color: isCurrentTrack
-                                                    ? AppColors.appleRed
-                                                    : Colors.white,
+                                              style: const TextStyle(
+                                                color: Colors.white,
                                                 fontSize: 16,
                                                 fontWeight: FontWeight.w600,
                                                 letterSpacing: -0.3,

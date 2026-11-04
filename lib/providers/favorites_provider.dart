@@ -1,36 +1,55 @@
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models/song_item.dart';
+import '../models/user_account.dart';
+import 'auth_provider.dart';
+import 'library_provider.dart';
+import 'music_service_provider.dart';
 
-/// StateNotifier that persists and manages the user's favorite tracks locally on device.
+/// StateNotifier that manages the user's liked tracks directly synced with
+/// their YouTube Music account, without relying on local SharedPreferences.
 class FavoritesNotifier extends StateNotifier<List<SongItem>> {
-  static const _storageKey = 'wavify_favorite_songs_v1';
+  final Ref? _ref;
 
-  FavoritesNotifier() : super(const []) {
-    _loadFavorites();
+  FavoritesNotifier([this._ref]) : super(const []) {
+    _init();
   }
 
-  Future<void> _loadFavorites() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final list = prefs.getStringList(_storageKey);
-      if (list != null && list.isNotEmpty) {
-        final loaded = list
-            .map((item) {
-              try {
-                return SongItem.fromJson(jsonDecode(item) as Map<String, dynamic>);
-              } catch (_) {
-                return null;
-              }
-            })
-            .whereType<SongItem>()
-            .toList();
-        state = loaded;
+  void _init() {
+    if (_ref == null) return;
+
+    // Listen to changes in auth state:
+    // When signed in, sync favorites from YouTube Music Liked Songs.
+    // When signed out, clear favorites.
+    _ref.listen<UserAccount?>(authProvider, (previous, next) {
+      if (next != null) {
+        _syncFromYouTubeMusic();
+      } else {
+        state = const [];
       }
+    });
+
+    // Listen to changes in youtubeLikedSongsProvider
+    _ref.listen<AsyncValue<List<SongItem>>>(youtubeLikedSongsProvider, (previous, next) {
+      next.whenData((songs) {
+        state = songs;
+      });
+    });
+
+    // Initial load if already signed in
+    if (_ref.read(authProvider) != null) {
+      _syncFromYouTubeMusic();
+    }
+  }
+
+  Future<void> _syncFromYouTubeMusic() async {
+    if (_ref == null) return;
+    try {
+      final songs = await _ref.read(musicServiceProvider).getLikedSongs();
+      state = songs;
+      _ref.read(youtubeLikedSongsProvider.notifier).setLikedSongs(songs);
     } catch (e) {
-      debugPrint('Error loading local favorites: $e');
+      debugPrint('Error syncing favorites from YouTube Music: $e');
     }
   }
 
@@ -40,41 +59,43 @@ class FavoritesNotifier extends StateNotifier<List<SongItem>> {
 
   Future<bool> toggleFavorite(SongItem song) async {
     final exists = isFavorite(song.id);
-    List<SongItem> updated;
+    final musicService = _ref?.read(musicServiceProvider);
+    final account = _ref?.read(authProvider);
+
     if (exists) {
-      updated = state.where((s) => s.id != song.id).toList();
+      // Optimistically remove from state
+      state = state.where((s) => s.id != song.id).toList();
+      _ref?.read(youtubeLikedSongsProvider.notifier).removeLikedSong(song.id);
+
+      if (account != null && musicService != null) {
+        musicService.unlikeSong(song.id);
+      }
+      return false;
     } else {
-      updated = [song, ...state];
-    }
-    state = updated;
+      // Optimistically add to state
+      state = [song, ...state];
+      _ref?.read(youtubeLikedSongsProvider.notifier).addLikedSong(song);
 
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final list = updated.map((s) => jsonEncode(s.toJson())).toList();
-      await prefs.setStringList(_storageKey, list);
-    } catch (e) {
-      debugPrint('Error saving local favorites: $e');
+      if (account != null && musicService != null) {
+        musicService.likeSong(song.id);
+      }
+      return true;
     }
-
-    return !exists;
   }
 
   Future<void> removeFavorite(String songId) async {
-    final updated = state.where((s) => s.id != songId).toList();
-    state = updated;
+    state = state.where((s) => s.id != songId).toList();
+    _ref?.read(youtubeLikedSongsProvider.notifier).removeLikedSong(songId);
 
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final list = updated.map((s) => jsonEncode(s.toJson())).toList();
-      await prefs.setStringList(_storageKey, list);
-    } catch (e) {
-      debugPrint('Error removing local favorite: $e');
+    final musicService = _ref?.read(musicServiceProvider);
+    final account = _ref?.read(authProvider);
+    if (account != null && musicService != null) {
+      musicService.unlikeSong(songId);
     }
   }
 }
 
-/// Global Riverpod provider for locally stored favorite songs.
+/// Global Riverpod provider for user's favorite tracks.
 final favoritesProvider = StateNotifierProvider<FavoritesNotifier, List<SongItem>>((ref) {
-  return FavoritesNotifier();
+  return FavoritesNotifier(ref);
 });
-

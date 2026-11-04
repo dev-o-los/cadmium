@@ -190,7 +190,7 @@ void showTrackOptionsModal(
               AppleSheetActionTile(
                 leading: Icon(
                   isFav ? CupertinoIcons.star_fill : CupertinoIcons.star,
-                  color: isFav ? AppColors.appleRed : Colors.white,
+                  color: Colors.white,
                   size: 22,
                 ),
                 title: isFav ? 'Remove from Favorites' : 'Add to Favorites',

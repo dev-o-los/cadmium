@@ -15,6 +15,7 @@ import '../providers/player_provider.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/account_modal_sheet.dart';
 import '../widgets/animated_cupertino_icon.dart';
+import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/dynamic_album_artwork.dart';
 import '../widgets/track_options_sheet.dart';
@@ -61,7 +62,7 @@ class HomeFeedScreen extends ConsumerWidget {
               const Icon(
                 CupertinoIcons.exclamationmark_circle,
                 size: 52,
-                color: AppColors.appleRed,
+                color: Colors.white70,
               ),
               const SizedBox(height: 12),
               Text(
@@ -129,19 +130,7 @@ class HomeFeedScreen extends ConsumerWidget {
                     final account = ref.watch(authProvider);
 
                     return ApplePressable(
-                      onTap: () {
-                        if (account != null) {
-                          showAccountModalSheet(context, ref);
-                        } else {
-                          // Directly open the Google Sign-In WebView on click
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const GoogleSignInScreen(),
-                            ),
-                          );
-                        }
-                      },
+                      onTap: () => showAccountModalSheet(context, ref),
                       borderRadius: BorderRadius.circular(22),
                       child: Stack(
                         clipBehavior: Clip.none,
@@ -153,7 +142,7 @@ class HomeFeedScreen extends ConsumerWidget {
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: account != null
-                                    ? AppColors.appleRed.withValues(alpha: 0.85)
+                                    ? Colors.white.withValues(alpha: 0.85)
                                     : Colors.white.withValues(alpha: 0.5),
                                 width: 1.5,
                               ),
@@ -161,7 +150,7 @@ class HomeFeedScreen extends ConsumerWidget {
                             child: CircleAvatar(
                               radius: 18,
                               backgroundColor: account != null
-                                  ? AppColors.appleRed
+                                  ? Colors.white.withValues(alpha: 0.20)
                                   : AppColors.appleDarkSurfaceHigh,
                               backgroundImage: account?.avatarUrl != null
                                   ? NetworkImage(account!.avatarUrl!)
@@ -597,6 +586,7 @@ class HomeFeedScreen extends ConsumerWidget {
     List<SongItem>? contextQueue,
   }) {
     final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
+    final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
     final isSelected = currentSong?.id == song.id;
 
     return SizedBox(
@@ -630,17 +620,27 @@ class HomeFeedScreen extends ConsumerWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: isSelected ? AppColors.appleRed : Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -0.3,
-                        height: 1.25,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            song.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: -0.3,
+                              height: 1.25,
+                            ),
+                          ),
+                        ),
+                        if (isSelected && isPlaying) ...[
+                          const SizedBox(width: 6),
+                          const AnimatedEqualizerBars(size: 14, color: Colors.white),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 3),
                     ApplePressable(
@@ -1057,6 +1057,7 @@ class HomeFeedScreen extends ConsumerWidget {
     if (songs.isEmpty) return const SizedBox.shrink();
 
     final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
+    final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
     final screenWidth = MediaQuery.of(context).size.width;
     final cardWidth = (screenWidth * 0.38).clamp(136.0, 180.0);
     final cardHeight = cardWidth + 58.0;
@@ -1117,15 +1118,19 @@ class HomeFeedScreen extends ConsumerWidget {
                               right: 8,
                               bottom: 8,
                               child: Container(
-                                decoration: const BoxDecoration(
-                                  color: AppColors.appleRed,
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.75),
                                   shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.2),
+                                    width: 0.8,
+                                  ),
                                 ),
                                 padding: const EdgeInsets.all(6),
-                                child: const Icon(
-                                  CupertinoIcons.waveform,
+                                child: AnimatedEqualizerBars(
+                                  size: 14,
                                   color: Colors.white,
-                                  size: 16,
+                                  isPlaying: isPlaying,
                                 ),
                               ),
                             ),
@@ -1136,8 +1141,8 @@ class HomeFeedScreen extends ConsumerWidget {
                         song.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: isCurrent ? AppColors.appleRed : Colors.white,
+                        style: const TextStyle(
+                          color: Colors.white,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           letterSpacing: -0.2,

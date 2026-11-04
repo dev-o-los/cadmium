@@ -30,7 +30,7 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
                       children: [
                         CircleAvatar(
                           radius: 28,
-                          backgroundColor: AppColors.appleRed,
+                          backgroundColor: Colors.white.withValues(alpha: 0.18),
                           backgroundImage: account.avatarUrl != null
                               ? NetworkImage(account.avatarUrl!)
                               : null,
@@ -159,12 +159,12 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
-                    color: AppColors.appleRed,
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.appleRed.withValues(alpha: 0.35),
-                        blurRadius: 12,
+                        color: Colors.white.withValues(alpha: 0.25),
+                        blurRadius: 16,
                         offset: const Offset(0, 4),
                       ),
                     ],
@@ -174,14 +174,14 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
                     children: const [
                       Icon(
                         CupertinoIcons.play_circle_fill,
-                        color: Colors.white,
+                        color: Colors.black,
                         size: 20,
                       ),
                       SizedBox(width: 8),
                       Text(
                         'Sign In with Google Account',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: Colors.black,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
