@@ -1,6 +1,9 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../constants/app_colors.dart';
 import '../models/album_item.dart';
@@ -24,14 +27,33 @@ import '../widgets/wavify_logo.dart';
 
 /// The Home Feed Tab screen featuring YouTube Music personalized top picks,
 /// recents, mood cards, albums & singles, music videos, quick picks, and discover carousels.
-class HomeFeedScreen extends ConsumerWidget {
+class HomeFeedScreen extends ConsumerStatefulWidget {
   final ValueChanged<int>? onNavigateToTab;
   final ValueChanged<String>? onSearch;
 
   const HomeFeedScreen({super.key, this.onNavigateToTab, this.onSearch});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeFeedScreen> createState() => _HomeFeedScreenState();
+}
+
+class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
+  late final ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final homeDataAsync = ref.watch(homeDataProvider);
 
     return homeDataAsync.when(
@@ -89,183 +111,246 @@ class HomeFeedScreen extends ConsumerWidget {
 
   Widget _buildHomeContent(BuildContext context, WidgetRef ref, HomeData data) {
     final playerState = ref.watch(playerProvider);
+    final topPadding = MediaQuery.of(context).padding.top;
 
-    return RefreshIndicator(
-      color: Colors.white,
-      backgroundColor: AppColors.appleDarkSurface,
-      onRefresh: () => ref.read(homeDataProvider.notifier).refresh(),
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(0, 10, 0, 160),
-        children: [
-          // Top Header: Melomaniac Logo & Wordmark on Left + Profile Avatar on Right
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Redesigned Melomaniac logo & brand title with balanced distancing
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    MelomaniacLogo(size: 28, color: Colors.white),
-                    SizedBox(width: 10),
-                    Text(
-                      'Melomaniac',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.6,
-                      ),
-                    ),
-                  ],
-                ),
-
-                // Interactive Top Right Google / YouTube Music Profile Button
-                Consumer(
-                  builder: (context, ref, child) {
-                    final account = ref.watch(authProvider);
-
-                    return ApplePressable(
-                      onTap: () => showAccountModalSheet(context, ref),
-                      borderRadius: BorderRadius.circular(22),
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: account != null
-                                    ? Colors.white.withValues(alpha: 0.85)
-                                    : Colors.white.withValues(alpha: 0.5),
-                                width: 1.5,
-                              ),
-                            ),
-                            child: CircleAvatar(
-                              radius: 18,
-                              backgroundColor: account != null
-                                  ? Colors.white.withValues(alpha: 0.20)
-                                  : AppColors.appleDarkSurfaceHigh,
-                              backgroundImage: account?.avatarUrl != null
-                                  ? NetworkImage(account!.avatarUrl!)
-                                  : null,
-                              child: account?.avatarUrl == null
-                                  ? account != null
-                                        ? Text(
-                                            account.initials,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          )
-                                        : const Icon(
-                                            CupertinoIcons
-                                                .person_crop_circle_fill,
-                                            color: Colors.white,
-                                            size: 24,
-                                          )
-                                  : null,
+    return Stack(
+      children: [
+        // 1. Scrollable Feed Body (extends edge-to-edge beyond the notification/battery bar)
+        RefreshIndicator(
+          color: Colors.white,
+          backgroundColor: AppColors.appleDarkSurface,
+          onRefresh: () => ref.read(homeDataProvider.notifier).refresh(),
+          child: ListView(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            padding: EdgeInsets.fromLTRB(0, topPadding, 0, 160),
+            children: [
+                // Top Header: Melomaniac Logo on Left + Profile Avatar on Right
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 14),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          MelomaniacLogo(size: 28, color: Colors.white),
+                          SizedBox(width: 10),
+                          Text(
+                            'Melomaniac',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.6,
                             ),
                           ),
-                          // Connected status dot indicator
-                          if (account != null)
-                            Positioned(
-                              right: -1,
-                              bottom: -1,
-                              child: Container(
-                                width: 12,
-                                height: 12,
-                                decoration: BoxDecoration(
-                                  color: Colors.greenAccent,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.black,
-                                    width: 2,
-                                  ),
-                                ),
-                              ),
-                            ),
                         ],
                       ),
-                    );
-                  },
+
+                      // Interactive Top Right Google / YouTube Music Profile Button
+                      Consumer(
+                        builder: (context, ref, child) {
+                          final account = ref.watch(authProvider);
+
+                          return ApplePressable(
+                            onTap: () => showAccountModalSheet(context, ref),
+                            borderRadius: BorderRadius.circular(22),
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: account != null
+                                          ? Colors.white.withValues(alpha: 0.85)
+                                          : Colors.white.withValues(alpha: 0.5),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor: account != null
+                                        ? Colors.white.withValues(alpha: 0.20)
+                                        : AppColors.appleDarkSurfaceHigh,
+                                    backgroundImage: account?.avatarUrl != null
+                                        ? NetworkImage(account!.avatarUrl!)
+                                        : null,
+                                    child: account?.avatarUrl == null
+                                        ? account != null
+                                              ? Text(
+                                                  account.initials,
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                )
+                                              : const Icon(
+                                                  CupertinoIcons
+                                                      .person_crop_circle_fill,
+                                                  color: Colors.white,
+                                                  size: 24,
+                                                )
+                                        : null,
+                                  ),
+                                ),
+                                // Connected status dot indicator
+                                if (account != null)
+                                  Positioned(
+                                    right: -1,
+                                    bottom: -1,
+                                    child: Container(
+                                      width: 12,
+                                      height: 12,
+                                      decoration: BoxDecoration(
+                                        color: Colors.greenAccent,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: Colors.black,
+                                          width: 2,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Section 1: "Top Picks for You" Hero Cards Carousel
+                _buildTopPicksHeroSection(context, ref, data.heroCards),
+                const SizedBox(height: 28),
+
+                // Section 2: "Recents" (4-item vertical column horizontal paging)
+                _build4ItemColumnsSection(
+                  context: context,
+                  ref: ref,
+                  title: 'Recents',
+                  songs: data.recents,
+                ),
+                const SizedBox(height: 28),
+
+                // Section 3: "Find Your Mood" with "Show all"
+                _buildFindYourMoodSection(context, data.moods),
+                const SizedBox(height: 28),
+
+                // Section 4: "Albums & singles"
+                _buildAlbumsAndSinglesSection(
+                  context,
+                  ref,
+                  data.albumsAndSingles,
+                ),
+                const SizedBox(height: 28),
+
+                // Section 5: "Music videos" (16:9 widescreen)
+                _buildMusicVideosSection(context, ref, data.musicVideos),
+                const SizedBox(height: 28),
+
+                // Section 6: "Listen again" (listening history from playerProvider)
+                if (playerState.recentlyPlayed.isNotEmpty) ...[
+                  _build4ItemColumnsSection(
+                    context: context,
+                    ref: ref,
+                    title: 'Listen again',
+                    subtitle: 'UTKARSH',
+                    songs: playerState.recentlyPlayed,
+                  ),
+                  const SizedBox(height: 28),
+                ],
+
+                // Section 7: "Quick picks" (4-item vertical column horizontal paging)
+                _build4ItemColumnsSection(
+                  context: context,
+                  ref: ref,
+                  title: 'Quick picks',
+                  songs: data.quickPicks,
+                ),
+                const SizedBox(height: 28),
+
+                // Section 8: "Your daily discover"
+                _buildHorizontalSongCarousel(
+                  context: context,
+                  ref: ref,
+                  title: 'Your daily discover',
+                  songs: data.dailyDiscover,
+                ),
+                const SizedBox(height: 28),
+
+                // Section 9: "Trending songs for you"
+                _buildHorizontalSongCarousel(
+                  context: context,
+                  ref: ref,
+                  title: 'Trending songs for you',
+                  songs: data.trendingSongs,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
 
-          // Section 1: "Top Picks for You" Hero Cards Carousel
-          _buildTopPicksHeroSection(context, ref, data.heroCards),
-          const SizedBox(height: 28),
+          // 2. Subtle Top Status Bar Dissolve on Scroll (confined strictly to the battery & notification edge)
+          AnimatedBuilder(
+            animation: _scrollController,
+            builder: (context, _) {
+              final offset =
+                  _scrollController.hasClients ? _scrollController.offset : 0.0;
+              final progress = (offset / 32.0).clamp(0.0, 1.0);
+              if (progress <= 0.001) {
+                return const SizedBox.shrink();
+              }
 
-          // Section 2: "Recents" (4-item vertical column horizontal paging)
-          _build4ItemColumnsSection(
-            context: context,
-            ref: ref,
-            title: 'Recents',
-            songs: data.recents,
-          ),
-          const SizedBox(height: 28),
+              // Confined strictly to the status bar / battery bar height
+              final topBlurHeight = topPadding + 4.0;
 
-          // Section 3: "Find Your Mood" with "Show all"
-          _buildFindYourMoodSection(context, data.moods),
-          const SizedBox(height: 28),
-
-          // Section 4: "Albums & singles"
-          _buildAlbumsAndSinglesSection(context, ref, data.albumsAndSingles),
-          const SizedBox(height: 28),
-
-          // Section 5: "Music videos" (16:9 widescreen)
-          _buildMusicVideosSection(context, ref, data.musicVideos),
-          const SizedBox(height: 28),
-
-          // Section 6: "Listen again" (listening history from playerProvider)
-          if (playerState.recentlyPlayed.isNotEmpty) ...[
-            _build4ItemColumnsSection(
-              context: context,
-              ref: ref,
-              title: 'Listen again',
-              subtitle: 'UTKARSH',
-              songs: playerState.recentlyPlayed,
-            ),
-            const SizedBox(height: 28),
-          ],
-
-          // Section 7: "Quick picks" (4-item vertical column horizontal paging)
-          _build4ItemColumnsSection(
-            context: context,
-            ref: ref,
-            title: 'Quick picks',
-            songs: data.quickPicks,
-          ),
-          const SizedBox(height: 28),
-
-          // Section 8: "Your daily discover"
-          _buildHorizontalSongCarousel(
-            context: context,
-            ref: ref,
-            title: 'Your daily discover',
-            songs: data.dailyDiscover,
-          ),
-          const SizedBox(height: 28),
-
-          // Section 9: "Trending songs for you"
-          _buildHorizontalSongCarousel(
-            context: context,
-            ref: ref,
-            title: 'Trending songs for you',
-            songs: data.trendingSongs,
+              return Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: topBlurHeight,
+                child: IgnorePointer(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // Very delicate progressive blur directly at the top status bar edge
+                      ProgressiveBlur(
+                        maxSigma: 4.0 * progress,
+                        direction: ProgressiveBlurDirection.topToBottom,
+                        falloff: 2.0,
+                      ),
+                      // Soft darkening dissolve so content naturally fades away under the battery/clock
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.85 * progress),
+                              Colors.black.withValues(alpha: 0.35 * progress),
+                              Colors.transparent,
+                            ],
+                            stops: const [0.0, 0.55, 1.0],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
         ],
-      ),
-    );
-  }
+      );
+    }
 
   // =========================================================================
   // HOME SCREEN SECTION WIDGETS
@@ -283,7 +368,7 @@ class HomeFeedScreen extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20),
+          padding: EdgeInsets.symmetric(horizontal: 12),
           child: Text(
             'Top Picks for You',
             style: TextStyle(
@@ -294,14 +379,14 @@ class HomeFeedScreen extends ConsumerWidget {
             ),
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
         SizedBox(
-          height: 290,
+          height: 390,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             itemCount: heroCards.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 14),
+            separatorBuilder: (context, index) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               final hero = heroCards[index];
               return _buildHeroCard(context, ref, hero);
@@ -317,7 +402,10 @@ class HomeFeedScreen extends ConsumerWidget {
     WidgetRef ref,
     HeroCardItem hero,
   ) {
-    final isShubhCard = hero.id.contains('shubh');
+    final screenWidth = MediaQuery.of(context).size.width;
+    // Increased size: length & width for a flagship Apple Music presence
+    final cardWidth = (screenWidth * 0.74).clamp(275.0, 340.0);
+    const cardHeight = 390.0;
 
     return ApplePressable(
       onTap: () {
@@ -327,124 +415,105 @@ class HomeFeedScreen extends ConsumerWidget {
           playHero(context, ref, hero);
         }
       },
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(22),
       child: Container(
-        width: 236,
+        width: cardWidth,
+        height: cardHeight,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          color: Color(hero.primaryColor ?? 0xFF1C1C1E),
+          borderRadius: BorderRadius.circular(22),
+          color: const Color(0xFF141414), // Pure neutral dark: NO blue tint!
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 0.6,
+          ),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(22),
           child: Stack(
+            fit: StackFit.expand,
             children: [
-              // Background Image or Solid/Gradient fill
-              if (hero.imageUrl != null && !isShubhCard)
-                Positioned.fill(
-                  child: WavifyCachedImage(
-                    imageUrl: hero.imageUrl!,
-                    songId: hero.playTrack?.id,
-                    fit: BoxFit.cover,
-                    errorWidget: Container(
-                      color: Color(hero.primaryColor ?? 0xFF2A2825),
+              // 1. Sharp Full-Bleed Cover Artwork
+              if (hero.imageUrl != null)
+                WavifyCachedImage(
+                  imageUrl: hero.imageUrl!,
+                  songId: hero.playTrack?.id,
+                  fit: BoxFit.cover,
+                  errorWidget: Container(
+                    color: const Color(0xFF141414),
+                    child: const Center(
+                      child: Icon(
+                        CupertinoIcons.music_note,
+                        color: Colors.white24,
+                        size: 48,
+                      ),
                     ),
                   ),
                 )
-              else if (isShubhCard)
-                // Shubh & Similar vibrant blue card with circular portraits
-                Positioned.fill(
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Color(0xFF2575FC),
-                          Color(0xFF1D64F2),
-                          Color(0xFF0D47A1),
-                        ],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                    ),
-                    child: Stack(
-                      children: [
-                        Positioned(
-                          top: 40,
-                          left: 36,
-                          child: Container(
-                            width: 110,
-                            height: 110,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.3),
-                                width: 2,
-                              ),
-                              image: hero.imageUrl != null
-                                  ? DecorationImage(
-                                      image: NetworkImage(hero.imageUrl!),
-                                      fit: BoxFit.cover,
-                                    )
-                                  : null,
-                              color: const Color(0xFF333333),
-                            ),
-                            child: hero.imageUrl == null
-                                ? const Icon(
-                                    CupertinoIcons.person_crop_circle,
-                                    color: Colors.white70,
-                                    size: 50,
-                                  )
-                                : null,
-                          ),
-                        ),
-                        Positioned(
-                          top: 110,
-                          right: 28,
-                          child: Container(
-                            width: 80,
-                            height: 80,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.3),
-                                width: 2,
-                              ),
-                              color: const Color(0xFF222222),
-                            ),
-                            child: const Icon(
-                              CupertinoIcons.person_crop_circle,
-                              color: Colors.white70,
-                              size: 40,
-                            ),
-                          ),
-                        ),
-                      ],
+              else
+                Container(
+                  color: const Color(0xFF141414),
+                  child: const Center(
+                    child: Icon(
+                      CupertinoIcons.music_note,
+                      color: Colors.white24,
+                      size: 48,
                     ),
                   ),
                 ),
 
-              // Gradient shading overlay
+              // 2. Continuous Organic Blur Layer:
+              // Seamlessly blends from sharp artwork into a lush frosted blur with ZERO hard dividing lines!
+              if (hero.imageUrl != null)
+                Positioned.fill(
+                  child: ShaderMask(
+                    shaderCallback: (bounds) {
+                      return const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.transparent,
+                          Colors.black,
+                        ],
+                        stops: [0.0, 0.40, 0.82],
+                      ).createShader(bounds);
+                    },
+                    blendMode: BlendMode.dstIn,
+                    child: ImageFiltered(
+                      imageFilter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                      child: WavifyCachedImage(
+                        imageUrl: hero.imageUrl!,
+                        songId: hero.playTrack?.id,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                ),
+
+              // 3. Smooth Deep Charcoal/OLED Gradient Scrim (No hard line, seamlessly mixing with the blur)
               Positioned.fill(
                 child: Container(
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [
-                        Colors.transparent,
-                        Colors.black.withValues(alpha: 0.3),
-                        Colors.black.withValues(alpha: 0.92),
-                      ],
-                      stops: const [0.35, 0.65, 1.0],
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.transparent,
+                        Color(0x66000000),
+                        Color(0xE6000000),
+                      ],
+                      stops: [0.0, 0.42, 0.72, 1.0],
                     ),
                   ),
                 ),
               ),
 
-              // Bottom card typography
+              // 4. White Typography naturally floating on the organic blur
               Positioned(
-                left: 14,
-                right: 14,
-                bottom: 16,
+                left: 18,
+                right: 18,
+                bottom: 18,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
@@ -454,31 +523,32 @@ class HomeFeedScreen extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.75),
+                        color: Colors.white.withValues(alpha: 0.78),
                         fontSize: 13,
                         fontWeight: FontWeight.w400,
+                        letterSpacing: -0.1,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 4),
                     Text(
                       hero.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w600,
                         letterSpacing: -0.4,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 4),
                     Text(
                       hero.caption,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.65),
-                        fontSize: 12,
+                        fontSize: 12.5,
                         fontWeight: FontWeight.w400,
                       ),
                     ),
@@ -521,7 +591,7 @@ class HomeFeedScreen extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -582,7 +652,7 @@ class HomeFeedScreen extends ConsumerWidget {
         ),
         borderRadius: BorderRadius.circular(10),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
           child: Row(
             children: [
               // Artwork with Equalizer overlay when playing
@@ -622,7 +692,7 @@ class HomeFeedScreen extends ConsumerWidget {
               ),
               const SizedBox(width: 12),
 
-              // Title & Artist
+              // Title & Artist (clean, not bold)
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -635,8 +705,8 @@ class HomeFeedScreen extends ConsumerWidget {
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -0.3,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: -0.2,
                         height: 1.25,
                       ),
                     ),
@@ -660,13 +730,16 @@ class HomeFeedScreen extends ConsumerWidget {
                 ),
               ),
 
-              // 3-dots Menu Icon
+              // 3-dots Menu Icon at the very end
               IconButton(
                 icon: const AnimatedCupertinoIcon(
                   icon: CupertinoIcons.ellipsis_vertical,
                   color: AppColors.appleSecondaryText,
                   size: 18,
                 ),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 24, minHeight: 40),
+                visualDensity: VisualDensity.compact,
                 onPressed: () => showTrackOptionsModal(context, ref, song),
               ),
             ],
@@ -694,7 +767,7 @@ class HomeFeedScreen extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -709,7 +782,7 @@ class HomeFeedScreen extends ConsumerWidget {
               ),
               GestureDetector(
                 onTap: () {
-                  onNavigateToTab?.call(1); // Switch to Explore Tab
+                  widget.onNavigateToTab?.call(1); // Switch to Explore Tab
                 },
                 child: const Text(
                   'Show all',
@@ -728,14 +801,14 @@ class HomeFeedScreen extends ConsumerWidget {
           height: 175,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             itemCount: moodDefs.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 14),
+            separatorBuilder: (context, index) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               final mood = moodDefs[index];
               return ApplePressable(
                 onTap: () {
-                  onSearch?.call(mood.title);
+                  widget.onSearch?.call(mood.title);
                 },
                 borderRadius: BorderRadius.circular(18),
                 child: Column(
@@ -813,7 +886,7 @@ class HomeFeedScreen extends ConsumerWidget {
     }
   }
 
-  /// Albums & Singles Horizontal Carousel
+  /// Albums & Singles Horizontal Carousel with Apple-style frosted blur
   Widget _buildAlbumsAndSinglesSection(
     BuildContext context,
     WidgetRef ref,
@@ -822,14 +895,14 @@ class HomeFeedScreen extends ConsumerWidget {
     if (albums.isEmpty) return const SizedBox.shrink();
 
     final screenWidth = MediaQuery.of(context).size.width;
-    final cardWidth = (screenWidth * 0.38).clamp(136.0, 180.0);
-    final cardHeight = cardWidth + 58.0;
+    final cardWidth = (screenWidth * 0.40).clamp(148.0, 190.0);
+    final cardHeight = cardWidth * 1.28;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20),
+          padding: EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             'Albums & singles',
             style: TextStyle(
@@ -845,53 +918,100 @@ class HomeFeedScreen extends ConsumerWidget {
           height: cardHeight,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: albums.length > 15 ? 15 : albums.length,
             separatorBuilder: (context, index) => const SizedBox(width: 14),
             itemBuilder: (context, index) {
               final album = albums[index];
               return ApplePressable(
                 onTap: () => openAlbumScreen(context, album),
-                borderRadius: BorderRadius.circular(14),
-                child: SizedBox(
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
                   width: cardWidth,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: DynamicAlbumArtwork(
-                          album: album,
-                          size: cardWidth,
+                  height: cardHeight,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.10),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Positioned.fill(
+                          child: DynamicAlbumArtwork(
+                            album: album,
+                            size: cardWidth,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        album.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.2,
-                          height: 1.2,
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                              bottom: Radius.circular(16),
+                            ),
+                            child: BackdropFilter(
+                              filter: ui.ImageFilter.blur(
+                                sigmaX: 18,
+                                sigmaY: 18,
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.38),
+                                  border: Border(
+                                    top: BorderSide(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.08,
+                                      ),
+                                      width: 0.8,
+                                    ),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      album.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      album.subtitle,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.65,
+                                        ),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        album.subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.appleSecondaryText,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
-                          height: 1.2,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -919,7 +1039,7 @@ class HomeFeedScreen extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20),
+          padding: EdgeInsets.symmetric(horizontal: 12),
           child: Text(
             'Music videos',
             style: TextStyle(
@@ -935,9 +1055,9 @@ class HomeFeedScreen extends ConsumerWidget {
           height: videoCardHeight,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             itemCount: videos.length > 10 ? 10 : videos.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 14),
+            separatorBuilder: (context, index) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               final video = videos[index];
               return ApplePressable(
@@ -1068,7 +1188,7 @@ class HomeFeedScreen extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Text(
             title,
             style: const TextStyle(
@@ -1084,9 +1204,9 @@ class HomeFeedScreen extends ConsumerWidget {
           height: cardHeight,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             itemCount: songs.length > 12 ? 12 : songs.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 14),
+            separatorBuilder: (context, index) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               final song = songs[index];
               final isCurrent = currentSong?.id == song.id;
@@ -1225,7 +1345,7 @@ class _Snapping4ItemColumnsState extends State<_Snapping4ItemColumns> {
   @override
   void initState() {
     super.initState();
-    _controller = PageController(viewportFraction: 0.90);
+    _controller = PageController(viewportFraction: 0.94);
   }
 
   @override
@@ -1247,8 +1367,8 @@ class _Snapping4ItemColumnsState extends State<_Snapping4ItemColumns> {
           final columnSongs = widget.chunked[columnIndex];
           return Padding(
             padding: EdgeInsets.only(
-              left: 20,
-              right: columnIndex == widget.chunked.length - 1 ? 20 : 8,
+              left: 12,
+              right: columnIndex == widget.chunked.length - 1 ? 12 : 6,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,

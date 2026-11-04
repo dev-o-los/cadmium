@@ -135,33 +135,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Active Tab Page View with Scroll-driven Crawl Observer
-          SafeArea(
-            bottom: false,
-            child: NotificationListener<ScrollNotification>(
-              onNotification: _handleScrollNotification,
-              child: IndexedStack(
-                index: currentTabIndex,
-                children: [
-                  HomeFeedScreen(
-                    onNavigateToTab: (index) {
-                      ref.read(currentTabProvider.notifier).state = index;
-                      setState(() {
-                        _isMiniPlayerCrawled = false;
-                      });
-                    },
+          // Active Tab Page View with Scroll-driven Crawl Observer (No top SafeArea so HomeFeedScreen extends edge-to-edge behind the battery/status bar)
+          NotificationListener<ScrollNotification>(
+            onNotification: _handleScrollNotification,
+            child: IndexedStack(
+              index: currentTabIndex,
+              children: [
+                HomeFeedScreen(
+                  onNavigateToTab: (index) {
+                    ref.read(currentTabProvider.notifier).state = index;
+                    setState(() {
+                      _isMiniPlayerCrawled = false;
+                    });
+                  },
+                  onSearch: _navigateToSearchWithQuery,
+                ),
+                SafeArea(
+                  bottom: false,
+                  child: ExploreScreen(
                     onSearch: _navigateToSearchWithQuery,
                   ),
-                  ExploreScreen(
-                    onSearch: _navigateToSearchWithQuery,
-                  ),
-                  const LibraryScreen(),
-                  SearchScreen(
-                    key: _searchKey,
-                    searchController: _searchController,
-                  ),
-                ],
-              ),
+                ),
+                const SafeArea(
+                  bottom: false,
+                  child: LibraryScreen(),
+                ),
+                SearchScreen(
+                  key: _searchKey,
+                  searchController: _searchController,
+                ),
+              ],
             ),
           ),
 

@@ -763,7 +763,7 @@ class MusicService {
                     subtitle: 'For ${_currentAccount?.displayName ?? "You"}',
                     caption: 'YouTube Music • Personalized',
                     imageUrl: songs.first.thumbnailUrl,
-                    primaryColor: 0xFFFA243C,
+                    primaryColor: 0xFF1C1C1E,
                     playTrack: songs.first,
                   ),
                 );
@@ -815,7 +815,7 @@ class MusicService {
                     subtitle: 'Personalized for ${_currentAccount?.displayName ?? "You"}',
                     caption: 'YouTube Music • Personalized Mix',
                     imageUrl: songs.first.thumbnailUrl,
-                    primaryColor: 0xFFFA243C,
+                    primaryColor: 0xFF1C1C1E,
                     playTrack: songs.first,
                   ),
                 );
@@ -971,12 +971,12 @@ class MusicService {
           playTrack: aujlaTrack,
         ),
         HeroCardItem(
-          id: 'hero_shubh',
-          title: 'Shubh & Similar',
-          subtitle: 'Featuring Shubh',
-          caption: 'Top Punjabi Wave',
-          imageUrl: shubhTrack?.thumbnailUrl,
-          primaryColor: 0xFF1D64F2,
+          id: 'hero_jaeybxrd',
+          title: 'JaeyBxrd',
+          subtitle: 'Featuring JaeyBxrd',
+          caption: '1.39M monthly audience',
+          imageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&auto=format&fit=crop&q=80',
+          primaryColor: 0xFF1C1C1E,
           playTrack: shubhTrack,
         ),
         HeroCardItem(
@@ -985,7 +985,7 @@ class MusicService {
           subtitle: 'Featuring The Weeknd',
           caption: 'Spatial Audio • Hit Mix',
           imageUrl: weekndTrack?.thumbnailUrl,
-          primaryColor: 0xFF7928CA,
+          primaryColor: 0xFF1C1C1E,
           playTrack: weekndTrack,
         ),
       ];
@@ -996,14 +996,18 @@ class MusicService {
           title: 'AUJLA SZN 1',
           subtitle: 'New from Karan Aujla',
           caption: 'EP • 2026',
+          imageUrl:
+              'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
           primaryColor: 0xFF2A2825,
         ),
         HeroCardItem(
           id: 'hero_default_2',
-          title: 'Shubh & Similar',
-          subtitle: 'Featuring Shubh',
-          caption: 'Top Punjabi Wave',
-          primaryColor: 0xFF1D64F2,
+          title: 'JaeyBxrd',
+          subtitle: 'Featuring JaeyBxrd',
+          caption: '1.39M monthly audience',
+          imageUrl:
+              'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&auto=format&fit=crop&q=80',
+          primaryColor: 0xFF1C1C1E,
         ),
       ];
     }

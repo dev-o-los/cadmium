@@ -35,10 +35,7 @@ import '../widgets/track_options_sheet.dart';
 class AlbumScreen extends ConsumerStatefulWidget {
   final AlbumItem album;
 
-  const AlbumScreen({
-    super.key,
-    required this.album,
-  });
+  const AlbumScreen({super.key, required this.album});
 
   @override
   ConsumerState<AlbumScreen> createState() => _AlbumScreenState();
@@ -200,10 +197,14 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     final copy = List<SongItem>.from(list);
     switch (_sortBy) {
       case 'title':
-        copy.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+        copy.sort(
+          (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+        );
         break;
       case 'duration':
-        copy.sort((a, b) => (b.durationSeconds ?? 0).compareTo(a.durationSeconds ?? 0));
+        copy.sort(
+          (a, b) => (b.durationSeconds ?? 0).compareTo(a.durationSeconds ?? 0),
+        );
         break;
       default:
         // Default album order
@@ -239,7 +240,11 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                   icon: CupertinoIcons.list_number,
                   title: 'Album Order (Original)',
                   trailing: _sortBy == 'default'
-                      ? const Icon(CupertinoIcons.checkmark, color: Colors.white, size: 20)
+                      ? const Icon(
+                          CupertinoIcons.checkmark,
+                          color: Colors.white,
+                          size: 20,
+                        )
                       : null,
                   onTap: () {
                     Navigator.pop(modalCtx);
@@ -254,7 +259,11 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                   icon: CupertinoIcons.textformat_abc,
                   title: 'Title (A to Z)',
                   trailing: _sortBy == 'title'
-                      ? const Icon(CupertinoIcons.checkmark, color: Colors.white, size: 20)
+                      ? const Icon(
+                          CupertinoIcons.checkmark,
+                          color: Colors.white,
+                          size: 20,
+                        )
                       : null,
                   onTap: () {
                     Navigator.pop(modalCtx);
@@ -269,7 +278,11 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                   icon: CupertinoIcons.time,
                   title: 'Duration (Longest First)',
                   trailing: _sortBy == 'duration'
-                      ? const Icon(CupertinoIcons.checkmark, color: Colors.white, size: 20)
+                      ? const Icon(
+                          CupertinoIcons.checkmark,
+                          color: Colors.white,
+                          size: 20,
+                        )
                       : null,
                   onTap: () {
                     Navigator.pop(modalCtx);
@@ -288,7 +301,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   }
 
   void _showAlbumOptions() {
-    final isSaved = ref.read(savedAlbumsProvider.notifier).isAlbumSaved(_album.id);
+    final isSaved = ref
+        .read(savedAlbumsProvider.notifier)
+        .isAlbumSaved(_album.id);
 
     showAppleGlassBottomSheet(
       context: context,
@@ -310,7 +325,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                             width: 50,
                             height: 50,
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => _fallbackCover(50),
+                            errorBuilder: (context, error, stackTrace) =>
+                                _fallbackCover(50),
                           )
                         : _fallbackCover(50),
                   ),
@@ -334,7 +350,10 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                         GestureDetector(
                           onTap: () {
                             Navigator.pop(modalCtx);
-                            openArtistScreen(context, artistName: _album.artist);
+                            openArtistScreen(
+                              context,
+                              artistName: _album.artist,
+                            );
                           },
                           child: Text(
                             _album.artist,
@@ -365,7 +384,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 ),
                 const AppleSheetDivider(),
                 AppleSheetActionTile(
-                  icon: isSaved ? CupertinoIcons.bookmark_fill : CupertinoIcons.bookmark,
+                  icon: isSaved
+                      ? CupertinoIcons.bookmark_fill
+                      : CupertinoIcons.bookmark,
                   title: isSaved ? 'Remove from Library' : 'Save to Library',
                   onTap: () {
                     Navigator.pop(modalCtx);
@@ -385,8 +406,13 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                   onTap: () {
                     Navigator.pop(modalCtx);
                     if (_allTracks.isNotEmpty) {
-                      ref.read(playerProvider.notifier).addToQueue(_allTracks.first);
-                      showWavifySnackBar(context, 'Playing "${_album.title}" next');
+                      ref
+                          .read(playerProvider.notifier)
+                          .addToQueue(_allTracks.first);
+                      showWavifySnackBar(
+                        context,
+                        'Playing "${_album.title}" next',
+                      );
                     }
                   },
                 ),
@@ -429,8 +455,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
           : List<SongItem>.from(_allTracks);
 
       final firstTrack = tracksToPlay.first;
-      final queue =
-          tracksToPlay.length > 1 ? tracksToPlay.sublist(1) : <SongItem>[];
+      final queue = tracksToPlay.length > 1
+          ? tracksToPlay.sublist(1)
+          : <SongItem>[];
 
       playSong(
         context,
@@ -461,20 +488,16 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
 
   void _onTrackSelected(SongItem track) {
     final queue = _allTracks.where((t) => t.id != track.id).toList();
-    playSong(
-      context,
-      ref,
-      track,
-      contextQueue: queue,
-      forceReload: true,
-    );
+    playSong(context, ref, track, contextQueue: queue, forceReload: true);
   }
 
   String _formatTotalDuration() {
     if (_totalDurationSeconds <= 0) {
       if (_allTracks.isNotEmpty) {
         final total = _allTracks.fold<int>(
-            0, (sum, t) => sum + (t.durationSeconds ?? 180));
+          0,
+          (sum, t) => sum + (t.durationSeconds ?? 180),
+        );
         final mins = total ~/ 60;
         return '$mins min';
       }
@@ -511,12 +534,14 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
     final artworkSize = (screenWidth * 0.64).clamp(210.0, 270.0);
-    final isSaved = ref.watch(savedAlbumsProvider.select((list) =>
-        list.any((a) => a.id == _album.id)));
+    final isSaved = ref.watch(
+      savedAlbumsProvider.select((list) => list.any((a) => a.id == _album.id)),
+    );
 
     final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
     final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
-    final isAnyTrackPlaying = isPlaying && _allTracks.any((t) => t.id == currentSong?.id);
+    final isAnyTrackPlaying =
+        isPlaying && _allTracks.any((t) => t.id == currentSong?.id);
     final currentTabIndex = ref.watch(currentTabProvider);
 
     final totalDurationStr = _formatTotalDuration();
@@ -525,7 +550,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     final metadataString =
         '${_album.type} · $yearStr · $trackCount Tracks · $totalDurationStr';
 
-    final defaultDescription = _album.description ??
+    final defaultDescription =
+        _album.description ??
         '${_album.title} is the debut studio album by American artist ${_album.artist}. It was released in $yearStr with a dynamic sound and cohesive track experience.';
 
     return Scaffold(
@@ -543,11 +569,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 shaderCallback: (bounds) => const LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black,
-                    Colors.black,
-                    Colors.transparent,
-                  ],
+                  colors: [Colors.black, Colors.black, Colors.transparent],
                   stops: [0.0, 0.40, 1.0],
                 ).createShader(bounds),
                 blendMode: BlendMode.dstIn,
@@ -599,336 +621,351 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                   ),
                 ),
 
-              // Search Bar (if search is toggled on)
-              if (_isSearching)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                    child: Container(
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: AppColors.appleDarkSurfaceHigh,
-                        borderRadius: BorderRadius.circular(12),
+                // Search Bar (if search is toggled on)
+                if (_isSearching)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 8,
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Row(
-                        children: [
-                          const Icon(CupertinoIcons.search,
-                              color: AppColors.appleSecondaryText, size: 20),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextField(
-                              controller: _searchController,
-                              autofocus: true,
-                              style: const TextStyle(
-                                  color: Colors.white, fontSize: 15),
-                              decoration: const InputDecoration(
-                                hintText: 'Search in this album...',
-                                hintStyle: TextStyle(
+                      child: Container(
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: AppColors.appleDarkSurfaceHigh,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              CupertinoIcons.search,
+                              color: AppColors.appleSecondaryText,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: TextField(
+                                controller: _searchController,
+                                autofocus: true,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                ),
+                                decoration: const InputDecoration(
+                                  hintText: 'Search in this album...',
+                                  hintStyle: TextStyle(
                                     color: AppColors.appleSecondaryText,
-                                    fontSize: 14),
-                                border: InputBorder.none,
-                                isDense: true,
-                              ),
-                              onChanged: _onSearchChanged,
-                            ),
-                          ),
-                          if (_searchController.text.isNotEmpty)
-                            GestureDetector(
-                              onTap: () {
-                                _searchController.clear();
-                                _onSearchChanged('');
-                              },
-                              child: const Icon(
-                                CupertinoIcons.clear_thick_circled,
-                                color: AppColors.appleSecondaryText,
-                                size: 18,
+                                    fontSize: 14,
+                                  ),
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                ),
+                                onChanged: _onSearchChanged,
                               ),
                             ),
-                        ],
+                            if (_searchController.text.isNotEmpty)
+                              GestureDetector(
+                                onTap: () {
+                                  _searchController.clear();
+                                  _onSearchChanged('');
+                                },
+                                child: const Icon(
+                                  CupertinoIcons.clear_thick_circled,
+                                  color: AppColors.appleSecondaryText,
+                                  size: 18,
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
 
-              // Album Artwork + Metadata Header
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    children: [
-                      // Large Crisp Album Artwork
-                      Hero(
-                        tag: 'album_artwork_${_album.id}',
-                        child: Container(
-                          width: artworkSize,
-                          height: artworkSize,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.65),
-                                blurRadius: 32,
-                                offset: const Offset(0, 16),
-                              ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(20),
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                _resolvedArtwork != null &&
-                                        _resolvedArtwork!.isNotEmpty
-                                    ? Image.network(
-                                        _resolvedArtwork!,
-                                        fit: BoxFit.cover,
-                                        filterQuality: FilterQuality.high,
-                                        isAntiAlias: true,
-                                        errorBuilder: (context, error, stackTrace) =>
-                                            _fallbackCover(artworkSize),
-                                      )
-                                    : _fallbackCover(artworkSize),
-                                if (isAnyTrackPlaying)
-                                  Container(
-                                    color: Colors.black.withValues(alpha: 0.45),
-                                    child: const Center(
-                                      child: AnimatedEqualizerBars(
-                                        size: 36,
-                                        color: Colors.white,
-                                        isPlaying: true,
-                                      ),
-                                    ),
-                                  ),
+                // Album Artwork + Metadata Header
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      children: [
+                        // Large Crisp Album Artwork
+                        Hero(
+                          tag: 'album_artwork_${_album.id}',
+                          child: Container(
+                            width: artworkSize,
+                            height: artworkSize,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.65),
+                                  blurRadius: 32,
+                                  offset: const Offset(0, 16),
+                                ),
                               ],
                             ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-
-                      // Album Title
-                      Text(
-                        _album.title,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: -0.6,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-
-                      // Artist Name
-                      ApplePressable(
-                        onTap: () => openArtistScreen(context, artistName: _album.artist),
-                        child: Text(
-                          _album.artist,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-
-                      // Album · Year · X Tracks · Y min
-                      Text(
-                        metadataString,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.appleSecondaryText,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w400,
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-
-                      // Action Buttons Row: Shuffle, Play, Bookmark
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          // 1. Shuffle Button (Liquid Glass)
-                          GlassIconButton(
-                            icon: const Icon(
-                              CupertinoIcons.shuffle,
-                              color: Colors.white,
-                              size: 22,
-                            ),
-                            onPressed: () => _playAll(shuffle: true),
-                            size: 52,
-                            iconSize: 22,
-                            shape: GlassIconButtonShape.circle,
-                            useOwnLayer: true,
-                            settings: const LiquidGlassSettings(
-                              glassColor: Color(0x40000000),
-                              thickness: 26,
-                              blur: 24,
-                              refractiveIndex: 1.15,
-                              lightIntensity: 0.45,
-                              specularSharpness: GlassSpecularSharpness.sharp,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-
-                          // 2. Center Prominent [▶ Play] Pill Button
-                          Expanded(
-                            child: ApplePressable(
-                              onTap: () => _playAll(shuffle: false),
-                              borderRadius: BorderRadius.circular(26),
-                              child: Container(
-                                height: 52,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(26),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: const [
-                                    Icon(
-                                      CupertinoIcons.play_fill,
-                                      color: Colors.black,
-                                      size: 20,
-                                    ),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      'Play',
-                                      style: TextStyle(
-                                        color: Colors.black,
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.bold,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  _resolvedArtwork != null &&
+                                          _resolvedArtwork!.isNotEmpty
+                                      ? Image.network(
+                                          _resolvedArtwork!,
+                                          fit: BoxFit.cover,
+                                          filterQuality: FilterQuality.high,
+                                          isAntiAlias: true,
+                                          errorBuilder: (
+                                            context,
+                                            error,
+                                            stackTrace,
+                                          ) => _fallbackCover(artworkSize),
+                                        )
+                                      : _fallbackCover(artworkSize),
+                                  if (isAnyTrackPlaying)
+                                    Container(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.45,
+                                      ),
+                                      child: const Center(
+                                        child: AnimatedEqualizerBars(
+                                          size: 36,
+                                          color: Colors.white,
+                                          isPlaying: true,
+                                        ),
                                       ),
                                     ),
-                                  ],
-                                ),
+                                ],
                               ),
                             ),
                           ),
-                          const SizedBox(width: 14),
+                        ),
+                        const SizedBox(height: 22),
 
-                          // 3. Save / Bookmark Button (Liquid Glass)
-                          GlassIconButton(
-                            icon: Icon(
-                              isSaved
-                                  ? CupertinoIcons.check_mark
-                                  : CupertinoIcons.plus,
-                              color: Colors.white,
-                              size: 22,
-                            ),
-                            onPressed: () {
-                              ref
-                                  .read(savedAlbumsProvider.notifier)
-                                  .toggleAlbum(_album);
-                              showWavifySnackBar(
-                                context,
-                                isSaved
-                                    ? 'Removed "${_album.title}" from library'
-                                    : 'Saved "${_album.title}" to library',
-                              );
-                            },
-                            size: 52,
-                            iconSize: 22,
-                            shape: GlassIconButtonShape.circle,
-                            useOwnLayer: true,
-                            settings: const LiquidGlassSettings(
-                              glassColor: Color(0x40000000),
-                              thickness: 26,
-                              blur: 24,
-                              refractiveIndex: 1.15,
-                              lightIntensity: 0.45,
-                              specularSharpness: GlassSpecularSharpness.sharp,
+                        // Album Title
+                        Text(
+                          _album.title,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -0.6,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+
+                        // Artist Name
+                        ApplePressable(
+                          onTap: () => openArtistScreen(
+                            context,
+                            artistName: _album.artist,
+                          ),
+                          child: Text(
+                            _album.artist,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
+                        ),
+                        const SizedBox(height: 6),
 
-                      // "About the album" Section
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        // Album · Year · X Tracks · Y min
+                        Text(
+                          metadataString,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: AppColors.appleSecondaryText,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+
+                        // Action Buttons Row: Shuffle, Play, Bookmark
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Text(
-                              'About the album',
-                              style: TextStyle(
+                            // 1. Shuffle Button (Liquid Glass)
+                            GlassIconButton(
+                              icon: const Icon(
+                                CupertinoIcons.shuffle,
                                 color: Colors.white,
-                                fontSize: 17,
-                                fontWeight: FontWeight.bold,
+                                size: 22,
+                              ),
+                              onPressed: () => _playAll(shuffle: true),
+                              size: 52,
+                              iconSize: 22,
+                              shape: GlassIconButtonShape.circle,
+                              useOwnLayer: true,
+                              settings: const LiquidGlassSettings(
+                                glassColor: Color(0x40000000),
+                                thickness: 26,
+                                blur: 24,
+                                refractiveIndex: 1.15,
+                                lightIntensity: 0.45,
+                                specularSharpness: GlassSpecularSharpness.sharp,
                               ),
                             ),
-                            const SizedBox(height: 6),
-                            Text(
-                              defaultDescription,
-                              maxLines: _isDescriptionExpanded ? null : 2,
-                              overflow: _isDescriptionExpanded
-                                  ? TextOverflow.visible
-                                  : TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppColors.appleSecondaryText,
-                                fontSize: 14,
-                                height: 1.35,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _isDescriptionExpanded =
-                                      !_isDescriptionExpanded;
-                                });
-                              },
-                              child: Text(
-                                _isDescriptionExpanded ? 'Less' : 'More',
-                                style: const TextStyle(
-                                  color: Color(0xFFFF4081),
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
+                            const SizedBox(width: 14),
+
+                            // 2. Center Prominent [▶ Play] Pill Button
+                            Expanded(
+                              child: ApplePressable(
+                                onTap: () => _playAll(shuffle: false),
+                                borderRadius: BorderRadius.circular(26),
+                                child: Container(
+                                  height: 52,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(26),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: const [
+                                      Icon(
+                                        CupertinoIcons.play_fill,
+                                        color: Colors.black,
+                                        size: 20,
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Play',
+                                        style: TextStyle(
+                                          color: Colors.black,
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+
+                            // 3. Save / Bookmark Button (Liquid Glass)
+                            GlassIconButton(
+                              icon: Icon(
+                                isSaved
+                                    ? CupertinoIcons.check_mark
+                                    : CupertinoIcons.plus,
+                                color: Colors.white,
+                                size: 22,
+                              ),
+                              onPressed: () {
+                                ref
+                                    .read(savedAlbumsProvider.notifier)
+                                    .toggleAlbum(_album);
+                                showWavifySnackBar(
+                                  context,
+                                  isSaved
+                                      ? 'Removed "${_album.title}" from library'
+                                      : 'Saved "${_album.title}" to library',
+                                );
+                              },
+                              size: 52,
+                              iconSize: 22,
+                              shape: GlassIconButtonShape.circle,
+                              useOwnLayer: true,
+                              settings: const LiquidGlassSettings(
+                                glassColor: Color(0x40000000),
+                                thickness: 26,
+                                blur: 24,
+                                refractiveIndex: 1.15,
+                                lightIntensity: 0.45,
+                                specularSharpness: GlassSpecularSharpness.sharp,
                               ),
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
+                        const SizedBox(height: 24),
+
+                        // "About the album" Section
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'About the album',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                defaultDescription,
+                                maxLines: _isDescriptionExpanded ? null : 2,
+                                overflow: _isDescriptionExpanded
+                                    ? TextOverflow.visible
+                                    : TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppColors.appleSecondaryText,
+                                  fontSize: 14,
+                                  height: 1.35,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _isDescriptionExpanded =
+                                        !_isDescriptionExpanded;
+                                  });
+                                },
+                                child: Text(
+                                  _isDescriptionExpanded ? 'Less' : 'More',
+                                  style: const TextStyle(
+                                    color: Color(0xFFFF4081),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
                   ),
                 ),
-              ),
 
-              // Loading Shimmer or Empty Notice
-              if (_isLoading)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 40),
-                    child: Center(
-                      child: CircularProgressIndicator(color: Colors.white),
-                    ),
-                  ),
-                )
-              else if (_filteredTracks.isEmpty)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 40),
-                    child: Center(
-                      child: Text(
-                        'No tracks found in this album.',
-                        style: TextStyle(color: AppColors.appleSecondaryText),
+                // Loading Shimmer or Empty Notice
+                if (_isLoading)
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 40),
+                      child: Center(
+                        child: CircularProgressIndicator(color: Colors.white),
                       ),
                     ),
-                  ),
-                )
-              else
-                // Track List Items (matching screenshots with 1..N indices)
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 140),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
+                  )
+                else if (_filteredTracks.isEmpty)
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 40),
+                      child: Center(
+                        child: Text(
+                          'No tracks found in this album.',
+                          style: TextStyle(color: AppColors.appleSecondaryText),
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  // Track List Items (matching screenshots with 1..N indices)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 140),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate((context, index) {
                         final track = _filteredTracks[index];
                         final isCurrentTrack = currentSong?.id == track.id;
                         final isExplicit = _isExplicitTrack(track);
@@ -938,7 +975,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                           borderRadius: BorderRadius.circular(10),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
-                                vertical: 10, horizontal: 4),
+                              vertical: 10,
+                              horizontal: 4,
+                            ),
                             child: Row(
                               children: [
                                 // Track Number (1, 2, 3...)
@@ -971,10 +1010,12 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                             Container(
                                               padding:
                                                   const EdgeInsets.symmetric(
-                                                      horizontal: 4,
-                                                      vertical: 1),
+                                                    horizontal: 4,
+                                                    vertical: 1,
+                                                  ),
                                               margin: const EdgeInsets.only(
-                                                  right: 6),
+                                                right: 6,
+                                              ),
                                               decoration: BoxDecoration(
                                                 color: Colors.white24,
                                                 borderRadius:
@@ -1038,18 +1079,19 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                     color: AppColors.appleSecondaryText,
                                     size: 18,
                                   ),
-                                  onPressed: () =>
-                                      showTrackOptionsModal(context, ref, track),
+                                  onPressed: () => showTrackOptionsModal(
+                                    context,
+                                    ref,
+                                    track,
+                                  ),
                                 ),
                               ],
                             ),
                           ),
                         );
-                      },
-                      childCount: _filteredTracks.length,
+                      }, childCount: _filteredTracks.length),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -1058,15 +1100,15 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
           AnimatedBuilder(
             animation: _scrollController,
             builder: (context, _) {
-              final offset =
-                  _scrollController.hasClients ? _scrollController.offset : 0.0;
+              final offset = _scrollController.hasClients
+                  ? _scrollController.offset
+                  : 0.0;
               final progress = (offset / 80.0).clamp(0.0, 1.0);
               if (progress <= 0.001) {
                 return const SizedBox.shrink();
               }
 
-              final topBlurHeight =
-                  MediaQuery.of(context).padding.top + 68.0;
+              final topBlurHeight = MediaQuery.of(context).padding.top + 68.0;
 
               return Positioned(
                 top: 0,
@@ -1113,7 +1155,10 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 6,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -1145,7 +1190,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                       useOwnLayer: true,
                       iconSize: 22,
                       itemPadding: const EdgeInsets.symmetric(
-                          horizontal: 13, vertical: 11),
+                        horizontal: 13,
+                        vertical: 11,
+                      ),
                       settings: const LiquidGlassSettings(
                         glassColor: Color(0x40000000),
                         thickness: 24,
@@ -1215,9 +1262,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                   setState(() => _isMiniPlayerCrawled = false);
                 },
                 bottomAccessory: currentSong != null
-                    ? PlayerControls(
-                        onTap: () => openPlayerScreen(context),
-                      )
+                    ? PlayerControls(onTap: () => openPlayerScreen(context))
                     : null,
               ),
             ),
