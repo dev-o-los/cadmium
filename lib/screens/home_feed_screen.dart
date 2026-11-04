@@ -21,7 +21,6 @@ import '../widgets/dynamic_album_artwork.dart';
 import '../widgets/track_options_sheet.dart';
 import '../widgets/wavify_cached_image.dart';
 import '../widgets/wavify_logo.dart';
-import 'google_signin_screen.dart';
 
 /// The Home Feed Tab screen featuring YouTube Music personalized top picks,
 /// recents, mood cards, albums & singles, music videos, quick picks, and discover carousels.
@@ -29,11 +28,7 @@ class HomeFeedScreen extends ConsumerWidget {
   final ValueChanged<int>? onNavigateToTab;
   final ValueChanged<String>? onSearch;
 
-  const HomeFeedScreen({
-    super.key,
-    this.onNavigateToTab,
-    this.onSearch,
-  });
+  const HomeFeedScreen({super.key, this.onNavigateToTab, this.onSearch});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -48,7 +43,10 @@ class HomeFeedScreen extends ConsumerWidget {
             SizedBox(height: 16),
             Text(
               'Loading music...',
-              style: TextStyle(color: AppColors.appleSecondaryText, fontSize: 14),
+              style: TextStyle(
+                color: AppColors.appleSecondaryText,
+                fontSize: 14,
+              ),
             ),
           ],
         ),
@@ -157,19 +155,20 @@ class HomeFeedScreen extends ConsumerWidget {
                                   : null,
                               child: account?.avatarUrl == null
                                   ? account != null
-                                      ? Text(
-                                          account.initials,
-                                          style: const TextStyle(
+                                        ? Text(
+                                            account.initials,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          )
+                                        : const Icon(
+                                            CupertinoIcons
+                                                .person_crop_circle_fill,
                                             color: Colors.white,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        )
-                                      : const Icon(
-                                          CupertinoIcons.person_crop_circle_fill,
-                                          color: Colors.white,
-                                          size: 24,
-                                        )
+                                            size: 24,
+                                          )
                                   : null,
                             ),
                           ),
@@ -518,9 +517,6 @@ class HomeFeedScreen extends ConsumerWidget {
     const rowHeight = 64.0;
     final totalHeight = maxPerColumn * rowHeight;
 
-    final screenWidth = MediaQuery.of(context).size.width;
-    final columnWidth = (screenWidth * 0.86).clamp(280.0, 440.0);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -554,26 +550,11 @@ class HomeFeedScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-        SizedBox(
-          height: totalHeight,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: chunked.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 14),
-            itemBuilder: (context, columnIndex) {
-              final columnSongs = chunked[columnIndex];
-              return SizedBox(
-                width: columnWidth,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: columnSongs
-                      .map((song) => _build4ItemRow(context, ref, song, contextQueue: songs))
-                      .toList(),
-                ),
-              );
-            },
-          ),
+        _Snapping4ItemColumns(
+          chunked: chunked,
+          totalHeight: totalHeight,
+          rowBuilder: (ctx, song) =>
+              _build4ItemRow(ctx, ref, song, contextQueue: songs),
         ),
       ],
     );
@@ -592,25 +573,52 @@ class HomeFeedScreen extends ConsumerWidget {
     return SizedBox(
       height: 64,
       child: ApplePressable(
-        onTap: () => playSong(context, ref, song, contextQueue: contextQueue, forceReload: true),
+        onTap: () => playSong(
+          context,
+          ref,
+          song,
+          contextQueue: contextQueue,
+          forceReload: true,
+        ),
         borderRadius: BorderRadius.circular(10),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
           child: Row(
             children: [
-              // Artwork
+              // Artwork with Equalizer overlay when playing
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: song.thumbnailUrl != null
-                    ? WavifyCachedImage(
-                        imageUrl: song.thumbnailUrl!,
-                        songId: song.id,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    song.thumbnailUrl != null
+                        ? WavifyCachedImage(
+                            imageUrl: song.thumbnailUrl!,
+                            songId: song.id,
+                            width: 48,
+                            height: 48,
+                            fit: BoxFit.cover,
+                            errorWidget: _fallbackSquareArt(),
+                          )
+                        : _fallbackSquareArt(),
+                    if (isSelected && isPlaying)
+                      Container(
                         width: 48,
                         height: 48,
-                        fit: BoxFit.cover,
-                        errorWidget: _fallbackSquareArt(),
-                      )
-                    : _fallbackSquareArt(),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Center(
+                          child: AnimatedEqualizerBars(
+                            size: 16,
+                            color: Colors.white,
+                            isPlaying: true,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
               const SizedBox(width: 12),
 
@@ -620,31 +628,22 @@ class HomeFeedScreen extends ConsumerWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            song.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: -0.3,
-                              height: 1.25,
-                            ),
-                          ),
-                        ),
-                        if (isSelected && isPlaying) ...[
-                          const SizedBox(width: 6),
-                          const AnimatedEqualizerBars(size: 14, color: Colors.white),
-                        ],
-                      ],
+                    Text(
+                      song.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.3,
+                        height: 1.25,
+                      ),
                     ),
                     const SizedBox(height: 3),
                     ApplePressable(
-                      onTap: () => openArtistScreen(context, artistName: song.artist),
+                      onTap: () =>
+                          openArtistScreen(context, artistName: song.artist),
                       child: Text(
                         song.artist,
                         maxLines: 1,
@@ -678,7 +677,10 @@ class HomeFeedScreen extends ConsumerWidget {
   }
 
   /// Find Your Mood Section with Line-Art Icons & 3-Wave Logo
-  Widget _buildFindYourMoodSection(BuildContext context, List<MusicCategory> moods) {
+  Widget _buildFindYourMoodSection(
+    BuildContext context,
+    List<MusicCategory> moods,
+  ) {
     final moodDefs = [
       (title: 'Energy', color: const Color(0xFF00D26A), icon: 'lightning'),
       (title: 'Relax', color: const Color(0xFF3FA9F5), icon: 'zen'),
@@ -779,7 +781,11 @@ class HomeFeedScreen extends ConsumerWidget {
   Widget _buildMoodIcon(String iconType) {
     switch (iconType) {
       case 'lightning':
-        return const Icon(CupertinoIcons.bolt_fill, size: 58, color: Colors.white);
+        return const Icon(
+          CupertinoIcons.bolt_fill,
+          size: 58,
+          color: Colors.white,
+        );
       case 'zen':
         return const ZenStonesIcon(size: 56, color: Colors.white);
       case 'vortex':
@@ -791,11 +797,7 @@ class HomeFeedScreen extends ConsumerWidget {
           color: Colors.white,
         );
       case 'focus':
-        return const Icon(
-          CupertinoIcons.scope,
-          size: 48,
-          color: Colors.white,
-        );
+        return const Icon(CupertinoIcons.scope, size: 48, color: Colors.white);
       case 'party':
         return const Icon(
           CupertinoIcons.sparkles,
@@ -1090,7 +1092,13 @@ class HomeFeedScreen extends ConsumerWidget {
               final isCurrent = currentSong?.id == song.id;
 
               return ApplePressable(
-                onTap: () => playSong(context, ref, song, contextQueue: songs, forceReload: true),
+                onTap: () => playSong(
+                  context,
+                  ref,
+                  song,
+                  contextQueue: songs,
+                  forceReload: true,
+                ),
                 borderRadius: BorderRadius.circular(12),
                 child: SizedBox(
                   width: cardWidth,
@@ -1109,11 +1117,13 @@ class HomeFeedScreen extends ConsumerWidget {
                                     width: cardWidth,
                                     height: cardWidth,
                                     fit: BoxFit.cover,
-                                    errorWidget: _fallbackSquareArt(size: cardWidth),
+                                    errorWidget: _fallbackSquareArt(
+                                      size: cardWidth,
+                                    ),
                                   )
                                 : _fallbackSquareArt(size: cardWidth),
                           ),
-                          if (isCurrent)
+                          if (isCurrent && isPlaying)
                             Positioned(
                               right: 8,
                               bottom: 8,
@@ -1127,10 +1137,10 @@ class HomeFeedScreen extends ConsumerWidget {
                                   ),
                                 ),
                                 padding: const EdgeInsets.all(6),
-                                child: AnimatedEqualizerBars(
+                                child: const AnimatedEqualizerBars(
                                   size: 14,
                                   color: Colors.white,
-                                  isPlaying: isPlaying,
+                                  isPlaying: true,
                                 ),
                               ),
                             ),
@@ -1151,7 +1161,8 @@ class HomeFeedScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 2),
                       ApplePressable(
-                        onTap: () => openArtistScreen(context, artistName: song.artist),
+                        onTap: () =>
+                            openArtistScreen(context, artistName: song.artist),
                         child: Text(
                           song.artist,
                           maxLines: 1,
@@ -1192,3 +1203,62 @@ class HomeFeedScreen extends ConsumerWidget {
   }
 }
 
+/// Horizontal paging container that snaps 4-item song columns cleanly into place.
+class _Snapping4ItemColumns extends StatefulWidget {
+  final List<List<SongItem>> chunked;
+  final double totalHeight;
+  final Widget Function(BuildContext context, SongItem song) rowBuilder;
+
+  const _Snapping4ItemColumns({
+    required this.chunked,
+    required this.totalHeight,
+    required this.rowBuilder,
+  });
+
+  @override
+  State<_Snapping4ItemColumns> createState() => _Snapping4ItemColumnsState();
+}
+
+class _Snapping4ItemColumnsState extends State<_Snapping4ItemColumns> {
+  late final PageController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = PageController(viewportFraction: 0.90);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: widget.totalHeight,
+      child: PageView.builder(
+        controller: _controller,
+        padEnds: false,
+        physics: const PageScrollPhysics(),
+        itemCount: widget.chunked.length,
+        itemBuilder: (context, columnIndex) {
+          final columnSongs = widget.chunked[columnIndex];
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: columnIndex == widget.chunked.length - 1 ? 20 : 8,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: columnSongs
+                  .map((song) => widget.rowBuilder(context, song))
+                  .toList(),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}

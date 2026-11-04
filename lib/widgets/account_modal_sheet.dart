@@ -2,7 +2,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../constants/app_colors.dart';
 import '../providers/auth_provider.dart';
 import '../screens/google_signin_screen.dart';
 import 'apple_glass_bottom_sheet.dart';
@@ -24,7 +23,10 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
               children: [
                 // Account Overview Card
                 AppleSheetGroup(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   children: [
                     Row(
                       children: [
@@ -82,7 +84,11 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
                 AppleSheetGroup(
                   children: [
                     AppleSheetActionTile(
-                      leading: const Icon(CupertinoIcons.arrow_right_square, color: Color(0xFFFF453A), size: 22),
+                      leading: const Icon(
+                        CupertinoIcons.arrow_right_square,
+                        color: Color(0xFFFF453A),
+                        size: 22,
+                      ),
                       title: 'Log Out',
                       isDestructive: true,
                       onTap: () {

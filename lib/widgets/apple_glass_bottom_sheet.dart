@@ -1,5 +1,5 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
@@ -22,9 +22,7 @@ Future<T?> showAppleGlassBottomSheet<T>({
     backgroundColor: Colors.transparent,
     barrierColor: Colors.black.withValues(alpha: 0.65),
     builder: (modalContext) {
-      return AppleGlassBottomSheetContainer(
-        child: builder(modalContext),
-      );
+      return AppleGlassBottomSheetContainer(child: builder(modalContext));
     },
   );
 }
@@ -118,12 +116,11 @@ class AppleSheetGroup extends StatelessWidget {
   final Widget? child;
   final EdgeInsetsGeometry? padding;
 
-  const AppleSheetGroup({
-    super.key,
-    this.children,
-    this.child,
-    this.padding,
-  }) : assert(children != null || child != null, 'Either children or child must be provided');
+  const AppleSheetGroup({super.key, this.children, this.child, this.padding})
+    : assert(
+        children != null || child != null,
+        'Either children or child must be provided',
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -150,11 +147,9 @@ class AppleSheetGroup extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           child: Padding(
             padding: padding ?? EdgeInsets.zero,
-            child: child ??
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: children!,
-                ),
+            child:
+                child ??
+                Column(mainAxisSize: MainAxisSize.min, children: children!),
           ),
         ),
       ),
@@ -183,12 +178,18 @@ class AppleSheetActionTile extends StatelessWidget {
     required this.onTap,
     this.titleColor = Colors.white,
     this.isDestructive = false,
-  }) : assert(leading != null || icon != null, 'Either leading or icon must be provided');
+  }) : assert(
+         leading != null || icon != null,
+         'Either leading or icon must be provided',
+       );
 
   @override
   Widget build(BuildContext context) {
-    final effectiveTitleColor = isDestructive ? const Color(0xFFFF453A) : titleColor;
-    final leadingWidget = leading ??
+    final effectiveTitleColor = isDestructive
+        ? const Color(0xFFFF453A)
+        : titleColor;
+    final leadingWidget =
+        leading ??
         Icon(
           icon,
           color: isDestructive ? const Color(0xFFFF453A) : Colors.white,

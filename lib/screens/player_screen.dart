@@ -45,7 +45,6 @@ class PlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProviderStateMixin {
-  static const Color appleRed = Color(0xFFFA243C);
   static const Color appleSecondaryText = Color(0xFF8E8E93);
 
   PlayerViewMode _currentMode = PlayerViewMode.nowPlaying;
@@ -1497,17 +1496,38 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: song.thumbnailUrl != null
-                    ? WavifyCachedImage(
-                        imageUrl: song.highResThumbnailUrl ?? song.thumbnailUrl!,
-                        songId: song.id,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    song.thumbnailUrl != null
+                        ? WavifyCachedImage(
+                            imageUrl: song.highResThumbnailUrl ?? song.thumbnailUrl!,
+                            songId: song.id,
+                            width: 48,
+                            height: 48,
+                            fit: BoxFit.cover,
+                            filterQuality: FilterQuality.medium,
+                            errorWidget: _fallbackMiniArt(size: 48, borderRadius: 8),
+                          )
+                        : _fallbackMiniArt(size: 48, borderRadius: 8),
+                    if (playerState.isPlaying)
+                      Container(
                         width: 48,
                         height: 48,
-                        fit: BoxFit.cover,
-                        filterQuality: FilterQuality.medium,
-                        errorWidget: _fallbackMiniArt(size: 48, borderRadius: 8),
-                      )
-                    : _fallbackMiniArt(size: 48, borderRadius: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Center(
+                          child: AnimatedEqualizerBars(
+                            isPlaying: true,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1551,12 +1571,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                 ),
               ),
               const SizedBox(width: 8),
-              AnimatedEqualizerBars(
-                isPlaying: playerState.isPlaying,
-                color: Colors.white,
-                size: 16,
-              ),
-              const SizedBox(width: 12),
               ApplePressable(
                 onTap: () {
                   ref.read(playerProvider.notifier).skipNext();

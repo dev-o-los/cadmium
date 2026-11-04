@@ -2,7 +2,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../constants/app_colors.dart';
 import '../models/song_item.dart';
 import '../providers/favorites_provider.dart';
 import '../providers/player_provider.dart';
@@ -14,11 +13,7 @@ import 'wavify_cached_image.dart';
 
 /// Shows the authentic Apple Music-style 3-dots action sheet for a [SongItem],
 /// rendered with Liquid Glass frosted backdrop, grouped cards, and pure white typography.
-void showTrackOptionsModal(
-  BuildContext context,
-  WidgetRef ref,
-  SongItem song,
-) {
+void showTrackOptionsModal(BuildContext context, WidgetRef ref, SongItem song) {
   final isFav = ref.read(favoritesProvider.notifier).isFavorite(song.id);
 
   showAppleGlassBottomSheet(
@@ -34,7 +29,8 @@ void showTrackOptionsModal(
                 borderRadius: BorderRadius.circular(10),
                 child: song.thumbnailUrl != null
                     ? WavifyCachedImage(
-                        imageUrl: song.highResThumbnailUrl ?? song.thumbnailUrl!,
+                        imageUrl:
+                            song.highResThumbnailUrl ?? song.thumbnailUrl!,
                         songId: song.id,
                         width: 52,
                         height: 52,
@@ -90,15 +86,23 @@ void showTrackOptionsModal(
             children: [
               Consumer(
                 builder: (context, ref, _) {
-                  final selectedProvider = ref.watch(playerProvider.select((s) => s.selectedLyricsProvider));
-                  final isLoadingLyrics = ref.watch(playerProvider.select((s) => s.isLoadingLyrics));
+                  final selectedProvider = ref.watch(
+                    playerProvider.select((s) => s.selectedLyricsProvider),
+                  );
+                  final isLoadingLyrics = ref.watch(
+                    playerProvider.select((s) => s.isLoadingLyrics),
+                  );
 
                   return Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Row(
                         children: const [
-                          Icon(CupertinoIcons.quote_bubble, color: Colors.white, size: 20),
+                          Icon(
+                            CupertinoIcons.quote_bubble,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                           SizedBox(width: 12),
                           Text(
                             'Lyrics Provider',
@@ -128,8 +132,11 @@ void showTrackOptionsModal(
                               type: LyricsProviderType.lrcRed,
                               label: 'lrc.red',
                               icon: CupertinoIcons.sparkles,
-                              isSelected: selectedProvider == LyricsProviderType.lrcRed,
-                              isLoading: isLoadingLyrics && selectedProvider == LyricsProviderType.lrcRed,
+                              isSelected:
+                                  selectedProvider == LyricsProviderType.lrcRed,
+                              isLoading:
+                                  isLoadingLyrics &&
+                                  selectedProvider == LyricsProviderType.lrcRed,
                             ),
                             const SizedBox(width: 3),
                             _buildModalProviderSegment(
@@ -137,8 +144,13 @@ void showTrackOptionsModal(
                               type: LyricsProviderType.youTube,
                               label: 'YouTube',
                               icon: CupertinoIcons.play_rectangle,
-                              isSelected: selectedProvider == LyricsProviderType.youTube,
-                              isLoading: isLoadingLyrics && selectedProvider == LyricsProviderType.youTube,
+                              isSelected:
+                                  selectedProvider ==
+                                  LyricsProviderType.youTube,
+                              isLoading:
+                                  isLoadingLyrics &&
+                                  selectedProvider ==
+                                      LyricsProviderType.youTube,
                             ),
                           ],
                         ),
@@ -155,7 +167,11 @@ void showTrackOptionsModal(
           AppleSheetGroup(
             children: [
               AppleSheetActionTile(
-                leading: const Icon(CupertinoIcons.person_crop_circle, color: Colors.white, size: 22),
+                leading: const Icon(
+                  CupertinoIcons.person_crop_circle,
+                  color: Colors.white,
+                  size: 22,
+                ),
                 title: 'View Artist: ${song.artist}',
                 onTap: () {
                   Navigator.pop(modalContext);
@@ -164,16 +180,27 @@ void showTrackOptionsModal(
               ),
               const AppleSheetDivider(),
               AppleSheetActionTile(
-                leading: const Icon(CupertinoIcons.text_badge_plus, color: Colors.white, size: 22),
+                leading: const Icon(
+                  CupertinoIcons.text_badge_plus,
+                  color: Colors.white,
+                  size: 22,
+                ),
                 title: 'Play Next',
                 onTap: () {
                   Navigator.pop(modalContext);
-                  showWavifySnackBar(context, 'Added "${song.title}" to play next');
+                  showWavifySnackBar(
+                    context,
+                    'Added "${song.title}" to play next',
+                  );
                 },
               ),
               const AppleSheetDivider(),
               AppleSheetActionTile(
-                leading: const Icon(CupertinoIcons.list_bullet_indent, color: Colors.white, size: 22),
+                leading: const Icon(
+                  CupertinoIcons.list_bullet_indent,
+                  color: Colors.white,
+                  size: 22,
+                ),
                 title: 'Add to Queue',
                 onTap: () {
                   Navigator.pop(modalContext);
@@ -207,11 +234,18 @@ void showTrackOptionsModal(
               ),
               const AppleSheetDivider(),
               AppleSheetActionTile(
-                leading: const Icon(CupertinoIcons.share, color: Colors.white, size: 22),
+                leading: const Icon(
+                  CupertinoIcons.share,
+                  color: Colors.white,
+                  size: 22,
+                ),
                 title: 'Share Song',
                 onTap: () {
                   Navigator.pop(modalContext);
-                  showWavifySnackBar(context, 'Sharing link for "${song.title}"');
+                  showWavifySnackBar(
+                    context,
+                    'Sharing link for "${song.title}"',
+                  );
                 },
               ),
             ],
@@ -258,7 +292,9 @@ Widget _buildModalProviderSegment({
       curve: Curves.easeOutCubic,
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
       decoration: BoxDecoration(
-        color: isSelected ? Colors.white.withValues(alpha: 0.28) : Colors.transparent,
+        color: isSelected
+            ? Colors.white.withValues(alpha: 0.28)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(16),
         boxShadow: isSelected
             ? [
@@ -273,11 +309,7 @@ Widget _buildModalProviderSegment({
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            size: 13,
-            color: Colors.white,
-          ),
+          Icon(icon, size: 13, color: Colors.white),
           const SizedBox(width: 5),
           Text(
             label,
@@ -290,10 +322,7 @@ Widget _buildModalProviderSegment({
           ),
           if (isSelected && isLoading) ...[
             const SizedBox(width: 5),
-            const CupertinoActivityIndicator(
-              radius: 5,
-              color: Colors.white,
-            ),
+            const CupertinoActivityIndicator(radius: 5, color: Colors.white),
           ],
         ],
       ),

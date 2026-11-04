@@ -871,15 +871,15 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                                                 _fallbackSquareArt(48),
                                           )
                                         : _fallbackSquareArt(48),
-                                    if (isCurrent)
+                                    if (isCurrent && isPlaying)
                                       Positioned.fill(
                                         child: Container(
                                           color: Colors.black.withValues(alpha: 0.65),
-                                          child: Center(
+                                          child: const Center(
                                             child: AnimatedEqualizerBars(
                                               size: 16,
                                               color: Colors.white,
-                                              isPlaying: isPlaying,
+                                              isPlaying: true,
                                             ),
                                           ),
                                         ),

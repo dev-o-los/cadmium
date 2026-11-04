@@ -516,6 +516,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
 
     final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
     final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
+    final isAnyTrackPlaying = isPlaying && _allTracks.any((t) => t.id == currentSong?.id);
     final currentTabIndex = ref.watch(currentTabProvider);
 
     final totalDurationStr = _formatTotalDuration();
@@ -675,17 +676,33 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                           ),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(20),
-                            child: _resolvedArtwork != null &&
-                                    _resolvedArtwork!.isNotEmpty
-                                ? Image.network(
-                                    _resolvedArtwork!,
-                                    fit: BoxFit.cover,
-                                    filterQuality: FilterQuality.high,
-                                    isAntiAlias: true,
-                                    errorBuilder: (context, error, stackTrace) =>
-                                        _fallbackCover(artworkSize),
-                                  )
-                                : _fallbackCover(artworkSize),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                _resolvedArtwork != null &&
+                                        _resolvedArtwork!.isNotEmpty
+                                    ? Image.network(
+                                        _resolvedArtwork!,
+                                        fit: BoxFit.cover,
+                                        filterQuality: FilterQuality.high,
+                                        isAntiAlias: true,
+                                        errorBuilder: (context, error, stackTrace) =>
+                                            _fallbackCover(artworkSize),
+                                      )
+                                    : _fallbackCover(artworkSize),
+                                if (isAnyTrackPlaying)
+                                  Container(
+                                    color: Colors.black.withValues(alpha: 0.45),
+                                    child: const Center(
+                                      child: AnimatedEqualizerBars(
+                                        size: 36,
+                                        color: Colors.white,
+                                        isPlaying: true,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -927,22 +944,18 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                 // Track Number (1, 2, 3...)
                                 SizedBox(
                                   width: 28,
-                                  child: isCurrentTrack && isPlaying
-                                      ? Center(
-                                          child: AnimatedEqualizerBars(
-                                            size: 16,
-                                            color: Colors.white,
-                                            isPlaying: true,
-                                          ),
-                                        )
-                                      : Text(
-                                          '${index + 1}',
-                                          style: const TextStyle(
-                                            color: AppColors.appleSecondaryText,
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
+                                  child: Text(
+                                    '${index + 1}',
+                                    style: TextStyle(
+                                      color: isCurrentTrack
+                                          ? Colors.white
+                                          : AppColors.appleSecondaryText,
+                                      fontSize: 15,
+                                      fontWeight: isCurrentTrack
+                                          ? FontWeight.w600
+                                          : FontWeight.w500,
+                                    ),
+                                  ),
                                 ),
                                 const SizedBox(width: 8),
 

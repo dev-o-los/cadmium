@@ -869,7 +869,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                       placeholder: _fallbackSquareArt(),
                       errorWidget: _fallbackSquareArt(),
                     ),
-                    if (isSelected)
+                    if (isSelected && isPlaying)
                       Container(
                         width: 50,
                         height: 50,
@@ -877,9 +877,9 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                           color: Colors.black.withValues(alpha: 0.55),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Center(
+                        child: const Center(
                           child: AnimatedEqualizerBars(
-                            isPlaying: isPlaying,
+                            isPlaying: true,
                             size: 18,
                             color: Colors.white,
                           ),
@@ -912,14 +912,6 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                             ),
                           ),
                         ),
-                        if (isSelected && isPlaying) ...[
-                          const SizedBox(width: 6),
-                          const AnimatedEqualizerBars(
-                            size: 14,
-                            color: Colors.white,
-                            isPlaying: true,
-                          ),
-                        ],
                       ],
                     ),
                     const SizedBox(height: 3),

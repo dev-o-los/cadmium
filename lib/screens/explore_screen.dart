@@ -114,6 +114,7 @@ class ExploreScreen extends ConsumerWidget {
 
   Widget _buildSongRow(BuildContext context, WidgetRef ref, SongItem song, List<SongItem> allTracks) {
     final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
+    final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
     final isSelected = currentSong?.id == song.id;
 
     return ApplePressable(
@@ -133,16 +134,37 @@ class ExploreScreen extends ConsumerWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: song.thumbnailUrl != null
-                    ? Image.network(
-                        song.thumbnailUrl!,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    song.thumbnailUrl != null
+                        ? Image.network(
+                            song.thumbnailUrl!,
+                            width: 48,
+                            height: 48,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                _fallbackSquareArt(),
+                          )
+                        : _fallbackSquareArt(),
+                    if (isSelected && isPlaying)
+                      Container(
                         width: 48,
                         height: 48,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            _fallbackSquareArt(),
-                      )
-                    : _fallbackSquareArt(),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Center(
+                          child: AnimatedEqualizerBars(
+                            isPlaying: true,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -178,10 +200,6 @@ class ExploreScreen extends ConsumerWidget {
                   ],
                 ),
               ),
-              if (isSelected) ...[
-                const AnimatedEqualizerBars(size: 14, color: Colors.white),
-                const SizedBox(width: 6),
-              ],
               IconButton(
                 icon: const AnimatedCupertinoIcon(
                   icon: CupertinoIcons.ellipsis_vertical,

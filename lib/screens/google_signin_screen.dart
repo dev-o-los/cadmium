@@ -1,10 +1,11 @@
 import 'dart:convert';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import '../constants/app_colors.dart';
+
 import '../models/user_account.dart';
 import '../providers/auth_provider.dart';
 import '../providers/music_service_provider.dart';
@@ -20,8 +21,6 @@ class GoogleSignInScreen extends ConsumerStatefulWidget {
 }
 
 class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
-  static const Color appleRed = Color(0xFFFA243C);
-
   static const String _loginUrl =
       'https://accounts.google.com/ServiceLogin'
       '?ltmpl=music&service=youtube&prompt=select_account'
@@ -189,8 +188,8 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
     // Also extract document.cookie from WebView context
     try {
       if (_webViewController != null) {
-        final jsCookieRes =
-            await _webViewController!.runJavaScriptReturningResult('document.cookie');
+        final jsCookieRes = await _webViewController!
+            .runJavaScriptReturningResult('document.cookie');
         var jsCookieStr = jsCookieRes.toString().trim();
         if (jsCookieStr.startsWith('"') &&
             jsCookieStr.endsWith('"') &&
@@ -228,8 +227,9 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
 
     // Verify whether authentic login session cookies exist
     final cookieJar = await _collectAllCookies();
-    final cookiesString =
-        cookieJar.entries.map((e) => '${e.key}=${e.value}').join('; ');
+    final cookiesString = cookieJar.entries
+        .map((e) => '${e.key}=${e.value}')
+        .join('; ');
     final sapisid = MusicService.extractSapisid(cookiesString);
 
     // If SAPISID is missing, the user is still in the login flow or guest session
@@ -251,7 +251,9 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Failed to connect YouTube Music account. Please try again.'),
+            content: Text(
+              'Failed to connect YouTube Music account. Please try again.',
+            ),
             backgroundColor: Color(0xFF1C1C1E),
           ),
         );
@@ -275,8 +277,8 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
 
     try {
       if (_webViewController != null) {
-        final probeResult =
-            await _webViewController!.runJavaScriptReturningResult(_sessionProbeScript);
+        final probeResult = await _webViewController!
+            .runJavaScriptReturningResult(_sessionProbeScript);
         var probeStr = probeResult.toString().trim();
         if (probeStr.startsWith('"') &&
             probeStr.endsWith('"') &&
@@ -333,7 +335,9 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
 
     final displayName = profile?.displayName.isNotEmpty == true
         ? profile!.displayName
-        : (probedName != null && probedName.isNotEmpty ? probedName : 'YouTube Music User');
+        : (probedName != null && probedName.isNotEmpty
+              ? probedName
+              : 'YouTube Music User');
     final email = profile?.email.isNotEmpty == true
         ? profile!.email
         : (probedEmail ?? '');
