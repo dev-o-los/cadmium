@@ -202,26 +202,30 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         return;
       }
 
-      // If the audio player is ready or actively playing, stream resolution and initial buffering are completed!
-      if (processing == ProcessingState.ready || (isPlaying && processing != ProcessingState.idle)) {
+      // While actively resolving a stream, keep optimistic isPlaying state
+      if (state.isResolvingStream) {
         state = state.copyWith(
-          isPlaying: isPlaying || state.isPlaying,
+          isBuffering: isBuffering,
+        );
+        return;
+      }
+
+      // When audio is ready, sync isPlaying directly to the player's true playing state
+      if (processing == ProcessingState.ready) {
+        state = state.copyWith(
+          isPlaying: isPlaying,
           isBuffering: false,
           isResolvingStream: false,
         );
         return;
       }
 
-      // While resolving stream, preserve optimistic isPlaying state if player is still idle/loading
-      if (state.isResolvingStream && state.isPlaying) {
-        state = state.copyWith(isBuffering: isBuffering);
-        return;
-      }
-
-      // When audio idles while we are NOT resolving a stream and NOT buffering,
-      // the player genuinely stopped: sync the play-button state to reality.
-      if (processing == ProcessingState.idle && !state.isResolvingStream && !isPlaying) {
-        state = state.copyWith(isPlaying: false, isBuffering: false);
+      // When audio idles while we are NOT resolving a stream, the player stopped
+      if (processing == ProcessingState.idle) {
+        state = state.copyWith(
+          isPlaying: false,
+          isBuffering: false,
+        );
         return;
       }
 
@@ -534,7 +538,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
 
       state = state.copyWith(
         isResolvingStream: false,
-        isPlaying: true,
+        isPlaying: _audioPlayer.playing,
         isBuffering: false,
       );
     } catch (e) {

@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 
 /// Apple Music-styled precision scrubber slider.
 /// Features:
-/// - Sleek 5.5px rounded capsule track at rest with flush seamless finish (matching Apple Music screenshots)
-/// - Fluid spring expansion to 10px track with smooth 8px white thumb when scrubbing
-/// - Edge-to-edge alignment with timestamps (no 24dp Material padding)
-/// - Pure OLED white active progress, translucent frosted inactive track
+/// - Sleek 4.5px rounded capsule track at rest with flush seamless finish (matching Apple Music)
+/// - Expands gently to 7px track when scrubbing
+/// - Clean knob-free bar design: no rounded knob thumb, fills smoothly from left to right
+/// - Pure OLED white active progress, frosted translucent inactive track
+/// - Compact touch box to keep lyrics and controls properly aligned
 /// - Precision timestamps (elapsed and -remaining) aligned with track edges
 class AppleMusicSlider extends StatefulWidget {
   final double value;
@@ -33,7 +34,7 @@ class AppleMusicSlider extends StatefulWidget {
     this.remainingText,
     this.showTimestamps = true,
     this.activeColor = Colors.white,
-    this.inactiveColor = const Color(0x3DFFFFFF),
+    this.inactiveColor = const Color(0x33FFFFFF),
   });
 
   @override
@@ -44,7 +45,6 @@ class _AppleMusicSliderState extends State<AppleMusicSlider>
     with SingleTickerProviderStateMixin {
   late AnimationController _animController;
   late Animation<double> _trackHeightAnimation;
-  late Animation<double> _thumbRadiusAnimation;
   bool _isDragging = false;
 
   @override
@@ -52,14 +52,10 @@ class _AppleMusicSliderState extends State<AppleMusicSlider>
     super.initState();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 180),
+      duration: const Duration(milliseconds: 160),
     );
 
-    _trackHeightAnimation = Tween<double>(begin: 6.5, end: 11.0).animate(
-      CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
-    );
-
-    _thumbRadiusAnimation = Tween<double>(begin: 3.5, end: 8.0).animate(
+    _trackHeightAnimation = Tween<double>(begin: 4.5, end: 7.5).animate(
       CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
     );
   }
@@ -95,23 +91,22 @@ class _AppleMusicSliderState extends State<AppleMusicSlider>
           animation: _animController,
           builder: (context, child) {
             final double currentHeight = _trackHeightAnimation.value;
-            final double currentThumbRadius = _thumbRadiusAnimation.value;
 
             return SliderTheme(
               data: SliderTheme.of(context).copyWith(
                 trackHeight: currentHeight,
                 trackShape: AppleSliderTrackShape(trackHeight: currentHeight),
-                thumbShape: AppleSliderThumbShape(
-                  thumbRadius: currentThumbRadius,
-                  isDragging: _isDragging,
+                thumbShape: const AppleSliderThumbShape(
+                  thumbRadius: 0.0,
+                  isDragging: false,
                 ),
                 overlayShape: SliderComponentShape.noOverlay,
                 activeTrackColor: widget.activeColor,
                 inactiveTrackColor: widget.inactiveColor,
-                thumbColor: Colors.white,
+                thumbColor: Colors.transparent,
               ),
               child: SizedBox(
-                height: 36,
+                height: 22,
                 child: Slider(
                   min: widget.min,
                   max: safeMax,
@@ -125,9 +120,9 @@ class _AppleMusicSliderState extends State<AppleMusicSlider>
           },
         ),
         if (widget.showTimestamps) ...[
-          const SizedBox(height: 2),
+          const SizedBox(height: 3),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 1),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -163,7 +158,7 @@ class AppleSliderTrackShape extends SliderTrackShape with BaseSliderTrackShape {
   final double trackHeight;
 
   const AppleSliderTrackShape({
-    this.trackHeight = 6.5,
+    this.trackHeight = 4.5,
   });
 
   @override
@@ -205,50 +200,45 @@ class AppleSliderTrackShape extends SliderTrackShape with BaseSliderTrackShape {
     final Canvas canvas = context.canvas;
     final double radius = trackRect.height / 2;
 
-    // Full Inactive Track (Right/Background)
+    // Full Inactive Track (Right/Background capsule)
     final Paint inactivePaint = Paint()
-      ..color = sliderTheme.inactiveTrackColor ?? const Color(0x38FFFFFF);
+      ..color = sliderTheme.inactiveTrackColor ?? const Color(0x33FFFFFF);
     final RRect inactiveRRect = RRect.fromRectAndRadius(
       trackRect,
       Radius.circular(radius),
     );
     canvas.drawRRect(inactiveRRect, inactivePaint);
 
-    // Active Track (Left/Progress)
+    // Active Track (Left/Progress) - fills cleanly from left to right inside the capsule
     final double activeRight = math.max(trackRect.left, math.min(thumbCenter.dx, trackRect.right));
     if (activeRight > trackRect.left) {
       final Paint activePaint = Paint()
         ..color = sliderTheme.activeTrackColor ?? Colors.white;
-      final Rect activeRect = Rect.fromLTRB(
-        trackRect.left,
-        trackRect.top,
-        activeRight,
-        trackRect.bottom,
+
+      canvas.save();
+      canvas.clipRRect(inactiveRRect);
+      canvas.drawRect(
+        Rect.fromLTRB(trackRect.left, trackRect.top, activeRight, trackRect.bottom),
+        activePaint,
       );
-      final RRect activeRRect = RRect.fromRectAndRadius(
-        activeRect,
-        Radius.circular(radius),
-      );
-      canvas.drawRRect(activeRRect, activePaint);
+      canvas.restore();
     }
   }
 }
 
-/// Custom expanding thumb matching Apple Music.
-/// When resting, thumb is a subtle capsule (radius 3.5px) visible on the active progress bar.
-/// When scrubbing, thumb expands into a smooth circle with soft shadow.
+/// Knob-free thumb component for Apple Music style slider.
 class AppleSliderThumbShape extends SliderComponentShape {
   final double thumbRadius;
   final bool isDragging;
 
   const AppleSliderThumbShape({
-    this.thumbRadius = 3.5,
+    this.thumbRadius = 0.0,
     this.isDragging = false,
   });
 
   @override
   Size getPreferredSize(bool isEnabled, bool isDiscrete) {
-    return Size.fromRadius(thumbRadius);
+    return Size.zero;
   }
 
   @override
@@ -266,25 +256,7 @@ class AppleSliderThumbShape extends SliderComponentShape {
     required double textScaleFactor,
     required Size sizeWithOverflow,
   }) {
-    if (thumbRadius <= 0.5) return;
-
-    final Canvas canvas = context.canvas;
-
-    if (isDragging) {
-      final Path shadowPath = Path()
-        ..addOval(Rect.fromCircle(center: center.translate(0, 1.2), radius: thumbRadius));
-      canvas.drawShadow(shadowPath, Colors.black.withValues(alpha: 0.45), 4.0, true);
-    } else {
-      final Path shadowPath = Path()
-        ..addOval(Rect.fromCircle(center: center.translate(0, 0.6), radius: thumbRadius));
-      canvas.drawShadow(shadowPath, Colors.black.withValues(alpha: 0.30), 2.0, true);
-    }
-
-    final Paint thumbPaint = Paint()
-      ..color = sliderTheme.thumbColor ?? Colors.white
-      ..style = PaintingStyle.fill;
-
-    canvas.drawCircle(center, thumbRadius, thumbPaint);
+    // Knob-free: no knob drawn so the track simply fills smoothly from left to right.
   }
 }
 

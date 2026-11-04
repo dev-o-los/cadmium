@@ -175,6 +175,8 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
   }
 
   /// Display lyrics matching withInstrumentalGaps structure.
+  /// If the lyrics do not already start with an instrumental intro gap and the first line starts >= 3s,
+  /// an intro gap is inserted for the Apple Music 3-dots countdown.
   List<LyricLine> get _displayLyrics {
     if (widget.lyrics.isEmpty) return widget.lyrics;
     final first = widget.lyrics.first;
@@ -189,6 +191,16 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
       ];
     }
     return widget.lyrics;
+  }
+
+  bool get _hasPrependedIntro => _displayLyrics.length > widget.lyrics.length;
+
+  int _mapExternalToDisplayIndex(int externalIndex) {
+    if (externalIndex < 0) return -1;
+    if (_hasPrependedIntro) {
+      return externalIndex + 1;
+    }
+    return externalIndex;
   }
 
   void _handleLyricTap(LyricLine line, int index) {
@@ -218,7 +230,9 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     _smoothPositionNotifier = ValueNotifier<int>(widget.currentPositionMs);
     _lastReportedMs = widget.currentPositionMs;
     _lastPositionReceivedAtMs = DateTime.now().millisecondsSinceEpoch.toDouble();
-    _activeLyricIndex = _computeActiveIndex(widget.currentPositionMs);
+    _activeLyricIndex = widget.activeLyricIndex >= 0
+        ? _mapExternalToDisplayIndex(widget.activeLyricIndex)
+        : _computeActiveIndex(widget.currentPositionMs);
 
     // High-frequency 60Hz/120Hz frame ticker driven by LyricClock
     _ticker = createTicker((_) {
@@ -239,7 +253,9 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
         _smoothPositionNotifier.value = displayed;
       }
 
-      final newIdx = _computeActiveIndex(displayed);
+      // Use max of smoothed frame and actual position to guarantee zero lag on line transitions
+      final effectiveMs = math.max(displayed, widget.currentPositionMs);
+      final newIdx = _computeActiveIndex(effectiveMs);
       if (newIdx != _activeLyricIndex) {
         setState(() {
           _activeLyricIndex = newIdx;
@@ -265,9 +281,6 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
   void didUpdateWidget(covariant AppleLyricsView oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // Record the wall-clock time whenever the reported playback position changes.
-    // This is passed as sampledAtMs to LyricClock.frame() so it can accurately
-    // compensate for the ~100-500 ms polling + delivery delay.
     if (widget.currentPositionMs != oldWidget.currentPositionMs) {
       _lastPositionReceivedAtMs = DateTime.now().millisecondsSinceEpoch.toDouble();
     }
@@ -307,13 +320,22 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
       return;
     }
 
-    // Detect announced seek, slider scrub, or activeLyricIndex jump
+    // Immediately sync if activeLyricIndex from player provider changed
+    final mappedExternalIdx = _mapExternalToDisplayIndex(widget.activeLyricIndex);
+    if (mappedExternalIdx >= 0 && mappedExternalIdx != _activeLyricIndex) {
+      setState(() {
+        _activeLyricIndex = mappedExternalIdx;
+      });
+      if (!_isUserScrolling) {
+        _scrollToActiveLine();
+      }
+    }
+
+    // Detect announced seek, slider scrub, or large jump
     final diff = (widget.currentPositionMs - _lastReportedMs).abs();
     final bool positionJumped = diff > 1500 || widget.currentPositionMs < (_lastReportedMs - 400);
-    final bool lyricIndexChanged = widget.activeLyricIndex != oldWidget.activeLyricIndex &&
-        widget.activeLyricIndex != _activeLyricIndex;
 
-    if (positionJumped || lyricIndexChanged) {
+    if (positionJumped) {
       _discontinuity++;
       _lastReportedMs = widget.currentPositionMs;
       final nowMs = DateTime.now().millisecondsSinceEpoch.toDouble();
@@ -335,7 +357,26 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
   }
 
   int _computeActiveIndex(int currentMs) {
-    return LyricsService.computeActiveLyricIndex(currentMs, _displayLyrics);
+    final idx = LyricsService.computeActiveLyricIndex(currentMs, _displayLyrics);
+    if (idx >= 0) return idx;
+
+    // During momentary pauses between lines, hold the last active lyric line
+    // so lyrics don't collapse or flicker before the next line begins
+    if (_activeLyricIndex >= 0 && _activeLyricIndex < _displayLyrics.length) {
+      final currentLine = _displayLyrics[_activeLyricIndex];
+      final currentStart = currentLine.startTimeMs ?? 0;
+      if (currentMs >= currentStart) {
+        if (_activeLyricIndex + 1 < _displayLyrics.length) {
+          final nextStart = _displayLyrics[_activeLyricIndex + 1].startTimeMs;
+          if (nextStart != null && currentMs < nextStart) {
+            return _activeLyricIndex;
+          }
+        } else {
+          return _activeLyricIndex;
+        }
+      }
+    }
+    return -1;
   }
 
   /// Positions the active line exactly down below the album art header,
@@ -345,7 +386,6 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     final lines = _displayLyrics;
     if (lines.isEmpty) return;
 
-    // Use active lyric index if valid; otherwise scroll to the closest line for the position
     int targetIndex = _activeLyricIndex;
     if (targetIndex < 0 || targetIndex >= lines.length) {
       targetIndex = LyricsService.findClosestLineIndex(_smoothPositionNotifier.value, lines);
@@ -358,24 +398,26 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     if (targetContext != null) {
       Scrollable.ensureVisible(
         targetContext,
-        alignment: 0.0, // Positions active live lyric exactly down below the album art header
-        duration: immediate ? Duration.zero : const Duration(milliseconds: 260),
+        alignment: 0.0, // Positions active live lyric exactly beneath the album art header
+        alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+        duration: immediate ? Duration.zero : const Duration(milliseconds: 320),
         curve: Curves.easeOutCubic,
       );
     } else {
-      final double estimatedLineHeight = 72.0;
-      final double targetOffset = (targetIndex * estimatedLineHeight)
-          .clamp(0.0, _scrollController.position.maxScrollExtent);
-
-      if (immediate) {
-        _scrollController.jumpTo(targetOffset);
-      } else {
-        _scrollController.animateTo(
-          targetOffset,
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeOutCubic,
-        );
-      }
+      // If not yet mounted in the current frame, ensure visible immediately after layout pass
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _isUserScrolling || !_scrollController.hasClients) return;
+        final postContext = _lineKeys[targetIndex]?.currentContext;
+        if (postContext != null) {
+          Scrollable.ensureVisible(
+            postContext,
+            alignment: 0.0,
+            alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+            duration: immediate ? Duration.zero : const Duration(milliseconds: 320),
+            curve: Curves.easeOutCubic,
+          );
+        }
+      });
     }
   }
 
@@ -551,7 +593,8 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
               child: ListView.builder(
                 controller: _scrollController,
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.only(top: 6, bottom: 120),
+                cacheExtent: 2500.0,
+                padding: const EdgeInsets.only(top: 16, bottom: 220),
                 itemCount: displayLines.length + 1,
                 itemBuilder: (context, index) {
                   if (index == displayLines.length) {

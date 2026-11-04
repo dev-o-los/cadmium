@@ -47,13 +47,13 @@ class LyricClock {
   static const double pairLearning = 0.5;
   static const double minRate = 0.25;
   static const double maxRate = 4.0;
-  static const double correctionMs = 600.0;
-  static const double maxSlew = 0.25;
+  static const double correctionMs = 120.0;
+  static const double maxSlew = 0.80;
   static const double maxSlow = 0.5;
-  static const double glideFromMs = 300.0;
-  static const double glideMs = 260.0;
-  static const double glideMaxMs = 2000.0;
-  static const double lostMs = 3000.0;
+  static const double glideFromMs = 180.0;
+  static const double glideMs = 150.0;
+  static const double glideMaxMs = 1500.0;
+  static const double lostMs = 2000.0;
 
   LyricClock(double startMs) : displayedMs = startMs;
 

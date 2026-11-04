@@ -770,7 +770,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         final left = ui.lerpDouble(0.0, 24.0, modeVal)!;
         final top = ui.lerpDouble(0.0, headerTop, modeVal)!;
         final width = ui.lerpDouble(screenWidth, targetThumbSize, modeVal)!;
-        final height = ui.lerpDouble(screenHeight * 0.76, targetThumbSize, modeVal)!;
+        final height = ui.lerpDouble(screenHeight * 0.70, targetThumbSize, modeVal)!;
         final borderRadius = ui.lerpDouble(0.0, 12.0, modeVal)!;
 
         // Base image content
@@ -1005,22 +1005,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                             ),
                           ),
                           _buildLiquidGlassButton(
-                            size: 40,
+                            size: 34,
                             onTap: () => ref.read(favoritesProvider.notifier).toggleFavorite(song),
                             icon: AnimatedCupertinoIcon(
                               icon: isFavorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
                               color: isFavorite ? Colors.white : Colors.white70,
-                              size: 19,
+                              size: 16,
                             ),
                           ),
                           const SizedBox(width: 8),
                           _buildLiquidGlassButton(
-                            size: 40,
+                            size: 34,
                             onTap: () => _showSongOptionsSheet(song),
                             icon: const AnimatedCupertinoIcon(
                               icon: CupertinoIcons.ellipsis,
                               color: Colors.white70,
-                              size: 18,
+                              size: 15,
                             ),
                           ),
                         ],
@@ -1053,13 +1053,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         final slideUp = (1.0 - modeVal) * 28.0;
 
         // Space occupied by bottom controls when expanded vs collapsed
-        final controlsHeight = _controlsAnimController.value > 0.05 ? 260.0 : 65.0;
+        final controlsExtra = _controlsAnimController.value * 230.0;
 
         return Positioned(
           top: headerTop + 54,
           left: 0,
           right: 0,
-          bottom: math.max(bottomPadding, 16) + controlsHeight,
+          bottom: math.max(bottomPadding, 24) + 68 + controlsExtra + 14.0,
           child: Opacity(
             opacity: opacity,
             child: Transform.translate(
@@ -1119,7 +1119,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     return Positioned(
       left: 0,
       right: 0,
-      bottom: math.max(bottomPadding, 16) + 40,
+      bottom: math.max(bottomPadding, 24) + 68,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 26),
         child: Column(
@@ -1178,7 +1178,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 10),
 
                           // Lyrics Hook Preview Banner (visible in Now Playing and Queue modes)
                           if (_currentMode != PlayerViewMode.lyrics) ...[
@@ -1261,17 +1261,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 2),
                           ] else
                             const SizedBox(height: 4),
 
-                          // Scrubber Slider
+                          // Scrubber Slider (Apple style sleek bar)
                           _buildDurationScrubber(playerState),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 36),
 
                           // Transport Controls: Skip prev, Play/Pause, Skip next
                           _buildTransportControls(playerState),
-                          const SizedBox(height: 30),
+                          const SizedBox(height: 36),
 
                           // Bottom Action Dock: Lyrics, Audio Route, Queue
                           _buildActionDock(playerState),
@@ -1292,7 +1292,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
   Widget _buildLiquidGlassButton({
     required Widget icon,
     required VoidCallback onTap,
-    double size = 42,
+    double size = 34,
   }) {
     return ApplePressable(
       onTap: onTap,
@@ -1301,7 +1301,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.15),
+          color: Colors.white.withValues(alpha: 0.12),
           shape: BoxShape.circle,
         ),
         child: Center(child: icon),
@@ -1337,7 +1337,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     );
   }
 
-  /// Metadata Row: Song Title + Artist on Left (aligned flush), Liquid Glass Star & 3-dots on Right
+  /// Metadata Row: Song Title + Artist on Left (tight padding), Liquid Glass Star & 3-dots on Right
   Widget _buildMetadataRow(SongItem song, bool isFavorite) {
     return GestureDetector(
       onTap: () {
@@ -1368,12 +1368,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
                           letterSpacing: -0.4,
+                          height: 1.15,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 ApplePressable(
                   onTap: () => openArtistScreen(context, artistName: song.artist),
                   child: Text(
@@ -1385,6 +1386,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
                       letterSpacing: -0.2,
+                      height: 1.15,
                     ),
                   ),
                 ),
@@ -1395,30 +1397,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
 
           // Liquid Glass Star / Favourite Button
           _buildLiquidGlassButton(
-            size: 44,
+            size: 34,
             onTap: () {
               ref.read(favoritesProvider.notifier).toggleFavorite(song);
               _resetAutoHideTimer();
             },
             icon: AnimatedCupertinoIcon(
               icon: isFavorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
-              color: Colors.white,
-              size: 21,
+              color: isFavorite ? Colors.white : Colors.white.withValues(alpha: 0.85),
+              size: 16,
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
 
           // Liquid Glass 3-dots Button
           _buildLiquidGlassButton(
-            size: 44,
+            size: 34,
             onTap: () {
               _showSongOptionsSheet(song);
               _cancelAutoHideTimer();
             },
-            icon: const AnimatedCupertinoIcon(
+            icon: AnimatedCupertinoIcon(
               icon: CupertinoIcons.ellipsis,
-              color: Colors.white,
-              size: 20,
+              color: Colors.white.withValues(alpha: 0.85),
+              size: 15,
             ),
           ),
         ],
