@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 /// Apple Music-styled precision scrubber slider.
@@ -80,7 +81,9 @@ class _AppleMusicSliderState extends State<AppleMusicSlider>
 
   @override
   Widget build(BuildContext context) {
-    final double safeMax = widget.max > widget.min ? widget.max : widget.min + 1.0;
+    final double safeMax = widget.max > widget.min
+        ? widget.max
+        : widget.min + 1.0;
     final double safeValue = widget.value.clamp(widget.min, safeMax);
 
     return Column(
@@ -157,9 +160,7 @@ class _AppleMusicSliderState extends State<AppleMusicSlider>
 class AppleSliderTrackShape extends SliderTrackShape with BaseSliderTrackShape {
   final double trackHeight;
 
-  const AppleSliderTrackShape({
-    this.trackHeight = 4.5,
-  });
+  const AppleSliderTrackShape({this.trackHeight = 4.5});
 
   @override
   Rect getPreferredRect({
@@ -170,7 +171,8 @@ class AppleSliderTrackShape extends SliderTrackShape with BaseSliderTrackShape {
     bool isDiscrete = false,
   }) {
     final double trackLeft = offset.dx;
-    final double trackTop = offset.dy + (parentBox.size.height - trackHeight) / 2;
+    final double trackTop =
+        offset.dy + (parentBox.size.height - trackHeight) / 2;
     final double trackWidth = parentBox.size.width;
     return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
   }
@@ -210,7 +212,10 @@ class AppleSliderTrackShape extends SliderTrackShape with BaseSliderTrackShape {
     canvas.drawRRect(inactiveRRect, inactivePaint);
 
     // Active Track (Left/Progress) - fills cleanly from left to right inside the capsule
-    final double activeRight = math.max(trackRect.left, math.min(thumbCenter.dx, trackRect.right));
+    final double activeRight = math.max(
+      trackRect.left,
+      math.min(thumbCenter.dx, trackRect.right),
+    );
     if (activeRight > trackRect.left) {
       final Paint activePaint = Paint()
         ..color = sliderTheme.activeTrackColor ?? Colors.white;
@@ -218,7 +223,12 @@ class AppleSliderTrackShape extends SliderTrackShape with BaseSliderTrackShape {
       canvas.save();
       canvas.clipRRect(inactiveRRect);
       canvas.drawRect(
-        Rect.fromLTRB(trackRect.left, trackRect.top, activeRight, trackRect.bottom),
+        Rect.fromLTRB(
+          trackRect.left,
+          trackRect.top,
+          activeRight,
+          trackRect.bottom,
+        ),
         activePaint,
       );
       canvas.restore();
@@ -259,4 +269,3 @@ class AppleSliderThumbShape extends SliderComponentShape {
     // Knob-free: no knob drawn so the track simply fills smoothly from left to right.
   }
 }
-
