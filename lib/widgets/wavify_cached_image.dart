@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../services/artwork_cache_service.dart';
+import 'app_shimmer.dart';
 
 /// Reusable cached image widget for Wavify.
 ///
@@ -167,15 +168,13 @@ class WavifyCachedImage extends StatelessWidget {
   }
 
   Widget _buildDefaultPlaceholder() {
-    return Container(
-      width: width,
-      height: height,
-      color: AppColors.appleDarkSurfaceHigh,
-      child: Center(
-        child: Icon(
-          Icons.music_note,
-          color: Colors.white24,
-          size: (width != null ? width! * 0.4 : 20).clamp(14.0, 32.0).toDouble(),
+    return AppShimmer(
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: borderRadius,
         ),
       ),
     );

@@ -23,6 +23,7 @@ import '../widgets/sliding_pill_segmented_bar.dart';
 import '../widgets/top_profile_avatar_button.dart';
 import '../widgets/track_options_sheet.dart';
 import '../widgets/wavify_cached_image.dart';
+import '../widgets/app_shimmer.dart';
 
 /// The Apple Music-inspired Search Screen featuring:
 /// - Liquid Glass Search Bar with search icon, text field, clear button, and profile avatar
@@ -290,9 +291,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
 
     // 2. Loading state
     if (searchState.isLoading) {
-      return const Center(
-        child: CupertinoActivityIndicator(radius: 16, color: Colors.white),
-      );
+      return const SearchScreenSkeleton();
     }
 
     // 3. Error state

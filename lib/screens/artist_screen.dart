@@ -28,6 +28,7 @@ import '../widgets/apple_pressable.dart';
 import '../widgets/liquid_glass_bottom_bar.dart';
 import '../widgets/player_controls.dart';
 import '../widgets/track_options_sheet.dart';
+import '../widgets/app_shimmer.dart';
 
 /// Full-Page Artist View matching the Apple Music aesthetic and YouTube Music data:
 /// - Sticky ambient top bar with floating back button, share, and account avatar
@@ -1572,51 +1573,88 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
   }
 
   Widget _buildTopSongsSkeleton() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        children: List.generate(
-          5,
-          (index) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1C1C1E),
-                    borderRadius: BorderRadius.circular(8),
+    return const AppShimmer(
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 20),
+        child: Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  ShimmerBox(width: 48, height: 48),
+                  SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ShimmerBox(width: 140, height: 14),
+                        SizedBox(height: 6),
+                        ShimmerBox(width: 90, height: 10),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 140,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1C1C1E),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        width: 90,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1C1C1E),
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  ShimmerBox(width: 48, height: 48),
+                  SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ShimmerBox(width: 160, height: 14),
+                        SizedBox(height: 6),
+                        ShimmerBox(width: 100, height: 10),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  ShimmerBox(width: 48, height: 48),
+                  SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ShimmerBox(width: 130, height: 14),
+                        SizedBox(height: 6),
+                        ShimmerBox(width: 80, height: 10),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  ShimmerBox(width: 48, height: 48),
+                  SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ShimmerBox(width: 150, height: 14),
+                        SizedBox(height: 6),
+                        ShimmerBox(width: 95, height: 10),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

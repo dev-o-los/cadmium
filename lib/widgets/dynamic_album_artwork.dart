@@ -7,6 +7,7 @@ import '../models/album_item.dart';
 import '../providers/library_provider.dart';
 import '../providers/music_service_provider.dart';
 import 'wavify_cached_image.dart';
+import 'app_shimmer.dart';
 
 /// Dynamically resolves and displays real cover artwork for an album.
 /// If the album already has a valid image, it renders it with Image.network.
@@ -143,19 +144,11 @@ class _DynamicAlbumArtworkState extends ConsumerState<DynamicAlbumArtwork> {
     }
 
     if (_isFetching) {
-      return Container(
-        width: widget.size,
-        height: widget.size,
-        color: AppColors.appleDarkSurfaceHigh,
-        child: const Center(
-          child: SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white24),
-            ),
-          ),
+      return AppShimmer(
+        child: ShimmerBox(
+          width: widget.size,
+          height: widget.size,
+          borderRadius: BorderRadius.circular(10),
         ),
       );
     }

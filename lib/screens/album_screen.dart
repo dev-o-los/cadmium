@@ -22,6 +22,7 @@ import '../widgets/apple_glass_bottom_sheet.dart';
 import '../widgets/liquid_glass_bottom_bar.dart';
 import '../widgets/player_controls.dart';
 import '../widgets/track_options_sheet.dart';
+import '../widgets/app_shimmer.dart';
 
 /// Full-Page Album View matching the user's reference screenshots:
 /// - Edge-to-edge ambient artwork blur and gradient dissolve into OLED black
@@ -941,12 +942,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 // Loading Shimmer or Empty Notice
                 if (_isLoading)
                   const SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 40),
-                      child: Center(
-                        child: CircularProgressIndicator(color: Colors.white),
-                      ),
-                    ),
+                    child: TrackListSkeleton(itemCount: 8, showIndex: true),
                   )
                 else if (_filteredTracks.isEmpty)
                   const SliverToBoxAdapter(

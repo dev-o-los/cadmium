@@ -20,6 +20,7 @@ import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/dynamic_album_artwork.dart';
 import '../widgets/top_profile_avatar_button.dart';
+import '../widgets/app_shimmer.dart';
 import '../widgets/track_options_sheet.dart';
 import '../widgets/wavify_cached_image.dart';
 import '../widgets/wavify_logo.dart';
@@ -60,22 +61,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
       children: [
         // 1. Main Feed Content / Loading / Error
         homeDataAsync.when(
-          loading: () => const Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(color: Colors.white),
-                SizedBox(height: 16),
-                Text(
-                  'Loading music...',
-                  style: TextStyle(
-                    color: AppColors.appleSecondaryText,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          loading: () => const HomeScreenSkeleton(),
           error: (err, stack) => Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
