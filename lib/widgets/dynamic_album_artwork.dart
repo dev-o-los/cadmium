@@ -36,9 +36,13 @@ class _DynamicAlbumArtworkState extends ConsumerState<DynamicAlbumArtwork> {
   @override
   void initState() {
     super.initState();
-    _resolvedUrl = _sanitizeUrl(widget.album.thumbnailUrl);
-    if (_resolvedUrl == null || _resolvedUrl!.isEmpty) {
-      _fetchArtwork();
+    if (widget.album.id == 'LM' || widget.album.id == 'VLLM') {
+      _resolvedUrl = widget.album.thumbnailUrl ?? 'https://www.gstatic.com/youtube/media/ytm/images/pbg/liked-songs-delhi-576.png';
+    } else {
+      _resolvedUrl = _sanitizeUrl(widget.album.thumbnailUrl);
+      if (_resolvedUrl == null || _resolvedUrl!.isEmpty) {
+        _fetchArtwork();
+      }
     }
   }
 
@@ -47,10 +51,14 @@ class _DynamicAlbumArtworkState extends ConsumerState<DynamicAlbumArtwork> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.album.id != widget.album.id ||
         oldWidget.album.thumbnailUrl != widget.album.thumbnailUrl) {
-      _resolvedUrl = _sanitizeUrl(widget.album.thumbnailUrl);
-      _hasAttemptedFetch = false;
-      if (_resolvedUrl == null || _resolvedUrl!.isEmpty) {
-        _fetchArtwork();
+      if (widget.album.id == 'LM' || widget.album.id == 'VLLM') {
+        _resolvedUrl = widget.album.thumbnailUrl ?? 'https://www.gstatic.com/youtube/media/ytm/images/pbg/liked-songs-delhi-576.png';
+      } else {
+        _resolvedUrl = _sanitizeUrl(widget.album.thumbnailUrl);
+        _hasAttemptedFetch = false;
+        if (_resolvedUrl == null || _resolvedUrl!.isEmpty) {
+          _fetchArtwork();
+        }
       }
     }
   }

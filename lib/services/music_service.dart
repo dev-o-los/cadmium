@@ -2847,7 +2847,7 @@ class MusicService {
 
     // Authenticated InnerTube library subscribed artists
     try {
-      final feedIds = ['FEmusic_library_corpus_track_artists', 'FEmusic_library_corpus_artists'];
+      final feedIds = ['FEmusic_library_corpus_track_artists', 'FEmusic_library_corpus_artists', 'FEmusic_library_landing'];
       for (final feedId in feedIds) {
         final data = await postInnerTube('browse', bodyExtras: {'browseId': feedId});
         if (data != null) {
@@ -2855,19 +2855,23 @@ class MusicService {
           for (final item in items) {
             final browseId = traverseString(item, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
             if (browseId != null && browseId.isNotEmpty && !seenIds.contains(browseId)) {
-              seenIds.add(browseId);
-              final name = _extractNodeText(item['title']);
               final subscribers = _extractNodeText(item['subtitle']);
-              final thumb = _extractNodePhoto(item);
-              artists.add(
-                ArtistItem(
-                  id: browseId,
-                  name: name.isNotEmpty ? name : 'Artist',
-                  thumbnailUrl: thumb,
-                  subscribers: subscribers.isNotEmpty ? subscribers : 'Subscribed',
-                  isCustom: false,
-                ),
-              );
+              final subLower = subscribers.toLowerCase();
+              final isArtist = browseId.startsWith('UC') || subLower.contains('artist') || subLower.contains('subscriber');
+              if (isArtist) {
+                seenIds.add(browseId);
+                final name = _extractNodeText(item['title']);
+                final thumb = _extractNodePhoto(item);
+                artists.add(
+                  ArtistItem(
+                    id: browseId,
+                    name: name.isNotEmpty ? name : 'Artist',
+                    thumbnailUrl: thumb,
+                    subscribers: subscribers.isNotEmpty ? subscribers : 'Subscribed',
+                    isCustom: false,
+                  ),
+                );
+              }
             }
           }
         }

@@ -9,6 +9,7 @@ import '../models/playlist_item.dart';
 import '../models/song_item.dart';
 import '../providers/auth_provider.dart';
 import '../providers/favorites_provider.dart';
+import '../providers/home_data_provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/music_service_provider.dart';
 import '../providers/player_provider.dart';
@@ -41,17 +42,22 @@ class LibraryScreen extends ConsumerWidget {
     final recentlyPlayed = ref.watch(
       playerProvider.select((s) => s.recentlyPlayed),
     );
+    final homeData = ref.watch(homeDataProvider).asData?.value;
+    final trendingSongs = homeData?.trendingSongs ?? [];
+    final recentHistory = recentlyPlayed.isNotEmpty
+        ? recentlyPlayed
+        : (homeData?.recents ?? []);
 
-    final playlists = playlistsAsync.value ?? [];
-    final albums = albumsAsync.value ?? [];
-    final artists = artistsAsync.value ?? [];
+    final playlists = playlistsAsync.asData?.value ?? [];
+    final albums = albumsAsync.asData?.value ?? [];
+    final artists = artistsAsync.asData?.value ?? [];
 
     // Liked Music:
     // When logged in: Show ONLY user's YouTube Music account liked tracks merged with local favorites.
     // When logged out: Show local favorites.
     final List<SongItem> allLikedMusic;
     if (isLoggedIn) {
-      final ytLikes = ytLikesAsync.value ?? [];
+      final ytLikes = ytLikesAsync.asData?.value ?? [];
       final Map<String, SongItem> likedMap = {};
       for (final s in ytLikes) {
         likedMap[s.id] = s;
@@ -129,7 +135,7 @@ class LibraryScreen extends ConsumerWidget {
               itemCount: playlists.length + 1,
               separatorBuilder: (context, index) => const SizedBox(width: 14),
               itemBuilder: (context, index) {
-                // When logged in: Show authentic user playlists first (Liked Music, shared), then Save Playlist action
+                // When logged in: Show authentic user playlists first, then Save Playlist action
                 if (isLoggedIn) {
                   if (index < playlists.length) {
                     final playlist = playlists[index];
@@ -173,7 +179,7 @@ class LibraryScreen extends ConsumerWidget {
           ),
         const SizedBox(height: 28),
 
-        // 3. Liked Music Section (Only shown if user has individual liked tracks or logged out)
+        // 3. Liked Music Section (Shown when logged out for local favorites, or if user has standalone liked tracks)
         if (!isLoggedIn || allLikedMusic.isNotEmpty) ...[
           _buildLibrarySectionHeader(
             title: 'Liked Music',
@@ -221,7 +227,7 @@ class LibraryScreen extends ConsumerWidget {
           const SizedBox(height: 28),
         ],
 
-        // 4. Albums Section (Only shown if user has albums or logged out)
+        // 4. Albums Section (Features Liked Music as an album + user's saved albums from YouTube)
         if (!isLoggedIn || albums.isNotEmpty) ...[
           _buildLibrarySectionHeader(title: 'Albums', count: albums.length),
           const SizedBox(height: 12),
@@ -242,10 +248,14 @@ class LibraryScreen extends ConsumerWidget {
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: albums.length + (isLoggedIn ? 0 : 1),
+                itemCount: albums.length + 1,
                 separatorBuilder: (context, index) => const SizedBox(width: 14),
                 itemBuilder: (context, index) {
-                  if (!isLoggedIn && index == 0) {
+                  if (isLoggedIn) {
+                    if (index < albums.length) {
+                      final album = albums[index];
+                      return _buildAlbumSquareCard(context, ref, album, cardWidth);
+                    }
                     return _buildActionSquareCard(
                       cardWidth: cardWidth,
                       icon: CupertinoIcons.search,
@@ -255,7 +265,18 @@ class LibraryScreen extends ConsumerWidget {
                       onTap: () => _showSearchAlbumSheet(context, ref),
                     );
                   }
-                  final album = albums[isLoggedIn ? index : index - 1];
+
+                  if (index == 0) {
+                    return _buildActionSquareCard(
+                      cardWidth: cardWidth,
+                      icon: CupertinoIcons.search,
+                      title: 'Add Album',
+                      subtitle: 'From YouTube',
+                      iconColor: const Color(0xFFFF9500),
+                      onTap: () => _showSearchAlbumSheet(context, ref),
+                    );
+                  }
+                  final album = albums[index - 1];
                   return _buildAlbumSquareCard(context, ref, album, cardWidth);
                 },
               ),
@@ -263,7 +284,7 @@ class LibraryScreen extends ConsumerWidget {
           const SizedBox(height: 28),
         ],
 
-        // 5. Artists Section (Only shown if user has artists or logged out)
+        // 5. Artists Section (Features user's subscribed artists from YouTube)
         if (!isLoggedIn || artists.isNotEmpty) ...[
           _buildLibrarySectionHeader(title: 'Artists', count: artists.length),
           const SizedBox(height: 12),
@@ -284,10 +305,14 @@ class LibraryScreen extends ConsumerWidget {
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: artists.length + (isLoggedIn ? 0 : 1),
+                itemCount: artists.length + 1,
                 separatorBuilder: (context, index) => const SizedBox(width: 14),
                 itemBuilder: (context, index) {
-                  if (!isLoggedIn && index == 0) {
+                  if (isLoggedIn) {
+                    if (index < artists.length) {
+                      final artist = artists[index];
+                      return _buildArtistSquareCard(context, ref, artist, cardWidth);
+                    }
                     return _buildActionSquareCard(
                       cardWidth: cardWidth,
                       icon: CupertinoIcons.person_badge_plus,
@@ -297,7 +322,18 @@ class LibraryScreen extends ConsumerWidget {
                       onTap: () => _showSearchArtistSheet(context, ref),
                     );
                   }
-                  final artist = artists[isLoggedIn ? index : index - 1];
+
+                  if (index == 0) {
+                    return _buildActionSquareCard(
+                      cardWidth: cardWidth,
+                      icon: CupertinoIcons.person_badge_plus,
+                      title: 'Add Artist',
+                      subtitle: 'From YouTube',
+                      iconColor: const Color(0xFF00C7BE),
+                      onTap: () => _showSearchArtistSheet(context, ref),
+                    );
+                  }
+                  final artist = artists[index - 1];
                   return _buildArtistSquareCard(context, ref, artist, cardWidth);
                 },
               ),
@@ -305,11 +341,11 @@ class LibraryScreen extends ConsumerWidget {
           const SizedBox(height: 28),
         ],
 
-        // 6. Recently Played Section
-        if (recentlyPlayed.isNotEmpty) ...[
+        // 6. Recents Section (Just like homepage)
+        if (recentHistory.isNotEmpty) ...[
           _buildLibrarySectionHeader(
-            title: 'Recently Played',
-            count: recentlyPlayed.length,
+            title: 'Recents',
+            count: recentHistory.length,
           ),
           const SizedBox(height: 12),
           SizedBox(
@@ -317,20 +353,50 @@ class LibraryScreen extends ConsumerWidget {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: recentlyPlayed.length,
+              itemCount: recentHistory.length,
               separatorBuilder: (context, index) => const SizedBox(width: 14),
               itemBuilder: (context, index) {
-                final song = recentlyPlayed[index];
+                final song = recentHistory[index];
                 return _buildSongSquareCard(
                   context,
                   ref,
                   song,
                   cardWidth,
-                  recentlyPlayed,
+                  recentHistory,
                 );
               },
             ),
           ),
+          const SizedBox(height: 28),
+        ],
+
+        // 7. Trending in Your Region Section (Just like homepage)
+        if (trendingSongs.isNotEmpty) ...[
+          _buildLibrarySectionHeader(
+            title: 'Trending in Your Region',
+            count: trendingSongs.length,
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: cardHeight,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: trendingSongs.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 14),
+              itemBuilder: (context, index) {
+                final song = trendingSongs[index];
+                return _buildSongSquareCard(
+                  context,
+                  ref,
+                  song,
+                  cardWidth,
+                  trendingSongs,
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 28),
         ],
       ],
     );
