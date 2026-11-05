@@ -359,26 +359,34 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     }
   }
 
+  static const double _focalTopOffset = 24.0;
+
   int _computeActiveIndex(int currentMs) {
+    const leadInMs = 800;
     final idx = LyricsService.computeActiveLyricIndex(
       currentMs,
       _displayLyrics,
-      leadInMs: 450,
+      leadInMs: leadInMs,
     );
     if (idx >= 0) return idx;
 
-    // During momentary pauses between lines, hold the last active lyric line
-    // until the next line enters its pre-scroll lead-in window (450ms before start)
+    // During momentary pauses between lines, advance to upcoming line early
+    // once current line has finished singing so it glides to the top before vocals start
     if (_activeLyricIndex >= 0 && _activeLyricIndex < _displayLyrics.length) {
       final currentLine = _displayLyrics[_activeLyricIndex];
-      final currentStart = math.max(0, (currentLine.startTimeMs ?? 0) - 450);
+      final currentStart = math.max(0, (currentLine.startTimeMs ?? 0) - leadInMs);
       if (currentMs >= currentStart) {
         if (_activeLyricIndex + 1 < _displayLyrics.length) {
-          final nextStart = _displayLyrics[_activeLyricIndex + 1].startTimeMs;
-          final nextLead = nextStart != null
-              ? math.max(0, nextStart - 450)
+          final nextLine = _displayLyrics[_activeLyricIndex + 1];
+          final nextStart = nextLine.startTimeMs;
+          final currentEnd = currentLine.endTimeMs ?? ((currentLine.startTimeMs ?? 0) + 3000);
+          final advanceThreshold = nextStart != null
+              ? math.min(currentEnd + 200, nextStart - 300)
               : null;
-          if (nextLead != null && currentMs < nextLead) {
+          if (advanceThreshold != null && currentMs >= advanceThreshold) {
+            return _activeLyricIndex + 1;
+          }
+          if (nextStart != null && currentMs < math.max(0, nextStart - leadInMs)) {
             return _activeLyricIndex;
           }
         } else {
@@ -417,10 +425,10 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
           renderBox.hasSize &&
           _scrollController.hasClients) {
         final viewport = RenderAbstractViewport.of(renderBox);
-        // Align active line directly at top below album art header (16px from top)
+        // Align active line directly at top below album art header (_focalTopOffset from top)
         final revealOffset = math.max(
           0.0,
-          viewport.getOffsetToReveal(renderBox, 0.0).offset - 16.0,
+          viewport.getOffsetToReveal(renderBox, 0.0).offset - _focalTopOffset,
         );
         final clampedOffset = revealOffset.clamp(
           _scrollController.position.minScrollExtent,
@@ -431,7 +439,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
         } else {
           _scrollController.animateTo(
             clampedOffset,
-            duration: const Duration(milliseconds: 380),
+            duration: const Duration(milliseconds: 420),
             curve: Curves.easeOutCubic,
           );
         }
@@ -441,7 +449,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
         ctx,
         alignment: 0.0,
         alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
-        duration: immediate ? Duration.zero : const Duration(milliseconds: 380),
+        duration: immediate ? Duration.zero : const Duration(milliseconds: 420),
         curve: Curves.easeOutCubic,
       );
     }
@@ -451,8 +459,9 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     } else {
       // If not yet mounted in the current frame, ensure visible immediately after layout pass
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _isUserScrolling || !_scrollController.hasClients)
+        if (!mounted || _isUserScrolling || !_scrollController.hasClients) {
           return;
+        }
         final postContext = _lineKeys[targetIndex]?.currentContext;
         if (postContext != null) {
           performScroll(postContext);
@@ -463,18 +472,28 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
 
   void _handleUserScroll(ScrollNotification notification) {
     if (notification is ScrollStartNotification) {
-      _isUserScrolling = true;
-      _userScrollDebounce?.cancel();
+      // Only set user scrolling if this is an actual user touch drag gesture
+      if (notification.dragDetails != null) {
+        _isUserScrolling = true;
+        _userScrollDebounce?.cancel();
+      }
+    } else if (notification is UserScrollNotification) {
+      if (notification.direction != ScrollDirection.idle) {
+        _isUserScrolling = true;
+        _userScrollDebounce?.cancel();
+      }
     } else if (notification is ScrollEndNotification) {
-      _userScrollDebounce?.cancel();
-      _userScrollDebounce = Timer(const Duration(milliseconds: 3500), () {
-        if (mounted) {
-          setState(() {
-            _isUserScrolling = false;
-          });
-          _scrollToActiveLine();
-        }
-      });
+      if (_isUserScrolling) {
+        _userScrollDebounce?.cancel();
+        _userScrollDebounce = Timer(const Duration(milliseconds: 2500), () {
+          if (mounted) {
+            setState(() {
+              _isUserScrolling = false;
+            });
+            _scrollToActiveLine();
+          }
+        });
+      }
     }
   }
 
@@ -627,7 +646,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
                   Colors.black,
                   Colors.transparent,
                 ],
-                stops: [0.0, 0.04, 0.88, 1.0],
+                stops: [0.0, 0.045, 0.88, 1.0],
               ).createShader(bounds);
             },
             blendMode: BlendMode.dstIn,
@@ -635,8 +654,8 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
               controller: _scrollController,
               physics: const BouncingScrollPhysics(),
               padding: const EdgeInsets.only(
-                top: 16,
-                bottom: 450,
+                top: _focalTopOffset,
+                bottom: 480,
                 left: 24,
                 right: 24,
               ),

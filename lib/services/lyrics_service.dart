@@ -421,25 +421,24 @@ class LyricsService {
   /// Computes the exact active lyric line index for [currentMs] within [lyrics].
   ///
   /// Features:
-  /// - Automatic 500ms pre-scroll lead-in anticipation so that upcoming lines scroll into
+  /// - Automatic 800ms pre-scroll lead-in anticipation so that upcoming lines scroll into
   ///   top position beneath album art BEFORE vocal delivery begins, eliminating perceived lag.
   /// - Priority-based matching for overlapping vocals (duets, backing vocals):
   ///   Lead vocals (!isBackground) are prioritized over background vocals.
   ///   The line that began most recently (highest startTimeMs <= currentMs) takes precedence.
-  /// - Instrumental gap lines (text == '') are matched directly when [currentMs] falls in their range.
   /// - Natural vocal pauses (< 2.5s) keep the preceding lyric active.
   /// - Returns -1 if playback is in an unvoiced intro or break before any line starts.
-  static int computeActiveLyricIndex(int currentMs, List<LyricLine> lyrics, {int leadInMs = 500}) {
+  static int computeActiveLyricIndex(int currentMs, List<LyricLine> lyrics, {int leadInMs = 800}) {
     if (lyrics.isEmpty) return -1;
 
-    // 1. Guard: If before first line starts and first line is not an intro gap
+    // 1. Guard: If before first line starts
     final first = lyrics.first;
     final firstLead = first.text.isEmpty ? 0 : leadInMs;
     if (first.startTimeMs != null && currentMs < math.max(0, first.startTimeMs! - firstLead)) {
       return -1;
     }
 
-    // 2. Direct active range check: line currently being sung
+    // 2. Direct active range check: line currently being sung (or within lead-in window)
     int bestActiveIdx = -1;
     int bestStartMs = -1;
     bool bestIsLead = false;
@@ -488,6 +487,13 @@ class LyricsService {
           : null;
       if (currentMs >= line.startTimeMs! && (nextStart == null || currentMs < nextStart)) {
         final lineEnd = line.endTimeMs ?? (line.startTimeMs! + 3500);
+        // If line has finished singing and next line is approaching, advance early to move upcoming line up first
+        if (nextLine?.startTimeMs != null && currentMs >= (lineEnd + 250)) {
+          final timeToNext = nextLine!.startTimeMs! - currentMs;
+          if (timeToNext <= 2500) {
+            return i + 1;
+          }
+        }
         // If there is an unvoiced break (> 2.5s after lineEnd and > 3.5s to next line), un-highlight
         if (line.text.isNotEmpty && (currentMs - lineEnd) > 2500) {
           if (nextStart != null && (nextStart - lineEnd) > 3500) {
