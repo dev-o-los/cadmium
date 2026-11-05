@@ -129,6 +129,28 @@ class LibraryScreen extends ConsumerWidget {
               itemCount: playlists.length + 1,
               separatorBuilder: (context, index) => const SizedBox(width: 14),
               itemBuilder: (context, index) {
+                // When logged in: Show authentic user playlists first (Liked Music, shared), then Save Playlist action
+                if (isLoggedIn) {
+                  if (index < playlists.length) {
+                    final playlist = playlists[index];
+                    return _buildPlaylistSquareCard(
+                      context,
+                      ref,
+                      playlist,
+                      cardWidth,
+                    );
+                  }
+                  return _buildActionSquareCard(
+                    cardWidth: cardWidth,
+                    icon: CupertinoIcons.plus,
+                    title: 'Save Playlist',
+                    subtitle: 'From YouTube',
+                    iconColor: Colors.white,
+                    onTap: () => _showSavePlaylistSheet(context, ref),
+                  );
+                }
+
+                // When logged out: Action card first, then starter playlists
                 if (index == 0) {
                   return _buildActionSquareCard(
                     cardWidth: cardWidth,
@@ -151,132 +173,137 @@ class LibraryScreen extends ConsumerWidget {
           ),
         const SizedBox(height: 28),
 
-        // 3. Liked Music Section
-        _buildLibrarySectionHeader(
-          title: 'Liked Music',
-          count: allLikedMusic.length,
-        ),
-        const SizedBox(height: 12),
-        if (allLikedMusic.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: _buildEmptySectionBanner(
-              icon: CupertinoIcons.heart,
-              title: isLoggedIn ? 'No Liked Music Found' : 'No Liked Music Yet',
-              subtitle: isLoggedIn
-                  ? 'Tracks you like on YouTube Music or star in Wavify will appear here.'
-                  : 'Star songs locally or sign in with YouTube Music to import your liked tracks.',
-            ),
-          )
-        else
-          SizedBox(
-            height: cardHeight,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
+        // 3. Liked Music Section (Only shown if user has individual liked tracks or logged out)
+        if (!isLoggedIn || allLikedMusic.isNotEmpty) ...[
+          _buildLibrarySectionHeader(
+            title: 'Liked Music',
+            count: allLikedMusic.length,
+          ),
+          const SizedBox(height: 12),
+          if (allLikedMusic.isEmpty)
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: allLikedMusic.length + 1,
-              separatorBuilder: (context, index) => const SizedBox(width: 14),
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return _buildLikedMusicAlbumCard(
+              child: _buildEmptySectionBanner(
+                icon: CupertinoIcons.heart,
+                title: 'No Liked Music Yet',
+                subtitle:
+                    'Star songs locally or sign in with YouTube Music to import your liked tracks.',
+              ),
+            )
+          else
+            SizedBox(
+              height: cardHeight,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: allLikedMusic.length + 1,
+                separatorBuilder: (context, index) => const SizedBox(width: 14),
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return _buildLikedMusicAlbumCard(
+                      context,
+                      ref,
+                      cardWidth,
+                      allLikedMusic,
+                    );
+                  }
+                  final song = allLikedMusic[index - 1];
+                  return _buildSongSquareCard(
                     context,
                     ref,
+                    song,
                     cardWidth,
                     allLikedMusic,
                   );
-                }
-                final song = allLikedMusic[index - 1];
-                return _buildSongSquareCard(
-                  context,
-                  ref,
-                  song,
-                  cardWidth,
-                  allLikedMusic,
-                );
-              },
+                },
+              ),
             ),
-          ),
-        const SizedBox(height: 28),
+          const SizedBox(height: 28),
+        ],
 
-        // 4. Albums Section
-        _buildLibrarySectionHeader(title: 'Albums', count: albums.length),
-        const SizedBox(height: 12),
-        if (albums.isEmpty && isLoggedIn)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: _buildEmptySectionBanner(
-              icon: CupertinoIcons.music_albums,
-              title: 'No Saved Albums Found',
-              subtitle: 'Tap Add Album below to search and save albums to your library.',
-              actionButtonText: 'Add Album',
-              onActionTap: () => _showSearchAlbumSheet(context, ref),
-            ),
-          )
-        else
-          SizedBox(
-            height: cardHeight,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
+        // 4. Albums Section (Only shown if user has albums or logged out)
+        if (!isLoggedIn || albums.isNotEmpty) ...[
+          _buildLibrarySectionHeader(title: 'Albums', count: albums.length),
+          const SizedBox(height: 12),
+          if (albums.isEmpty && !isLoggedIn)
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: albums.length + 1,
-              separatorBuilder: (context, index) => const SizedBox(width: 14),
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return _buildActionSquareCard(
-                    cardWidth: cardWidth,
-                    icon: CupertinoIcons.search,
-                    title: 'Add Album',
-                    subtitle: 'From YouTube',
-                    iconColor: const Color(0xFFFF9500),
-                    onTap: () => _showSearchAlbumSheet(context, ref),
-                  );
-                }
-                final album = albums[index - 1];
-                return _buildAlbumSquareCard(context, ref, album, cardWidth);
-              },
+              child: _buildEmptySectionBanner(
+                icon: CupertinoIcons.music_albums,
+                title: 'No Saved Albums Found',
+                subtitle: 'Tap Add Album below to search and save albums to your library.',
+                actionButtonText: 'Add Album',
+                onActionTap: () => _showSearchAlbumSheet(context, ref),
+              ),
+            )
+          else
+            SizedBox(
+              height: cardHeight,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: albums.length + (isLoggedIn ? 0 : 1),
+                separatorBuilder: (context, index) => const SizedBox(width: 14),
+                itemBuilder: (context, index) {
+                  if (!isLoggedIn && index == 0) {
+                    return _buildActionSquareCard(
+                      cardWidth: cardWidth,
+                      icon: CupertinoIcons.search,
+                      title: 'Add Album',
+                      subtitle: 'From YouTube',
+                      iconColor: const Color(0xFFFF9500),
+                      onTap: () => _showSearchAlbumSheet(context, ref),
+                    );
+                  }
+                  final album = albums[isLoggedIn ? index : index - 1];
+                  return _buildAlbumSquareCard(context, ref, album, cardWidth);
+                },
+              ),
             ),
-          ),
-        const SizedBox(height: 28),
+          const SizedBox(height: 28),
+        ],
 
-        // 5. Artists Section
-        _buildLibrarySectionHeader(title: 'Artists', count: artists.length),
-        const SizedBox(height: 12),
-        if (artists.isEmpty && isLoggedIn)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: _buildEmptySectionBanner(
-              icon: CupertinoIcons.person_2_fill,
-              title: 'No Subscribed Artists Found',
-              subtitle: 'Tap Add Artist below to search and bookmark favorite artists.',
-              actionButtonText: 'Add Artist',
-              onActionTap: () => _showSearchArtistSheet(context, ref),
-            ),
-          )
-        else
-          SizedBox(
-            height: cardHeight,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
+        // 5. Artists Section (Only shown if user has artists or logged out)
+        if (!isLoggedIn || artists.isNotEmpty) ...[
+          _buildLibrarySectionHeader(title: 'Artists', count: artists.length),
+          const SizedBox(height: 12),
+          if (artists.isEmpty && !isLoggedIn)
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: artists.length + 1,
-              separatorBuilder: (context, index) => const SizedBox(width: 14),
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return _buildActionSquareCard(
-                    cardWidth: cardWidth,
-                    icon: CupertinoIcons.person_badge_plus,
-                    title: 'Add Artist',
-                    subtitle: 'From YouTube',
-                    iconColor: const Color(0xFF00C7BE),
-                    onTap: () => _showSearchArtistSheet(context, ref),
-                  );
-                }
-                final artist = artists[index - 1];
-                return _buildArtistSquareCard(context, ref, artist, cardWidth);
-              },
+              child: _buildEmptySectionBanner(
+                icon: CupertinoIcons.person_2_fill,
+                title: 'No Subscribed Artists Found',
+                subtitle: 'Tap Add Artist below to search and bookmark favorite artists.',
+                actionButtonText: 'Add Artist',
+                onActionTap: () => _showSearchArtistSheet(context, ref),
+              ),
+            )
+          else
+            SizedBox(
+              height: cardHeight,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: artists.length + (isLoggedIn ? 0 : 1),
+                separatorBuilder: (context, index) => const SizedBox(width: 14),
+                itemBuilder: (context, index) {
+                  if (!isLoggedIn && index == 0) {
+                    return _buildActionSquareCard(
+                      cardWidth: cardWidth,
+                      icon: CupertinoIcons.person_badge_plus,
+                      title: 'Add Artist',
+                      subtitle: 'From YouTube',
+                      iconColor: const Color(0xFF00C7BE),
+                      onTap: () => _showSearchArtistSheet(context, ref),
+                    );
+                  }
+                  final artist = artists[isLoggedIn ? index : index - 1];
+                  return _buildArtistSquareCard(context, ref, artist, cardWidth);
+                },
+              ),
             ),
-          ),
-        const SizedBox(height: 28),
+          const SizedBox(height: 28),
+        ],
 
         // 6. Recently Played Section
         if (recentlyPlayed.isNotEmpty) ...[

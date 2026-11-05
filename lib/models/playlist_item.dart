@@ -16,10 +16,10 @@ class PlaylistItem {
   });
 
   String get subtitle {
-    if (trackCount != null && trackCount! > 0) {
+    if (trackCount != null) {
       return '$trackCount songs • $author';
     }
-    return 'Playlist • $author';
+    return author.isNotEmpty ? author : 'Playlist';
   }
 
   Map<String, dynamic> toJson() => {

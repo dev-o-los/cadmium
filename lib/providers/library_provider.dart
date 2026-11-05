@@ -406,20 +406,37 @@ final userPlaylistsProvider = FutureProvider<List<PlaylistItem>>((ref) async {
   final seen = <String>{};
   final result = <PlaylistItem>[];
 
-  // Feature user's Liked Music playlist prominently
+  // Feature user's authentic Liked Music playlist prominently
+  PlaylistItem? ytLikedItem;
+  for (final p in ytPlaylists) {
+    if (p.id == 'LM' || p.id == 'VLLM' || p.title.toLowerCase() == 'liked music') {
+      ytLikedItem = p;
+      break;
+    }
+  }
+
+  const defaultLikedThumb = 'https://www.gstatic.com/youtube/media/ytm/images/pbg/liked-songs-delhi-576.png';
+  final likedThumb = (ytLikes.isNotEmpty && ytLikes.first.thumbnailUrl != null)
+      ? ytLikes.first.thumbnailUrl
+      : (ytLikedItem?.thumbnailUrl ?? defaultLikedThumb);
+
   seen.add('LM');
+  seen.add('VLLM');
   result.add(
     PlaylistItem(
       id: 'LM',
       title: 'Liked Music',
       author: 'YouTube Music',
-      thumbnailUrl: ytLikes.isNotEmpty ? ytLikes.first.thumbnailUrl : null,
-      trackCount: ytLikes.length,
+      thumbnailUrl: likedThumb,
+      trackCount: ytLikes.isNotEmpty ? ytLikes.length : (ytLikedItem?.trackCount ?? 0),
       isCustom: false,
     ),
   );
 
   for (final p in [...customUserPlaylists, ...ytPlaylists]) {
+    if (p.id == 'LM' || p.id == 'VLLM' || p.title.toLowerCase() == 'liked music') {
+      continue;
+    }
     if (!seen.contains(p.id)) {
       seen.add(p.id);
       result.add(p);
@@ -431,8 +448,7 @@ final userPlaylistsProvider = FutureProvider<List<PlaylistItem>>((ref) async {
 
 /// Resolves albums for the Library tab:
 /// - Logged out: Local saved & starter albums.
-/// - Logged in: ONLY the user's own YouTube Music account albums, custom saved albums,
-///   and their full collection of Liked Music presented as an album.
+/// - Logged in: ONLY the user's own YouTube Music account albums and custom saved albums.
 final userAlbumsProvider = FutureProvider<List<AlbumItem>>((ref) async {
   final account = ref.watch(authProvider);
   final localSaved = ref.watch(savedAlbumsProvider);
@@ -444,27 +460,12 @@ final userAlbumsProvider = FutureProvider<List<AlbumItem>>((ref) async {
   final musicService = ref.watch(musicServiceProvider);
   final ytAlbums = await musicService.getUserAlbums();
   final customUserAlbums = localSaved.where((a) => a.isCustom).toList();
-  final ytLikes = ref.watch(youtubeLikedSongsProvider).value ?? [];
 
-  final seen = <String>{'LM'};
+  final seen = <String>{'LM', 'VLLM'};
   final result = <AlbumItem>[];
 
-  // Feature the full album of Liked Music prominently as requested
-  result.add(
-    AlbumItem(
-      id: 'LM',
-      title: 'Liked Music',
-      artist: 'YouTube Music',
-      thumbnailUrl: ytLikes.isNotEmpty ? ytLikes.first.thumbnailUrl : null,
-      type: 'Auto Playlist',
-      year: DateTime.now().year,
-      trackCount: ytLikes.isNotEmpty ? ytLikes.length : null,
-      isCustom: false,
-    ),
-  );
-
   for (final a in [...customUserAlbums, ...ytAlbums]) {
-    if (!seen.contains(a.id)) {
+    if (a.id != 'LM' && a.id != 'VLLM' && !seen.contains(a.id)) {
       seen.add(a.id);
       result.add(a);
     }

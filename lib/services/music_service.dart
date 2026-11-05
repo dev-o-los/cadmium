@@ -314,7 +314,10 @@ class MusicService {
 
   /// Extracts the highest resolution photo from an account renderer
   static String? _extractNodePhoto(Map<String, dynamic> item) {
-    final photoObj = item['accountPhoto'] ?? item['thumbnail'];
+    var photoObj = item['accountPhoto'] ?? item['thumbnail'];
+    if (photoObj == null && item['thumbnailRenderer'] is Map) {
+      photoObj = item['thumbnailRenderer']?['musicThumbnailRenderer']?['thumbnail'];
+    }
     if (photoObj is Map) {
       final thumbnails = photoObj['thumbnails'];
       if (thumbnails is List && thumbnails.isNotEmpty) {
@@ -1860,11 +1863,35 @@ class MusicService {
   /// Retrieves track listing for a YouTube playlist.
   Future<List<SongItem>> getPlaylistTracks(String playlistId, {String? queryFallback}) async {
     final cleanId = extractPlaylistId(playlistId);
+    if (cleanId == 'LM' || cleanId == 'liked_music' || cleanId == 'VLLM') {
+      return getLikedSongs();
+    }
+
     if (!_isInitialized) {
       await initialize();
     }
 
     if (cleanId.isNotEmpty) {
+      // 1. Try InnerTube browse for personal/shared/special playlists
+      if (_currentAccount != null) {
+        try {
+          final browseId = cleanId.startsWith('VL') ? cleanId : (cleanId.startsWith('PL') ? 'VL$cleanId' : cleanId);
+          final data = await postInnerTube('browse', bodyExtras: {'browseId': browseId});
+          if (data != null) {
+            final renderers = _collectRenderers(data, 'musicResponsiveListItemRenderer');
+            final parsed = <SongItem>[];
+            for (final r in renderers) {
+              final song = parseSongFromRenderer(r);
+              if (song != null) parsed.add(song);
+            }
+            if (parsed.isNotEmpty) return parsed;
+          }
+        } catch (e) {
+          debugPrint('getPlaylistTracks InnerTube browse error for $cleanId: $e');
+        }
+      }
+
+      // 2. Try _ytMusic.getPlaylistVideos
       try {
         final videos = await _ytMusic.getPlaylistVideos(cleanId);
         if (videos.isNotEmpty) {
@@ -2673,13 +2700,18 @@ class MusicService {
       // Grid items (Two Row)
       final twoRowItems = _collectRenderers(data, 'musicTwoRowItemRenderer');
       for (final item in twoRowItems) {
+        final title = _extractNodeText(item['title']).trim();
+        if (title.toLowerCase() == 'new playlist') continue;
+
         final browseId = traverseString(item, ['navigationEndpoint', 'browseEndpoint', 'browseId']) ??
             traverseString(item, ['navigationEndpoint', 'watchPlaylistEndpoint', 'playlistId']);
-        if (browseId != null && browseId.isNotEmpty && !seenIds.contains(browseId)) {
+        if (browseId != null && browseId.isNotEmpty && !browseId.startsWith('UC') && !seenIds.contains(browseId)) {
           seenIds.add(browseId);
-          final title = _extractNodeText(item['title']);
           final author = _extractNodeText(item['subtitle']);
-          final thumb = _extractNodePhoto(item);
+          String? thumb = _extractNodePhoto(item);
+          if (browseId == 'VLLM' || browseId == 'LM' || title.toLowerCase() == 'liked music') {
+            thumb ??= 'https://www.gstatic.com/youtube/media/ytm/images/pbg/liked-songs-delhi-576.png';
+          }
           playlists.add(
             PlaylistItem(
               id: browseId,
@@ -2695,22 +2727,27 @@ class MusicService {
       // Responsive list items
       final listItems = _collectRenderers(data, 'musicResponsiveListItemRenderer');
       for (final item in listItems) {
+        final flexCols = item['flexColumns'] as List? ?? [];
+        String title = 'Playlist';
+        String author = 'YouTube Music';
+        if (flexCols.isNotEmpty) {
+          final t = _extractNodeText(flexCols[0]).trim();
+          if (t.isNotEmpty) title = t;
+        }
+        if (title.toLowerCase() == 'new playlist') continue;
+
         final browseId = traverseString(item, ['navigationEndpoint', 'browseEndpoint', 'browseId']) ??
             traverseString(item, ['navigationEndpoint', 'watchPlaylistEndpoint', 'playlistId']);
-        if (browseId != null && browseId.isNotEmpty && !seenIds.contains(browseId)) {
+        if (browseId != null && browseId.isNotEmpty && !browseId.startsWith('UC') && !seenIds.contains(browseId)) {
           seenIds.add(browseId);
-          final flexCols = item['flexColumns'] as List? ?? [];
-          String title = 'Playlist';
-          String author = 'YouTube Music';
-          if (flexCols.isNotEmpty) {
-            final t = _extractNodeText(flexCols[0]).trim();
-            if (t.isNotEmpty) title = t;
-          }
           if (flexCols.length > 1) {
             final a = _extractNodeText(flexCols[1]).trim();
             if (a.isNotEmpty) author = a;
           }
-          final thumb = _extractNodePhoto(item);
+          String? thumb = _extractNodePhoto(item);
+          if (browseId == 'VLLM' || browseId == 'LM' || title.toLowerCase() == 'liked music') {
+            thumb ??= 'https://www.gstatic.com/youtube/media/ytm/images/pbg/liked-songs-delhi-576.png';
+          }
           playlists.add(
             PlaylistItem(
               id: browseId,
@@ -2724,7 +2761,7 @@ class MusicService {
       }
     }
 
-    // 1. Authenticated InnerTube liked playlists & library corpus
+    // 1. Authenticated InnerTube liked & saved playlists
     try {
       final likedData = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_liked_playlists'});
       extractPlaylistsFromData(likedData);
@@ -2742,44 +2779,12 @@ class MusicService {
       debugPrint('getUserPlaylists liked playlists error: $e');
     }
 
-    // 2. Authenticated InnerTube library corpus playlists
+    // 2. Authenticated InnerTube library landing items (shared/saved playlists)
     try {
-      final libData = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_library_corpus_playlists'});
-      extractPlaylistsFromData(libData);
+      final landingData = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_library_landing'});
+      extractPlaylistsFromData(landingData);
     } catch (e) {
-      debugPrint('getUserPlaylists corpus playlists error: $e');
-    }
-
-    // 2. Merge home sections playlists
-    try {
-      final sections = await _ytMusic.getHomeSections();
-      for (final section in sections) {
-        for (final item in section.contents) {
-          if (item is PlaylistDetailed && item.playlistId.isNotEmpty) {
-            if (!seenIds.contains(item.playlistId)) {
-              seenIds.add(item.playlistId);
-              String? thumb;
-              if (item.thumbnails.isNotEmpty) {
-                final raw = item.thumbnails.last.url;
-                thumb = SongItem.upgradeThumbnail(raw.startsWith('//') ? 'https:$raw' : raw);
-              }
-              playlists.add(
-                PlaylistItem(
-                  id: item.playlistId,
-                  title: item.name.isNotEmpty ? item.name : 'Playlist',
-                  author: item.artist.name.isNotEmpty
-                      ? item.artist.name
-                      : 'YouTube Music',
-                  thumbnailUrl: thumb,
-                  isCustom: false,
-                ),
-              );
-            }
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('getUserPlaylists fallback error: $e');
+      debugPrint('getUserPlaylists landing error: $e');
     }
 
     return playlists;
@@ -2795,7 +2800,7 @@ class MusicService {
     final albums = <AlbumItem>[];
     final seenIds = <String>{};
 
-    // 1. Authenticated InnerTube library saved & liked albums
+    // Authenticated InnerTube library saved & liked albums
     try {
       final feedIds = ['FEmusic_liked_albums', 'FEmusic_library_corpus_albums'];
       for (final feedId in feedIds) {
@@ -2827,40 +2832,6 @@ class MusicService {
       debugPrint('getUserAlbums InnerTube error: $e');
     }
 
-    // 2. Merge home sections albums
-    try {
-      final sections = await _ytMusic.getHomeSections();
-      for (final section in sections) {
-        for (final item in section.contents) {
-          if (item is AlbumDetailed && item.albumId.isNotEmpty) {
-            if (!seenIds.contains(item.albumId)) {
-              seenIds.add(item.albumId);
-              String? thumb;
-              if (item.thumbnails.isNotEmpty) {
-                final raw = item.thumbnails.last.url;
-                thumb = SongItem.upgradeThumbnail(raw.startsWith('//') ? 'https:$raw' : raw);
-              }
-              albums.add(
-                AlbumItem(
-                  id: item.albumId,
-                  title: item.name.isNotEmpty ? item.name : 'Album',
-                  artist: item.artist.name.isNotEmpty
-                      ? item.artist.name
-                      : 'Unknown Artist',
-                  thumbnailUrl: thumb,
-                  type: item.type.isNotEmpty ? item.type : 'Album',
-                  year: item.year,
-                  isCustom: false,
-                ),
-              );
-            }
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('getUserAlbums fallback error: $e');
-    }
-
     return albums;
   }
 
@@ -2874,7 +2845,7 @@ class MusicService {
     final artists = <ArtistItem>[];
     final seenIds = <String>{};
 
-    // 1. Authenticated InnerTube library subscribed artists
+    // Authenticated InnerTube library subscribed artists
     try {
       final feedIds = ['FEmusic_library_corpus_track_artists', 'FEmusic_library_corpus_artists'];
       for (final feedId in feedIds) {
@@ -2903,36 +2874,6 @@ class MusicService {
       }
     } catch (e) {
       debugPrint('getUserArtists InnerTube error: $e');
-    }
-
-    // 2. Merge home sections artists
-    try {
-      final sections = await _ytMusic.getHomeSections();
-      for (final section in sections) {
-        for (final item in section.contents) {
-          if (item is ArtistDetailed && item.artistId.isNotEmpty) {
-            if (!seenIds.contains(item.artistId)) {
-              seenIds.add(item.artistId);
-              String? thumb;
-              if (item.thumbnails.isNotEmpty) {
-                final raw = item.thumbnails.last.url;
-                thumb = SongItem.upgradeThumbnail(raw.startsWith('//') ? 'https:$raw' : raw);
-              }
-              artists.add(
-                ArtistItem(
-                  id: item.artistId,
-                  name: item.name.isNotEmpty ? item.name : 'Artist',
-                  thumbnailUrl: thumb,
-                  subscribers: 'Artist',
-                  isCustom: false,
-                ),
-              );
-            }
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('getUserArtists fallback error: $e');
     }
 
     return artists;
