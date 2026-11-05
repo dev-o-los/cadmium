@@ -402,24 +402,22 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
       final renderBox = ctx.findRenderObject() as RenderBox?;
       if (renderBox != null && renderBox.hasSize && _scrollController.hasClients) {
         final viewport = RenderAbstractViewport.of(renderBox);
-        if (viewport != null) {
-          // Align target line comfortably below album art header (focal position)
-          final revealOffset = viewport.getOffsetToReveal(renderBox, 0.05).offset;
-          final clampedOffset = revealOffset.clamp(
-            _scrollController.position.minScrollExtent,
-            _scrollController.position.maxScrollExtent,
+        // Align target line comfortably below album art header (focal position)
+        final revealOffset = viewport.getOffsetToReveal(renderBox, 0.05).offset;
+        final clampedOffset = revealOffset.clamp(
+          _scrollController.position.minScrollExtent,
+          _scrollController.position.maxScrollExtent,
+        );
+        if (immediate) {
+          _scrollController.jumpTo(clampedOffset);
+        } else {
+          _scrollController.animateTo(
+            clampedOffset,
+            duration: const Duration(milliseconds: 450),
+            curve: Curves.easeOutCubic,
           );
-          if (immediate) {
-            _scrollController.jumpTo(clampedOffset);
-          } else {
-            _scrollController.animateTo(
-              clampedOffset,
-              duration: const Duration(milliseconds: 450),
-              curve: Curves.easeOutCubic,
-            );
-          }
-          return;
         }
+        return;
       }
       Scrollable.ensureVisible(
         ctx,

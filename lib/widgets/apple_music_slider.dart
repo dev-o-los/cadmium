@@ -46,7 +46,6 @@ class _AppleMusicSliderState extends State<AppleMusicSlider>
     with SingleTickerProviderStateMixin {
   late AnimationController _animController;
   late Animation<double> _trackHeightAnimation;
-  bool _isDragging = false;
 
   @override
   void initState() {
@@ -68,13 +67,11 @@ class _AppleMusicSliderState extends State<AppleMusicSlider>
   }
 
   void _handleDragStart(double val) {
-    setState(() => _isDragging = true);
     _animController.forward();
     widget.onChangeStart?.call(val);
   }
 
   void _handleDragEnd(double val) {
-    setState(() => _isDragging = false);
     _animController.reverse();
     widget.onChangeEnd?.call(val);
   }
