@@ -112,8 +112,8 @@ class HomeScreenSkeleton extends StatelessWidget {
                 physics: const NeverScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: 3,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (_, __) => Container(
+                separatorBuilder: (context, index) => const SizedBox(width: 12),
+                itemBuilder: (context, index) => Container(
                   width: heroCardWidth,
                   height: 305,
                   decoration: BoxDecoration(
@@ -175,8 +175,8 @@ class HomeScreenSkeleton extends StatelessWidget {
                 physics: const NeverScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: 4,
-                separatorBuilder: (_, __) => const SizedBox(width: 14),
-                itemBuilder: (_, __) => const Column(
+                separatorBuilder: (context, index) => const SizedBox(width: 14),
+                itemBuilder: (context, index) => const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     ShimmerBox(width: 145, height: 145),
@@ -211,8 +211,8 @@ class SearchScreenSkeleton extends StatelessWidget {
         physics: const NeverScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         itemCount: itemCount,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (_, __) => const Row(
+        separatorBuilder: (context, index) => const SizedBox(height: 12),
+        itemBuilder: (context, index) => const Row(
           children: [
             ShimmerBox(width: 52, height: 52),
             SizedBox(width: 14),

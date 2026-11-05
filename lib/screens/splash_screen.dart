@@ -125,7 +125,7 @@ class _SplashScreenState extends State<SplashScreen>
                   height: 90,
                   fit: BoxFit.contain,
                   filterQuality: FilterQuality.high,
-                  errorBuilder: (_, __, ___) => Image.asset(
+                  errorBuilder: (context, error, stackTrace) => Image.asset(
                     'assets/images/app_logo.png',
                     width: 110,
                     height: 90,
