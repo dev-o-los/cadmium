@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
+
 import '../models/lyric_line.dart';
 import '../services/lyric_clock.dart';
 import '../services/lyrics_service.dart';
@@ -20,7 +22,12 @@ class _FractionalWidthClipper extends CustomClipper<Rect> {
 
   @override
   Rect getClip(Size size) {
-    return Rect.fromLTWH(0, 0, size.width * fraction.clamp(0.0, 1.0), size.height);
+    return Rect.fromLTWH(
+      0,
+      0,
+      size.width * fraction.clamp(0.0, 1.0),
+      size.height,
+    );
   }
 
   @override
@@ -77,12 +84,15 @@ class AppleInstrumentalDots extends StatelessWidget {
                 } else if (currentMs <= dotStart) {
                   progress = 0.0;
                 } else {
-                  progress = ((currentMs - dotStart) / dotDuration).clamp(0.0, 1.0);
+                  progress = ((currentMs - dotStart) / dotDuration).clamp(
+                    0.0,
+                    1.0,
+                  );
                 }
 
                 // Smooth gradual illumination matching binimum/am-lyrics
                 final double opacity = 0.25 + (progress * 0.75); // 0.25 -> 1.0
-                final double scale = 1.0 + (progress * 0.28);    // 1.0 -> 1.28
+                final double scale = 1.0 + (progress * 0.28); // 1.0 -> 1.28
                 final bool isGlowing = progress > 0.35;
 
                 return Padding(
@@ -98,7 +108,9 @@ class AppleInstrumentalDots extends StatelessWidget {
                         boxShadow: isGlowing
                             ? [
                                 BoxShadow(
-                                  color: Colors.white.withValues(alpha: (progress * 0.55).clamp(0.0, 1.0)),
+                                  color: Colors.white.withValues(
+                                    alpha: (progress * 0.55).clamp(0.0, 1.0),
+                                  ),
                                   blurRadius: 8.0 * progress,
                                   spreadRadius: 1.0 * progress,
                                 ),
@@ -169,7 +181,8 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
   Ticker? _ticker;
   int _discontinuity = 0;
   int _lastReportedMs = 0;
-  double _lastPositionReceivedAtMs = double.nan; // wall-clock ms when currentPositionMs last changed
+  double _lastPositionReceivedAtMs =
+      double.nan; // wall-clock ms when currentPositionMs last changed
   int _activeLyricIndex = -1;
 
   GlobalKey _getKeyForIndex(int index) {
@@ -208,7 +221,8 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     _clock = LyricClock(widget.currentPositionMs.toDouble());
     _smoothPositionNotifier = ValueNotifier<int>(widget.currentPositionMs);
     _lastReportedMs = widget.currentPositionMs;
-    _lastPositionReceivedAtMs = DateTime.now().millisecondsSinceEpoch.toDouble();
+    _lastPositionReceivedAtMs = DateTime.now().millisecondsSinceEpoch
+        .toDouble();
     _activeLyricIndex = widget.activeLyricIndex >= 0
         ? widget.activeLyricIndex
         : _computeActiveIndex(widget.currentPositionMs);
@@ -224,12 +238,14 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
       final nowMs = DateTime.now().millisecondsSinceEpoch.toDouble();
       // Pass the actual wall-clock time when the position reading was sampled so
       // LyricClock can correctly compensate for polling + network delivery delay.
-      final displayed = _clock.frame(
-        nowMs,
-        widget.currentPositionMs.toDouble(),
-        _lastPositionReceivedAtMs,
-        _discontinuity,
-      ).round();
+      final displayed = _clock
+          .frame(
+            nowMs,
+            widget.currentPositionMs.toDouble(),
+            _lastPositionReceivedAtMs,
+            _discontinuity,
+          )
+          .round();
 
       if (_smoothPositionNotifier.value != displayed) {
         _smoothPositionNotifier.value = displayed;
@@ -264,7 +280,8 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     super.didUpdateWidget(oldWidget);
 
     if (widget.currentPositionMs != oldWidget.currentPositionMs) {
-      _lastPositionReceivedAtMs = DateTime.now().millisecondsSinceEpoch.toDouble();
+      _lastPositionReceivedAtMs = DateTime.now().millisecondsSinceEpoch
+          .toDouble();
     }
 
     if (widget.isPlaying != oldWidget.isPlaying) {
@@ -282,7 +299,8 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     }
 
     final bool lyricsChanged = !listEquals(widget.lyrics, oldWidget.lyrics);
-    final bool providerChanged = widget.selectedProvider != oldWidget.selectedProvider;
+    final bool providerChanged =
+        widget.selectedProvider != oldWidget.selectedProvider;
 
     if (lyricsChanged || providerChanged) {
       _lineKeys.clear();
@@ -303,7 +321,8 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     }
 
     // Immediately sync if activeLyricIndex from player provider changed
-    if (widget.activeLyricIndex != oldWidget.activeLyricIndex && widget.activeLyricIndex >= 0) {
+    if (widget.activeLyricIndex != oldWidget.activeLyricIndex &&
+        widget.activeLyricIndex >= 0) {
       if (widget.activeLyricIndex != _activeLyricIndex) {
         setState(() {
           _activeLyricIndex = widget.activeLyricIndex;
@@ -316,7 +335,8 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
 
     // Detect announced seek, slider scrub, or large jump
     final diff = (widget.currentPositionMs - _lastReportedMs).abs();
-    final bool positionJumped = diff > 1500 || widget.currentPositionMs < (_lastReportedMs - 400);
+    final bool positionJumped =
+        diff > 1500 || widget.currentPositionMs < (_lastReportedMs - 400);
 
     if (positionJumped) {
       _discontinuity++;
@@ -340,7 +360,11 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
   }
 
   int _computeActiveIndex(int currentMs) {
-    final idx = LyricsService.computeActiveLyricIndex(currentMs, _displayLyrics, leadInMs: 450);
+    final idx = LyricsService.computeActiveLyricIndex(
+      currentMs,
+      _displayLyrics,
+      leadInMs: 450,
+    );
     if (idx >= 0) return idx;
 
     // During momentary pauses between lines, hold the last active lyric line
@@ -351,7 +375,9 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
       if (currentMs >= currentStart) {
         if (_activeLyricIndex + 1 < _displayLyrics.length) {
           final nextStart = _displayLyrics[_activeLyricIndex + 1].startTimeMs;
-          final nextLead = nextStart != null ? math.max(0, nextStart - 450) : null;
+          final nextLead = nextStart != null
+              ? math.max(0, nextStart - 450)
+              : null;
           if (nextLead != null && currentMs < nextLead) {
             return _activeLyricIndex;
           }
@@ -373,7 +399,10 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
 
     int targetIndex = _activeLyricIndex;
     if (targetIndex < 0 || targetIndex >= lines.length) {
-      targetIndex = LyricsService.findClosestLineIndex(_smoothPositionNotifier.value, lines);
+      targetIndex = LyricsService.findClosestLineIndex(
+        _smoothPositionNotifier.value,
+        lines,
+      );
     }
     if (targetIndex < 0 || targetIndex >= lines.length) {
       targetIndex = 0;
@@ -384,10 +413,15 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
 
     void performScroll(BuildContext ctx) {
       final renderBox = ctx.findRenderObject() as RenderBox?;
-      if (renderBox != null && renderBox.hasSize && _scrollController.hasClients) {
+      if (renderBox != null &&
+          renderBox.hasSize &&
+          _scrollController.hasClients) {
         final viewport = RenderAbstractViewport.of(renderBox);
         // Align active line directly at top below album art header (16px from top)
-        final revealOffset = math.max(0.0, viewport.getOffsetToReveal(renderBox, 0.0).offset - 16.0);
+        final revealOffset = math.max(
+          0.0,
+          viewport.getOffsetToReveal(renderBox, 0.0).offset - 16.0,
+        );
         final clampedOffset = revealOffset.clamp(
           _scrollController.position.minScrollExtent,
           _scrollController.position.maxScrollExtent,
@@ -417,7 +451,8 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     } else {
       // If not yet mounted in the current frame, ensure visible immediately after layout pass
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _isUserScrolling || !_scrollController.hasClients) return;
+        if (!mounted || _isUserScrolling || !_scrollController.hasClients)
+          return;
         final postContext = _lineKeys[targetIndex]?.currentContext;
         if (postContext != null) {
           performScroll(postContext);
@@ -531,7 +566,10 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
                 onTap: () => widget.onProviderChanged?.call(otherProvider),
                 pressedScale: 0.96,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.16),
                     borderRadius: BorderRadius.circular(20),
@@ -596,7 +634,12 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
             child: SingleChildScrollView(
               controller: _scrollController,
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.only(top: 16, bottom: 450, left: 24, right: 24),
+              padding: const EdgeInsets.only(
+                top: 16,
+                bottom: 450,
+                left: 24,
+                right: 24,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -620,7 +663,9 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     // Active line is razor-sharp (blur = 0, scale = 1.0, opacity = 1.0).
     // Surrounding lines have progressive depth of field blur and subtle scale/opacity drops.
     // When the user is manually scrolling, depth blur is cleared for instant readability.
-    final int distance = (_activeLyricIndex >= 0) ? (index - _activeLyricIndex).abs() : 0;
+    final int distance = (_activeLyricIndex >= 0)
+        ? (index - _activeLyricIndex).abs()
+        : 0;
     final double targetScale;
     final double targetOpacity;
     final double targetBlur;
@@ -662,9 +707,13 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     }
 
     // Alignment: opposing duet singer aligns right, lead singer aligns left
-    final alignment = line.isOppositeTurn ? Alignment.centerRight : Alignment.centerLeft;
+    final alignment = line.isOppositeTurn
+        ? Alignment.centerRight
+        : Alignment.centerLeft;
     final textAlign = line.isOppositeTurn ? TextAlign.right : TextAlign.left;
-    final wrapAlignment = line.isOppositeTurn ? WrapAlignment.end : WrapAlignment.start;
+    final wrapAlignment = line.isOppositeTurn
+        ? WrapAlignment.end
+        : WrapAlignment.start;
 
     return ApplePressable(
       key: _getKeyForIndex(index),
@@ -683,7 +732,10 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
           builder: (context, blurVal, child) {
             if (blurVal < 0.1) return child!;
             return ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(sigmaX: blurVal, sigmaY: blurVal),
+              imageFilter: ui.ImageFilter.blur(
+                sigmaX: blurVal,
+                sigmaY: blurVal,
+              ),
               child: child,
             );
           },
@@ -691,30 +743,32 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
             scale: targetScale,
             duration: const Duration(milliseconds: 400),
             curve: Curves.easeOutCubic,
-            alignment: line.isOppositeTurn ? Alignment.centerRight : Alignment.centerLeft,
+            alignment: line.isOppositeTurn
+                ? Alignment.centerRight
+                : Alignment.centerLeft,
             child: AnimatedOpacity(
               opacity: targetOpacity,
               duration: const Duration(milliseconds: 400),
               curve: Curves.easeOutCubic,
               child: line.isWordSynced && line.syllables.isNotEmpty
                   ? (isActive
-                      ? ValueListenableBuilder<int>(
-                          valueListenable: _smoothPositionNotifier,
-                          builder: (context, smoothMs, child) {
-                            return _buildWordSyncedLine(
-                              line,
-                              true,
-                              smoothMs,
-                              wrapAlignment,
-                            );
-                          },
-                        )
-                      : _buildWordSyncedLine(
-                          line,
-                          false,
-                          _smoothPositionNotifier.value,
-                          wrapAlignment,
-                        ))
+                        ? ValueListenableBuilder<int>(
+                            valueListenable: _smoothPositionNotifier,
+                            builder: (context, smoothMs, child) {
+                              return _buildWordSyncedLine(
+                                line,
+                                true,
+                                smoothMs,
+                                wrapAlignment,
+                              );
+                            },
+                          )
+                        : _buildWordSyncedLine(
+                            line,
+                            false,
+                            _smoothPositionNotifier.value,
+                            wrapAlignment,
+                          ))
                   : _buildStaticOrLineSyncedText(line, isActive, textAlign),
             ),
           ),
@@ -873,7 +927,8 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
   }
 
   Widget _buildAttributionFooter() {
-    final source = widget.lyricsSource ?? widget.selectedProvider.attributionName;
+    final source =
+        widget.lyricsSource ?? widget.selectedProvider.attributionName;
     final songwriters = widget.lyricsSongwriters;
     final otherProvider = widget.selectedProvider == LyricsProviderType.lrcRed
         ? LyricsProviderType.youTube
@@ -913,7 +968,10 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
               ApplePressable(
                 onTap: () => widget.onProviderChanged?.call(otherProvider),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
                     color: Colors.white.withValues(alpha: 0.1),
