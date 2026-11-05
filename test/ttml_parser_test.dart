@@ -24,12 +24,8 @@ void main() {
       final result = LyricsService.parseTtml(appleTtml);
       expect(result.lines.length, greaterThanOrEqualTo(2));
 
-      // First item is an instrumental intro gap
-      expect(result.lines.first.text, '');
-      expect(result.lines.first.startTimeMs, 0);
-
-      // First vocal line
-      final firstLine = result.lines.firstWhere((l) => l.text.isNotEmpty);
+      // First line is right at the top ready for vocal delivery
+      final firstLine = result.lines.first;
       expect(firstLine.text, contains('I been enough'));
       expect(firstLine.isWordSynced, isTrue);
       expect(firstLine.syllables.isNotEmpty, isTrue);

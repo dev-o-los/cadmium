@@ -198,8 +198,8 @@ void main() {
       final ytState = container.read(playerProvider);
       expect(ytState.selectedLyricsProvider, equals(LyricsProviderType.youTube));
       expect(ytState.lyrics, isNotEmpty);
-      expect(ytState.lyrics.first.text, equals('')); // Intro gap
-      expect(ytState.activeLyricIndex, equals(2)); // At 9000ms, YT Line 2 (8000-12000)
+      expect(ytState.lyrics.first.text, equals('YT Line 1'));
+      expect(ytState.activeLyricIndex, equals(1)); // At 9000ms, YT Line 2 (index 1)
 
       // Switch back to lrc.red
       notifier.setLyricsProvider(LyricsProviderType.lrcRed);
@@ -208,13 +208,13 @@ void main() {
       final lrcState = container.read(playerProvider);
       expect(lrcState.selectedLyricsProvider, equals(LyricsProviderType.lrcRed));
       expect(lrcState.lyrics, isNotEmpty);
-      expect(lrcState.lyrics.first.text, equals('')); // Intro gap
-      expect(lrcState.activeLyricIndex, equals(2)); // At 9000ms, LRC Line 2 (8000-12000)
+      expect(lrcState.lyrics.first.text, equals('LRC Line 1'));
+      expect(lrcState.activeLyricIndex, equals(1)); // At 9000ms, LRC Line 2 (index 1)
     });
 
     test('jumping into overlapping duet/backing vocal section prioritizes lead vocal line', () {
       final lines = [
-        const LyricLine(text: '', startTimeMs: 0, endTimeMs: 4000),
+        const LyricLine(text: 'Intro Vocal', startTimeMs: 0, endTimeMs: 4000),
         const LyricLine(text: 'Lead Line 1', startTimeMs: 4000, endTimeMs: 10000, isBackground: false),
         const LyricLine(text: 'Backing Echo', startTimeMs: 6000, endTimeMs: 9000, isBackground: true),
         const LyricLine(text: 'Lead Line 2', startTimeMs: 9500, endTimeMs: 14000, isBackground: false),
@@ -233,17 +233,17 @@ void main() {
 
     test('jumping into instrumental break or natural pause resolves closest section for scrolling', () {
       final lines = [
-        const LyricLine(text: '', startTimeMs: 0, endTimeMs: 5000),
+        const LyricLine(text: 'Intro', startTimeMs: 0, endTimeMs: 5000),
         const LyricLine(text: 'Verse 1', startTimeMs: 5000, endTimeMs: 10000),
-        const LyricLine(text: '', startTimeMs: 10000, endTimeMs: 20000), // 10s guitar solo
+        const LyricLine(text: 'Solo riff', startTimeMs: 10000, endTimeMs: 20000),
         const LyricLine(text: 'Chorus', startTimeMs: 20000, endTimeMs: 28000),
       ];
 
       // Seeking to 15s (middle of guitar solo)
       final activeSolo = LyricsService.computeActiveLyricIndex(15000, lines);
-      expect(activeSolo, equals(2)); // Instrumental dots gap
+      expect(activeSolo, equals(2));
 
-      // Closest line for scrolling at 15s targets the solo gap (index 2)
+      // Closest line for scrolling at 15s targets index 2
       final closestSolo = LyricsService.findClosestLineIndex(15000, lines);
       expect(closestSolo, equals(2));
 
@@ -252,31 +252,20 @@ void main() {
       expect(closestIntro, equals(0));
     });
 
-    test('withInstrumentalGaps prevents duplicate gaps and handles missing endTimeMs cleanly', () {
+    test('withInstrumentalGaps cleans empty lines and preserves meaningful lyrics', () {
       final rawLines = [
-        const LyricLine(text: 'Line 1', startTimeMs: 5000), // No endTimeMs provided
-        const LyricLine(text: 'Line 2', startTimeMs: 16000), // 11s gap from Line 1 start
+        const LyricLine(text: 'Line 1', startTimeMs: 5000),
+        const LyricLine(text: '   ', startTimeMs: 8000),
+        const LyricLine(text: 'Line 2', startTimeMs: 16000),
       ];
 
       final processed = LyricsService.withInstrumentalGaps(rawLines);
 
-      // Intro gap (0-5s) should be inserted
-      expect(processed.first.text, equals(''));
-      expect(processed.first.startTimeMs, equals(0));
-      expect(processed.first.endTimeMs, equals(5000));
+      expect(processed.length, equals(2));
+      expect(processed[0].text, equals('Line 1'));
+      expect(processed[1].text, equals('Line 2'));
 
-      // Line 1 should be present
-      expect(processed[1].text, equals('Line 1'));
-
-      // Instrumental gap between Line 1 (estimated 5s + 3.5s = 8.5s) and Line 2 (16s)
-      expect(processed[2].text, equals(''));
-      expect(processed[2].startTimeMs, equals(8500));
-      expect(processed[2].endTimeMs, equals(16000));
-
-      // Line 2 present
-      expect(processed[3].text, equals('Line 2'));
-
-      // Running withInstrumentalGaps again on already processed list should not duplicate gaps
+      // Running withInstrumentalGaps again on already processed list should not alter list
       final reprocessed = LyricsService.withInstrumentalGaps(processed);
       expect(reprocessed.length, equals(processed.length));
     });

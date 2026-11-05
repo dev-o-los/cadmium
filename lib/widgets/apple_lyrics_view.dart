@@ -176,33 +176,10 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     return _lineKeys.putIfAbsent(index, () => GlobalKey());
   }
 
-  /// Display lyrics matching withInstrumentalGaps structure.
-  /// If the lyrics do not already start with an instrumental intro gap and the first line starts >= 3s,
-  /// an intro gap is inserted for the Apple Music 3-dots countdown.
+  /// Clean non-empty display lyrics.
   List<LyricLine> get _displayLyrics {
     if (widget.lyrics.isEmpty) return widget.lyrics;
-    final first = widget.lyrics.first;
-    if (first.text.isNotEmpty && first.startTimeMs != null && first.startTimeMs! >= 3000) {
-      return [
-        LyricLine(
-          text: '',
-          startTimeMs: 0,
-          endTimeMs: first.startTimeMs!,
-        ),
-        ...widget.lyrics,
-      ];
-    }
-    return widget.lyrics;
-  }
-
-  bool get _hasPrependedIntro => _displayLyrics.length > widget.lyrics.length;
-
-  int _mapExternalToDisplayIndex(int externalIndex) {
-    if (externalIndex < 0) return -1;
-    if (_hasPrependedIntro) {
-      return externalIndex + 1;
-    }
-    return externalIndex;
+    return widget.lyrics.where((l) => l.text.trim().isNotEmpty).toList();
   }
 
   void _handleLyricTap(LyricLine line, int index) {
@@ -233,8 +210,11 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     _lastReportedMs = widget.currentPositionMs;
     _lastPositionReceivedAtMs = DateTime.now().millisecondsSinceEpoch.toDouble();
     _activeLyricIndex = widget.activeLyricIndex >= 0
-        ? _mapExternalToDisplayIndex(widget.activeLyricIndex)
+        ? widget.activeLyricIndex
         : _computeActiveIndex(widget.currentPositionMs);
+    if (_activeLyricIndex < 0 && _displayLyrics.isNotEmpty) {
+      _activeLyricIndex = 0;
+    }
 
     // High-frequency 60Hz/120Hz frame ticker driven by LyricClock
     _ticker = createTicker((_) {
@@ -273,7 +253,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _activeLyricIndex >= 0) {
+      if (mounted) {
         _scrollToActiveLine(immediate: true);
       }
     });
@@ -323,13 +303,14 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     }
 
     // Immediately sync if activeLyricIndex from player provider changed
-    final mappedExternalIdx = _mapExternalToDisplayIndex(widget.activeLyricIndex);
-    if (mappedExternalIdx >= 0 && mappedExternalIdx != _activeLyricIndex) {
-      setState(() {
-        _activeLyricIndex = mappedExternalIdx;
-      });
-      if (!_isUserScrolling) {
-        _scrollToActiveLine();
+    if (widget.activeLyricIndex != oldWidget.activeLyricIndex && widget.activeLyricIndex >= 0) {
+      if (widget.activeLyricIndex != _activeLyricIndex) {
+        setState(() {
+          _activeLyricIndex = widget.activeLyricIndex;
+        });
+        if (!_isUserScrolling) {
+          _scrollToActiveLine();
+        }
       }
     }
 
@@ -359,18 +340,18 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
   }
 
   int _computeActiveIndex(int currentMs) {
-    final idx = LyricsService.computeActiveLyricIndex(currentMs, _displayLyrics, leadInMs: 500);
+    final idx = LyricsService.computeActiveLyricIndex(currentMs, _displayLyrics, leadInMs: 450);
     if (idx >= 0) return idx;
 
     // During momentary pauses between lines, hold the last active lyric line
-    // until the next line enters its pre-scroll lead-in window (500ms before start)
+    // until the next line enters its pre-scroll lead-in window (450ms before start)
     if (_activeLyricIndex >= 0 && _activeLyricIndex < _displayLyrics.length) {
       final currentLine = _displayLyrics[_activeLyricIndex];
-      final currentStart = math.max(0, (currentLine.startTimeMs ?? 0) - 500);
+      final currentStart = math.max(0, (currentLine.startTimeMs ?? 0) - 450);
       if (currentMs >= currentStart) {
         if (_activeLyricIndex + 1 < _displayLyrics.length) {
           final nextStart = _displayLyrics[_activeLyricIndex + 1].startTimeMs;
-          final nextLead = nextStart != null ? math.max(0, nextStart - 500) : null;
+          final nextLead = nextStart != null ? math.max(0, nextStart - 450) : null;
           if (nextLead != null && currentMs < nextLead) {
             return _activeLyricIndex;
           }
@@ -379,10 +360,11 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
         }
       }
     }
-    return -1;
+    // Before first line starts (intro): line 0 is the starting lyric resting at the top
+    return 0;
   }
 
-  /// Positions the active line comfortably below the album art header,
+  /// Positions the active line consistently at the top, directly below the album art header,
   /// with upcoming lines visible below it (matching Apple Music layout).
   void _scrollToActiveLine({bool immediate = false}) {
     if (!_scrollController.hasClients) return;
@@ -393,7 +375,9 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     if (targetIndex < 0 || targetIndex >= lines.length) {
       targetIndex = LyricsService.findClosestLineIndex(_smoothPositionNotifier.value, lines);
     }
-    if (targetIndex < 0 || targetIndex >= lines.length) return;
+    if (targetIndex < 0 || targetIndex >= lines.length) {
+      targetIndex = 0;
+    }
 
     final key = _lineKeys[targetIndex];
     final targetContext = key?.currentContext;
@@ -402,8 +386,8 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
       final renderBox = ctx.findRenderObject() as RenderBox?;
       if (renderBox != null && renderBox.hasSize && _scrollController.hasClients) {
         final viewport = RenderAbstractViewport.of(renderBox);
-        // Align target line comfortably below album art header (focal position)
-        final revealOffset = viewport.getOffsetToReveal(renderBox, 0.05).offset;
+        // Align active line directly at top below album art header (16px from top)
+        final revealOffset = math.max(0.0, viewport.getOffsetToReveal(renderBox, 0.0).offset - 16.0);
         final clampedOffset = revealOffset.clamp(
           _scrollController.position.minScrollExtent,
           _scrollController.position.maxScrollExtent,
@@ -413,7 +397,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
         } else {
           _scrollController.animateTo(
             clampedOffset,
-            duration: const Duration(milliseconds: 450),
+            duration: const Duration(milliseconds: 380),
             curve: Curves.easeOutCubic,
           );
         }
@@ -421,9 +405,9 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
       }
       Scrollable.ensureVisible(
         ctx,
-        alignment: 0.05,
+        alignment: 0.0,
         alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
-        duration: immediate ? Duration.zero : const Duration(milliseconds: 450),
+        duration: immediate ? Duration.zero : const Duration(milliseconds: 380),
         curve: Curves.easeOutCubic,
       );
     }
@@ -605,14 +589,14 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
                   Colors.black,
                   Colors.transparent,
                 ],
-                stops: [0.0, 0.09, 0.86, 1.0],
+                stops: [0.0, 0.04, 0.88, 1.0],
               ).createShader(bounds);
             },
             blendMode: BlendMode.dstIn,
             child: SingleChildScrollView(
               controller: _scrollController,
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.only(top: 14, bottom: 260, left: 24, right: 24),
+              padding: const EdgeInsets.only(top: 16, bottom: 450, left: 24, right: 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -631,21 +615,6 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
   Widget _buildLyricLineItem(List<LyricLine> displayLines, int index) {
     final line = displayLines[index];
     final isActive = index == _activeLyricIndex;
-
-    // Instrumental Gap Line (Intro or Bridge): Progressive Three Dots Countdown
-    if (line.text.isEmpty) {
-      return Container(
-        key: _getKeyForIndex(index),
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: AppleInstrumentalDots(
-          gapStartMs: line.startTimeMs ?? 0,
-          gapEndMs: line.endTimeMs ?? ((line.startTimeMs ?? 0) + 7000),
-          currentPositionListenable: _smoothPositionNotifier,
-          onTap: () => _handleLyricTap(line, index),
-        ),
-      );
-    }
 
     // AMLL-inspired optical depth calculation:
     // Active line is razor-sharp (blur = 0, scale = 1.0, opacity = 1.0).

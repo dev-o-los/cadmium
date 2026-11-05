@@ -169,7 +169,7 @@ void main() {
       expect(switchedProvider, LyricsProviderType.youTube);
     });
 
-    testWidgets('renders three animated dots during instrumental music intro', (tester) async {
+    testWidgets('renders opening lyric line at top during instrumental music intro', (tester) async {
       final testLyrics = [
         const LyricLine(
           text: 'Hello from the other side',
@@ -199,15 +199,15 @@ void main() {
         ),
       );
 
-      // Verify AppleInstrumentalDots is displayed at top of lyrics
-      expect(find.byType(AppleInstrumentalDots), findsOneWidget);
+      // Verify the opening line is rendered cleanly at top of lyrics without intro gap pushing it down
+      expect(find.text('Hello from the other side'), findsOneWidget);
 
-      // Verify tapping three dots seeks to intro
-      await tester.tap(find.byType(AppleInstrumentalDots));
+      // Verify tapping opening line seeks to it
+      await tester.tap(find.text('Hello from the other side'));
       await tester.pump();
       expect(soughtLine, isNotNull);
-      expect(soughtLine!.text, '');
-      expect(soughtLine!.startTimeMs, 0);
+      expect(soughtLine!.text, 'Hello from the other side');
+      expect(soughtLine!.startTimeMs, 6000);
     });
 
     testWidgets('track options sheet renders lyrics provider switcher and allows switching', (tester) async {

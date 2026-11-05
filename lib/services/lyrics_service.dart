@@ -412,54 +412,10 @@ class LyricsService {
   static const int minGapMs = 4000;
 
   /// Inserts blank instrumental gap lines for musical intros or breaks >= 4s.
-  /// Matches Benjamin's am-lyrics withInstrumentalGaps (LyricGaps.kt).
+  /// Returns clean, trimmed lyric lines with non-empty text.
   static List<LyricLine> withInstrumentalGaps(List<LyricLine> lines) {
     if (lines.isEmpty) return lines;
-
-    // Filter out existing blank gap lines to prevent duplicate gaps on repeated processing
-    final meaningfulLines = lines.where((l) => l.text.isNotEmpty || (l.startTimeMs != null && l.endTimeMs != null)).toList();
-    if (meaningfulLines.isEmpty) return lines;
-
-    final out = <LyricLine>[];
-
-    // 1. Initial intro gap: If first timed line begins >= 3000ms, insert intro dots
-    final first = meaningfulLines.first;
-    if (first.text.isNotEmpty && first.startTimeMs != null && first.startTimeMs! >= 3000) {
-      out.add(LyricLine(
-        text: '',
-        startTimeMs: 0,
-        endTimeMs: first.startTimeMs!,
-      ));
-    }
-
-    int maxEndSoFar = 0;
-    for (int i = 0; i < meaningfulLines.length; i++) {
-      final current = meaningfulLines[i];
-      out.add(current);
-
-      if (current.startTimeMs == null) continue;
-
-      final currentStart = current.startTimeMs!;
-      final currentEnd = current.endTimeMs ?? (currentStart + 3500);
-      maxEndSoFar = math.max(maxEndSoFar, currentEnd);
-
-      if (i < meaningfulLines.length - 1) {
-        final next = meaningfulLines[i + 1];
-        if (next.startTimeMs != null) {
-          final nextStart = next.startTimeMs!;
-          // Instrumental gap only occurs if singing has completely stopped for >= minGapMs
-          if (nextStart - maxEndSoFar >= minGapMs && maxEndSoFar > 0) {
-            out.add(LyricLine(
-              text: '',
-              startTimeMs: maxEndSoFar,
-              endTimeMs: nextStart,
-            ));
-            maxEndSoFar = nextStart;
-          }
-        }
-      }
-    }
-    return out;
+    return lines.where((l) => l.text.trim().isNotEmpty).toList();
   }
 
   /// Computes the exact active lyric line index for [currentMs] within [lyrics].
