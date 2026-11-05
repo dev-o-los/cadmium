@@ -184,7 +184,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
 
               // Section 1: "Top Picks for You" Hero Cards Carousel
               _buildTopPicksHeroSection(context, ref, data.heroCards),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
 
               // Section 2: "Recents" (4-item vertical column horizontal paging)
               _build4ItemColumnsSection(
@@ -193,11 +193,11 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                 title: 'Recents',
                 songs: data.recents,
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
 
               // Section 3: "Find Your Mood" with "Show all"
               _buildFindYourMoodSection(context, data.moods),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
 
               // Section 4: "Albums & singles"
               _buildAlbumsAndSinglesSection(
@@ -205,11 +205,11 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                 ref,
                 data.albumsAndSingles,
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
 
               // Section 5: "Music videos" (16:9 widescreen)
               _buildMusicVideosSection(context, ref, data.musicVideos),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
 
               // Section 6: "Listen again" (listening history from playerProvider)
               if (playerState.recentlyPlayed.isNotEmpty) ...[
@@ -220,7 +220,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                   subtitle: 'UTKARSH',
                   songs: playerState.recentlyPlayed,
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 24),
               ],
 
               // Section 7: "Quick picks" (4-item vertical column horizontal paging)
@@ -230,7 +230,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                 title: 'Quick picks',
                 songs: data.quickPicks,
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
 
               // Section 8: "Your daily discover"
               _buildHorizontalSongCarousel(
@@ -239,7 +239,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                 title: 'Your daily discover',
                 songs: data.dailyDiscover,
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
 
               // Section 9: "Trending songs for you"
               _buildHorizontalSongCarousel(
@@ -323,23 +323,23 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12),
+          padding: EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             'Top Picks for You',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.6,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.3,
             ),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         SizedBox(
-          height: 390,
+          height: 305,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: heroCards.length,
             separatorBuilder: (context, index) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
@@ -358,9 +358,8 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
     HeroCardItem hero,
   ) {
     final screenWidth = MediaQuery.of(context).size.width;
-    // Increased size: length & width for a flagship Apple Music presence
-    final cardWidth = (screenWidth * 0.74).clamp(275.0, 340.0);
-    const cardHeight = 390.0;
+    final cardWidth = (screenWidth * 0.58).clamp(215.0, 245.0);
+    const cardHeight = 305.0;
 
     return ApplePressable(
       onTap: () {
@@ -370,20 +369,20 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
           playHero(context, ref, hero);
         }
       },
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         width: cardWidth,
         height: cardHeight,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
-          color: const Color(0xFF141414), // Pure neutral dark: NO blue tint!
+          borderRadius: BorderRadius.circular(16),
+          color: const Color(0xFF141414),
           border: Border.all(
             color: Colors.white.withValues(alpha: 0.08),
             width: 0.6,
           ),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(16),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -416,8 +415,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                   ),
                 ),
 
-              // 2. Continuous Organic Blur Layer:
-              // Seamlessly blends from sharp artwork into a lush frosted blur with ZERO hard dividing lines!
+              // 2. Continuous Organic Blur Layer
               if (hero.imageUrl != null)
                 Positioned.fill(
                   child: ShaderMask(
@@ -445,7 +443,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                   ),
                 ),
 
-              // 3. Smooth Deep Charcoal/OLED Gradient Scrim (No hard line, seamlessly mixing with the blur)
+              // 3. Smooth Deep Charcoal/OLED Gradient Scrim
               Positioned.fill(
                 child: Container(
                   decoration: const BoxDecoration(
@@ -466,9 +464,9 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
 
               // 4. White Typography naturally floating on the organic blur
               Positioned(
-                left: 18,
-                right: 18,
-                bottom: 18,
+                left: 14,
+                right: 14,
+                bottom: 14,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
@@ -478,32 +476,32 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.78),
-                        fontSize: 13,
+                        color: Colors.white.withValues(alpha: 0.75),
+                        fontSize: 12,
                         fontWeight: FontWeight.w400,
                         letterSpacing: -0.1,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
                       hero.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 19,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -0.4,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
                       hero.caption,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.65),
-                        fontSize: 12.5,
+                        color: Colors.white.withValues(alpha: 0.60),
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w400,
                       ),
                     ),
@@ -546,7 +544,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -554,9 +552,9 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                 title,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: -0.6,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.3,
                 ),
               ),
               if (subtitle != null) ...[
@@ -565,7 +563,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                   subtitle,
                   style: const TextStyle(
                     color: AppColors.appleSecondaryText,
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.6,
                   ),
@@ -574,7 +572,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         _Snapping4ItemColumns(
           chunked: chunked,
           totalHeight: totalHeight,
@@ -722,7 +720,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -730,9 +728,9 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                 'Find Your Mood',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: -0.6,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.3,
                 ),
               ),
               GestureDetector(
@@ -743,7 +741,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                   'Show all',
                   style: TextStyle(
                     color: AppColors.appleSecondaryText,
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -751,7 +749,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 10),
         SizedBox(
           height: 175,
           child: ListView.separated(
@@ -862,13 +860,13 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             'Albums & singles',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.6,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.3,
             ),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         SizedBox(
           height: cardHeight,
           child: ListView.separated(
@@ -994,18 +992,18 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12),
+          padding: EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             'Music videos',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.6,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.3,
             ),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         SizedBox(
           height: videoCardHeight,
           child: ListView.separated(
@@ -1143,18 +1141,18 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             title,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.6,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.3,
             ),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         SizedBox(
           height: cardHeight,
           child: ListView.separated(

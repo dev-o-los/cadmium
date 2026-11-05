@@ -708,12 +708,10 @@ class MusicService {
     Map<String, String>? queryParams,
   }) async {
     final account = _currentAccount;
-    if (account == null) return null;
+    final isAuthenticated = account != null &&
+        account.sapisid != null &&
+        account.sapisid!.isNotEmpty;
 
-    final sapisid = account.sapisid;
-    if (sapisid == null || sapisid.isEmpty) return null;
-
-    final sapisidHash = computeSapisidHash(sapisid);
     final version = '1.20250101.01.00';
     final query = <String, String>{
       'prettyPrint': 'false',
@@ -724,7 +722,9 @@ class MusicService {
       queryParameters: query,
     );
 
-    final normalizedDataSync = UserAccount.normalizeDataSyncId(account.dataSyncId);
+    final normalizedDataSync = account != null
+        ? UserAccount.normalizeDataSyncId(account.dataSyncId)
+        : null;
     final userContext = <String, dynamic>{
       'lockedSafetyMode': false,
     };
@@ -739,7 +739,7 @@ class MusicService {
           'clientVersion': version,
           'hl': 'en',
           'gl': 'US',
-          if (account.visitorData != null && account.visitorData!.isNotEmpty)
+          if (account?.visitorData != null && account!.visitorData!.isNotEmpty)
             'visitorData': account.visitorData,
         },
         'user': userContext,
@@ -765,14 +765,18 @@ class MusicService {
       request.headers.set('Referer', 'https://music.youtube.com/');
       request.headers.set('X-YouTube-Client-Name', '67');
       request.headers.set('X-YouTube-Client-Version', version);
-      request.headers.set('Cookie', account.cookies);
-      request.headers.set('Authorization', sapisidHash);
-      request.headers.set('X-Goog-AuthUser', account.authUser ?? '0');
-      if (account.pageId != null && account.pageId!.isNotEmpty) {
-        request.headers.set('X-Goog-PageId', account.pageId!);
-      }
-      if (account.visitorData != null && account.visitorData!.isNotEmpty) {
-        request.headers.set('X-Goog-Visitor-Id', account.visitorData!);
+
+      if (isAuthenticated) {
+        final sapisidHash = computeSapisidHash(account.sapisid!);
+        request.headers.set('Cookie', account.cookies);
+        request.headers.set('Authorization', sapisidHash);
+        request.headers.set('X-Goog-AuthUser', account.authUser ?? '0');
+        if (account.pageId != null && account.pageId!.isNotEmpty) {
+          request.headers.set('X-Goog-PageId', account.pageId!);
+        }
+        if (account.visitorData != null && account.visitorData!.isNotEmpty) {
+          request.headers.set('X-Goog-Visitor-Id', account.visitorData!);
+        }
       }
 
       request.write(jsonEncode(payload));
@@ -1247,73 +1251,166 @@ class MusicService {
     final dailyDiscover = <SongItem>[];
     final trendingSongs = <SongItem>[];
 
-    // 1. Fetch raw home sections from YouTube Music API
+    // 1. Fetch live YouTube Music shelves via InnerTube browse (FEmusic_explore, FEmusic_home)
     try {
-      final sections = await _ytMusic.getHomeSections();
-      for (final section in sections) {
-        final title = section.title.trim();
-        final titleLower = title.toLowerCase();
-        final songs = _extractSongsFromHomeSection(section);
-        final sectionAlbums = _extractAlbumsFromHomeSection(section);
-        final sectionVideos = _extractVideosFromHomeSection(section);
+      final browseIds = ['FEmusic_explore', 'FEmusic_home'];
+      for (final bId in browseIds) {
+        final browseJson = await postInnerTube('browse', bodyExtras: {'browseId': bId});
+        if (browseJson != null) {
+          final shelves = _collectRenderers(browseJson, 'musicCarouselShelfRenderer');
+          for (final shelf in shelves) {
+            final header = shelf['header']?['musicCarouselShelfBasicHeaderRenderer'];
+            final sectionTitle = _extractNodeText(header?['title']);
+            final titleLower = sectionTitle.toLowerCase();
+            final items = shelf['contents'] as List? ?? [];
+            final songs = <SongItem>[];
+            final shelfAlbums = <AlbumItem>[];
+            final shelfVideos = <VideoItem>[];
 
-        if (titleLower.contains('quick pick') ||
-            titleLower.contains('start radio') ||
-            titleLower.contains('recommended') ||
-            titleLower.contains('picks')) {
-          quickPicks.addAll(songs);
-        } else if (titleLower.contains('listen again') ||
-            titleLower.contains('recent') ||
-            titleLower.contains('repeat') ||
-            titleLower.contains('history') ||
-            titleLower.contains('forgotten') ||
-            titleLower.contains('again')) {
-          recents.addAll(songs);
-        } else if (titleLower.contains('trend') ||
-            titleLower.contains('chart') ||
-            titleLower.contains('hit') ||
-            titleLower.contains('popular') ||
-            titleLower.contains('top')) {
-          trendingSongs.addAll(songs);
-        } else if (titleLower.contains('discover') ||
-            titleLower.contains('mixed for you') ||
-            titleLower.contains('mix') ||
-            titleLower.contains('for you') ||
-            titleLower.contains('radio') ||
-            titleLower.contains('energy') ||
-            titleLower.contains('chill')) {
-          dailyDiscover.addAll(songs);
-        }
+            for (final it in items) {
+              if (it is Map) {
+                if (it['musicResponsiveListItemRenderer'] is Map) {
+                  final s = parseSongFromRenderer(
+                    it['musicResponsiveListItemRenderer'] as Map<String, dynamic>,
+                  );
+                  if (s != null) songs.add(s);
+                } else if (it['musicTwoRowItemRenderer'] is Map) {
+                  final twoRow = it['musicTwoRowItemRenderer'] as Map<String, dynamic>;
+                  final title = _extractNodeText(twoRow['title']);
+                  final subtitle = _extractNodeText(twoRow['subtitle']);
+                  final thumb = _extractNodePhoto(twoRow);
+                  final browseId = traverseString(twoRow, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
+                  final videoId = traverseString(twoRow, ['navigationEndpoint', 'watchEndpoint', 'videoId']);
 
-        if (sectionAlbums.isNotEmpty ||
-            titleLower.contains('album') ||
-            titleLower.contains('single') ||
-            titleLower.contains('release')) {
-          albums.addAll(sectionAlbums);
-        }
+                  if (videoId != null && videoId.isNotEmpty) {
+                    final song = SongItem(
+                      id: videoId,
+                      title: title.isNotEmpty ? title : 'Track',
+                      artist: subtitle.isNotEmpty ? subtitle : 'YouTube Music',
+                      thumbnailUrl: thumb,
+                    );
+                    songs.add(song);
+                    if (titleLower.contains('video')) {
+                      shelfVideos.add(
+                        VideoItem(
+                          id: videoId,
+                          title: title.isNotEmpty ? title : 'Video',
+                          artist: subtitle.isNotEmpty ? subtitle : 'Artist',
+                          thumbnailUrl: thumb,
+                        ),
+                      );
+                    }
+                  } else if (browseId != null && browseId.isNotEmpty) {
+                    shelfAlbums.add(
+                      AlbumItem(
+                        id: browseId,
+                        title: title.isNotEmpty ? title : 'Album',
+                        artist: subtitle.isNotEmpty ? subtitle : 'Artist',
+                        thumbnailUrl: thumb,
+                        type: titleLower.contains('single') ? 'Single' : 'Album',
+                        isCustom: false,
+                      ),
+                    );
+                  }
+                }
+              }
+            }
 
-        if (sectionVideos.isNotEmpty || titleLower.contains('video')) {
-          videos.addAll(sectionVideos);
-        }
-
-        // Real Hero Cards from featured sections / mixes
-        if (heroCards.length < 3 && songs.isNotEmpty) {
-          final topSong = songs.first;
-          heroCards.add(
-            HeroCardItem(
-              id: 'hero_${section.title.hashCode}_${heroCards.length}',
-              title: section.title.isNotEmpty ? section.title : topSong.title,
-              subtitle: topSong.artist,
-              caption: 'YouTube Music • Featured',
-              imageUrl: topSong.thumbnailUrl,
-              primaryColor: 0xFF1C1C1E,
-              playTrack: topSong,
-            ),
-          );
+            if (titleLower.contains('trend') ||
+                titleLower.contains('chart') ||
+                titleLower.contains('hit') ||
+                titleLower.contains('popular')) {
+              trendingSongs.addAll(songs);
+              quickPicks.addAll(songs);
+            } else if (titleLower.contains('video')) {
+              videos.addAll(shelfVideos);
+            } else if (titleLower.contains('album') ||
+                titleLower.contains('single') ||
+                titleLower.contains('release')) {
+              albums.addAll(shelfAlbums);
+            } else if (titleLower.contains('nostalgic') ||
+                titleLower.contains('playlist') ||
+                titleLower.contains('mix') ||
+                titleLower.contains('discover') ||
+                titleLower.contains('for you') ||
+                titleLower.contains('listen again')) {
+              dailyDiscover.addAll(songs);
+              recents.addAll(songs);
+            }
+          }
         }
       }
     } catch (e) {
-      debugPrint('_fetchRawYouTubeHomeData getHomeSections error: $e');
+      debugPrint('_fetchRawYouTubeHomeData InnerTube error: $e');
+    }
+
+    // 2. Supplement from _ytMusic.getHomeSections() if still needing data
+    if (trendingSongs.isEmpty || albums.isEmpty || videos.isEmpty) {
+      try {
+        final sections = await _ytMusic.getHomeSections();
+        for (final section in sections) {
+          final title = section.title.trim();
+          final titleLower = title.toLowerCase();
+          final songs = _extractSongsFromHomeSection(section);
+          final sectionAlbums = _extractAlbumsFromHomeSection(section);
+          final sectionVideos = _extractVideosFromHomeSection(section);
+
+          if (titleLower.contains('quick pick') || titleLower.contains('picks')) {
+            quickPicks.addAll(songs);
+          } else if (titleLower.contains('listen again') || titleLower.contains('recent')) {
+            recents.addAll(songs);
+          } else if (titleLower.contains('trend') || titleLower.contains('chart')) {
+            trendingSongs.addAll(songs);
+          } else if (titleLower.contains('discover') || titleLower.contains('mix')) {
+            dailyDiscover.addAll(songs);
+          }
+          if (sectionAlbums.isNotEmpty) albums.addAll(sectionAlbums);
+          if (sectionVideos.isNotEmpty) videos.addAll(sectionVideos);
+        }
+      } catch (e) {
+        debugPrint('_fetchRawYouTubeHomeData getHomeSections error: $e');
+      }
+    }
+
+    // 3. Assemble dynamic Top Picks Hero Cards (New releases, featuring artists, and mixes)
+    for (final album in albums.take(3)) {
+      heroCards.add(
+        HeroCardItem(
+          id: 'hero_album_${album.id}',
+          title: album.title,
+          subtitle: 'New from ${album.artist}',
+          caption: '${album.type} • ${album.year ?? DateTime.now().year}',
+          imageUrl: album.thumbnailUrl,
+          primaryColor: 0xFF141414,
+        ),
+      );
+    }
+    for (final song in trendingSongs.take(2)) {
+      heroCards.add(
+        HeroCardItem(
+          id: 'hero_artist_${song.id}',
+          title: '${song.artist} & Similar Artists',
+          subtitle: 'Featuring ${song.artist}',
+          caption: 'YouTube Music • Radio',
+          imageUrl: song.thumbnailUrl,
+          primaryColor: 0xFF141414,
+          playTrack: song,
+        ),
+      );
+    }
+    if (dailyDiscover.isNotEmpty && heroCards.length < 5) {
+      final lead = dailyDiscover.first;
+      heroCards.add(
+        HeroCardItem(
+          id: 'hero_station_${lead.id}',
+          title: 'Discovery Station',
+          subtitle: 'Made for You',
+          caption: 'YouTube Music • Mix',
+          imageUrl: lead.thumbnailUrl,
+          primaryColor: 0xFF141414,
+          playTrack: lead,
+        ),
+      );
     }
 
     // 2. Fetch real moods and genres from YouTube Music browse API
