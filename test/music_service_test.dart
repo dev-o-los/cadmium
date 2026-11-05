@@ -18,6 +18,43 @@ void main() {
       musicService.dispose();
     });
 
+    test('parseSongFromRenderer correctly extracts title and artist from InnerTube flexColumns without returning Untitled', () {
+      final renderer = {
+        'playlistItemData': {'videoId': 'test_video_123'},
+        'flexColumns': [
+          {
+            'musicResponsiveListItemFlexColumnRenderer': {
+              'text': {
+                'runs': [
+                  {'text': 'Blinding Lights'}
+                ]
+              }
+            }
+          },
+          {
+            'musicResponsiveListItemFlexColumnRenderer': {
+              'text': {
+                'runs': [
+                  {'text': 'The Weeknd'},
+                  {'text': ' • '},
+                  {'text': 'After Hours'},
+                  {'text': ' • '},
+                  {'text': '3:20'}
+                ]
+              }
+            }
+          }
+        ]
+      };
+
+      final song = MusicService.parseSongFromRenderer(renderer);
+      expect(song, isNotNull);
+      expect(song!.title, equals('Blinding Lights'));
+      expect(song.artist, equals('The Weeknd'));
+      expect(song.album, equals('After Hours'));
+      expect(song.durationSeconds, equals(200));
+    });
+
     test('searchSongs returns relevant tracks', () async {
       final results = await musicService.searchSongs('Attention Charlie Puth');
       expect(results, isNotEmpty);

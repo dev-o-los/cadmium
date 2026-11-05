@@ -21,6 +21,7 @@ import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/sliding_pill_segmented_bar.dart';
 import '../widgets/top_profile_avatar_button.dart';
+import '../widgets/top_status_bar_blur.dart';
 import '../widgets/track_options_sheet.dart';
 import '../widgets/wavify_cached_image.dart';
 import '../widgets/app_shimmer.dart';
@@ -144,53 +145,57 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
   Widget build(BuildContext context) {
     final searchState = ref.watch(searchProvider);
     final isQueryActive = _controller.text.trim().isNotEmpty;
+    final topPadding = MediaQuery.of(context).padding.top;
 
-    return SafeArea(
-      bottom: false,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Top Liquid Glass Search Bar & Avatar Row
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-            child: Row(
-              children: [
-                Expanded(child: _buildLiquidGlassSearchBar()),
-                const SizedBox(width: 12),
-                _buildProfileAvatarButton(),
-              ],
-            ),
-          ),
-
-          // Unified Sliding Pill Segmented Bar (Only when searching or results active)
-          if (isQueryActive || searchState.hasSearched) ...[
+    return Stack(
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Liquid Glass Search Bar & Avatar Row
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: _buildSlidingPillSegmentedBar(
-                searchState.selectedCategory,
+              padding: EdgeInsets.fromLTRB(16, topPadding + 8, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(child: _buildLiquidGlassSearchBar()),
+                  const SizedBox(width: 12),
+                  _buildProfileAvatarButton(),
+                ],
+              ),
+            ),
+
+            // Unified Sliding Pill Segmented Bar (Only when searching or results active)
+            if (isQueryActive || searchState.hasSearched) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: _buildSlidingPillSegmentedBar(
+                  searchState.selectedCategory,
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 6),
+
+            // Content Area with gentle natural dissolve towards the pill
+            Expanded(
+              child: ShaderMask(
+                shaderCallback: (Rect bounds) {
+                  return const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.black],
+                    stops: [0.0, 0.025],
+                  ).createShader(bounds);
+                },
+                blendMode: BlendMode.dstIn,
+                child: _buildBodyContent(searchState, isQueryActive),
               ),
             ),
           ],
-
-          const SizedBox(height: 6),
-
-          // Content Area with gentle natural dissolve towards the pill
-          Expanded(
-            child: ShaderMask(
-              shaderCallback: (Rect bounds) {
-                return const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Colors.black],
-                  stops: [0.0, 0.025],
-                ).createShader(bounds);
-              },
-              blendMode: BlendMode.dstIn,
-              child: _buildBodyContent(searchState, isQueryActive),
-            ),
-          ),
-        ],
-      ),
+        ),
+        // Dynamic Apple-style status bar blur & fading dissolve at top
+        const TopStatusBarBlur(fixedProgress: 1.0, extraHeight: 6.0),
+      ],
     );
   }
 

@@ -11,38 +11,65 @@ import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/top_profile_avatar_button.dart';
+import '../widgets/top_status_bar_blur.dart';
 import '../widgets/track_options_sheet.dart';
 
 /// The Explore Tab screen featuring Genres & Categories grid and Global Hits & Charts.
-class ExploreScreen extends ConsumerWidget {
+class ExploreScreen extends ConsumerStatefulWidget {
   final ValueChanged<String>? onSearch;
 
   const ExploreScreen({super.key, this.onSearch});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ExploreScreen> createState() => _ExploreScreenState();
+}
+
+class _ExploreScreenState extends ConsumerState<ExploreScreen> {
+  late final ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final homeDataAsync = ref.watch(homeDataProvider);
     final genres = homeDataAsync.valueOrNull?.genres ?? [];
     final trending = homeDataAsync.valueOrNull?.trendingSongs ?? [];
+    final topPadding = MediaQuery.of(context).padding.top;
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 160),
+    return Stack(
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        ListView(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          padding: EdgeInsets.fromLTRB(20, topPadding + 14, 20, 160),
           children: [
-            const Text(
-              'Explore',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 34,
-                fontWeight: FontWeight.bold,
-                letterSpacing: -1.2,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Explore',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 34,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -1.2,
+                  ),
+                ),
+                const TopProfileAvatarButton(),
+              ],
             ),
-            const TopProfileAvatarButton(),
-          ],
-        ),
         const SizedBox(height: 16),
         const Text(
           'Genres & Categories',
@@ -77,7 +104,7 @@ class ExploreScreen extends ConsumerWidget {
 
                 return ApplePressable(
                   onTap: () {
-                    onSearch?.call(g.title);
+                    widget.onSearch?.call(g.title);
                   },
                   borderRadius: BorderRadius.circular(10),
                   child: Container(
@@ -115,7 +142,11 @@ class ExploreScreen extends ConsumerWidget {
             .take(10)
             .map((track) => _buildSongRow(context, ref, track, trending)),
       ],
-    );
+    ),
+    // Dynamic Apple-style status bar blur & fading dissolve on scroll
+    TopStatusBarBlur(scrollController: _scrollController),
+  ],
+);
   }
 
   Widget _buildSongRow(

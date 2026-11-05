@@ -19,14 +19,35 @@ import '../widgets/apple_glass_bottom_sheet.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/dynamic_album_artwork.dart';
 import '../widgets/top_profile_avatar_button.dart';
+import '../widgets/top_status_bar_blur.dart';
 
 /// The Library Tab screen featuring personal collections:
 /// Playlists, Liked Music, Saved Albums, Subscribed Artists, and Recently Played tracks.
-class LibraryScreen extends ConsumerWidget {
+class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
+}
+
+class _LibraryScreenState extends ConsumerState<LibraryScreen> {
+  late final ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final topPadding = MediaQuery.of(context).padding.top;
     final screenWidth = MediaQuery.of(context).size.width;
     final cardWidth = (screenWidth * 0.38).clamp(136.0, 180.0);
     final cardHeight = cardWidth + 58.0;
@@ -70,8 +91,14 @@ class LibraryScreen extends ConsumerWidget {
       allLikedMusic = localFavorites;
     }
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(0, 12, 0, 160),
+    return Stack(
+      children: [
+        ListView(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          padding: EdgeInsets.fromLTRB(0, topPadding + 14, 0, 160),
       children: [
         // 1. Library Title
         Padding(
@@ -399,7 +426,11 @@ class LibraryScreen extends ConsumerWidget {
           const SizedBox(height: 28),
         ],
       ],
-    );
+    ),
+    // Dynamic Apple-style status bar blur & fading dissolve on scroll
+    TopStatusBarBlur(scrollController: _scrollController),
+  ],
+);
   }
 
   Widget _buildLibrarySectionHeader({required String title, int? count}) {

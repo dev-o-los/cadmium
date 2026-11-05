@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/home_data.dart';
+import '../models/song_item.dart';
 
 /// Persistent cache service for Home Screen data.
 /// Saves and loads the entire aggregated Home feed to disk so that on app launch,
@@ -38,18 +39,49 @@ class HomeCacheService {
     }
   }
 
+  /// Filters out any malformed songs with empty or 'untitled' names
+  static HomeData _sanitizeHomeData(HomeData data) {
+    bool isValidSong(SongItem s) =>
+        s.title.trim().isNotEmpty &&
+        s.title.trim().toLowerCase() != 'untitled' &&
+        s.title.trim().toLowerCase() != 'track';
+
+    return HomeData(
+      heroCards: data.heroCards
+          .where((h) => h.playTrack == null || isValidSong(h.playTrack!))
+          .toList(),
+      recents: data.recents.where(isValidSong).toList(),
+      quickPicks: data.quickPicks.where(isValidSong).toList(),
+      moods: data.moods,
+      genres: data.genres,
+      albumsAndSingles: data.albumsAndSingles
+          .where((a) =>
+              a.title.trim().isNotEmpty &&
+              a.title.trim().toLowerCase() != 'untitled album')
+          .toList(),
+      musicVideos: data.musicVideos
+          .where((v) =>
+              v.title.trim().isNotEmpty &&
+              v.title.trim().toLowerCase() != 'untitled video')
+          .toList(),
+      dailyDiscover: data.dailyDiscover.where(isValidSong).toList(),
+      trendingSongs: data.trendingSongs.where(isValidSong).toList(),
+    );
+  }
+
   /// Saves [HomeData] to persistent disk cache (SharedPreferences & local file).
   Future<void> saveHomeData(HomeData data) async {
-    if (data.isEmpty) return;
+    final cleanData = _sanitizeHomeData(data);
+    if (cleanData.isEmpty) return;
 
-    _memoryCache = data;
+    _memoryCache = cleanData;
     _lastCacheTime = DateTime.now();
 
     if (!_isBindingInitialized) return;
     if (!kIsWeb && Platform.environment.containsKey('FLUTTER_TEST')) return;
 
     try {
-      final jsonString = jsonEncode(data.toJson());
+      final jsonString = jsonEncode(cleanData.toJson());
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_prefKeyData, jsonString);
       await prefs.setInt(_prefKeyTime, _lastCacheTime!.millisecondsSinceEpoch);
@@ -78,7 +110,7 @@ class HomeCacheService {
       final jsonString = prefs.getString(_prefKeyData);
       if (jsonString != null && jsonString.isNotEmpty) {
         final decoded = jsonDecode(jsonString) as Map<String, dynamic>;
-        final homeData = HomeData.fromJson(decoded);
+        final homeData = _sanitizeHomeData(HomeData.fromJson(decoded));
         if (!homeData.isEmpty) {
           _memoryCache = homeData;
           return homeData;
@@ -88,8 +120,9 @@ class HomeCacheService {
       // Fallback: load from local file
       final fileData = await _loadFromFile();
       if (fileData != null && !fileData.isEmpty) {
-        _memoryCache = fileData;
-        return fileData;
+        final cleanFile = _sanitizeHomeData(fileData);
+        _memoryCache = cleanFile;
+        return cleanFile;
       }
     } catch (_) {}
 

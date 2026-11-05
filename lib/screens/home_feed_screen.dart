@@ -3,7 +3,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../constants/app_colors.dart';
 import '../models/album_item.dart';
@@ -20,6 +19,7 @@ import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/dynamic_album_artwork.dart';
 import '../widgets/top_profile_avatar_button.dart';
+import '../widgets/top_status_bar_blur.dart';
 import '../widgets/app_shimmer.dart';
 import '../widgets/track_options_sheet.dart';
 import '../widgets/wavify_cached_image.dart';
@@ -239,56 +239,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
         ),
 
         // 2. Subtle Top Status Bar Dissolve on Scroll (confined strictly to the battery & notification edge)
-        AnimatedBuilder(
-          animation: _scrollController,
-          builder: (context, _) {
-            final offset = _scrollController.hasClients
-                ? _scrollController.offset
-                : 0.0;
-            final progress = (offset / 32.0).clamp(0.0, 1.0);
-            if (progress <= 0.001) {
-              return const SizedBox.shrink();
-            }
-
-            // Confined strictly to the status bar / battery bar height
-            final topBlurHeight = topPadding + 4.0;
-
-            return Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: topBlurHeight,
-              child: IgnorePointer(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // Very delicate progressive blur directly at the top status bar edge
-                    ProgressiveBlur(
-                      maxSigma: 4.0 * progress,
-                      direction: ProgressiveBlurDirection.topToBottom,
-                      falloff: 2.0,
-                    ),
-                    // Soft darkening dissolve so content naturally fades away under the battery/clock
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black.withValues(alpha: 0.85 * progress),
-                            Colors.black.withValues(alpha: 0.35 * progress),
-                            Colors.transparent,
-                          ],
-                          stops: const [0.0, 0.55, 1.0],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
+        TopStatusBarBlur(scrollController: _scrollController),
       ],
     );
   }
@@ -509,13 +460,19 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
     String? subtitle,
     required List<SongItem> songs,
   }) {
-    if (songs.isEmpty) return const SizedBox.shrink();
+    final validSongs = songs
+        .where((s) =>
+            s.title.trim().isNotEmpty &&
+            s.title.trim().toLowerCase() != 'untitled' &&
+            s.title.trim().toLowerCase() != 'track')
+        .toList();
+    if (validSongs.isEmpty) return const SizedBox.shrink();
 
     // Chunk songs into lists of 4
     final chunked = <List<SongItem>>[];
-    for (var i = 0; i < songs.length; i += 4) {
-      final end = (i + 4 < songs.length) ? i + 4 : songs.length;
-      chunked.add(songs.sublist(i, end));
+    for (var i = 0; i < validSongs.length; i += 4) {
+      final end = (i + 4 < validSongs.length) ? i + 4 : validSongs.length;
+      chunked.add(validSongs.sublist(i, end));
     }
 
     // Responsively calculate height based on the maximum number of items in any column
@@ -563,7 +520,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
           chunked: chunked,
           totalHeight: totalHeight,
           rowBuilder: (ctx, song) =>
-              _build4ItemRow(ctx, ref, song, contextQueue: songs),
+              _build4ItemRow(ctx, ref, song, contextQueue: validSongs),
         ),
       ],
     );

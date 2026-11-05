@@ -22,6 +22,7 @@ import '../widgets/apple_glass_bottom_sheet.dart';
 import '../widgets/liquid_glass_bottom_bar.dart';
 import '../widgets/player_controls.dart';
 import '../widgets/track_options_sheet.dart';
+import '../widgets/top_status_bar_blur.dart';
 import '../widgets/app_shimmer.dart';
 
 /// Full-Page Album View matching the user's reference screenshots:
@@ -1093,54 +1094,12 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
           ),
 
           // 4. Dynamic Top Progressive Blur & Shader Scrim on Scroll
-          AnimatedBuilder(
-            animation: _scrollController,
-            builder: (context, _) {
-              final offset = _scrollController.hasClients
-                  ? _scrollController.offset
-                  : 0.0;
-              final progress = (offset / 80.0).clamp(0.0, 1.0);
-              if (progress <= 0.001) {
-                return const SizedBox.shrink();
-              }
-
-              final topBlurHeight = MediaQuery.of(context).padding.top + 68.0;
-
-              return Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                height: topBlurHeight,
-                child: IgnorePointer(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      // Progressive graduated backdrop blur (26 sigma at top, dissolves downward)
-                      ProgressiveBlur(
-                        maxSigma: 26.0 * progress,
-                        direction: ProgressiveBlurDirection.topToBottom,
-                        falloff: 1.2,
-                      ),
-                      // Soft gradient shader dissolving into transparency
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.black.withValues(alpha: 0.65 * progress),
-                              Colors.black.withValues(alpha: 0.30 * progress),
-                              Colors.transparent,
-                            ],
-                            stops: const [0.0, 0.65, 1.0],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
+          TopStatusBarBlur(
+            scrollController: _scrollController,
+            extraHeight: 68.0,
+            maxSigma: 26.0,
+            triggerOffset: 60.0,
+            falloff: 1.2,
           ),
 
           // 5. Persistent Floating Top Buttons (Back & Action Dock)

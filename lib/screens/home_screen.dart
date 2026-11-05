@@ -150,16 +150,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   },
                   onSearch: _navigateToSearchWithQuery,
                 ),
-                SafeArea(
-                  bottom: false,
-                  child: ExploreScreen(
-                    onSearch: _navigateToSearchWithQuery,
-                  ),
+                ExploreScreen(
+                  onSearch: _navigateToSearchWithQuery,
                 ),
-                const SafeArea(
-                  bottom: false,
-                  child: LibraryScreen(),
-                ),
+                const LibraryScreen(),
                 SearchScreen(
                   key: _searchKey,
                   searchController: _searchController,

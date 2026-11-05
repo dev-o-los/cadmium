@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:dart_ytmusic_api/types.dart';
 import 'package:dart_ytmusic_api/utils/traverse.dart';
 import 'package:dart_ytmusic_api/yt_music.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+
 import '../models/song_item.dart';
 import '../models/album_item.dart';
 import '../models/video_item.dart';
@@ -131,7 +133,8 @@ class MusicService {
   /// Sets or updates the connected Google account with YouTube Music authorization.
   void setAuthAccount(UserAccount? account) {
     _currentAccount = account;
-    _cachedHomeData = null; // Clear cached feed so next fetch reflects account state
+    _cachedHomeData =
+        null; // Clear cached feed so next fetch reflects account state
 
     final cookies = account?.cookies;
     if (cookies != null && cookies.isNotEmpty) {
@@ -174,7 +177,9 @@ class MusicService {
         }
       }
     }
-    return jar['SAPISID'] ?? jar['__Secure-3PAPISID'] ?? jar['__Secure-1PAPISID'];
+    return jar['SAPISID'] ??
+        jar['__Secure-3PAPISID'] ??
+        jar['__Secure-1PAPISID'];
   }
 
   /// Sanitizes cookie header so that tokens with the same key take their latest
@@ -241,7 +246,9 @@ class MusicService {
         } catch (_) {}
       }
 
-      if (jar.isNotEmpty && (jar.containsKey('SAPISID') || jar.containsKey('__Secure-3PAPISID'))) {
+      if (jar.isNotEmpty &&
+          (jar.containsKey('SAPISID') ||
+              jar.containsKey('__Secure-3PAPISID'))) {
         return jar.entries.map((e) => '${e.key}=${e.value}').join('; ');
       }
     } catch (_) {}
@@ -249,7 +256,10 @@ class MusicService {
   }
 
   /// Computes SAPISIDHASH authorization header from a SAPISID token
-  static String computeSapisidHash(String sapisid, {String origin = 'https://music.youtube.com'}) {
+  static String computeSapisidHash(
+    String sapisid, {
+    String origin = 'https://music.youtube.com',
+  }) {
     final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final payload = '$timestamp $sapisid $origin';
     final digest = sha1.convert(utf8.encode(payload)).toString();
@@ -264,7 +274,10 @@ class MusicService {
   }
 
   /// Recursively collects all objects named [targetKey] anywhere inside a JSON structure
-  static List<Map<String, dynamic>> _collectRenderers(dynamic root, String targetKey) {
+  static List<Map<String, dynamic>> _collectRenderers(
+    dynamic root,
+    String targetKey,
+  ) {
     final results = <Map<String, dynamic>>[];
     void search(dynamic node) {
       if (node is List) {
@@ -287,16 +300,35 @@ class MusicService {
         }
       }
     }
+
     search(root);
     return results;
   }
 
-  /// Extracts textual representation from YouTube runs, simpleText, or raw string
+  /// Extracts textual representation from YouTube runs, simpleText, nested flexColumn, or raw string
   static String _extractNodeText(dynamic node) {
     if (node == null) return '';
-    if (node is String) return node;
+    if (node is String) return node.trim();
+
+    if (node is List) {
+      final buffer = StringBuffer();
+      for (final item in node) {
+        final text = _extractNodeText(item);
+        if (text.isNotEmpty) {
+          buffer.write(text);
+        }
+      }
+      return buffer.toString().trim();
+    }
+
     if (node is Map) {
-      if (node['simpleText'] is String) return node['simpleText'] as String;
+      // 1. Direct simpleText
+      if (node['simpleText'] is String &&
+          (node['simpleText'] as String).trim().isNotEmpty) {
+        return (node['simpleText'] as String).trim();
+      }
+
+      // 2. Direct runs list
       if (node['runs'] is List) {
         final buffer = StringBuffer();
         for (final r in node['runs'] as List) {
@@ -306,9 +338,61 @@ class MusicService {
             buffer.write(r);
           }
         }
-        return buffer.toString();
+        final result = buffer.toString().trim();
+        if (result.isNotEmpty) return result;
+      }
+
+      // 3. Nested musicResponsiveListItemFlexColumnRenderer
+      if (node['musicResponsiveListItemFlexColumnRenderer'] != null) {
+        final t = _extractNodeText(
+          node['musicResponsiveListItemFlexColumnRenderer'],
+        ).trim();
+        if (t.isNotEmpty) return t;
+      }
+
+      // 4. Nested text container
+      if (node['text'] != null) {
+        final t = _extractNodeText(node['text']).trim();
+        if (t.isNotEmpty) return t;
+      }
+
+      // 5. Nested title
+      if (node['title'] != null) {
+        final t = _extractNodeText(node['title']).trim();
+        if (t.isNotEmpty) return t;
+      }
+
+      // 6. Nested headline
+      if (node['headline'] != null) {
+        final t = _extractNodeText(node['headline']).trim();
+        if (t.isNotEmpty) return t;
+      }
+
+      // 7. Nested subtitle
+      if (node['subtitle'] != null) {
+        final t = _extractNodeText(node['subtitle']).trim();
+        if (t.isNotEmpty) return t;
+      }
+
+      // 8. Formatted string
+      if (node['formattedString'] != null) {
+        final t = _extractNodeText(node['formattedString']).trim();
+        if (t.isNotEmpty) return t;
+      }
+
+      // 9. Accessibility label fallback
+      if (node['accessibility']?['accessibilityData']?['label'] is String) {
+        final a11y =
+            (node['accessibility']['accessibilityData']['label'] as String)
+                .trim();
+        if (a11y.isNotEmpty) return a11y;
+      }
+      if (node['accessibilityData']?['label'] is String) {
+        final a11y = (node['accessibilityData']['label'] as String).trim();
+        if (a11y.isNotEmpty) return a11y;
       }
     }
+
     return '';
   }
 
@@ -316,7 +400,8 @@ class MusicService {
   static String? _extractNodePhoto(Map<String, dynamic> item) {
     var photoObj = item['accountPhoto'] ?? item['thumbnail'];
     if (photoObj == null && item['thumbnailRenderer'] is Map) {
-      photoObj = item['thumbnailRenderer']?['musicThumbnailRenderer']?['thumbnail'];
+      photoObj =
+          item['thumbnailRenderer']?['musicThumbnailRenderer']?['thumbnail'];
     }
     if (photoObj is Map) {
       final thumbnails = photoObj['thumbnails'];
@@ -326,7 +411,9 @@ class MusicService {
           String url = last['url'].toString();
           if (url.startsWith('//')) url = 'https:$url';
           // Upgrade thumbnail to higher resolution (256x256)
-          if (url.contains('=s88') || url.contains('=s64') || url.contains('=s32')) {
+          if (url.contains('=s88') ||
+              url.contains('=s64') ||
+              url.contains('=s32')) {
             url = url.replaceAll(RegExp(r'=s\d+'), '=s256');
           }
           return url;
@@ -337,10 +424,14 @@ class MusicService {
   }
 
   /// Parses YouTube Music account menu response to extract verified Google profile info
-  static ({String displayName, String email, String? avatarUrl})? parseAccountMenu(dynamic data) {
+  static ({String displayName, String email, String? avatarUrl})?
+  parseAccountMenu(dynamic data) {
     if (data == null) return null;
 
-    final activeHeaders = _collectRenderers(data, 'activeAccountHeaderRenderer');
+    final activeHeaders = _collectRenderers(
+      data,
+      'activeAccountHeaderRenderer',
+    );
     if (activeHeaders.isNotEmpty) {
       final header = activeHeaders.first;
       final name = _extractNodeText(header['accountName']).trim();
@@ -399,11 +490,17 @@ class MusicService {
     if (data == null) return null;
     try {
       final raw = jsonEncode(data);
-      final regex = RegExp(r'https:\/\/[a-zA-Z0-9_\-\.]+\.(googleusercontent\.com|ggpht\.com)\/[a-zA-Z0-9_\-=\/]+');
+      final regex = RegExp(
+        r'https:\/\/[a-zA-Z0-9_\-\.]+\.(googleusercontent\.com|ggpht\.com)\/[a-zA-Z0-9_\-=\/]+',
+      );
       final matches = regex.allMatches(raw);
       for (final m in matches) {
         final u = m.group(0);
-        if (u != null && (u.contains('/yti/') || u.contains('/a/') || u.contains('=s') || u.contains('/a-/'))) {
+        if (u != null &&
+            (u.contains('/yti/') ||
+                u.contains('/a/') ||
+                u.contains('=s') ||
+                u.contains('/a-/'))) {
           return u;
         }
       }
@@ -417,7 +514,8 @@ class MusicService {
   /// Connects to YouTube Music InnerTube account_menu endpoint using authentic
   /// session cookies and SAPISIDHASH to retrieve the user's verified profile.
   /// Falls back to getAccountSwitcherEndpoint as in BitChord if needed.
-  Future<({String displayName, String email, String? avatarUrl})?> fetchAccountProfile({
+  Future<({String displayName, String email, String? avatarUrl})?>
+  fetchAccountProfile({
     required String cookies,
     String? dataSyncId,
     String? pageId,
@@ -438,10 +536,10 @@ class MusicService {
 
     // 1. Try InnerTube account/account_menu endpoint (as in BitChord)
     try {
-      final uri = Uri.parse('https://music.youtube.com/youtubei/v1/account/account_menu?prettyPrint=false&hl=en');
-      final userContext = <String, dynamic>{
-        'lockedSafetyMode': false,
-      };
+      final uri = Uri.parse(
+        'https://music.youtube.com/youtubei/v1/account/account_menu?prettyPrint=false&hl=en',
+      );
+      final userContext = <String, dynamic>{'lockedSafetyMode': false};
       if (normalizedDataSync != null && normalizedDataSync.isNotEmpty) {
         userContext['onBehalfOfUser'] = normalizedDataSync;
       }
@@ -453,16 +551,16 @@ class MusicService {
             'clientVersion': version,
             'hl': 'en',
             'gl': 'US',
-            if (visitorData != null && visitorData.isNotEmpty) 'visitorData': visitorData,
+            if (visitorData != null && visitorData.isNotEmpty)
+              'visitorData': visitorData,
           },
           'user': userContext,
-          'request': {
-            'useSsl': true,
-          },
+          'request': {'useSsl': true},
         },
       });
 
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 8);
       final request = await client.postUrl(uri);
       request.headers.contentType = ContentType.json;
       request.headers.set(
@@ -487,12 +585,15 @@ class MusicService {
 
       request.write(body);
 
-      final response = await request.close().timeout(const Duration(seconds: 8));
+      final response = await request.close().timeout(
+        const Duration(seconds: 8),
+      );
       if (response.statusCode == 200) {
         final responseBody = await utf8.decoder.bind(response).join();
         final data = jsonDecode(responseBody);
         final parsed = parseAccountMenu(data);
-        if (parsed != null && (parsed.displayName.isNotEmpty || parsed.avatarUrl != null)) {
+        if (parsed != null &&
+            (parsed.displayName.isNotEmpty || parsed.avatarUrl != null)) {
           return (
             displayName: parsed.displayName,
             email: parsed.email,
@@ -511,7 +612,8 @@ class MusicService {
                 'clientVersion': version,
                 'hl': 'en',
                 'gl': 'US',
-                if (visitorData != null && visitorData.isNotEmpty) 'visitorData': visitorData,
+                if (visitorData != null && visitorData.isNotEmpty)
+                  'visitorData': visitorData,
               },
               'user': userContext,
               'request': {'useSsl': true},
@@ -519,7 +621,10 @@ class MusicService {
           });
           final retryReq = await client.postUrl(uri);
           retryReq.headers.contentType = ContentType.json;
-          retryReq.headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36');
+          retryReq.headers.set(
+            'User-Agent',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+          );
           retryReq.headers.set('Accept-Language', 'en-US,en;q=0.9');
           retryReq.headers.set('X-Origin', 'https://music.youtube.com');
           retryReq.headers.set('Origin', 'https://music.youtube.com');
@@ -530,12 +635,16 @@ class MusicService {
           retryReq.headers.set('Authorization', sapisidHash);
           retryReq.headers.set('X-Goog-AuthUser', authUser ?? '0');
           retryReq.write(retryBody);
-          final retryRes = await retryReq.close().timeout(const Duration(seconds: 8));
+          final retryRes = await retryReq.close().timeout(
+            const Duration(seconds: 8),
+          );
           if (retryRes.statusCode == 200) {
             final retryStr = await utf8.decoder.bind(retryRes).join();
             final retryData = jsonDecode(retryStr);
             final parsedRetry = parseAccountMenu(retryData);
-            if (parsedRetry != null && (parsedRetry.displayName.isNotEmpty || parsedRetry.avatarUrl != null)) {
+            if (parsedRetry != null &&
+                (parsedRetry.displayName.isNotEmpty ||
+                    parsedRetry.avatarUrl != null)) {
               return (
                 displayName: parsedRetry.displayName,
                 email: parsedRetry.email,
@@ -557,7 +666,8 @@ class MusicService {
       final ytOrigin = 'https://www.youtube.com';
       final ytHash = computeSapisidHash(sapisid, origin: ytOrigin);
       final uri = Uri.parse('$ytOrigin/getAccountSwitcherEndpoint');
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 8);
       final request = await client.getUrl(uri);
       request.headers.set(
         'User-Agent',
@@ -570,15 +680,20 @@ class MusicService {
       request.headers.set('Authorization', ytHash);
       request.headers.set('X-Goog-AuthUser', authUser ?? '0');
 
-      final response = await request.close().timeout(const Duration(seconds: 8));
+      final response = await request.close().timeout(
+        const Duration(seconds: 8),
+      );
       if (response.statusCode == 200) {
         var responseBody = await utf8.decoder.bind(response).join();
         if (responseBody.contains(")]}'")) {
-          responseBody = responseBody.substring(responseBody.indexOf(")]}'") + 4).trim();
+          responseBody = responseBody
+              .substring(responseBody.indexOf(")]}'") + 4)
+              .trim();
         }
         final data = jsonDecode(responseBody);
         final parsed = parseAccountMenu(data);
-        if (parsed != null && (parsed.displayName.isNotEmpty || parsed.avatarUrl != null)) {
+        if (parsed != null &&
+            (parsed.displayName.isNotEmpty || parsed.avatarUrl != null)) {
           return (
             displayName: parsed.displayName,
             email: parsed.email,
@@ -642,30 +757,165 @@ class MusicService {
 
   /// Parses a SongItem from a YouTube Music InnerTube musicResponsiveListItemRenderer
   static SongItem? parseSongFromRenderer(Map<String, dynamic> item) {
-    final videoId = item['playlistItemData']?['videoId']?.toString() ??
-        traverseString(item, ['overlay', 'musicItemThumbnailOverlayRenderer', 'content', 'musicPlayButtonRenderer', 'playNavigationEndpoint', 'watchEndpoint', 'videoId']) ??
-        traverseString(item, ['navigationEndpoint', 'watchEndpoint', 'videoId']) ??
-        traverseString(item, ['doubleTapCommand', 'watchEndpoint', 'videoId']) ??
-        traverseString(item, ['menu', 'menuRenderer', 'topLevelButtons', 'likeButtonRenderer', 'target', 'videoId']);
+    final videoId =
+        item['playlistItemData']?['videoId']?.toString() ??
+        traverseString(item, [
+          'overlay',
+          'musicItemThumbnailOverlayRenderer',
+          'content',
+          'musicPlayButtonRenderer',
+          'playNavigationEndpoint',
+          'watchEndpoint',
+          'videoId',
+        ]) ??
+        traverseString(item, [
+          'navigationEndpoint',
+          'watchEndpoint',
+          'videoId',
+        ]) ??
+        traverseString(item, [
+          'doubleTapCommand',
+          'watchEndpoint',
+          'videoId',
+        ]) ??
+        traverseString(item, [
+          'menu',
+          'menuRenderer',
+          'topLevelButtons',
+          'likeButtonRenderer',
+          'target',
+          'videoId',
+        ]);
     if (videoId == null || videoId.isEmpty) return null;
 
     final flexCols = item['flexColumns'] as List? ?? [];
-    String title = 'Untitled';
-    String artist = 'Unknown Artist';
+    String title = '';
+    String artist = '';
     String? album;
 
+    // 1. Extract song title from Column 0
     if (flexCols.isNotEmpty) {
       final t = _extractNodeText(flexCols[0]).trim();
-      if (t.isNotEmpty) title = t;
+      if (t.isNotEmpty && t.toLowerCase() != 'untitled') {
+        title = t;
+      }
     }
 
-    if (flexCols.length > 1) {
-      final runs = traverseList(flexCols[1], ['musicResponsiveListItemFlexColumnRenderer', 'text', 'runs']);
-      if (runs.isNotEmpty && runs.first is Map) {
-        artist = (runs.first['text'] ?? '').toString().trim();
+    // 2. Fallbacks for title if still missing or untitled
+    if (title.isEmpty || title.toLowerCase() == 'untitled') {
+      final travTitle = traverseString(item, [
+        'flexColumns',
+        'musicResponsiveListItemFlexColumnRenderer',
+        'text',
+        'runs',
+        'text',
+      ]);
+      if (travTitle != null &&
+          travTitle.trim().isNotEmpty &&
+          travTitle.trim().toLowerCase() != 'untitled') {
+        title = travTitle.trim();
       }
-      if (runs.length >= 3 && runs[2] is Map && runs[2]['text'] != null) {
-        album = runs[2]['text'].toString().trim();
+    }
+
+    if (title.isEmpty || title.toLowerCase() == 'untitled') {
+      final itemTitle = _extractNodeText(item['title']).trim();
+      if (itemTitle.isNotEmpty && itemTitle.toLowerCase() != 'untitled') {
+        title = itemTitle;
+      }
+    }
+
+    if (title.isEmpty || title.toLowerCase() == 'untitled') {
+      final a11y =
+          traverseString(item, [
+            'overlay',
+            'musicItemThumbnailOverlayRenderer',
+            'content',
+            'musicPlayButtonRenderer',
+            'accessibilityPlayData',
+            'accessibilityData',
+            'label',
+          ]) ??
+          traverseString(item, [
+            'accessibility',
+            'accessibilityData',
+            'label',
+          ]) ??
+          traverseString(item, ['accessibilityData', 'label']);
+      if (a11y != null && a11y.trim().isNotEmpty) {
+        var clean = a11y.trim().replaceFirst(
+          RegExp(r'^Play\s+', caseSensitive: false),
+          '',
+        );
+        if (clean.contains(' by ')) {
+          final parts = clean.split(' by ');
+          title = parts[0].trim();
+          if (artist.isEmpty) {
+            artist = parts[1].split(' • ')[0].split(' · ')[0].trim();
+          }
+        } else if (clean.contains(' • ')) {
+          title = clean.split(' • ')[0].trim();
+        } else if (clean.toLowerCase() != 'untitled') {
+          title = clean;
+        }
+      }
+    }
+
+    // Discard item if no title was available so it never appears as 'Untitled' in the UI
+    if (title.isEmpty || title.toLowerCase() == 'untitled') {
+      return null;
+    }
+
+    // 3. Extract artist and album from Column 1
+    if (flexCols.length > 1) {
+      final col1 = flexCols[1];
+      final runs = traverseList(col1, [
+        'musicResponsiveListItemFlexColumnRenderer',
+        'text',
+        'runs',
+      ]);
+      if (runs.isNotEmpty) {
+        final artistParts = <String>[];
+        final albumParts = <String>[];
+        int separatorCount = 0;
+
+        for (final r in runs) {
+          if (r is! Map) continue;
+          final runText = (r['text'] ?? '').toString();
+          if (runText.contains('•') || runText.contains('·')) {
+            separatorCount++;
+            continue;
+          }
+          if (separatorCount == 0) {
+            artistParts.add(runText);
+          } else if (separatorCount == 1) {
+            if (parseDurationString(runText) == null) {
+              albumParts.add(runText);
+            }
+          }
+        }
+
+        final combinedArtist = artistParts.join().trim();
+        if (combinedArtist.isNotEmpty) {
+          artist = combinedArtist;
+        }
+        final combinedAlbum = albumParts.join().trim();
+        if (combinedAlbum.isNotEmpty) {
+          album = combinedAlbum;
+        }
+      }
+
+      if (artist.isEmpty || artist == 'Unknown Artist') {
+        final fallbackArtist = _extractNodeText(col1).trim();
+        if (fallbackArtist.isNotEmpty) {
+          artist = fallbackArtist.split('•')[0].split('·')[0].trim();
+        }
+      }
+    }
+
+    if (artist.isEmpty) {
+      final sub = _extractNodeText(item['subtitle']).trim();
+      if (sub.isNotEmpty) {
+        artist = sub.split('•')[0].split('·')[0].trim();
       }
     }
 
@@ -676,7 +926,11 @@ class MusicService {
       duration = parseDurationString(durStr);
     }
     if (duration == null && flexCols.length > 1) {
-      final runs = traverseList(flexCols[1], ['musicResponsiveListItemFlexColumnRenderer', 'text', 'runs']);
+      final runs = traverseList(flexCols[1], [
+        'musicResponsiveListItemFlexColumnRenderer',
+        'text',
+        'runs',
+      ]);
       if (runs.isNotEmpty) {
         final lastRun = runs.last;
         if (lastRun is Map && lastRun['text'] != null) {
@@ -686,8 +940,15 @@ class MusicService {
     }
 
     String? thumb;
-    final itemThumbs = traverseList(item, ['thumbnail', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails']);
-    if (itemThumbs.isNotEmpty && itemThumbs.last is Map && itemThumbs.last['url'] != null) {
+    final itemThumbs = traverseList(item, [
+      'thumbnail',
+      'musicThumbnailRenderer',
+      'thumbnail',
+      'thumbnails',
+    ]);
+    if (itemThumbs.isNotEmpty &&
+        itemThumbs.last is Map &&
+        itemThumbs.last['url'] != null) {
       thumb = SongItem.upgradeThumbnail(itemThumbs.last['url'].toString());
     }
 
@@ -708,7 +969,8 @@ class MusicService {
     Map<String, String>? queryParams,
   }) async {
     final account = _currentAccount;
-    final isAuthenticated = account != null &&
+    final isAuthenticated =
+        account != null &&
         account.sapisid != null &&
         account.sapisid!.isNotEmpty;
 
@@ -718,16 +980,13 @@ class MusicService {
       'hl': 'en',
       ...?queryParams,
     };
-    final uri = Uri.parse('https://music.youtube.com/youtubei/v1/$endpoint').replace(
-      queryParameters: query,
-    );
+    final uri = Uri.parse('https://music.youtube.com/youtubei/v1/$endpoint')
+        .replace(queryParameters: query);
 
     final normalizedDataSync = account != null
         ? UserAccount.normalizeDataSyncId(account.dataSyncId)
         : null;
-    final userContext = <String, dynamic>{
-      'lockedSafetyMode': false,
-    };
+    final userContext = <String, dynamic>{'lockedSafetyMode': false};
     if (normalizedDataSync != null && normalizedDataSync.isNotEmpty) {
       userContext['onBehalfOfUser'] = normalizedDataSync;
     }
@@ -743,9 +1002,7 @@ class MusicService {
             'visitorData': account.visitorData,
         },
         'user': userContext,
-        'request': {
-          'useSsl': true,
-        },
+        'request': {'useSsl': true},
       },
       ...?bodyExtras,
     };
@@ -781,7 +1038,9 @@ class MusicService {
 
       request.write(jsonEncode(payload));
 
-      final response = await request.close().timeout(const Duration(seconds: 10));
+      final response = await request.close().timeout(
+        const Duration(seconds: 10),
+      );
       if (response.statusCode != 200) {
         debugPrint('postInnerTube ($endpoint) returned ${response.statusCode}');
         await response.drain();
@@ -802,22 +1061,18 @@ class MusicService {
   Future<dynamic> browseContinuation(String token) async {
     return postInnerTube(
       'browse',
-      queryParams: {
-        'ctoken': token,
-        'continuation': token,
-        'type': 'next',
-      },
-      bodyExtras: {
-        'continuation': token,
-      },
+      queryParams: {'ctoken': token, 'continuation': token, 'type': 'next'},
+      bodyExtras: {'continuation': token},
     );
   }
 
   // Cached streams to prevent duplicate Innertube player requests (5 min TTL)
-  final Map<String, ({AudioStreamInfo info, DateTime timestamp})> _streamCache = {};
+  final Map<String, ({AudioStreamInfo info, DateTime timestamp})> _streamCache =
+      {};
 
   // Cached artist details to prevent repeated parsing and provide instant loads (15 min TTL)
-  final Map<String, ({ArtistDetails details, DateTime timestamp})> _artistDetailsCache = {};
+  final Map<String, ({ArtistDetails details, DateTime timestamp})>
+  _artistDetailsCache = {};
 
   // Cached home feed data
   HomeData? _cachedHomeData;
@@ -829,7 +1084,8 @@ class MusicService {
     _InnerTubeClientConfig(
       clientName: 'VISIONOS',
       clientVersion: '1.02',
-      userAgent: 'com.google.visionos.youtube/1.02 (Apple Vision; visionOS 1.0)',
+      userAgent:
+          'com.google.visionos.youtube/1.02 (Apple Vision; visionOS 1.0)',
     ),
     // Tier 2: ANDROID_VR - Oculus/Meta Quest client, direct streamingData
     _InnerTubeClientConfig(
@@ -875,10 +1131,10 @@ class MusicService {
       final diskCached = await HomeCacheService.instance.loadHomeData();
       if (diskCached != null && !diskCached.isEmpty) {
         _cachedHomeData = diskCached;
-        SongMetricsCacheService.instance.precacheTracks(
-          [...diskCached.recents.take(3), ...diskCached.quickPicks.take(3)],
-          this,
-        );
+        SongMetricsCacheService.instance.precacheTracks([
+          ...diskCached.recents.take(3),
+          ...diskCached.quickPicks.take(3),
+        ], this);
         return diskCached;
       }
     }
@@ -895,10 +1151,10 @@ class MusicService {
         _cachedHomeData = personalData;
         await HomeCacheService.instance.saveHomeData(personalData);
         ArtworkCacheService.instance.prefetchArtworks(personalData.recents);
-        SongMetricsCacheService.instance.precacheTracks(
-          [...personalData.recents.take(3), ...personalData.quickPicks.take(3)],
-          this,
-        );
+        SongMetricsCacheService.instance.precacheTracks([
+          ...personalData.recents.take(3),
+          ...personalData.quickPicks.take(3),
+        ], this);
         return personalData;
       }
     }
@@ -909,10 +1165,10 @@ class MusicService {
     _cachedHomeData = homeData;
     await HomeCacheService.instance.saveHomeData(homeData);
     ArtworkCacheService.instance.prefetchArtworks(homeData.recents);
-    SongMetricsCacheService.instance.precacheTracks(
-      [...homeData.recents.take(3), ...homeData.quickPicks.take(3)],
-      this,
-    );
+    SongMetricsCacheService.instance.precacheTracks([
+      ...homeData.recents.take(3),
+      ...homeData.quickPicks.take(3),
+    ], this);
     return homeData;
   }
 
@@ -931,9 +1187,15 @@ class MusicService {
 
       // 1. Authenticated InnerTube browse for FEmusic_history (User's authentic recent listens)
       try {
-        final historyJson = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_history'});
+        final historyJson = await postInnerTube(
+          'browse',
+          bodyExtras: {'browseId': 'FEmusic_history'},
+        );
         if (historyJson != null) {
-          final renderers = _collectRenderers(historyJson, 'musicResponsiveListItemRenderer');
+          final renderers = _collectRenderers(
+            historyJson,
+            'musicResponsiveListItemRenderer',
+          );
           for (final it in renderers) {
             final song = parseSongFromRenderer(it);
             if (song != null && !seenSongIds.contains(song.id)) {
@@ -948,11 +1210,18 @@ class MusicService {
 
       // 2. Authenticated InnerTube browse for FEmusic_home
       try {
-        final homeJson = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_home'});
+        final homeJson = await postInnerTube(
+          'browse',
+          bodyExtras: {'browseId': 'FEmusic_home'},
+        );
         if (homeJson != null) {
-          final shelves = _collectRenderers(homeJson, 'musicCarouselShelfRenderer');
+          final shelves = _collectRenderers(
+            homeJson,
+            'musicCarouselShelfRenderer',
+          );
           for (final shelf in shelves) {
-            final header = shelf['header']?['musicCarouselShelfBasicHeaderRenderer'];
+            final header =
+                shelf['header']?['musicCarouselShelfBasicHeaderRenderer'];
             final sectionTitle = _extractNodeText(header?['title']);
             final titleLower = sectionTitle.toLowerCase();
             final items = shelf['contents'] as List? ?? [];
@@ -962,7 +1231,8 @@ class MusicService {
               if (it is Map) {
                 if (it['musicResponsiveListItemRenderer'] is Map) {
                   final song = parseSongFromRenderer(
-                    it['musicResponsiveListItemRenderer'] as Map<String, dynamic>,
+                    it['musicResponsiveListItemRenderer']
+                        as Map<String, dynamic>,
                   );
                   if (song != null) {
                     songs.add(song);
@@ -971,23 +1241,60 @@ class MusicService {
                     }
                   }
                 } else if (it['musicTwoRowItemRenderer'] is Map) {
-                  final twoRow = it['musicTwoRowItemRenderer'] as Map<String, dynamic>;
+                  final twoRow =
+                      it['musicTwoRowItemRenderer'] as Map<String, dynamic>;
                   final title = _extractNodeText(twoRow['title']);
                   final subtitle = _extractNodeText(twoRow['subtitle']);
                   final thumb = _extractNodePhoto(twoRow);
-                  final browseId = traverseString(twoRow, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
-                  final videoId = traverseString(twoRow, ['navigationEndpoint', 'watchEndpoint', 'videoId']);
+                  final browseId = traverseString(twoRow, [
+                    'navigationEndpoint',
+                    'browseEndpoint',
+                    'browseId',
+                  ]);
+                  final videoId = traverseString(twoRow, [
+                    'navigationEndpoint',
+                    'watchEndpoint',
+                    'videoId',
+                  ]);
 
                   if (videoId != null && videoId.isNotEmpty) {
-                    final song = SongItem(
-                      id: videoId,
-                      title: title.isNotEmpty ? title : 'Track',
-                      artist: subtitle.isNotEmpty ? subtitle : 'YouTube Music',
-                      thumbnailUrl: thumb,
-                    );
-                    songs.add(song);
+                    var songTitle = title.trim();
+                    if (songTitle.isEmpty ||
+                        songTitle.toLowerCase() == 'untitled' ||
+                        songTitle.toLowerCase() == 'track') {
+                      final a11y =
+                          traverseString(twoRow, [
+                            'title',
+                            'runs',
+                            'navigationEndpoint',
+                            'watchEndpoint',
+                            'title',
+                          ]) ??
+                          traverseString(twoRow, [
+                            'accessibilityData',
+                            'accessibilityData',
+                            'label',
+                          ]);
+                      if (a11y != null && a11y.trim().isNotEmpty) {
+                        songTitle = a11y.trim();
+                      }
+                    }
+                    if (songTitle.isNotEmpty &&
+                        songTitle.toLowerCase() != 'untitled' &&
+                        songTitle.toLowerCase() != 'track') {
+                      final song = SongItem(
+                        id: videoId,
+                        title: songTitle,
+                        artist: subtitle.isNotEmpty
+                            ? subtitle
+                            : 'YouTube Music',
+                        thumbnailUrl: thumb,
+                      );
+                      songs.add(song);
+                    }
                   } else if (browseId != null && browseId.isNotEmpty) {
-                    if (browseId.startsWith('MPREb') || browseId.contains('album')) {
+                    if (browseId.startsWith('MPREb') ||
+                        browseId.contains('album')) {
                       personalizedAlbums.add(
                         AlbumItem(
                           id: browseId,
@@ -1027,7 +1334,9 @@ class MusicService {
                 personalizedHeroCards.add(
                   HeroCardItem(
                     id: 'hero_personal_${personalizedHeroCards.length}',
-                    title: sectionTitle.isNotEmpty ? sectionTitle : 'Personal Supermix',
+                    title: sectionTitle.isNotEmpty
+                        ? sectionTitle
+                        : 'Personal Supermix',
                     subtitle: 'For ${_currentAccount?.displayName ?? "You"}',
                     caption: 'YouTube Music • Personalized',
                     imageUrl: songs.first.thumbnailUrl,
@@ -1091,7 +1400,9 @@ class MusicService {
               titleLower.contains('for you') ||
               titleLower.contains('favorites')) {
             if (personalizedQuickPicks.isEmpty) {
-              personalizedQuickPicks.addAll(_extractSongsFromHomeSection(section));
+              personalizedQuickPicks.addAll(
+                _extractSongsFromHomeSection(section),
+              );
             }
           }
           // Mixed for you / Personal Supermixes
@@ -1105,8 +1416,11 @@ class MusicService {
                 personalizedHeroCards.add(
                   HeroCardItem(
                     id: 'hero_personal_${personalizedHeroCards.length}',
-                    title: section.title.isNotEmpty ? section.title : 'My Supermix',
-                    subtitle: 'Personalized for ${_currentAccount?.displayName ?? "You"}',
+                    title: section.title.isNotEmpty
+                        ? section.title
+                        : 'My Supermix',
+                    subtitle:
+                        'Personalized for ${_currentAccount?.displayName ?? "You"}',
                     caption: 'YouTube Music • Personalized Mix',
                     imageUrl: songs.first.thumbnailUrl,
                     primaryColor: 0xFF1C1C1E,
@@ -1149,8 +1463,12 @@ class MusicService {
           quickPicks: personalizedQuickPicks.isNotEmpty
               ? personalizedQuickPicks
               : rawHome.quickPicks,
-          moods: defaultCategories.moods.isNotEmpty ? defaultCategories.moods : rawHome.moods,
-          genres: defaultCategories.genres.isNotEmpty ? defaultCategories.genres : rawHome.genres,
+          moods: defaultCategories.moods.isNotEmpty
+              ? defaultCategories.moods
+              : rawHome.moods,
+          genres: defaultCategories.genres.isNotEmpty
+              ? defaultCategories.genres
+              : rawHome.genres,
           albumsAndSingles: personalizedAlbums.isNotEmpty
               ? personalizedAlbums
               : rawHome.albumsAndSingles,
@@ -1162,7 +1480,9 @@ class MusicService {
         );
       }
     } catch (e) {
-      debugPrint('Personalized home sections fetch error: $e, falling back to raw feed');
+      debugPrint(
+        'Personalized home sections fetch error: $e, falling back to raw feed',
+      );
     }
     return null;
   }
@@ -1171,6 +1491,10 @@ class MusicService {
     final list = <SongItem>[];
     for (final item in section.contents) {
       if (item is SongDetailed && item.videoId.isNotEmpty) {
+        final title = item.name.trim();
+        if (title.isEmpty || title.toLowerCase() == 'untitled') {
+          continue;
+        }
         String? thumb;
         if (item.thumbnails.isNotEmpty) {
           thumb = SongItem.upgradeThumbnail(item.thumbnails.last.url);
@@ -1178,7 +1502,7 @@ class MusicService {
         list.add(
           SongItem(
             id: item.videoId,
-            title: item.name.isNotEmpty ? item.name : 'Untitled',
+            title: title,
             artist: item.artist.name.isNotEmpty
                 ? item.artist.name
                 : 'Unknown Artist',
@@ -1255,11 +1579,18 @@ class MusicService {
     try {
       final browseIds = ['FEmusic_explore', 'FEmusic_home'];
       for (final bId in browseIds) {
-        final browseJson = await postInnerTube('browse', bodyExtras: {'browseId': bId});
+        final browseJson = await postInnerTube(
+          'browse',
+          bodyExtras: {'browseId': bId},
+        );
         if (browseJson != null) {
-          final shelves = _collectRenderers(browseJson, 'musicCarouselShelfRenderer');
+          final shelves = _collectRenderers(
+            browseJson,
+            'musicCarouselShelfRenderer',
+          );
           for (final shelf in shelves) {
-            final header = shelf['header']?['musicCarouselShelfBasicHeaderRenderer'];
+            final header =
+                shelf['header']?['musicCarouselShelfBasicHeaderRenderer'];
             final sectionTitle = _extractNodeText(header?['title']);
             final titleLower = sectionTitle.toLowerCase();
             final items = shelf['contents'] as List? ?? [];
@@ -1271,34 +1602,71 @@ class MusicService {
               if (it is Map) {
                 if (it['musicResponsiveListItemRenderer'] is Map) {
                   final s = parseSongFromRenderer(
-                    it['musicResponsiveListItemRenderer'] as Map<String, dynamic>,
+                    it['musicResponsiveListItemRenderer']
+                        as Map<String, dynamic>,
                   );
                   if (s != null) songs.add(s);
                 } else if (it['musicTwoRowItemRenderer'] is Map) {
-                  final twoRow = it['musicTwoRowItemRenderer'] as Map<String, dynamic>;
+                  final twoRow =
+                      it['musicTwoRowItemRenderer'] as Map<String, dynamic>;
                   final title = _extractNodeText(twoRow['title']);
                   final subtitle = _extractNodeText(twoRow['subtitle']);
                   final thumb = _extractNodePhoto(twoRow);
-                  final browseId = traverseString(twoRow, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
-                  final videoId = traverseString(twoRow, ['navigationEndpoint', 'watchEndpoint', 'videoId']);
+                  final browseId = traverseString(twoRow, [
+                    'navigationEndpoint',
+                    'browseEndpoint',
+                    'browseId',
+                  ]);
+                  final videoId = traverseString(twoRow, [
+                    'navigationEndpoint',
+                    'watchEndpoint',
+                    'videoId',
+                  ]);
 
                   if (videoId != null && videoId.isNotEmpty) {
-                    final song = SongItem(
-                      id: videoId,
-                      title: title.isNotEmpty ? title : 'Track',
-                      artist: subtitle.isNotEmpty ? subtitle : 'YouTube Music',
-                      thumbnailUrl: thumb,
-                    );
-                    songs.add(song);
-                    if (titleLower.contains('video')) {
-                      shelfVideos.add(
-                        VideoItem(
-                          id: videoId,
-                          title: title.isNotEmpty ? title : 'Video',
-                          artist: subtitle.isNotEmpty ? subtitle : 'Artist',
-                          thumbnailUrl: thumb,
-                        ),
+                    var songTitle = title.trim();
+                    if (songTitle.isEmpty ||
+                        songTitle.toLowerCase() == 'untitled' ||
+                        songTitle.toLowerCase() == 'track') {
+                      final a11y =
+                          traverseString(twoRow, [
+                            'title',
+                            'runs',
+                            'navigationEndpoint',
+                            'watchEndpoint',
+                            'title',
+                          ]) ??
+                          traverseString(twoRow, [
+                            'accessibilityData',
+                            'accessibilityData',
+                            'label',
+                          ]);
+                      if (a11y != null && a11y.trim().isNotEmpty) {
+                        songTitle = a11y.trim();
+                      }
+                    }
+                    if (songTitle.isNotEmpty &&
+                        songTitle.toLowerCase() != 'untitled' &&
+                        songTitle.toLowerCase() != 'track') {
+                      final song = SongItem(
+                        id: videoId,
+                        title: songTitle,
+                        artist: subtitle.isNotEmpty
+                            ? subtitle
+                            : 'YouTube Music',
+                        thumbnailUrl: thumb,
                       );
+                      songs.add(song);
+                      if (titleLower.contains('video')) {
+                        shelfVideos.add(
+                          VideoItem(
+                            id: videoId,
+                            title: songTitle,
+                            artist: subtitle.isNotEmpty ? subtitle : 'Artist',
+                            thumbnailUrl: thumb,
+                          ),
+                        );
+                      }
                     }
                   } else if (browseId != null && browseId.isNotEmpty) {
                     shelfAlbums.add(
@@ -1307,7 +1675,9 @@ class MusicService {
                         title: title.isNotEmpty ? title : 'Album',
                         artist: subtitle.isNotEmpty ? subtitle : 'Artist',
                         thumbnailUrl: thumb,
-                        type: titleLower.contains('single') ? 'Single' : 'Album',
+                        type: titleLower.contains('single')
+                            ? 'Single'
+                            : 'Album',
                         isCustom: false,
                       ),
                     );
@@ -1355,13 +1725,17 @@ class MusicService {
           final sectionAlbums = _extractAlbumsFromHomeSection(section);
           final sectionVideos = _extractVideosFromHomeSection(section);
 
-          if (titleLower.contains('quick pick') || titleLower.contains('picks')) {
+          if (titleLower.contains('quick pick') ||
+              titleLower.contains('picks')) {
             quickPicks.addAll(songs);
-          } else if (titleLower.contains('listen again') || titleLower.contains('recent')) {
+          } else if (titleLower.contains('listen again') ||
+              titleLower.contains('recent')) {
             recents.addAll(songs);
-          } else if (titleLower.contains('trend') || titleLower.contains('chart')) {
+          } else if (titleLower.contains('trend') ||
+              titleLower.contains('chart')) {
             trendingSongs.addAll(songs);
-          } else if (titleLower.contains('discover') || titleLower.contains('mix')) {
+          } else if (titleLower.contains('discover') ||
+              titleLower.contains('mix')) {
             dailyDiscover.addAll(songs);
           }
           if (sectionAlbums.isNotEmpty) albums.addAll(sectionAlbums);
@@ -1500,24 +1874,23 @@ class MusicService {
 
     try {
       final results = await _ytMusic.searchAlbums(trimmedQuery);
-      return results
-          .where((a) => a.albumId.isNotEmpty)
-          .map((a) {
-            String? thumb;
-            if (a.thumbnails.isNotEmpty) {
-              final raw = a.thumbnails.last.url;
-              thumb = SongItem.upgradeThumbnail(raw.startsWith('//') ? 'https:$raw' : raw);
-            }
-            return AlbumItem(
-              id: a.albumId,
-              title: a.name.isNotEmpty ? a.name : 'Untitled Album',
-              artist: a.artist.name.isNotEmpty ? a.artist.name : 'Unknown Artist',
-              thumbnailUrl: thumb,
-              type: a.type.isNotEmpty ? a.type : 'Album',
-              year: a.year,
-            );
-          })
-          .toList();
+      return results.where((a) => a.albumId.isNotEmpty).map((a) {
+        String? thumb;
+        if (a.thumbnails.isNotEmpty) {
+          final raw = a.thumbnails.last.url;
+          thumb = SongItem.upgradeThumbnail(
+            raw.startsWith('//') ? 'https:$raw' : raw,
+          );
+        }
+        return AlbumItem(
+          id: a.albumId,
+          title: a.name.isNotEmpty ? a.name : 'Untitled Album',
+          artist: a.artist.name.isNotEmpty ? a.artist.name : 'Unknown Artist',
+          thumbnailUrl: thumb,
+          type: a.type.isNotEmpty ? a.type : 'Album',
+          year: a.year,
+        );
+      }).toList();
     } catch (e) {
       debugPrint('searchAlbums error: $e');
       return [];
@@ -1526,7 +1899,11 @@ class MusicService {
 
   /// Resolves the real cover artwork URL for a specific album by ID, title, or artist.
   /// If the album has no image or if loading failed, this grabs the real image from YouTube Music.
-  Future<String?> getAlbumArtwork(String albumId, {String? title, String? artist}) async {
+  Future<String?> getAlbumArtwork(
+    String albumId, {
+    String? title,
+    String? artist,
+  }) async {
     final cleanId = albumId.trim();
     if (cleanId.isNotEmpty && _albumArtworkCache.containsKey(cleanId)) {
       return _albumArtworkCache[cleanId];
@@ -1542,7 +1919,9 @@ class MusicService {
         final albumFull = await _ytMusic.getAlbum(cleanId);
         if (albumFull.thumbnails.isNotEmpty) {
           final raw = albumFull.thumbnails.last.url;
-          final url = SongItem.upgradeThumbnail(raw.startsWith('//') ? 'https:$raw' : raw);
+          final url = SongItem.upgradeThumbnail(
+            raw.startsWith('//') ? 'https:$raw' : raw,
+          );
           if (url != null && url.isNotEmpty) {
             _albumArtworkCache[cleanId] = url;
             return url;
@@ -1552,7 +1931,9 @@ class MusicService {
           for (final song in albumFull.songs) {
             if (song.thumbnails.isNotEmpty) {
               final raw = song.thumbnails.last.url;
-              final url = SongItem.upgradeThumbnail(raw.startsWith('//') ? 'https:$raw' : raw);
+              final url = SongItem.upgradeThumbnail(
+                raw.startsWith('//') ? 'https:$raw' : raw,
+              );
               if (url != null && url.isNotEmpty) {
                 _albumArtworkCache[cleanId] = url;
                 return url;
@@ -1574,7 +1955,9 @@ class MusicService {
           final first = searchResults.first;
           if (first.thumbnails.isNotEmpty) {
             final raw = first.thumbnails.last.url;
-            final url = SongItem.upgradeThumbnail(raw.startsWith('//') ? 'https:$raw' : raw);
+            final url = SongItem.upgradeThumbnail(
+              raw.startsWith('//') ? 'https:$raw' : raw,
+            );
             if (url != null && url.isNotEmpty) {
               if (cleanId.isNotEmpty) _albumArtworkCache[cleanId] = url;
               return url;
@@ -1590,7 +1973,9 @@ class MusicService {
         final songs = await _ytMusic.searchSongs(query);
         if (songs.isNotEmpty && songs.first.thumbnails.isNotEmpty) {
           final raw = songs.first.thumbnails.last.url;
-          final url = SongItem.upgradeThumbnail(raw.startsWith('//') ? 'https:$raw' : raw);
+          final url = SongItem.upgradeThumbnail(
+            raw.startsWith('//') ? 'https:$raw' : raw,
+          );
           if (url != null && url.isNotEmpty) {
             if (cleanId.isNotEmpty) _albumArtworkCache[cleanId] = url;
             return url;
@@ -1609,7 +1994,8 @@ class MusicService {
   /// 4. Falls back to album search or direct track ID video.
   Future<AnimatedArtworkData?> getAnimatedArtworkData(SongItem song) async {
     // If song already has an animated artwork URL specified, return it
-    if (song.animatedArtworkUrl != null && song.animatedArtworkUrl!.isNotEmpty) {
+    if (song.animatedArtworkUrl != null &&
+        song.animatedArtworkUrl!.isNotEmpty) {
       final isVideo = isVideoMediaUrl(song.animatedArtworkUrl);
       return AnimatedArtworkData(
         url: song.animatedArtworkUrl!,
@@ -1617,14 +2003,18 @@ class MusicService {
       );
     }
 
-    final cacheKey = song.id.isNotEmpty ? song.id : '${song.title}_${song.artist}';
+    final cacheKey = song.id.isNotEmpty
+        ? song.id
+        : '${song.title}_${song.artist}';
     if (_animatedArtworkDataCache.containsKey(cacheKey)) {
       return _animatedArtworkDataCache[cacheKey];
     }
 
     try {
       // 1. Search YouTube for official music video / moving visualizer first
-      final searchResult = await _searchOfficialVideoOrThumbnail('${song.title} ${song.artist}');
+      final searchResult = await _searchOfficialVideoOrThumbnail(
+        '${song.title} ${song.artist}',
+      );
       if (searchResult != null) {
         if (searchResult.videoId != null) {
           final officialVideo = await resolveVideoStream(searchResult.videoId!);
@@ -1653,11 +2043,17 @@ class MusicService {
       }
 
       // 2. Fallback to album search if song belongs to an album
-      if (song.album != null && song.album!.isNotEmpty && song.album != song.title) {
-        final albumResult = await _searchOfficialVideoOrThumbnail('${song.album} ${song.artist}');
+      if (song.album != null &&
+          song.album!.isNotEmpty &&
+          song.album != song.title) {
+        final albumResult = await _searchOfficialVideoOrThumbnail(
+          '${song.album} ${song.artist}',
+        );
         if (albumResult != null) {
           if (albumResult.videoId != null) {
-            final officialVideo = await resolveVideoStream(albumResult.videoId!);
+            final officialVideo = await resolveVideoStream(
+              albumResult.videoId!,
+            );
             if (officialVideo != null && officialVideo.height >= 480) {
               final data = AnimatedArtworkData(
                 url: officialVideo.url,
@@ -1728,13 +2124,16 @@ class MusicService {
   }
 
   /// Internal helper to perform a lightweight search for the official video ID and moving thumbnail.
-  Future<({String? videoId, String? thumbnailUrl})?> _searchOfficialVideoOrThumbnail(String query) async {
+  Future<({String? videoId, String? thumbnailUrl})?>
+  _searchOfficialVideoOrThumbnail(String query) async {
     final cleanQuery = query.trim();
     if (cleanQuery.isEmpty) return null;
 
     HttpClient? client;
     try {
-      final uri = Uri.parse('https://www.youtube.com/youtubei/v1/search?prettyPrint=false');
+      final uri = Uri.parse(
+        'https://www.youtube.com/youtubei/v1/search?prettyPrint=false',
+      );
       final body = jsonEncode({
         'context': {
           'client': {
@@ -1742,7 +2141,7 @@ class MusicService {
             'clientVersion': '2.20231018.01.00',
             'hl': 'en',
             'gl': 'US',
-          }
+          },
         },
         'query': cleanQuery,
       });
@@ -1756,7 +2155,9 @@ class MusicService {
       );
       request.write(body);
 
-      final response = await request.close().timeout(const Duration(seconds: 4));
+      final response = await request.close().timeout(
+        const Duration(seconds: 4),
+      );
       if (response.statusCode != 200) {
         await response.drain();
         return null;
@@ -1775,13 +2176,18 @@ class MusicService {
             final vr = node['videoRenderer'];
             if (vr is Map) {
               matchedVideoId ??= vr['videoId'] as String?;
-              final moving = vr['richThumbnail']?['movingThumbnailRenderer'] ?? vr['movingThumbnailRenderer'];
+              final moving =
+                  vr['richThumbnail']?['movingThumbnailRenderer'] ??
+                  vr['movingThumbnailRenderer'];
               if (moving is Map && matchedThumbnailUrl == null) {
-                final thumbs = moving['movingThumbnailDetails']?['thumbnails'] as List?;
+                final thumbs =
+                    moving['movingThumbnailDetails']?['thumbnails'] as List?;
                 if (thumbs != null && thumbs.isNotEmpty) {
                   final raw = thumbs.first['url'] as String?;
                   if (raw != null && raw.isNotEmpty) {
-                    matchedThumbnailUrl = raw.startsWith('//') ? 'https:$raw' : raw;
+                    matchedThumbnailUrl = raw.startsWith('//')
+                        ? 'https:$raw'
+                        : raw;
                   }
                 }
               }
@@ -1815,7 +2221,10 @@ class MusicService {
   /// Fetches track listings for an album or single.
   /// First queries `_ytMusic.getAlbum(albumId)`. If no tracks are parsed or if it fails,
   /// gracefully falls back to searching songs with [queryFallback].
-  Future<List<SongItem>> getAlbumSongs(String albumId, {String? queryFallback}) async {
+  Future<List<SongItem>> getAlbumSongs(
+    String albumId, {
+    String? queryFallback,
+  }) async {
     final cleanId = albumId.trim();
 
     // If requesting Liked Music collection, resolve full liked tracks from user's account
@@ -1831,25 +2240,30 @@ class MusicService {
       try {
         final albumFull = await _ytMusic.getAlbum(cleanId);
         if (albumFull.songs.isNotEmpty) {
-          final albumThumb = albumFull.thumbnails.isNotEmpty ? albumFull.thumbnails.last.url : null;
-          final albumArtist = albumFull.artist.name.isNotEmpty ? albumFull.artist.name : 'Unknown Artist';
+          final albumThumb = albumFull.thumbnails.isNotEmpty
+              ? albumFull.thumbnails.last.url
+              : null;
+          final albumArtist = albumFull.artist.name.isNotEmpty
+              ? albumFull.artist.name
+              : 'Unknown Artist';
 
-          return albumFull.songs
-              .where((s) => s.videoId.isNotEmpty)
-              .map((s) {
-                final artistName = s.artist.name.isNotEmpty ? s.artist.name : albumArtist;
-                final rawThumb = s.thumbnails.isNotEmpty ? s.thumbnails.last.url : albumThumb;
-                final thumb = SongItem.upgradeThumbnail(rawThumb);
-                return SongItem(
-                  id: s.videoId,
-                  title: s.name.isNotEmpty ? s.name : 'Untitled',
-                  artist: artistName,
-                  thumbnailUrl: thumb,
-                  durationSeconds: s.duration,
-                  album: albumFull.name.isNotEmpty ? albumFull.name : null,
-                );
-              })
-              .toList();
+          return albumFull.songs.where((s) => s.videoId.isNotEmpty).map((s) {
+            final artistName = s.artist.name.isNotEmpty
+                ? s.artist.name
+                : albumArtist;
+            final rawThumb = s.thumbnails.isNotEmpty
+                ? s.thumbnails.last.url
+                : albumThumb;
+            final thumb = SongItem.upgradeThumbnail(rawThumb);
+            return SongItem(
+              id: s.videoId,
+              title: s.name.isNotEmpty ? s.name : 'Untitled',
+              artist: artistName,
+              thumbnailUrl: thumb,
+              durationSeconds: s.duration,
+              album: albumFull.name.isNotEmpty ? albumFull.name : null,
+            );
+          }).toList();
         }
       } catch (e) {
         debugPrint('getAlbum error: $e, falling back to queryFallback');
@@ -1887,8 +2301,10 @@ class MusicService {
       );
     }
 
-    final totalDuration =
-        tracks.fold<int>(0, (sum, t) => sum + (t.durationSeconds ?? 0));
+    final totalDuration = tracks.fold<int>(
+      0,
+      (sum, t) => sum + (t.durationSeconds ?? 0),
+    );
     final updatedAlbum = initialAlbum.copyWith(
       thumbnailUrl: artwork,
       trackCount: tracks.length,
@@ -1940,10 +2356,14 @@ class MusicService {
 
       return PlaylistItem(
         id: cleanId,
-        title: playlistFull.name.isNotEmpty ? playlistFull.name : 'YouTube Playlist',
+        title: playlistFull.name.isNotEmpty
+            ? playlistFull.name
+            : 'YouTube Playlist',
         author: authorName,
         thumbnailUrl: thumb,
-        trackCount: playlistFull.videoCount > 0 ? playlistFull.videoCount : null,
+        trackCount: playlistFull.videoCount > 0
+            ? playlistFull.videoCount
+            : null,
         isCustom: true,
       );
     } catch (e) {
@@ -1958,7 +2378,10 @@ class MusicService {
   }
 
   /// Retrieves track listing for a YouTube playlist.
-  Future<List<SongItem>> getPlaylistTracks(String playlistId, {String? queryFallback}) async {
+  Future<List<SongItem>> getPlaylistTracks(
+    String playlistId, {
+    String? queryFallback,
+  }) async {
     final cleanId = extractPlaylistId(playlistId);
     if (cleanId == 'LM' || cleanId == 'liked_music' || cleanId == 'VLLM') {
       return getLikedSongs();
@@ -1972,10 +2395,18 @@ class MusicService {
       // 1. Try InnerTube browse for personal/shared/special playlists
       if (_currentAccount != null) {
         try {
-          final browseId = cleanId.startsWith('VL') ? cleanId : (cleanId.startsWith('PL') ? 'VL$cleanId' : cleanId);
-          final data = await postInnerTube('browse', bodyExtras: {'browseId': browseId});
+          final browseId = cleanId.startsWith('VL')
+              ? cleanId
+              : (cleanId.startsWith('PL') ? 'VL$cleanId' : cleanId);
+          final data = await postInnerTube(
+            'browse',
+            bodyExtras: {'browseId': browseId},
+          );
           if (data != null) {
-            final renderers = _collectRenderers(data, 'musicResponsiveListItemRenderer');
+            final renderers = _collectRenderers(
+              data,
+              'musicResponsiveListItemRenderer',
+            );
             final parsed = <SongItem>[];
             for (final r in renderers) {
               final song = parseSongFromRenderer(r);
@@ -1984,7 +2415,9 @@ class MusicService {
             if (parsed.isNotEmpty) return parsed;
           }
         } catch (e) {
-          debugPrint('getPlaylistTracks InnerTube browse error for $cleanId: $e');
+          debugPrint(
+            'getPlaylistTracks InnerTube browse error for $cleanId: $e',
+          );
         }
       }
 
@@ -1992,23 +2425,21 @@ class MusicService {
       try {
         final videos = await _ytMusic.getPlaylistVideos(cleanId);
         if (videos.isNotEmpty) {
-          return videos
-              .where((v) => v.videoId.isNotEmpty)
-              .map((v) {
-                final thumb = v.thumbnails.isNotEmpty
-                    ? SongItem.upgradeThumbnail(v.thumbnails.last.url)
-                    : null;
-                final artistName =
-                    v.artist.name.isNotEmpty ? v.artist.name : 'Unknown Artist';
-                return SongItem(
-                  id: v.videoId,
-                  title: v.name.isNotEmpty ? v.name : 'Untitled',
-                  artist: artistName,
-                  thumbnailUrl: thumb,
-                  durationSeconds: v.duration,
-                );
-              })
-              .toList();
+          return videos.where((v) => v.videoId.isNotEmpty).map((v) {
+            final thumb = v.thumbnails.isNotEmpty
+                ? SongItem.upgradeThumbnail(v.thumbnails.last.url)
+                : null;
+            final artistName = v.artist.name.isNotEmpty
+                ? v.artist.name
+                : 'Unknown Artist';
+            return SongItem(
+              id: v.videoId,
+              title: v.name.isNotEmpty ? v.name : 'Untitled',
+              artist: artistName,
+              thumbnailUrl: thumb,
+              durationSeconds: v.duration,
+            );
+          }).toList();
         }
       } catch (e) {
         debugPrint('getPlaylistTracks error for $cleanId: $e');
@@ -2035,7 +2466,10 @@ class MusicService {
 
       void addSongs(dynamic root) {
         if (root == null) return;
-        final renderers = _collectRenderers(root, 'musicResponsiveListItemRenderer');
+        final renderers = _collectRenderers(
+          root,
+          'musicResponsiveListItemRenderer',
+        );
         for (final r in renderers) {
           final s = parseSongFromRenderer(r);
           if (s != null && !seenIds.contains(s.id)) {
@@ -2047,8 +2481,14 @@ class MusicService {
 
       // 1. Authenticated InnerTube request for VLLM (authoritative browse ID in BitChord)
       try {
-        var data = await postInnerTube('browse', bodyExtras: {'browseId': 'VLLM'});
-        data ??= await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_liked_videos'});
+        var data = await postInnerTube(
+          'browse',
+          bodyExtras: {'browseId': 'VLLM'},
+        );
+        data ??= await postInnerTube(
+          'browse',
+          bodyExtras: {'browseId': 'FEmusic_liked_videos'},
+        );
 
         if (data != null) {
           addSongs(data);
@@ -2078,46 +2518,42 @@ class MusicService {
       try {
         final videos = await _ytMusic.getPlaylistVideos('LM');
         if (videos.isNotEmpty) {
-          return videos
-              .where((v) => v.videoId.isNotEmpty)
-              .map((v) {
-                final thumb = v.thumbnails.isNotEmpty
-                    ? SongItem.upgradeThumbnail(v.thumbnails.last.url)
-                    : null;
-                final artistName =
-                    v.artist.name.isNotEmpty ? v.artist.name : 'Unknown Artist';
-                return SongItem(
-                  id: v.videoId,
-                  title: v.name.isNotEmpty ? v.name : 'Untitled',
-                  artist: artistName,
-                  thumbnailUrl: thumb,
-                  durationSeconds: v.duration,
-                );
-              })
-              .toList();
+          return videos.where((v) => v.videoId.isNotEmpty).map((v) {
+            final thumb = v.thumbnails.isNotEmpty
+                ? SongItem.upgradeThumbnail(v.thumbnails.last.url)
+                : null;
+            final artistName = v.artist.name.isNotEmpty
+                ? v.artist.name
+                : 'Unknown Artist';
+            return SongItem(
+              id: v.videoId,
+              title: v.name.isNotEmpty ? v.name : 'Untitled',
+              artist: artistName,
+              thumbnailUrl: thumb,
+              durationSeconds: v.duration,
+            );
+          }).toList();
         }
       } catch (e) {
         debugPrint('getLikedSongs LM error: $e, trying VLLM fallback');
         try {
           final videos = await _ytMusic.getPlaylistVideos('VLLM');
           if (videos.isNotEmpty) {
-            return videos
-                .where((v) => v.videoId.isNotEmpty)
-                .map((v) {
-                  final thumb = v.thumbnails.isNotEmpty
-                      ? SongItem.upgradeThumbnail(v.thumbnails.last.url)
-                      : null;
-                  final artistName =
-                      v.artist.name.isNotEmpty ? v.artist.name : 'Unknown Artist';
-                  return SongItem(
-                    id: v.videoId,
-                    title: v.name.isNotEmpty ? v.name : 'Untitled',
-                    artist: artistName,
-                    thumbnailUrl: thumb,
-                    durationSeconds: v.duration,
-                  );
-                })
-                .toList();
+            return videos.where((v) => v.videoId.isNotEmpty).map((v) {
+              final thumb = v.thumbnails.isNotEmpty
+                  ? SongItem.upgradeThumbnail(v.thumbnails.last.url)
+                  : null;
+              final artistName = v.artist.name.isNotEmpty
+                  ? v.artist.name
+                  : 'Unknown Artist';
+              return SongItem(
+                id: v.videoId,
+                title: v.name.isNotEmpty ? v.name : 'Untitled',
+                artist: artistName,
+                thumbnailUrl: thumb,
+                durationSeconds: v.duration,
+              );
+            }).toList();
           }
         } catch (_) {}
       }
@@ -2130,9 +2566,12 @@ class MusicService {
   Future<bool> likeSong(String videoId) async {
     if (_currentAccount == null) return false;
     try {
-      final res = await postInnerTube('like/like', bodyExtras: {
-        'target': {'videoId': videoId},
-      });
+      final res = await postInnerTube(
+        'like/like',
+        bodyExtras: {
+          'target': {'videoId': videoId},
+        },
+      );
       return res != null;
     } catch (e) {
       debugPrint('likeSong error ($videoId): $e');
@@ -2144,9 +2583,12 @@ class MusicService {
   Future<bool> unlikeSong(String videoId) async {
     if (_currentAccount == null) return false;
     try {
-      final res = await postInnerTube('like/removelike', bodyExtras: {
-        'target': {'videoId': videoId},
-      });
+      final res = await postInnerTube(
+        'like/removelike',
+        bodyExtras: {
+          'target': {'videoId': videoId},
+        },
+      );
       return res != null;
     } catch (e) {
       debugPrint('unlikeSong error ($videoId): $e');
@@ -2165,20 +2607,17 @@ class MusicService {
 
     try {
       final results = await _ytMusic.searchArtists(trimmed);
-      return results
-          .where((a) => a.artistId.isNotEmpty)
-          .map((a) {
-            final thumb = a.thumbnails.isNotEmpty
-                ? SongItem.upgradeThumbnail(a.thumbnails.last.url)
-                : null;
-            return ArtistItem(
-              id: a.artistId,
-              name: a.name.isNotEmpty ? a.name : 'Unknown Artist',
-              thumbnailUrl: thumb,
-              subscribers: 'Artist',
-            );
-          })
-          .toList();
+      return results.where((a) => a.artistId.isNotEmpty).map((a) {
+        final thumb = a.thumbnails.isNotEmpty
+            ? SongItem.upgradeThumbnail(a.thumbnails.last.url)
+            : null;
+        return ArtistItem(
+          id: a.artistId,
+          name: a.name.isNotEmpty ? a.name : 'Unknown Artist',
+          thumbnailUrl: thumb,
+          subscribers: 'Artist',
+        );
+      }).toList();
     } catch (e) {
       debugPrint('searchArtists error: $e');
       return [];
@@ -2186,7 +2625,10 @@ class MusicService {
   }
 
   /// Fetches top songs for an artist on YouTube Music.
-  Future<List<SongItem>> getArtistSongs(String artistId, {String? artistName}) async {
+  Future<List<SongItem>> getArtistSongs(
+    String artistId, {
+    String? artistName,
+  }) async {
     final cleanId = artistId.trim();
     if (!_isInitialized) {
       await initialize();
@@ -2196,25 +2638,22 @@ class MusicService {
       try {
         final songs = await _ytMusic.getArtistSongs(cleanId);
         if (songs.isNotEmpty) {
-          return songs
-              .where((s) => s.videoId.isNotEmpty)
-              .map((s) {
-                final thumb = s.thumbnails.isNotEmpty
-                    ? SongItem.upgradeThumbnail(s.thumbnails.last.url)
-                    : null;
-                final name = s.artist.name.isNotEmpty
-                    ? s.artist.name
-                    : (artistName ?? 'Artist');
-                return SongItem(
-                  id: s.videoId,
-                  title: s.name.isNotEmpty ? s.name : 'Untitled',
-                  artist: name,
-                  thumbnailUrl: thumb,
-                  durationSeconds: s.duration,
-                  album: s.album?.name,
-                );
-              })
-              .toList();
+          return songs.where((s) => s.videoId.isNotEmpty).map((s) {
+            final thumb = s.thumbnails.isNotEmpty
+                ? SongItem.upgradeThumbnail(s.thumbnails.last.url)
+                : null;
+            final name = s.artist.name.isNotEmpty
+                ? s.artist.name
+                : (artistName ?? 'Artist');
+            return SongItem(
+              id: s.videoId,
+              title: s.name.isNotEmpty ? s.name : 'Untitled',
+              artist: name,
+              thumbnailUrl: thumb,
+              durationSeconds: s.duration,
+              album: s.album?.name,
+            );
+          }).toList();
         }
       } catch (e) {
         debugPrint('getArtistSongs error for $cleanId: $e');
@@ -2231,7 +2670,10 @@ class MusicService {
   /// Fetches comprehensive artist details from YouTube Music including bio,
   /// subscriber stats, monthly audience, top songs, albums, singles & EPs,
   /// music videos, featured playlists, artist playlists, and fans might also like.
-  Future<ArtistDetails> getArtistDetails(String artistIdOrName, {String? fallbackName}) async {
+  Future<ArtistDetails> getArtistDetails(
+    String artistIdOrName, {
+    String? fallbackName,
+  }) async {
     final rawQuery = artistIdOrName.trim();
     if (!_isInitialized) {
       await initialize();
@@ -2252,7 +2694,9 @@ class MusicService {
 
     // If ID is not a standard channel browseId (UC...), search for the artist channel ID
     if (!targetId.startsWith('UC')) {
-      final searchQuery = fallbackName != null && fallbackName.isNotEmpty ? fallbackName : rawQuery;
+      final searchQuery = fallbackName != null && fallbackName.isNotEmpty
+          ? fallbackName
+          : rawQuery;
       final searchResults = await searchArtists(searchQuery);
       if (searchResults.isNotEmpty) {
         targetId = searchResults.first.id;
@@ -2278,8 +2722,12 @@ class MusicService {
     // 1. Direct InnerTube browse request to extract full rich layout matching YouTube Music
     if (targetId.startsWith('UC')) {
       try {
-        final data = await _ytMusic.constructRequest('browse', body: {'browseId': targetId});
-        final header = data['header']?['musicImmersiveHeaderRenderer'] ??
+        final data = await _ytMusic.constructRequest(
+          'browse',
+          body: {'browseId': targetId},
+        );
+        final header =
+            data['header']?['musicImmersiveHeaderRenderer'] ??
             data['header']?['musicVisualHeaderRenderer'] ??
             data['header']?['musicHeaderRenderer'];
 
@@ -2290,13 +2738,31 @@ class MusicService {
           }
 
           // Subscribers
-          final subButton = header['subscriptionButton']?['subscribeButtonRenderer'];
-          subscribers = traverseString(subButton, ['longSubscriberCountText', 'runs', 'text']) ??
-              traverseString(subButton, ['subscriberCountText', 'runs', 'text']) ??
-              traverseString(subButton, ['shortSubscriberCountText', 'runs', 'text']);
+          final subButton =
+              header['subscriptionButton']?['subscribeButtonRenderer'];
+          subscribers =
+              traverseString(subButton, [
+                'longSubscriberCountText',
+                'runs',
+                'text',
+              ]) ??
+              traverseString(subButton, [
+                'subscriberCountText',
+                'runs',
+                'text',
+              ]) ??
+              traverseString(subButton, [
+                'shortSubscriberCountText',
+                'runs',
+                'text',
+              ]);
 
           // Monthly Audience / Listeners
-          monthlyListeners = traverseString(header, ['monthlyListenerCount', 'runs', 'text']);
+          monthlyListeners = traverseString(header, [
+            'monthlyListenerCount',
+            'runs',
+            'text',
+          ]);
 
           // Bio description
           final descRuns = header['description']?['runs'] as List?;
@@ -2305,7 +2771,12 @@ class MusicService {
           }
 
           // Banner Image
-          final thumbs = traverseList(header, ['thumbnail', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails']);
+          final thumbs = traverseList(header, [
+            'thumbnail',
+            'musicThumbnailRenderer',
+            'thumbnail',
+            'thumbnails',
+          ]);
           if (thumbs.isNotEmpty) {
             final lastUrl = thumbs.last?['url'] as String?;
             if (lastUrl != null && lastUrl.isNotEmpty) {
@@ -2316,22 +2787,42 @@ class MusicService {
         }
 
         // Parse contents sections
-        final contents = data['contents']?['singleColumnBrowseResultsRenderer']?['tabs']?[0]?['tabRenderer']?['content']?['sectionListRenderer']?['contents'] as List?;
+        final contents =
+            data['contents']?['singleColumnBrowseResultsRenderer']?['tabs']?[0]?['tabRenderer']?['content']?['sectionListRenderer']?['contents']
+                as List?;
         if (contents != null) {
           for (final section in contents) {
             // Top songs shelf
             final shelf = section['musicShelfRenderer'];
             if (shelf != null) {
-              moreTracksBrowseId ??= traverseString(shelf, ['bottomEndpoint', 'browseEndpoint', 'browseId']) ??
-                  traverseString(shelf, ['title', 'runs', 'navigationEndpoint', 'browseEndpoint', 'browseId']);
-              final shelfTitle = (traverseString(shelf, ['title', 'runs', 'text']) ?? '').toLowerCase();
+              moreTracksBrowseId ??=
+                  traverseString(shelf, [
+                    'bottomEndpoint',
+                    'browseEndpoint',
+                    'browseId',
+                  ]) ??
+                  traverseString(shelf, [
+                    'title',
+                    'runs',
+                    'navigationEndpoint',
+                    'browseEndpoint',
+                    'browseId',
+                  ]);
+              final shelfTitle =
+                  (traverseString(shelf, ['title', 'runs', 'text']) ?? '')
+                      .toLowerCase();
               if (shelfTitle.contains('song') || topSongs.isEmpty) {
                 final items = shelf['contents'] as List? ?? [];
                 for (final it in items) {
                   final item = it['musicResponsiveListItemRenderer'];
                   if (item == null) continue;
-                  final vId = item['playlistItemData']?['videoId'] ??
-                      traverseString(item, ['navigationEndpoint', 'watchEndpoint', 'videoId']);
+                  final vId =
+                      item['playlistItemData']?['videoId'] ??
+                      traverseString(item, [
+                        'navigationEndpoint',
+                        'watchEndpoint',
+                        'videoId',
+                      ]);
                   if (vId == null || (vId as String).isEmpty) continue;
 
                   final flexCols = item['flexColumns'] as List? ?? [];
@@ -2340,19 +2831,58 @@ class MusicService {
                   String? album;
 
                   if (flexCols.isNotEmpty) {
-                    title = traverseString(flexCols[0], ['musicResponsiveListItemFlexColumnRenderer', 'text', 'runs', 'text']) ?? 'Untitled';
+                    final t = _extractNodeText(flexCols[0]).trim();
+                    if (t.isNotEmpty && t.toLowerCase() != 'untitled') {
+                      title = t;
+                    } else {
+                      title =
+                          traverseString(flexCols[0], [
+                            'musicResponsiveListItemFlexColumnRenderer',
+                            'text',
+                            'runs',
+                            'text',
+                          ]) ??
+                          '';
+                    }
+                  }
+                  if (title.isEmpty || title.toLowerCase() == 'untitled') {
+                    continue; // Skip tracks without real title
                   }
                   if (flexCols.length > 1) {
-                    artist = traverseString(flexCols[1], ['musicResponsiveListItemFlexColumnRenderer', 'text', 'runs', 'text']) ?? resolvedName;
+                    final a = _extractNodeText(flexCols[1]).trim();
+                    if (a.isNotEmpty) {
+                      artist = a.split('•')[0].split('·')[0].trim();
+                    } else {
+                      artist =
+                          traverseString(flexCols[1], [
+                            'musicResponsiveListItemFlexColumnRenderer',
+                            'text',
+                            'runs',
+                            'text',
+                          ]) ??
+                          resolvedName;
+                    }
                   }
                   if (flexCols.length > 2) {
-                    album = traverseString(flexCols[2], ['musicResponsiveListItemFlexColumnRenderer', 'text', 'runs', 'text']);
+                    album = traverseString(flexCols[2], [
+                      'musicResponsiveListItemFlexColumnRenderer',
+                      'text',
+                      'runs',
+                      'text',
+                    ]);
                   }
 
                   String? thumb;
-                  final itemThumbs = traverseList(item, ['thumbnail', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails']);
+                  final itemThumbs = traverseList(item, [
+                    'thumbnail',
+                    'musicThumbnailRenderer',
+                    'thumbnail',
+                    'thumbnails',
+                  ]);
                   if (itemThumbs.isNotEmpty) {
-                    thumb = SongItem.upgradeThumbnail(itemThumbs.last?['url'] as String? ?? '');
+                    thumb = SongItem.upgradeThumbnail(
+                      itemThumbs.last?['url'] as String? ?? '',
+                    );
                   }
 
                   topSongs.add(
@@ -2371,24 +2901,51 @@ class MusicService {
             // Carousels: Albums, Singles, Videos, Featured, Playlists, Similar Artists
             final carousel = section['musicCarouselShelfRenderer'];
             if (carousel != null) {
-              final carouselTitle = (traverseString(carousel, ['header', 'musicCarouselShelfBasicHeaderRenderer', 'title', 'runs', 'text']) ?? '').toLowerCase();
+              final carouselTitle =
+                  (traverseString(carousel, [
+                            'header',
+                            'musicCarouselShelfBasicHeaderRenderer',
+                            'title',
+                            'runs',
+                            'text',
+                          ]) ??
+                          '')
+                      .toLowerCase();
               final items = carousel['contents'] as List? ?? [];
 
               if (carouselTitle.contains('album')) {
                 for (final it in items) {
                   final renderer = it['musicTwoRowItemRenderer'];
                   if (renderer == null) continue;
-                  final browseId = traverseString(renderer, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
+                  final browseId = traverseString(renderer, [
+                    'navigationEndpoint',
+                    'browseEndpoint',
+                    'browseId',
+                  ]);
                   if (browseId == null || browseId.isEmpty) continue;
-                  final title = traverseString(renderer, ['title', 'runs', 'text']) ?? 'Album';
-                  final subtitle = traverseString(renderer, ['subtitle', 'runs', 'text']) ?? '';
-                  final yearMatch = RegExp(r'\b(19|20)\d{2}\b').firstMatch(subtitle);
-                  final year = yearMatch != null ? int.tryParse(yearMatch.group(0)!) : null;
+                  final title =
+                      traverseString(renderer, ['title', 'runs', 'text']) ??
+                      'Album';
+                  final subtitle =
+                      traverseString(renderer, ['subtitle', 'runs', 'text']) ??
+                      '';
+                  final yearMatch = RegExp(r'\b(19|20)\d{2}\b')
+                      .firstMatch(subtitle);
+                  final year = yearMatch != null
+                      ? int.tryParse(yearMatch.group(0)!)
+                      : null;
 
                   String? thumb;
-                  final itemThumbs = traverseList(renderer, ['thumbnailRenderer', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails']);
+                  final itemThumbs = traverseList(renderer, [
+                    'thumbnailRenderer',
+                    'musicThumbnailRenderer',
+                    'thumbnail',
+                    'thumbnails',
+                  ]);
                   if (itemThumbs.isNotEmpty) {
-                    thumb = SongItem.upgradeThumbnail(itemThumbs.last?['url'] as String? ?? '');
+                    thumb = SongItem.upgradeThumbnail(
+                      itemThumbs.last?['url'] as String? ?? '',
+                    );
                   }
 
                   albums.add(
@@ -2402,21 +2959,40 @@ class MusicService {
                     ),
                   );
                 }
-              } else if (carouselTitle.contains('single') || carouselTitle.contains('ep')) {
+              } else if (carouselTitle.contains('single') ||
+                  carouselTitle.contains('ep')) {
                 for (final it in items) {
                   final renderer = it['musicTwoRowItemRenderer'];
                   if (renderer == null) continue;
-                  final browseId = traverseString(renderer, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
+                  final browseId = traverseString(renderer, [
+                    'navigationEndpoint',
+                    'browseEndpoint',
+                    'browseId',
+                  ]);
                   if (browseId == null || browseId.isEmpty) continue;
-                  final title = traverseString(renderer, ['title', 'runs', 'text']) ?? 'Single';
-                  final subtitle = traverseString(renderer, ['subtitle', 'runs', 'text']) ?? '';
-                  final yearMatch = RegExp(r'\b(19|20)\d{2}\b').firstMatch(subtitle);
-                  final year = yearMatch != null ? int.tryParse(yearMatch.group(0)!) : null;
+                  final title =
+                      traverseString(renderer, ['title', 'runs', 'text']) ??
+                      'Single';
+                  final subtitle =
+                      traverseString(renderer, ['subtitle', 'runs', 'text']) ??
+                      '';
+                  final yearMatch = RegExp(r'\b(19|20)\d{2}\b')
+                      .firstMatch(subtitle);
+                  final year = yearMatch != null
+                      ? int.tryParse(yearMatch.group(0)!)
+                      : null;
 
                   String? thumb;
-                  final itemThumbs = traverseList(renderer, ['thumbnailRenderer', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails']);
+                  final itemThumbs = traverseList(renderer, [
+                    'thumbnailRenderer',
+                    'musicThumbnailRenderer',
+                    'thumbnail',
+                    'thumbnails',
+                  ]);
                   if (itemThumbs.isNotEmpty) {
-                    thumb = SongItem.upgradeThumbnail(itemThumbs.last?['url'] as String? ?? '');
+                    thumb = SongItem.upgradeThumbnail(
+                      itemThumbs.last?['url'] as String? ?? '',
+                    );
                   }
 
                   singles.add(
@@ -2434,16 +3010,31 @@ class MusicService {
                 for (final it in items) {
                   final renderer = it['musicTwoRowItemRenderer'];
                   if (renderer == null) continue;
-                  final videoId = traverseString(renderer, ['navigationEndpoint', 'watchEndpoint', 'videoId']);
+                  final videoId = traverseString(renderer, [
+                    'navigationEndpoint',
+                    'watchEndpoint',
+                    'videoId',
+                  ]);
                   if (videoId == null || videoId.isEmpty) continue;
-                  final title = traverseString(renderer, ['title', 'runs', 'text']) ?? 'Video';
-                  final subtitle = traverseString(renderer, ['subtitle', 'runs', 'text']) ?? '';
+                  final title =
+                      traverseString(renderer, ['title', 'runs', 'text']) ??
+                      'Video';
+                  final subtitle =
+                      traverseString(renderer, ['subtitle', 'runs', 'text']) ??
+                      '';
                   final views = subtitle.contains('views') ? subtitle : null;
 
                   String? thumb;
-                  final itemThumbs = traverseList(renderer, ['thumbnailRenderer', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails']);
+                  final itemThumbs = traverseList(renderer, [
+                    'thumbnailRenderer',
+                    'musicThumbnailRenderer',
+                    'thumbnail',
+                    'thumbnails',
+                  ]);
                   if (itemThumbs.isNotEmpty) {
-                    thumb = SongItem.upgradeThumbnail(itemThumbs.last?['url'] as String? ?? '');
+                    thumb = SongItem.upgradeThumbnail(
+                      itemThumbs.last?['url'] as String? ?? '',
+                    );
                   }
 
                   videos.add(
@@ -2460,14 +3051,27 @@ class MusicService {
                 for (final it in items) {
                   final renderer = it['musicTwoRowItemRenderer'];
                   if (renderer == null) continue;
-                  final browseId = traverseString(renderer, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
+                  final browseId = traverseString(renderer, [
+                    'navigationEndpoint',
+                    'browseEndpoint',
+                    'browseId',
+                  ]);
                   if (browseId == null || browseId.isEmpty) continue;
-                  final title = traverseString(renderer, ['title', 'runs', 'text']) ?? 'Playlist';
+                  final title =
+                      traverseString(renderer, ['title', 'runs', 'text']) ??
+                      'Playlist';
 
                   String? thumb;
-                  final itemThumbs = traverseList(renderer, ['thumbnailRenderer', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails']);
+                  final itemThumbs = traverseList(renderer, [
+                    'thumbnailRenderer',
+                    'musicThumbnailRenderer',
+                    'thumbnail',
+                    'thumbnails',
+                  ]);
                   if (itemThumbs.isNotEmpty) {
-                    thumb = SongItem.upgradeThumbnail(itemThumbs.last?['url'] as String? ?? '');
+                    thumb = SongItem.upgradeThumbnail(
+                      itemThumbs.last?['url'] as String? ?? '',
+                    );
                   }
 
                   featuredOn.add(
@@ -2483,14 +3087,27 @@ class MusicService {
                 for (final it in items) {
                   final renderer = it['musicTwoRowItemRenderer'];
                   if (renderer == null) continue;
-                  final browseId = traverseString(renderer, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
+                  final browseId = traverseString(renderer, [
+                    'navigationEndpoint',
+                    'browseEndpoint',
+                    'browseId',
+                  ]);
                   if (browseId == null || browseId.isEmpty) continue;
-                  final title = traverseString(renderer, ['title', 'runs', 'text']) ?? 'Playlist';
+                  final title =
+                      traverseString(renderer, ['title', 'runs', 'text']) ??
+                      'Playlist';
 
                   String? thumb;
-                  final itemThumbs = traverseList(renderer, ['thumbnailRenderer', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails']);
+                  final itemThumbs = traverseList(renderer, [
+                    'thumbnailRenderer',
+                    'musicThumbnailRenderer',
+                    'thumbnail',
+                    'thumbnails',
+                  ]);
                   if (itemThumbs.isNotEmpty) {
-                    thumb = SongItem.upgradeThumbnail(itemThumbs.last?['url'] as String? ?? '');
+                    thumb = SongItem.upgradeThumbnail(
+                      itemThumbs.last?['url'] as String? ?? '',
+                    );
                   }
 
                   playlistsByArtist.add(
@@ -2502,19 +3119,36 @@ class MusicService {
                     ),
                   );
                 }
-              } else if (carouselTitle.contains('fan') || carouselTitle.contains('similar')) {
+              } else if (carouselTitle.contains('fan') ||
+                  carouselTitle.contains('similar')) {
                 for (final it in items) {
                   final renderer = it['musicTwoRowItemRenderer'];
                   if (renderer == null) continue;
-                  final artistBrowseId = traverseString(renderer, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
-                  if (artistBrowseId == null || artistBrowseId.isEmpty) continue;
-                  final title = traverseString(renderer, ['title', 'runs', 'text']) ?? 'Artist';
-                  final subtitle = traverseString(renderer, ['subtitle', 'runs', 'text']) ?? '';
+                  final artistBrowseId = traverseString(renderer, [
+                    'navigationEndpoint',
+                    'browseEndpoint',
+                    'browseId',
+                  ]);
+                  if (artistBrowseId == null || artistBrowseId.isEmpty)
+                    continue;
+                  final title =
+                      traverseString(renderer, ['title', 'runs', 'text']) ??
+                      'Artist';
+                  final subtitle =
+                      traverseString(renderer, ['subtitle', 'runs', 'text']) ??
+                      '';
 
                   String? thumb;
-                  final itemThumbs = traverseList(renderer, ['thumbnailRenderer', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails']);
+                  final itemThumbs = traverseList(renderer, [
+                    'thumbnailRenderer',
+                    'musicThumbnailRenderer',
+                    'thumbnail',
+                    'thumbnails',
+                  ]);
                   if (itemThumbs.isNotEmpty) {
-                    thumb = SongItem.upgradeThumbnail(itemThumbs.last?['url'] as String? ?? '');
+                    thumb = SongItem.upgradeThumbnail(
+                      itemThumbs.last?['url'] as String? ?? '',
+                    );
                   }
 
                   similarArtists.add(
@@ -2535,10 +3169,17 @@ class MusicService {
               if (description == null || description.isEmpty) {
                 final descRuns = descShelf['description']?['runs'] as List?;
                 if (descRuns != null && descRuns.isNotEmpty) {
-                  description = descRuns.map((r) => r['text'] ?? '').join('').trim();
+                  description = descRuns
+                      .map((r) => r['text'] ?? '')
+                      .join('')
+                      .trim();
                 }
               }
-              subscribers ??= traverseString(descShelf, ['subheader', 'runs', 'text']);
+              subscribers ??= traverseString(descShelf, [
+                'subheader',
+                'runs',
+                'text',
+              ]);
             }
           }
         }
@@ -2548,62 +3189,107 @@ class MusicService {
     }
 
     // 2. High-reliability fallback via _ytMusic.getArtist() if essential lists are empty
-    if ((topSongs.isEmpty || albums.isEmpty || singles.isEmpty) && targetId.startsWith('UC')) {
+    if ((topSongs.isEmpty || albums.isEmpty || singles.isEmpty) &&
+        targetId.startsWith('UC')) {
       try {
         final artistFull = await _ytMusic.getArtist(targetId);
         if (topSongs.isEmpty && artistFull.topSongs.isNotEmpty) {
-          topSongs = artistFull.topSongs.map((s) => SongItem(
-            id: s.videoId,
-            title: s.name,
-            artist: s.artist.name.isNotEmpty ? s.artist.name : resolvedName,
-            thumbnailUrl: s.thumbnails.isNotEmpty ? SongItem.upgradeThumbnail(s.thumbnails.last.url) : null,
-            album: s.album?.name,
-            durationSeconds: s.duration,
-          )).toList();
+          topSongs = artistFull.topSongs
+              .map(
+                (s) => SongItem(
+                  id: s.videoId,
+                  title: s.name,
+                  artist: s.artist.name.isNotEmpty
+                      ? s.artist.name
+                      : resolvedName,
+                  thumbnailUrl: s.thumbnails.isNotEmpty
+                      ? SongItem.upgradeThumbnail(s.thumbnails.last.url)
+                      : null,
+                  album: s.album?.name,
+                  durationSeconds: s.duration,
+                ),
+              )
+              .toList();
         }
         if (albums.isEmpty && artistFull.topAlbums.isNotEmpty) {
-          albums = artistFull.topAlbums.map((a) => AlbumItem(
-            id: a.albumId,
-            title: a.name,
-            artist: a.artist.name.isNotEmpty ? a.artist.name : resolvedName,
-            thumbnailUrl: a.thumbnails.isNotEmpty ? SongItem.upgradeThumbnail(a.thumbnails.last.url) : null,
-            year: a.year,
-            type: 'Album',
-          )).toList();
+          albums = artistFull.topAlbums
+              .map(
+                (a) => AlbumItem(
+                  id: a.albumId,
+                  title: a.name,
+                  artist: a.artist.name.isNotEmpty
+                      ? a.artist.name
+                      : resolvedName,
+                  thumbnailUrl: a.thumbnails.isNotEmpty
+                      ? SongItem.upgradeThumbnail(a.thumbnails.last.url)
+                      : null,
+                  year: a.year,
+                  type: 'Album',
+                ),
+              )
+              .toList();
         }
         if (singles.isEmpty && artistFull.topSingles.isNotEmpty) {
-          singles = artistFull.topSingles.map((a) => AlbumItem(
-            id: a.albumId,
-            title: a.name,
-            artist: a.artist.name.isNotEmpty ? a.artist.name : resolvedName,
-            thumbnailUrl: a.thumbnails.isNotEmpty ? SongItem.upgradeThumbnail(a.thumbnails.last.url) : null,
-            year: a.year,
-            type: 'Single',
-          )).toList();
+          singles = artistFull.topSingles
+              .map(
+                (a) => AlbumItem(
+                  id: a.albumId,
+                  title: a.name,
+                  artist: a.artist.name.isNotEmpty
+                      ? a.artist.name
+                      : resolvedName,
+                  thumbnailUrl: a.thumbnails.isNotEmpty
+                      ? SongItem.upgradeThumbnail(a.thumbnails.last.url)
+                      : null,
+                  year: a.year,
+                  type: 'Single',
+                ),
+              )
+              .toList();
         }
         if (videos.isEmpty && artistFull.topVideos.isNotEmpty) {
-          videos = artistFull.topVideos.map((v) => VideoItem(
-            id: v.videoId,
-            title: v.name,
-            artist: v.artist.name,
-            thumbnailUrl: v.thumbnails.isNotEmpty ? SongItem.upgradeThumbnail(v.thumbnails.last.url) : null,
-            durationSeconds: v.duration,
-          )).toList();
+          videos = artistFull.topVideos
+              .map(
+                (v) => VideoItem(
+                  id: v.videoId,
+                  title: v.name,
+                  artist: v.artist.name,
+                  thumbnailUrl: v.thumbnails.isNotEmpty
+                      ? SongItem.upgradeThumbnail(v.thumbnails.last.url)
+                      : null,
+                  durationSeconds: v.duration,
+                ),
+              )
+              .toList();
         }
         if (featuredOn.isEmpty && artistFull.featuredOn.isNotEmpty) {
-          featuredOn = artistFull.featuredOn.map((p) => PlaylistItem(
-            id: p.playlistId,
-            title: p.name,
-            author: p.artist.name.isNotEmpty ? p.artist.name : 'YouTube Music',
-            thumbnailUrl: p.thumbnails.isNotEmpty ? SongItem.upgradeThumbnail(p.thumbnails.last.url) : null,
-          )).toList();
+          featuredOn = artistFull.featuredOn
+              .map(
+                (p) => PlaylistItem(
+                  id: p.playlistId,
+                  title: p.name,
+                  author: p.artist.name.isNotEmpty
+                      ? p.artist.name
+                      : 'YouTube Music',
+                  thumbnailUrl: p.thumbnails.isNotEmpty
+                      ? SongItem.upgradeThumbnail(p.thumbnails.last.url)
+                      : null,
+                ),
+              )
+              .toList();
         }
         if (similarArtists.isEmpty && artistFull.similarArtists.isNotEmpty) {
-          similarArtists = artistFull.similarArtists.map((a) => ArtistItem(
-            id: a.artistId,
-            name: a.name,
-            thumbnailUrl: a.thumbnails.isNotEmpty ? SongItem.upgradeThumbnail(a.thumbnails.last.url) : null,
-          )).toList();
+          similarArtists = artistFull.similarArtists
+              .map(
+                (a) => ArtistItem(
+                  id: a.artistId,
+                  name: a.name,
+                  thumbnailUrl: a.thumbnails.isNotEmpty
+                      ? SongItem.upgradeThumbnail(a.thumbnails.last.url)
+                      : null,
+                ),
+              )
+              .toList();
         }
         if (bannerUrl == null && artistFull.thumbnails.isNotEmpty) {
           bannerUrl = SongItem.upgradeThumbnail(artistFull.thumbnails.last.url);
@@ -2619,27 +3305,44 @@ class MusicService {
       // 1. Try moreTracksBrowseId if available
       if (moreTracksBrowseId != null && moreTracksBrowseId.isNotEmpty) {
         try {
-          final moreData = await _ytMusic.constructRequest('browse', body: {'browseId': moreTracksBrowseId});
-          final tabs = moreData['contents']?['singleColumnBrowseResultsRenderer']?['tabs'] as List?;
+          final moreData = await _ytMusic.constructRequest(
+            'browse',
+            body: {'browseId': moreTracksBrowseId},
+          );
+          final tabs =
+              moreData['contents']?['singleColumnBrowseResultsRenderer']?['tabs']
+                  as List?;
           List? sections;
           if (tabs != null && tabs.isNotEmpty) {
             final firstTab = tabs.first;
             if (firstTab is Map) {
-              sections = firstTab['tabRenderer']?['content']?['sectionListRenderer']?['contents'] as List?;
+              sections =
+                  firstTab['tabRenderer']?['content']?['sectionListRenderer']?['contents']
+                      as List?;
             }
           }
-          sections ??= moreData['contents']?['sectionListRenderer']?['contents'] as List?;
-          final firstSection = (sections != null && sections.isNotEmpty && sections.first is Map)
+          sections ??=
+              moreData['contents']?['sectionListRenderer']?['contents']
+                  as List?;
+          final firstSection =
+              (sections != null && sections.isNotEmpty && sections.first is Map)
               ? sections.first as Map
               : null;
-          final playlistShelf = firstSection?['musicPlaylistShelfRenderer'] ?? firstSection?['musicShelfRenderer'];
+          final playlistShelf =
+              firstSection?['musicPlaylistShelfRenderer'] ??
+              firstSection?['musicShelfRenderer'];
           final moreContents = playlistShelf?['contents'] as List? ?? [];
 
           for (final it in moreContents) {
             final item = it['musicResponsiveListItemRenderer'];
             if (item == null) continue;
-            final vId = item['playlistItemData']?['videoId'] ??
-                traverseString(item, ['navigationEndpoint', 'watchEndpoint', 'videoId']);
+            final vId =
+                item['playlistItemData']?['videoId'] ??
+                traverseString(item, [
+                  'navigationEndpoint',
+                  'watchEndpoint',
+                  'videoId',
+                ]);
             if (vId == null || (vId as String).isEmpty) continue;
 
             final flexCols = item['flexColumns'] as List? ?? [];
@@ -2648,23 +3351,64 @@ class MusicService {
             String? album;
 
             if (flexCols.isNotEmpty) {
-              title = traverseString(flexCols[0], ['musicResponsiveListItemFlexColumnRenderer', 'text', 'runs', 'text']) ?? 'Untitled';
+              final t = _extractNodeText(flexCols[0]).trim();
+              if (t.isNotEmpty && t.toLowerCase() != 'untitled') {
+                title = t;
+              } else {
+                title =
+                    traverseString(flexCols[0], [
+                      'musicResponsiveListItemFlexColumnRenderer',
+                      'text',
+                      'runs',
+                      'text',
+                    ]) ??
+                    '';
+              }
+            }
+            if (title.isEmpty || title.toLowerCase() == 'untitled') {
+              continue; // Skip tracks without real title
             }
             if (flexCols.length > 1) {
-              artist = traverseString(flexCols[1], ['musicResponsiveListItemFlexColumnRenderer', 'text', 'runs', 'text']) ?? resolvedName;
+              final a = _extractNodeText(flexCols[1]).trim();
+              if (a.isNotEmpty) {
+                artist = a.split('•')[0].split('·')[0].trim();
+              } else {
+                artist =
+                    traverseString(flexCols[1], [
+                      'musicResponsiveListItemFlexColumnRenderer',
+                      'text',
+                      'runs',
+                      'text',
+                    ]) ??
+                    resolvedName;
+              }
             }
             if (flexCols.length > 2) {
-              album = traverseString(flexCols[2], ['musicResponsiveListItemFlexColumnRenderer', 'text', 'runs', 'text']);
+              album = traverseString(flexCols[2], [
+                'musicResponsiveListItemFlexColumnRenderer',
+                'text',
+                'runs',
+                'text',
+              ]);
             }
 
             String? thumb;
-            final itemThumbs = traverseList(item, ['thumbnail', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails']);
+            final itemThumbs = traverseList(item, [
+              'thumbnail',
+              'musicThumbnailRenderer',
+              'thumbnail',
+              'thumbnails',
+            ]);
             if (itemThumbs.isNotEmpty) {
-              thumb = SongItem.upgradeThumbnail(itemThumbs.last?['url'] as String? ?? '');
+              thumb = SongItem.upgradeThumbnail(
+                itemThumbs.last?['url'] as String? ?? '',
+              );
             }
 
             final isDuplicate = topSongs.any(
-              (s) => s.id == vId || s.title.trim().toLowerCase() == title.trim().toLowerCase(),
+              (s) =>
+                  s.id == vId ||
+                  s.title.trim().toLowerCase() == title.trim().toLowerCase(),
             );
             if (!isDuplicate) {
               topSongs.add(
@@ -2687,12 +3431,17 @@ class MusicService {
       // 2. Query searchSongs as reliable fallback to reach at least 12 tracks
       if (topSongs.length < 12) {
         try {
-          final query = resolvedName.isNotEmpty ? resolvedName : (fallbackName ?? '');
+          final query = resolvedName.isNotEmpty
+              ? resolvedName
+              : (fallbackName ?? '');
           if (query.isNotEmpty) {
             final additionalTracks = await searchSongs(query);
             for (final track in additionalTracks) {
               final isDuplicate = topSongs.any(
-                (s) => s.id == track.id || s.title.trim().toLowerCase() == track.title.trim().toLowerCase(),
+                (s) =>
+                    s.id == track.id ||
+                    s.title.trim().toLowerCase() ==
+                        track.title.trim().toLowerCase(),
               );
               if (!isDuplicate) {
                 topSongs.add(track);
@@ -2732,9 +3481,15 @@ class MusicService {
     );
 
     // Cache details
-    _artistDetailsCache[rawQuery.toLowerCase()] = (details: details, timestamp: DateTime.now());
+    _artistDetailsCache[rawQuery.toLowerCase()] = (
+      details: details,
+      timestamp: DateTime.now(),
+    );
     if (targetId.isNotEmpty) {
-      _artistDetailsCache[targetId.toLowerCase()] = (details: details, timestamp: DateTime.now());
+      _artistDetailsCache[targetId.toLowerCase()] = (
+        details: details,
+        timestamp: DateTime.now(),
+      );
     }
 
     return details;
@@ -2800,13 +3555,27 @@ class MusicService {
         final title = _extractNodeText(item['title']).trim();
         if (title.toLowerCase() == 'new playlist') continue;
 
-        final browseId = traverseString(item, ['navigationEndpoint', 'browseEndpoint', 'browseId']) ??
-            traverseString(item, ['navigationEndpoint', 'watchPlaylistEndpoint', 'playlistId']);
-        if (browseId != null && browseId.isNotEmpty && !browseId.startsWith('UC') && !seenIds.contains(browseId)) {
+        final browseId =
+            traverseString(item, [
+              'navigationEndpoint',
+              'browseEndpoint',
+              'browseId',
+            ]) ??
+            traverseString(item, [
+              'navigationEndpoint',
+              'watchPlaylistEndpoint',
+              'playlistId',
+            ]);
+        if (browseId != null &&
+            browseId.isNotEmpty &&
+            !browseId.startsWith('UC') &&
+            !seenIds.contains(browseId)) {
           seenIds.add(browseId);
           final author = _extractNodeText(item['subtitle']);
           String? thumb = _extractNodePhoto(item);
-          if (browseId == 'VLLM' || browseId == 'LM' || title.toLowerCase() == 'liked music') {
+          if (browseId == 'VLLM' ||
+              browseId == 'LM' ||
+              title.toLowerCase() == 'liked music') {
             thumb ??= 'https://www.gstatic.com/youtube/media/ytm/images/pbg/liked-songs-delhi-576.png';
           }
           playlists.add(
@@ -2822,7 +3591,10 @@ class MusicService {
       }
 
       // Responsive list items
-      final listItems = _collectRenderers(data, 'musicResponsiveListItemRenderer');
+      final listItems = _collectRenderers(
+        data,
+        'musicResponsiveListItemRenderer',
+      );
       for (final item in listItems) {
         final flexCols = item['flexColumns'] as List? ?? [];
         String title = 'Playlist';
@@ -2833,16 +3605,30 @@ class MusicService {
         }
         if (title.toLowerCase() == 'new playlist') continue;
 
-        final browseId = traverseString(item, ['navigationEndpoint', 'browseEndpoint', 'browseId']) ??
-            traverseString(item, ['navigationEndpoint', 'watchPlaylistEndpoint', 'playlistId']);
-        if (browseId != null && browseId.isNotEmpty && !browseId.startsWith('UC') && !seenIds.contains(browseId)) {
+        final browseId =
+            traverseString(item, [
+              'navigationEndpoint',
+              'browseEndpoint',
+              'browseId',
+            ]) ??
+            traverseString(item, [
+              'navigationEndpoint',
+              'watchPlaylistEndpoint',
+              'playlistId',
+            ]);
+        if (browseId != null &&
+            browseId.isNotEmpty &&
+            !browseId.startsWith('UC') &&
+            !seenIds.contains(browseId)) {
           seenIds.add(browseId);
           if (flexCols.length > 1) {
             final a = _extractNodeText(flexCols[1]).trim();
             if (a.isNotEmpty) author = a;
           }
           String? thumb = _extractNodePhoto(item);
-          if (browseId == 'VLLM' || browseId == 'LM' || title.toLowerCase() == 'liked music') {
+          if (browseId == 'VLLM' ||
+              browseId == 'LM' ||
+              title.toLowerCase() == 'liked music') {
             thumb ??= 'https://www.gstatic.com/youtube/media/ytm/images/pbg/liked-songs-delhi-576.png';
           }
           playlists.add(
@@ -2860,7 +3646,10 @@ class MusicService {
 
     // 1. Authenticated InnerTube liked & saved playlists
     try {
-      final likedData = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_liked_playlists'});
+      final likedData = await postInnerTube(
+        'browse',
+        bodyExtras: {'browseId': 'FEmusic_liked_playlists'},
+      );
       extractPlaylistsFromData(likedData);
 
       String? token = extractContinuationToken(likedData);
@@ -2878,7 +3667,10 @@ class MusicService {
 
     // 2. Authenticated InnerTube library landing items (shared/saved playlists)
     try {
-      final landingData = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_library_landing'});
+      final landingData = await postInnerTube(
+        'browse',
+        bodyExtras: {'browseId': 'FEmusic_library_landing'},
+      );
       extractPlaylistsFromData(landingData);
     } catch (e) {
       debugPrint('getUserPlaylists landing error: $e');
@@ -2901,12 +3693,21 @@ class MusicService {
     try {
       final feedIds = ['FEmusic_liked_albums', 'FEmusic_library_corpus_albums'];
       for (final feedId in feedIds) {
-        final data = await postInnerTube('browse', bodyExtras: {'browseId': feedId});
+        final data = await postInnerTube(
+          'browse',
+          bodyExtras: {'browseId': feedId},
+        );
         if (data != null) {
           final items = _collectRenderers(data, 'musicTwoRowItemRenderer');
           for (final item in items) {
-            final browseId = traverseString(item, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
-            if (browseId != null && browseId.isNotEmpty && !seenIds.contains(browseId)) {
+            final browseId = traverseString(item, [
+              'navigationEndpoint',
+              'browseEndpoint',
+              'browseId',
+            ]);
+            if (browseId != null &&
+                browseId.isNotEmpty &&
+                !seenIds.contains(browseId)) {
               seenIds.add(browseId);
               final title = _extractNodeText(item['title']);
               final artist = _extractNodeText(item['subtitle']);
@@ -2944,17 +3745,33 @@ class MusicService {
 
     // Authenticated InnerTube library subscribed artists
     try {
-      final feedIds = ['FEmusic_library_corpus_track_artists', 'FEmusic_library_corpus_artists', 'FEmusic_library_landing'];
+      final feedIds = [
+        'FEmusic_library_corpus_track_artists',
+        'FEmusic_library_corpus_artists',
+        'FEmusic_library_landing',
+      ];
       for (final feedId in feedIds) {
-        final data = await postInnerTube('browse', bodyExtras: {'browseId': feedId});
+        final data = await postInnerTube(
+          'browse',
+          bodyExtras: {'browseId': feedId},
+        );
         if (data != null) {
           final items = _collectRenderers(data, 'musicTwoRowItemRenderer');
           for (final item in items) {
-            final browseId = traverseString(item, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
-            if (browseId != null && browseId.isNotEmpty && !seenIds.contains(browseId)) {
+            final browseId = traverseString(item, [
+              'navigationEndpoint',
+              'browseEndpoint',
+              'browseId',
+            ]);
+            if (browseId != null &&
+                browseId.isNotEmpty &&
+                !seenIds.contains(browseId)) {
               final subscribers = _extractNodeText(item['subtitle']);
               final subLower = subscribers.toLowerCase();
-              final isArtist = browseId.startsWith('UC') || subLower.contains('artist') || subLower.contains('subscriber');
+              final isArtist =
+                  browseId.startsWith('UC') ||
+                  subLower.contains('artist') ||
+                  subLower.contains('subscriber');
               if (isArtist) {
                 seenIds.add(browseId);
                 final name = _extractNodeText(item['title']);
@@ -2964,7 +3781,9 @@ class MusicService {
                     id: browseId,
                     name: name.isNotEmpty ? name : 'Artist',
                     thumbnailUrl: thumb,
-                    subscribers: subscribers.isNotEmpty ? subscribers : 'Subscribed',
+                    subscribers: subscribers.isNotEmpty
+                        ? subscribers
+                        : 'Subscribed',
                     isCustom: false,
                   ),
                 );
@@ -2990,22 +3809,19 @@ class MusicService {
 
     try {
       final results = await _ytMusic.searchVideos(trimmedQuery);
-      return results
-          .where((v) => v.videoId.isNotEmpty)
-          .map((v) {
-            String? thumb;
-            if (v.thumbnails.isNotEmpty) {
-              thumb = v.thumbnails.last.url;
-            }
-            return VideoItem(
-              id: v.videoId,
-              title: v.name.isNotEmpty ? v.name : 'Untitled Video',
-              artist: v.artist.name.isNotEmpty ? v.artist.name : 'Unknown Artist',
-              thumbnailUrl: thumb,
-              durationSeconds: v.duration,
-            );
-          })
-          .toList();
+      return results.where((v) => v.videoId.isNotEmpty).map((v) {
+        String? thumb;
+        if (v.thumbnails.isNotEmpty) {
+          thumb = v.thumbnails.last.url;
+        }
+        return VideoItem(
+          id: v.videoId,
+          title: v.name.isNotEmpty ? v.name : 'Untitled Video',
+          artist: v.artist.name.isNotEmpty ? v.artist.name : 'Unknown Artist',
+          thumbnailUrl: thumb,
+          durationSeconds: v.duration,
+        );
+      }).toList();
     } catch (e) {
       debugPrint('searchVideos error: $e');
       return [];
@@ -3023,22 +3839,21 @@ class MusicService {
 
     try {
       final results = await _ytMusic.searchPlaylists(trimmedQuery);
-      return results
-          .where((p) => p.playlistId.isNotEmpty)
-          .map((p) {
-            String? thumb;
-            if (p.thumbnails.isNotEmpty) {
-              final raw = p.thumbnails.last.url;
-              thumb = SongItem.upgradeThumbnail(raw.startsWith('//') ? 'https:$raw' : raw);
-            }
-            return PlaylistItem(
-              id: p.playlistId,
-              title: p.name.isNotEmpty ? p.name : 'Untitled Playlist',
-              author: p.artist.name.isNotEmpty ? p.artist.name : 'YouTube Music',
-              thumbnailUrl: thumb,
-            );
-          })
-          .toList();
+      return results.where((p) => p.playlistId.isNotEmpty).map((p) {
+        String? thumb;
+        if (p.thumbnails.isNotEmpty) {
+          final raw = p.thumbnails.last.url;
+          thumb = SongItem.upgradeThumbnail(
+            raw.startsWith('//') ? 'https:$raw' : raw,
+          );
+        }
+        return PlaylistItem(
+          id: p.playlistId,
+          title: p.name.isNotEmpty ? p.name : 'Untitled Playlist',
+          author: p.artist.name.isNotEmpty ? p.artist.name : 'YouTube Music',
+          thumbnailUrl: thumb,
+        );
+      }).toList();
     } catch (e) {
       debugPrint('searchPlaylists error: $e');
       return [];
@@ -3103,45 +3918,64 @@ class MusicService {
     // Warm duration & artwork cache for discovered songs
     for (final song in searchResultSet.songs) {
       if (song.durationSeconds != null && song.durationSeconds! > 0) {
-        unawaited(SongMetricsCacheService.instance.setDuration(song.id, song.durationSeconds!));
+        unawaited(
+          SongMetricsCacheService.instance.setDuration(
+            song.id,
+            song.durationSeconds!,
+          ),
+        );
       }
     }
     if (searchResultSet.songs.isNotEmpty) {
-      unawaited(ArtworkCacheService.instance.prefetchArtworks(searchResultSet.songs));
+      unawaited(
+        ArtworkCacheService.instance.prefetchArtworks(searchResultSet.songs),
+      );
     }
     if (searchResultSet.artists.isNotEmpty) {
-      unawaited(ArtworkCacheService.instance.prefetchImageUrls(
-        searchResultSet.artists.map((a) => a.thumbnailUrl).toList(),
-      ));
+      unawaited(
+        ArtworkCacheService.instance.prefetchImageUrls(
+          searchResultSet.artists.map((a) => a.thumbnailUrl).toList(),
+        ),
+      );
     }
     if (searchResultSet.albums.isNotEmpty) {
-      unawaited(ArtworkCacheService.instance.prefetchImageUrls(
-        searchResultSet.albums.map((a) => a.thumbnailUrl).toList(),
-      ));
+      unawaited(
+        ArtworkCacheService.instance.prefetchImageUrls(
+          searchResultSet.albums.map((a) => a.thumbnailUrl).toList(),
+        ),
+      );
     }
     if (searchResultSet.playlists.isNotEmpty) {
-      unawaited(ArtworkCacheService.instance.prefetchImageUrls(
-        searchResultSet.playlists.map((p) => p.thumbnailUrl).toList(),
-      ));
+      unawaited(
+        ArtworkCacheService.instance.prefetchImageUrls(
+          searchResultSet.playlists.map((p) => p.thumbnailUrl).toList(),
+        ),
+      );
     }
     if (searchResultSet.videos.isNotEmpty) {
-      unawaited(ArtworkCacheService.instance.prefetchImageUrls(
-        searchResultSet.videos.map((v) => v.thumbnailUrl).toList(),
-      ));
+      unawaited(
+        ArtworkCacheService.instance.prefetchImageUrls(
+          searchResultSet.videos.map((v) => v.thumbnailUrl).toList(),
+        ),
+      );
     }
 
     _searchAllMemoryCache[cacheKey] = searchResultSet;
     return searchResultSet;
   }
 
-  Future<({List<MusicCategory> moods, List<MusicCategory> genres})> _fetchMoodsAndGenres() async {
+  Future<({List<MusicCategory> moods, List<MusicCategory> genres})>
+  _fetchMoodsAndGenres() async {
     final List<MusicCategory> parsedMoods = [];
     final List<MusicCategory> parsedGenres = [];
 
     try {
       dynamic moodRes;
       if (_currentAccount != null) {
-        moodRes = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_moods_and_genres'});
+        moodRes = await postInnerTube(
+          'browse',
+          bodyExtras: {'browseId': 'FEmusic_moods_and_genres'},
+        );
       }
       moodRes ??= await _ytMusic.constructRequest(
         'browse',
@@ -3149,15 +3983,36 @@ class MusicService {
       );
 
       if (moodRes is Map) {
-        final tabs = traverseList(moodRes, ['contents', 'singleColumnBrowseResultsRenderer', 'tabs']);
-        final sectionContents = tabs.firstOrNull?['tabRenderer']?['content']?['sectionListRenderer']?['contents'] as List? ?? [];
+        final tabs = traverseList(moodRes, [
+          'contents',
+          'singleColumnBrowseResultsRenderer',
+          'tabs',
+        ]);
+        final sectionContents =
+            tabs.firstOrNull?['tabRenderer']?['content']?['sectionListRenderer']?['contents']
+                as List? ??
+            [];
 
         for (final section in sectionContents) {
-          final title = traverseString(section, ['gridRenderer', 'header', 'gridHeaderRenderer', 'title', 'runs']) ??
-              traverseString(section, ['musicCarouselShelfRenderer', 'header', 'musicCarouselShelfBasicHeaderRenderer', 'title', 'runs']) ??
+          final title =
+              traverseString(section, [
+                'gridRenderer',
+                'header',
+                'gridHeaderRenderer',
+                'title',
+                'runs',
+              ]) ??
+              traverseString(section, [
+                'musicCarouselShelfRenderer',
+                'header',
+                'musicCarouselShelfBasicHeaderRenderer',
+                'title',
+                'runs',
+              ]) ??
               '';
 
-          final items = (section['gridRenderer']?['items'] as List?) ??
+          final items =
+              (section['gridRenderer']?['items'] as List?) ??
               (section['musicCarouselShelfRenderer']?['contents'] as List?) ??
               [];
 
@@ -3165,12 +4020,15 @@ class MusicService {
             final btn = it['musicNavigationButtonRenderer'];
             if (btn == null) continue;
             final textRuns = btn['buttonText']?['runs'] as List? ?? [];
-            final text = textRuns.isNotEmpty ? textRuns.first['text'] as String? ?? '' : '';
+            final text = textRuns.isNotEmpty
+                ? textRuns.first['text'] as String? ?? ''
+                : '';
             final color = (btn['solid']?['leftStripeColor'] as num?)?.toInt();
 
             if (text.isNotEmpty) {
               final cat = MusicCategory(title: text, colorValue: color);
-              if (title.toLowerCase().contains('mood') || title.toLowerCase().contains('moment')) {
+              if (title.toLowerCase().contains('mood') ||
+                  title.toLowerCase().contains('moment')) {
                 parsedMoods.add(cat);
               } else {
                 parsedGenres.add(cat);
@@ -3181,7 +4039,10 @@ class MusicService {
 
         // If sectionContents didn't yield items, collect any navigation buttons
         if (parsedMoods.isEmpty && parsedGenres.isEmpty) {
-          final buttons = _collectRenderers(moodRes, 'musicNavigationButtonRenderer');
+          final buttons = _collectRenderers(
+            moodRes,
+            'musicNavigationButtonRenderer',
+          );
           for (int i = 0; i < buttons.length; i++) {
             final btn = buttons[i];
             final text = _extractNodeText(btn['buttonText']).trim();
@@ -3201,10 +4062,7 @@ class MusicService {
       debugPrint('_fetchMoodsAndGenres error: $e');
     }
 
-    return (
-      moods: parsedMoods,
-      genres: parsedGenres,
-    );
+    return (moods: parsedMoods, genres: parsedGenres);
   }
 
   /// Fetches lyrics using either lrc.red (Apple Music TTML / word-synced) or YouTube Music.
@@ -3315,32 +4173,34 @@ class MusicService {
 
     final results = await _ytMusic.searchSongs(trimmedQuery);
 
-    final songs = results
-        .where((song) => song.videoId.isNotEmpty)
-        .map((song) {
-          final artistName = song.artist.name.isNotEmpty
-              ? song.artist.name
-              : 'Unknown Artist';
+    final songs = results.where((song) => song.videoId.isNotEmpty).map((song) {
+      final artistName = song.artist.name.isNotEmpty
+          ? song.artist.name
+          : 'Unknown Artist';
 
-          String? thumbUrl;
-          if (song.thumbnails.isNotEmpty) {
-            thumbUrl = song.thumbnails.last.url;
-          }
+      String? thumbUrl;
+      if (song.thumbnails.isNotEmpty) {
+        thumbUrl = song.thumbnails.last.url;
+      }
 
-          return SongItem(
-            id: song.videoId,
-            title: song.name.isNotEmpty ? song.name : 'Untitled Track',
-            artist: artistName,
-            album: song.album?.name,
-            thumbnailUrl: SongItem.upgradeThumbnail(thumbUrl),
-            durationSeconds: song.duration,
-          );
-        })
-        .toList();
+      return SongItem(
+        id: song.videoId,
+        title: song.name.isNotEmpty ? song.name : 'Untitled Track',
+        artist: artistName,
+        album: song.album?.name,
+        thumbnailUrl: SongItem.upgradeThumbnail(thumbUrl),
+        durationSeconds: song.duration,
+      );
+    }).toList();
 
     for (final song in songs) {
       if (song.durationSeconds != null && song.durationSeconds! > 0) {
-        unawaited(SongMetricsCacheService.instance.setDuration(song.id, song.durationSeconds!));
+        unawaited(
+          SongMetricsCacheService.instance.setDuration(
+            song.id,
+            song.durationSeconds!,
+          ),
+        );
       }
     }
     if (songs.isNotEmpty) {
@@ -3376,15 +4236,20 @@ class MusicService {
     final cached = _streamCache[trimmedId];
     if (cached != null) {
       bool isCacheValid = false;
-      final expireMatch = RegExp(r'[?&]expire=(\d+)').firstMatch(cached.info.url);
+      final expireMatch = RegExp(r'[?&]expire=(\d+)')
+          .firstMatch(cached.info.url);
       if (expireMatch != null) {
         final expireSec = int.tryParse(expireMatch.group(1) ?? '');
         if (expireSec != null) {
-          final expireDate = DateTime.fromMillisecondsSinceEpoch(expireSec * 1000);
+          final expireDate = DateTime.fromMillisecondsSinceEpoch(
+            expireSec * 1000,
+          );
           final age = DateTime.now().difference(cached.timestamp);
           // Only trust cached URL if within 1 hour and at least 30 min before expire
           if (age < const Duration(hours: 1) &&
-              DateTime.now().isBefore(expireDate.subtract(const Duration(minutes: 30)))) {
+              DateTime.now().isBefore(
+                expireDate.subtract(const Duration(minutes: 30)),
+              )) {
             isCacheValid = true;
           }
         }
@@ -3396,8 +4261,14 @@ class MusicService {
       }
 
       if (isCacheValid) {
-        if (cached.info.durationSeconds != null && cached.info.durationSeconds! > 0) {
-          unawaited(SongMetricsCacheService.instance.setDuration(trimmedId, cached.info.durationSeconds!));
+        if (cached.info.durationSeconds != null &&
+            cached.info.durationSeconds! > 0) {
+          unawaited(
+            SongMetricsCacheService.instance.setDuration(
+              trimmedId,
+              cached.info.durationSeconds!,
+            ),
+          );
         }
         return cached.info;
       }
@@ -3416,11 +4287,23 @@ class MusicService {
         final streamInfo = await _extractWithClient(trimmedId, client);
         if (streamInfo != null) {
           // Probe stream URL with bounded range (0-1024) to ensure HTTP 206 / 200 before returning
-          final isViable = await _probeStreamUrl(streamInfo.url, streamInfo.headers);
+          final isViable = await _probeStreamUrl(
+            streamInfo.url,
+            streamInfo.headers,
+          );
           if (isViable) {
-            _streamCache[trimmedId] = (info: streamInfo, timestamp: DateTime.now());
-            if (streamInfo.durationSeconds != null && streamInfo.durationSeconds! > 0) {
-              unawaited(SongMetricsCacheService.instance.setDuration(trimmedId, streamInfo.durationSeconds!));
+            _streamCache[trimmedId] = (
+              info: streamInfo,
+              timestamp: DateTime.now(),
+            );
+            if (streamInfo.durationSeconds != null &&
+                streamInfo.durationSeconds! > 0) {
+              unawaited(
+                SongMetricsCacheService.instance.setDuration(
+                  trimmedId,
+                  streamInfo.durationSeconds!,
+                ),
+              );
             }
             return streamInfo;
           }
@@ -3432,9 +4315,13 @@ class MusicService {
     }
 
     if (lastError != null) {
-      throw Exception('Failed to resolve stream for track $trimmedId: $lastError');
+      throw Exception(
+        'Failed to resolve stream for track $trimmedId: $lastError',
+      );
     }
-    throw Exception('No playable audio stream could be verified for track $trimmedId');
+    throw Exception(
+      'No playable audio stream could be verified for track $trimmedId',
+    );
   }
 
   /// Resolves a crisp high-definition video stream (HLS .m3u8 or progressive MP4) for [videoId].
@@ -3474,9 +4361,7 @@ class MusicService {
         if (hlsUrl != null && hlsUrl.isNotEmpty) {
           final info = VideoStreamInfo(
             url: hlsUrl,
-            headers: {
-              'User-Agent': client.userAgent,
-            },
+            headers: {'User-Agent': client.userAgent},
             width: 1920,
             height: 1080,
             qualityLabel: '1080p',
@@ -3486,8 +4371,8 @@ class MusicService {
         }
 
         // 2. Next check combined progressive MP4 formats (has full standard moov container atom)
-        final progressiveFormats = (streamingData['formats'] as List<dynamic>? ?? [])
-            .where((f) {
+        final progressiveFormats =
+            (streamingData['formats'] as List<dynamic>? ?? []).where((f) {
               final mime = f['mimeType'] as String? ?? '';
               return mime.startsWith('video/mp4') && f.containsKey('url');
             }).toList();
@@ -3506,9 +4391,7 @@ class MusicService {
             final q = selected['qualityLabel'] as String? ?? '${h}p';
             final info = VideoStreamInfo(
               url: videoUrl,
-              headers: {
-                'User-Agent': client.userAgent,
-              },
+              headers: {'User-Agent': client.userAgent},
               width: w,
               height: h,
               qualityLabel: q,
@@ -3519,7 +4402,8 @@ class MusicService {
         }
 
         // 3. Fallback to adaptiveFormats MP4
-        final adaptiveFormats = streamingData['adaptiveFormats'] as List<dynamic>? ?? [];
+        final adaptiveFormats =
+            streamingData['adaptiveFormats'] as List<dynamic>? ?? [];
         final videoFormats = adaptiveFormats.where((f) {
           final mime = f['mimeType'] as String? ?? '';
           return mime.startsWith('video/mp4') && f.containsKey('url');
@@ -3533,26 +4417,22 @@ class MusicService {
           return bHeight.compareTo(aHeight);
         });
 
-        final selectedFormat = videoFormats.firstWhere(
-          (f) {
-            final h = (f['height'] as num?)?.toInt() ?? 0;
-            return h >= 720 && h <= 1080;
-          },
-          orElse: () => videoFormats.first,
-        );
+        final selectedFormat = videoFormats.firstWhere((f) {
+          final h = (f['height'] as num?)?.toInt() ?? 0;
+          return h >= 720 && h <= 1080;
+        }, orElse: () => videoFormats.first);
 
         final videoUrl = selectedFormat['url'] as String?;
         if (videoUrl == null || videoUrl.isEmpty) continue;
 
         final width = (selectedFormat['width'] as num?)?.toInt() ?? 1280;
         final height = (selectedFormat['height'] as num?)?.toInt() ?? 720;
-        final qualityLabel = selectedFormat['qualityLabel'] as String? ?? '${height}p';
+        final qualityLabel =
+            selectedFormat['qualityLabel'] as String? ?? '${height}p';
 
         final info = VideoStreamInfo(
           url: videoUrl,
-          headers: {
-            'User-Agent': client.userAgent,
-          },
+          headers: {'User-Agent': client.userAgent},
           width: width,
           height: height,
           qualityLabel: qualityLabel,
@@ -3591,7 +4471,8 @@ class MusicService {
 
     if (data is! Map) return null;
 
-    final playabilityStatus = data['playabilityStatus'] as Map<String, dynamic>?;
+    final playabilityStatus =
+        data['playabilityStatus'] as Map<String, dynamic>?;
     if (playabilityStatus != null && playabilityStatus['status'] != 'OK') {
       return null;
     }
@@ -3599,7 +4480,8 @@ class MusicService {
     final streamingData = data['streamingData'] as Map<String, dynamic>?;
     if (streamingData == null) return null;
 
-    final adaptiveFormats = streamingData['adaptiveFormats'] as List<dynamic>? ?? [];
+    final adaptiveFormats =
+        streamingData['adaptiveFormats'] as List<dynamic>? ?? [];
 
     // Filter available audio formats with direct playable URLs
     final audioFormats = adaptiveFormats.where((f) {
@@ -3627,7 +4509,9 @@ class MusicService {
 
     final bitrate = (selectedFormat['bitrate'] as num?)?.toInt() ?? 128000;
     final mimeType = selectedFormat['mimeType'] as String? ?? 'audio/mp4';
-    final contentLength = int.tryParse(selectedFormat['contentLength'] as String? ?? '');
+    final contentLength = int.tryParse(
+      selectedFormat['contentLength'] as String? ?? '',
+    );
 
     int? durationMs;
     final videoDetails = data['videoDetails'] as Map<String, dynamic>?;
@@ -3643,9 +4527,7 @@ class MusicService {
 
     return AudioStreamInfo(
       url: streamUrl,
-      headers: {
-        'User-Agent': clientConfig.userAgent,
-      },
+      headers: {'User-Agent': clientConfig.userAgent},
       bitrate: bitrate,
       mimeType: mimeType,
       contentLength: contentLength,
@@ -3655,7 +4537,10 @@ class MusicService {
 
   /// BitChord-style probe to verify that the stream URL actually serves bytes
   /// with the designated headers before handing it to the player.
-  Future<bool> _probeStreamUrl(String streamUrl, Map<String, String> headers) async {
+  Future<bool> _probeStreamUrl(
+    String streamUrl,
+    Map<String, String> headers,
+  ) async {
     HttpClient? client;
     try {
       client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
@@ -3663,8 +4548,11 @@ class MusicService {
       headers.forEach((k, v) => request.headers.set(k, v));
       request.headers.set('Range', 'bytes=0-1024');
 
-      final response = await request.close().timeout(const Duration(seconds: 4));
-      final isSuccess = response.statusCode == 206 || response.statusCode == 200;
+      final response = await request.close().timeout(
+        const Duration(seconds: 4),
+      );
+      final isSuccess =
+          response.statusCode == 206 || response.statusCode == 200;
       await response.drain();
       return isSuccess;
     } catch (_) {
