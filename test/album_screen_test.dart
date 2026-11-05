@@ -144,6 +144,7 @@ void main() {
     // Scroll content up by dragging
     await tester.drag(find.text('Pink Heartz').first, const Offset(0, -250));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     // Progressive blur is mounted behind floating buttons
     expect(find.byType(ProgressiveBlur), findsOneWidget);

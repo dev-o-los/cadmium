@@ -7,6 +7,7 @@ import 'screens/splash_screen.dart';
 import 'services/artwork_cache_service.dart';
 import 'services/audio_cache_service.dart';
 import 'services/home_cache_service.dart';
+import 'services/player_history_cache_service.dart';
 import 'services/song_metrics_cache_service.dart';
 
 void main() async {
@@ -25,6 +26,7 @@ void main() async {
   ArtworkCacheService.instance.init();
   AudioCacheService.instance.init();
   SongMetricsCacheService.instance.init();
+  PlayerHistoryCacheService.instance.init();
   HomeCacheService.instance.loadHomeData();
 
   runApp(const ProviderScope(child: AurumApp()));

@@ -10,6 +10,7 @@ import '../models/song_item.dart';
 import '../models/lyric_line.dart';
 import '../services/artwork_cache_service.dart';
 import '../services/audio_cache_service.dart';
+import '../services/player_history_cache_service.dart';
 import '../services/song_metrics_cache_service.dart';
 import '../services/lyrics_service.dart';
 import 'music_service_provider.dart';
@@ -165,10 +166,57 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   // rebuilding the entire widget tree 10 times per second.
   // Start at -1000 so the very first position event always passes through.
   int _lastPositionEmitMs = -1000;
+  int _lastSavedPositionSec = -1;
 
-  PlayerNotifier(this._ref) : super(const PlayerStateModel()) {
+  PlayerNotifier(this._ref) : super(_buildInitialState()) {
     _initAudioListeners();
     _initAudioSession();
+    _restorePersistedPlayback();
+  }
+
+  static PlayerStateModel _buildInitialState() {
+    final cachedSong = PlayerHistoryCacheService.instance.lastPlayedSong;
+    final cachedHistory = PlayerHistoryCacheService.instance.recentlyPlayed;
+    final cachedQueue = PlayerHistoryCacheService.instance.lastQueue;
+    final cachedPositionMs = PlayerHistoryCacheService.instance.lastPositionMs;
+
+    final initialDuration = (cachedSong != null && cachedSong.durationSeconds != null && cachedSong.durationSeconds! > 0)
+        ? Duration(seconds: cachedSong.durationSeconds!)
+        : (cachedSong != null ? (SongMetricsCacheService.instance.getDuration(cachedSong.id) ?? Duration.zero) : Duration.zero);
+
+    return PlayerStateModel(
+      currentSong: cachedSong,
+      duration: initialDuration,
+      position: Duration(milliseconds: cachedPositionMs),
+      recentlyPlayed: cachedHistory,
+      queue: cachedQueue,
+      isPlaying: false,
+      isBuffering: false,
+      isResolvingStream: false,
+    );
+  }
+
+  Future<void> _restorePersistedPlayback() async {
+    await PlayerHistoryCacheService.instance.init();
+    if (state.currentSong == null) {
+      final cachedSong = PlayerHistoryCacheService.instance.lastPlayedSong;
+      if (cachedSong != null) {
+        final initialDuration = (cachedSong.durationSeconds != null && cachedSong.durationSeconds! > 0)
+            ? Duration(seconds: cachedSong.durationSeconds!)
+            : (SongMetricsCacheService.instance.getDuration(cachedSong.id) ?? Duration.zero);
+
+        state = state.copyWith(
+          currentSong: cachedSong,
+          duration: initialDuration,
+          position: Duration(milliseconds: PlayerHistoryCacheService.instance.lastPositionMs),
+          recentlyPlayed: PlayerHistoryCacheService.instance.recentlyPlayed,
+          queue: PlayerHistoryCacheService.instance.lastQueue,
+          isPlaying: false,
+          isBuffering: false,
+          isResolvingStream: false,
+        );
+      }
+    }
   }
 
   AudioPlayer get audioPlayer => _audioPlayer;
@@ -270,6 +318,12 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         position: pos,
         activeLyricIndex: newLyricIdx,
       );
+
+      // Persist playback position periodically (every 5 seconds)
+      if ((pos.inSeconds - _lastSavedPositionSec).abs() >= 5) {
+        _lastSavedPositionSec = pos.inSeconds;
+        unawaited(PlayerHistoryCacheService.instance.savePosition(pos.inMilliseconds));
+      }
     });
 
     _durationSub = _audioPlayer.durationStream.listen((dur) {
@@ -466,6 +520,13 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
 
     // Track play count and pre-cache high-res artwork for tracks heard repeatedly
     ArtworkCacheService.instance.recordSongPlay(song);
+
+    // Persist as last played song, queue, and history so the player constantly remembers
+    unawaited(PlayerHistoryCacheService.instance.saveLastPlayedSong(
+      song,
+      history: updatedRecentlyPlayed,
+      queue: updatedQueue,
+    ));
 
     try {
       AudioSource audioSource;
@@ -730,6 +791,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
 
     try {
       await _audioPlayer.seek(position).timeout(const Duration(seconds: 2));
+      unawaited(PlayerHistoryCacheService.instance.savePosition(position.inMilliseconds));
     } catch (_) {}
 
     if (_seekGeneration == thisSeekGen) {
