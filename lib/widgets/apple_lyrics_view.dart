@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import '../models/lyric_line.dart';
 import '../services/lyric_clock.dart';
@@ -380,7 +382,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     return -1;
   }
 
-  /// Positions the active line exactly down below the album art header,
+  /// Positions the active line comfortably below the album art header,
   /// with upcoming lines visible below it (matching Apple Music layout).
   void _scrollToActiveLine({bool immediate = false}) {
     if (!_scrollController.hasClients) return;
@@ -396,27 +398,47 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     final key = _lineKeys[targetIndex];
     final targetContext = key?.currentContext;
 
-    if (targetContext != null) {
+    void performScroll(BuildContext ctx) {
+      final renderBox = ctx.findRenderObject() as RenderBox?;
+      if (renderBox != null && renderBox.hasSize && _scrollController.hasClients) {
+        final viewport = RenderAbstractViewport.of(renderBox);
+        if (viewport != null) {
+          // Align target line comfortably below album art header (focal position)
+          final revealOffset = viewport.getOffsetToReveal(renderBox, 0.05).offset;
+          final clampedOffset = revealOffset.clamp(
+            _scrollController.position.minScrollExtent,
+            _scrollController.position.maxScrollExtent,
+          );
+          if (immediate) {
+            _scrollController.jumpTo(clampedOffset);
+          } else {
+            _scrollController.animateTo(
+              clampedOffset,
+              duration: const Duration(milliseconds: 450),
+              curve: Curves.easeOutCubic,
+            );
+          }
+          return;
+        }
+      }
       Scrollable.ensureVisible(
-        targetContext,
-        alignment: 0.0, // Positions active live lyric exactly beneath the album art header
+        ctx,
+        alignment: 0.05,
         alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
-        duration: immediate ? Duration.zero : const Duration(milliseconds: 400),
+        duration: immediate ? Duration.zero : const Duration(milliseconds: 450),
         curve: Curves.easeOutCubic,
       );
+    }
+
+    if (targetContext != null) {
+      performScroll(targetContext);
     } else {
       // If not yet mounted in the current frame, ensure visible immediately after layout pass
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || _isUserScrolling || !_scrollController.hasClients) return;
         final postContext = _lineKeys[targetIndex]?.currentContext;
         if (postContext != null) {
-          Scrollable.ensureVisible(
-            postContext,
-            alignment: 0.0,
-            alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
-            duration: immediate ? Duration.zero : const Duration(milliseconds: 400),
-            curve: Curves.easeOutCubic,
-          );
+          performScroll(postContext);
         }
       });
     }
@@ -627,19 +649,49 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
       );
     }
 
-    // Fixed font size (32.0 lead / 21.0 background) prevents relayout and text shifting.
-    // Subtle scale transform (0.98 -> 1.0) and opacity match Apple Music.
-    final double scale = isActive ? 1.0 : 0.98;
+    // AMLL-inspired optical depth calculation:
+    // Active line is razor-sharp (blur = 0, scale = 1.0, opacity = 1.0).
+    // Surrounding lines have progressive depth of field blur and subtle scale/opacity drops.
+    // When the user is manually scrolling, depth blur is cleared for instant readability.
+    final int distance = (_activeLyricIndex >= 0) ? (index - _activeLyricIndex).abs() : 0;
+    final double targetScale;
+    final double targetOpacity;
+    final double targetBlur;
 
-    final double opacity;
-    if (isActive) {
-      opacity = 1.0;
+    if (_isUserScrolling) {
+      targetScale = isActive ? 1.0 : 0.98;
+      targetOpacity = isActive ? 1.0 : 0.70;
+      targetBlur = 0.0;
+    } else if (isActive) {
+      targetScale = 1.0;
+      targetOpacity = 1.0;
+      targetBlur = 0.0;
     } else if (index < _activeLyricIndex) {
-      // Past line: dimmer as it scrolls away and fades into the top upside vignette
-      opacity = 0.28;
+      // Past line: fades upwards toward vignette
+      if (distance == 1) {
+        targetScale = 0.96;
+        targetOpacity = 0.32;
+        targetBlur = 0.8;
+      } else {
+        targetScale = 0.94;
+        targetOpacity = math.max(0.16, 0.28 - (distance - 1) * 0.04);
+        targetBlur = math.min(3.2, 0.8 + (distance - 1) * 0.8);
+      }
     } else {
       // Upcoming line: readable secondary tone
-      opacity = (index == _activeLyricIndex + 1) ? 0.55 : 0.45;
+      if (distance == 1) {
+        targetScale = 0.98;
+        targetOpacity = 0.58;
+        targetBlur = 0.5;
+      } else if (distance == 2) {
+        targetScale = 0.96;
+        targetOpacity = 0.42;
+        targetBlur = 1.2;
+      } else {
+        targetScale = 0.94;
+        targetOpacity = math.max(0.22, 0.38 - (distance - 2) * 0.04);
+        targetBlur = math.min(3.0, 1.2 + (distance - 2) * 0.6);
+      }
     }
 
     // Alignment: opposing duet singer aligns right, lead singer aligns left
@@ -657,35 +709,47 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
         curve: Curves.easeOutCubic,
         alignment: alignment,
         padding: const EdgeInsets.symmetric(vertical: 12),
-        child: AnimatedScale(
-          scale: scale,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: targetBlur, end: targetBlur),
           duration: const Duration(milliseconds: 400),
           curve: Curves.easeOutCubic,
-          alignment: line.isOppositeTurn ? Alignment.centerRight : Alignment.centerLeft,
-          child: AnimatedOpacity(
-            opacity: opacity,
+          builder: (context, blurVal, child) {
+            if (blurVal < 0.1) return child!;
+            return ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: blurVal, sigmaY: blurVal),
+              child: child,
+            );
+          },
+          child: AnimatedScale(
+            scale: targetScale,
             duration: const Duration(milliseconds: 400),
             curve: Curves.easeOutCubic,
-            child: line.isWordSynced && line.syllables.isNotEmpty
-                ? (isActive
-                    ? ValueListenableBuilder<int>(
-                        valueListenable: _smoothPositionNotifier,
-                        builder: (context, smoothMs, child) {
-                          return _buildWordSyncedLine(
-                            line,
-                            true,
-                            smoothMs,
-                            wrapAlignment,
-                          );
-                        },
-                      )
-                    : _buildWordSyncedLine(
-                        line,
-                        false,
-                        _smoothPositionNotifier.value,
-                        wrapAlignment,
-                      ))
-                : _buildStaticOrLineSyncedText(line, isActive, textAlign),
+            alignment: line.isOppositeTurn ? Alignment.centerRight : Alignment.centerLeft,
+            child: AnimatedOpacity(
+              opacity: targetOpacity,
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeOutCubic,
+              child: line.isWordSynced && line.syllables.isNotEmpty
+                  ? (isActive
+                      ? ValueListenableBuilder<int>(
+                          valueListenable: _smoothPositionNotifier,
+                          builder: (context, smoothMs, child) {
+                            return _buildWordSyncedLine(
+                              line,
+                              true,
+                              smoothMs,
+                              wrapAlignment,
+                            );
+                          },
+                        )
+                      : _buildWordSyncedLine(
+                          line,
+                          false,
+                          _smoothPositionNotifier.value,
+                          wrapAlignment,
+                        ))
+                  : _buildStaticOrLineSyncedText(line, isActive, textAlign),
+            ),
           ),
         ),
       ),
@@ -735,8 +799,12 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
               height: 1.25,
               shadows: [
                 Shadow(
-                  color: Colors.white.withValues(alpha: 0.35),
-                  blurRadius: 10,
+                  color: Colors.white.withValues(alpha: 0.55),
+                  blurRadius: 14,
+                ),
+                Shadow(
+                  color: Colors.white.withValues(alpha: 0.30),
+                  blurRadius: 4,
                 ),
               ],
             ),
@@ -784,8 +852,12 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
                     height: 1.25,
                     shadows: [
                       Shadow(
-                        color: Colors.white.withValues(alpha: 0.35),
-                        blurRadius: 10,
+                        color: Colors.white.withValues(alpha: 0.55),
+                        blurRadius: 14,
+                      ),
+                      Shadow(
+                        color: Colors.white.withValues(alpha: 0.30),
+                        blurRadius: 4,
                       ),
                     ],
                   ),
@@ -820,8 +892,12 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
         shadows: isActive
             ? [
                 Shadow(
-                  color: Colors.white.withValues(alpha: 0.40),
-                  blurRadius: 10,
+                  color: Colors.white.withValues(alpha: 0.55),
+                  blurRadius: 14,
+                ),
+                Shadow(
+                  color: Colors.white.withValues(alpha: 0.30),
+                  blurRadius: 4,
                 ),
               ]
             : null,
