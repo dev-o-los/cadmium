@@ -3129,8 +3129,9 @@ class MusicService {
                     'browseEndpoint',
                     'browseId',
                   ]);
-                  if (artistBrowseId == null || artistBrowseId.isEmpty)
+                  if (artistBrowseId == null || artistBrowseId.isEmpty) {
                     continue;
+                  }
                   final title =
                       traverseString(renderer, ['title', 'runs', 'text']) ??
                       'Artist';

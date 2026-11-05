@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
@@ -13,6 +11,7 @@ import '../providers/library_provider.dart';
 import '../providers/music_service_provider.dart';
 import '../providers/navigation_provider.dart';
 import '../providers/player_provider.dart';
+import '../services/artwork_color_service.dart';
 import '../services/song_metrics_cache_service.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/animated_cupertino_icon.dart';
@@ -26,7 +25,7 @@ import '../widgets/top_status_bar_blur.dart';
 import '../widgets/app_shimmer.dart';
 
 /// Full-Page Album View matching the user's reference screenshots:
-/// - Edge-to-edge ambient artwork blur and gradient dissolve into OLED black
+/// - Dynamic album background derived from the most attractive color of the album artwork
 /// - Floating circular back button + right action pill (Search, Sort, 3-dots)
 /// - Large album artwork with rounded corners and drop shadow
 /// - Centered metadata: Album Title, Artist, and "Album · Year · X Tracks · Y min"
@@ -53,6 +52,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   List<SongItem> _filteredTracks = [];
   int _totalDurationSeconds = 0;
   String? _resolvedArtwork;
+  Color? _backgroundColor;
 
   bool _isDescriptionExpanded = false;
   bool _isSearching = false;
@@ -109,7 +109,19 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     super.initState();
     _album = widget.album;
     _resolvedArtwork = widget.album.thumbnailUrl;
+    _updateBackgroundColor();
     _loadAlbumDetails();
+  }
+
+  Future<void> _updateBackgroundColor() async {
+    final seed = '${widget.album.title} ${widget.album.artist}';
+    final color = await ArtworkColorService.instance.extractAttractiveColor(
+      _resolvedArtwork,
+      fallbackSeed: seed,
+    );
+    if (mounted) {
+      setState(() => _backgroundColor = color);
+    }
   }
 
   @override
@@ -134,6 +146,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
           setState(() {
             _resolvedArtwork = art;
           });
+          _updateBackgroundColor();
         }
       }
 
@@ -145,16 +158,22 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
 
       if (!mounted) return;
 
+      final previousArtwork = _resolvedArtwork;
       setState(() {
         _album = details.album;
         _allTracks = details.tracks;
         _filteredTracks = details.tracks;
         _totalDurationSeconds = details.totalDurationSeconds;
-        if (details.album.thumbnailUrl != null) {
+        if (details.album.thumbnailUrl != null &&
+            details.album.thumbnailUrl!.isNotEmpty) {
           _resolvedArtwork = details.album.thumbnailUrl;
         }
         _isLoading = false;
       });
+
+      if (_resolvedArtwork != previousArtwork) {
+        _updateBackgroundColor();
+      }
 
       // Pre-cache metrics and streams for the first 3 tracks of the album
       if (details.tracks.isNotEmpty) {
@@ -534,7 +553,6 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
     final artworkSize = (screenWidth * 0.64).clamp(210.0, 270.0);
     final isSaved = ref.watch(
       savedAlbumsProvider.select((list) => list.any((a) => a.id == _album.id)),
@@ -556,58 +574,36 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         _album.description ??
         '${_album.title} is the debut studio album by American artist ${_album.artist}. It was released in $yearStr with a dynamic sound and cohesive track experience.';
 
+    final resolvedColor = _backgroundColor ??
+        ArtworkColorService.instance.getCachedColor(_resolvedArtwork ?? '') ??
+        const Color(0xFF16161A);
+    final deeperTone =
+        ArtworkColorService.instance.computeDeeperTone(resolvedColor);
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: resolvedColor,
       body: Stack(
         children: [
-          // 1. Ambient Background Layer: Real blurred artwork mixed with dark dissolve
-          if (_resolvedArtwork != null && _resolvedArtwork!.isNotEmpty)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: screenHeight * 0.58,
-              child: ShaderMask(
-                shaderCallback: (bounds) => const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.black, Colors.black, Colors.transparent],
-                  stops: [0.0, 0.40, 1.0],
-                ).createShader(bounds),
-                blendMode: BlendMode.dstIn,
-                child: ImageFiltered(
-                  imageFilter: ui.ImageFilter.blur(sigmaX: 52, sigmaY: 52),
-                  child: Image.network(
-                    _resolvedArtwork!,
-                    fit: BoxFit.cover,
-                    alignment: Alignment.topCenter,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const SizedBox.shrink(),
-                  ),
-                ),
-              ),
-            ),
-
-          // 2. Deep Gradient Overlay to dissolve ambient artwork cleanly into OLED black
+          // 1. Dynamic attractive album color atmosphere background
           Positioned.fill(
-            child: Container(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeOutCubic,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withValues(alpha: 0.45),
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.85),
-                    Colors.black,
+                    resolvedColor,
+                    deeperTone,
                   ],
-                  stops: const [0.0, 0.26, 0.62, 1.0],
+                  stops: const [0.0, 0.75],
                 ),
               ),
             ),
           ),
 
-          // 3. Scrollable Album Content
+          // 2. Scrollable Album Content
           NotificationListener<ScrollNotification>(
             onNotification: _handleScrollNotification,
             child: CustomScrollView(
