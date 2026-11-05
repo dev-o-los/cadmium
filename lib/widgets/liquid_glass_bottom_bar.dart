@@ -79,6 +79,7 @@ class LiquidGlassBottomBar extends StatelessWidget {
       unselectedLabelColor: const Color(0xFF8E8E93),
       indicatorColor: Colors.white.withValues(alpha: 0.18),
       settings: const LiquidGlassSettings(
+        glassColor: Color(0xF2121216),
         thickness: 24,
         blur: 24,
         refractiveIndex: 1.15,

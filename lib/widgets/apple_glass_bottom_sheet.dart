@@ -1,12 +1,11 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import 'apple_pressable.dart';
 
-/// Shows an authentic Apple-style Liquid Glass bottom sheet with translucent
-/// Gaussian frosted glass, specular highlights, and high-contrast white elements.
+/// Shows an authentic bottom sheet with a deep black surface,
+/// subtle highlight border, and high-contrast white elements blending with the app theme.
 Future<T?> showAppleGlassBottomSheet<T>({
   required BuildContext context,
   required Widget Function(BuildContext modalContext) builder,
@@ -20,15 +19,15 @@ Future<T?> showAppleGlassBottomSheet<T>({
     enableDrag: enableDrag,
     isDismissible: isDismissible,
     backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withValues(alpha: 0.65),
+    barrierColor: Colors.black.withValues(alpha: 0.70),
     builder: (modalContext) {
       return AppleGlassBottomSheetContainer(child: builder(modalContext));
     },
   );
 }
 
-/// Liquid Glass container wrapper with specular highlights, top grab handle,
-/// and balanced padding for Apple-style sheets.
+/// Bottom sheet container with deep black theme surface, subtle top highlight border,
+/// grab handle, and balanced padding blending with the app design theme.
 class AppleGlassBottomSheetContainer extends StatelessWidget {
   final Widget child;
   final bool showGrabber;
@@ -46,59 +45,59 @@ class AppleGlassBottomSheetContainer extends StatelessWidget {
 
     return Padding(
       padding: EdgeInsets.only(bottom: viewInsetsBottom),
-      child: GlassContainer(
-        useOwnLayer: true,
-        shape: const LiquidVerticalRoundedSuperellipse(
-          topRadius: 28,
-          bottomRadius: 0,
-        ),
-        settings: const LiquidGlassSettings(
-          thickness: 24,
-          blur: 32,
-          refractiveIndex: 1.15,
-          lightIntensity: 0.45,
-          specularSharpness: GlassSpecularSharpness.sharp,
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: const Color(0xDD121215),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.18),
-              width: 0.8,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.55),
-                blurRadius: 32,
-                offset: const Offset(0, -8),
-              ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF16161A),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF1F1F24), // Subtle sleek top highlight
+              Color(0xFF16161A), // Core black surface blending with app theme
+              Color(0xFF121215), // Deep black base
             ],
+            stops: [0.0, 0.25, 1.0],
           ),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.12),
+            width: 0.8,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.75),
+              blurRadius: 40,
+              spreadRadius: 2,
+              offset: const Offset(0, -10),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           child: SafeArea(
             top: false,
             bottom: false,
             child: Padding(
-              padding: EdgeInsets.fromLTRB(14, 0, 14, bottomPadding + 6),
+              padding: EdgeInsets.fromLTRB(16, 0, 16, bottomPadding + 10),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (showGrabber) ...[
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     Center(
                       child: Container(
-                        width: 36,
+                        width: 38,
                         height: 4.5,
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.35),
+                          color: Colors.white.withValues(alpha: 0.28),
                           borderRadius: BorderRadius.circular(2.25),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 18),
                   ] else
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 18),
                   child,
                 ],
               ),
@@ -110,7 +109,8 @@ class AppleGlassBottomSheetContainer extends StatelessWidget {
   }
 }
 
-/// Apple-style grouped section card for actions inside bottom sheets with Liquid Glass effect.
+/// Layout group for bottom sheet items directly on the sheet's liquid glossy panel.
+/// Items are placed directly on the back panel without separate nested containers.
 class AppleSheetGroup extends StatelessWidget {
   final List<Widget>? children;
   final Widget? child;
@@ -124,35 +124,15 @@ class AppleSheetGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassContainer(
-      useOwnLayer: true,
-      shape: const LiquidRoundedSuperellipse(borderRadius: 18),
-      settings: const LiquidGlassSettings(
-        thickness: 16,
-        blur: 18,
-        refractiveIndex: 1.10,
-        lightIntensity: 0.35,
-        specularSharpness: GlassSpecularSharpness.sharp,
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.14),
-            width: 0.75,
+    return Padding(
+      padding: padding ?? EdgeInsets.zero,
+      child:
+          child ??
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children!,
           ),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(18),
-          child: Padding(
-            padding: padding ?? EdgeInsets.zero,
-            child:
-                child ??
-                Column(mainAxisSize: MainAxisSize.min, children: children!),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -185,26 +165,19 @@ class AppleSheetActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveTitleColor = isDestructive
-        ? const Color(0xFFFF453A)
-        : titleColor;
-    final leadingWidget =
-        leading ??
-        Icon(
-          icon,
-          color: isDestructive ? const Color(0xFFFF453A) : Colors.white,
-          size: 22,
-        );
+    // Uniform, pure white text and icons across ALL options without exception
+    final leadingWidget = leading ?? Icon(icon, color: Colors.white, size: 22);
 
     return ApplePressable(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
         child: Row(
           children: [
             SizedBox(
-              width: 28,
-              height: 28,
+              width: 30,
+              height: 30,
               child: Center(child: leadingWidget),
             ),
             const SizedBox(width: 14),
@@ -217,22 +190,22 @@ class AppleSheetActionTile extends StatelessWidget {
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: effectiveTitleColor,
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w600,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
                       letterSpacing: -0.2,
                     ),
                   ),
                   if (subtitle != null && subtitle!.isNotEmpty) ...[
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
                       subtitle!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.72),
-                        fontSize: 12.5,
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontSize: 13,
                         fontWeight: FontWeight.w400,
                       ),
                     ),
@@ -240,7 +213,7 @@ class AppleSheetActionTile extends StatelessWidget {
                 ],
               ),
             ),
-            ?trailing,
+            if (trailing != null) ...[const SizedBox(width: 8), trailing!],
           ],
         ),
       ),
@@ -248,20 +221,21 @@ class AppleSheetActionTile extends StatelessWidget {
   }
 }
 
-/// Thin hairline divider for items inside an [AppleSheetGroup].
+/// Thin hairline divider for items inside bottom sheets.
 class AppleSheetDivider extends StatelessWidget {
   final double indent;
+  final double endIndent;
 
-  const AppleSheetDivider({super.key, this.indent = 56});
+  const AppleSheetDivider({super.key, this.indent = 52, this.endIndent = 8});
 
   @override
   Widget build(BuildContext context) {
     return Divider(
-      height: 0.7,
+      height: 1.0,
       thickness: 0.7,
-      color: Colors.white.withValues(alpha: 0.10),
+      color: Colors.white.withValues(alpha: 0.12),
       indent: indent,
-      endIndent: 0,
+      endIndent: endIndent,
     );
   }
 }

@@ -27,10 +27,22 @@ class SongItem {
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 
+  /// Returns the thumbnail URL if non-empty, or resolves a YouTube thumbnail from [id]
+  /// when [id] is a valid YouTube video ID (non-empty and not a synthetic ID like local_*).
+  String? get resolvedThumbnailUrl {
+    if (thumbnailUrl != null && thumbnailUrl!.trim().isNotEmpty) {
+      return thumbnailUrl!.trim();
+    }
+    if (id.isNotEmpty && !id.startsWith('local_') && !id.contains('/')) {
+      return 'https://i.ytimg.com/vi/$id/hqdefault.jpg';
+    }
+    return null;
+  }
+
   /// Automatically upgrades YouTube Music thumbnails (which default to 60x60 or 120x120)
-  /// and standard YouTube thumbnails into studio-master quality (up to 1800x1800 uncompressed 100% quality)
+  /// and standard YouTube thumbnails into studio-master quality (up to 1800x1800 uncompressed quality)
   /// optimized for high-DPI AMOLED mobile screens.
-  static String? upgradeThumbnail(String? url, {int size = 1800, int quality = 100}) {
+  static String? upgradeThumbnail(String? url, {int size = 800, int quality = 95}) {
     if (url == null || url.isEmpty) return url;
 
     final cleanUrl = url.startsWith('//') ? 'https:$url' : url;
@@ -43,7 +55,10 @@ class SongItem {
       if (RegExp(r'=s\d+').hasMatch(cleanUrl)) {
         return cleanUrl.replaceAll(RegExp(r'=s\d+.*'), '=s$size-c-k');
       }
-      return '$cleanUrl=w$size-h$size-l$quality-rj';
+      if (!cleanUrl.contains('=')) {
+        return '$cleanUrl=w$size-h$size-l$quality-rj';
+      }
+      return cleanUrl;
     }
 
     // YouTube standard thumbnails: upgrade to 1920x1080 Full HD maxresdefault
@@ -60,8 +75,8 @@ class SongItem {
     return cleanUrl;
   }
 
-  /// Returns studio-master resolution artwork URL (1800x1800, 100% uncompressed quality) for pristine player and AMOLED displays
-  String? get highResThumbnailUrl => upgradeThumbnail(thumbnailUrl, size: 1800, quality: 100);
+  /// Returns studio-master resolution artwork URL (up to 800x800 / maxresdefault) for pristine player and AMOLED displays
+  String? get highResThumbnailUrl => upgradeThumbnail(resolvedThumbnailUrl, size: 800, quality: 95);
 
   Map<String, dynamic> toJson() => {
         'id': id,

@@ -557,16 +557,15 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    song.thumbnailUrl != null
-                        ? WavifyCachedImage(
-                            imageUrl: song.thumbnailUrl!,
-                            songId: song.id,
-                            width: 48,
-                            height: 48,
-                            fit: BoxFit.cover,
-                            errorWidget: _fallbackSquareArt(),
-                          )
-                        : _fallbackSquareArt(),
+                    WavifyCachedImage(
+                      imageUrl: song.thumbnailUrl ?? song.resolvedThumbnailUrl,
+                      placeholderImageUrl: song.resolvedThumbnailUrl ?? song.thumbnailUrl,
+                      songId: song.id,
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.cover,
+                      errorWidget: _fallbackSquareArt(),
+                    ),
                     if (isSelected && isPlaying)
                       Container(
                         width: 48,

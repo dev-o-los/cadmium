@@ -27,17 +27,17 @@ void showTrackOptionsModal(BuildContext context, WidgetRef ref, SongItem song) {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: song.thumbnailUrl != null
-                    ? WavifyCachedImage(
-                        imageUrl:
-                            song.highResThumbnailUrl ?? song.thumbnailUrl!,
-                        songId: song.id,
-                        width: 52,
-                        height: 52,
-                        fit: BoxFit.cover,
-                        errorWidget: _fallbackSquare(),
-                      )
-                    : _fallbackSquare(),
+                child: WavifyCachedImage(
+                  imageUrl:
+                      song.highResThumbnailUrl ?? song.resolvedThumbnailUrl,
+                  placeholderImageUrl:
+                      song.resolvedThumbnailUrl ?? song.thumbnailUrl,
+                  songId: song.id,
+                  width: 52,
+                  height: 52,
+                  fit: BoxFit.cover,
+                  errorWidget: _fallbackSquare(),
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -79,10 +79,12 @@ void showTrackOptionsModal(BuildContext context, WidgetRef ref, SongItem song) {
             ],
           ),
           const SizedBox(height: 14),
+          const AppleSheetDivider(indent: 0, endIndent: 0),
+          const SizedBox(height: 4),
 
           // Group 1: Sleek Apple-style Lyrics Provider switcher
           AppleSheetGroup(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             children: [
               Consumer(
                 builder: (context, ref, _) {
@@ -161,7 +163,9 @@ void showTrackOptionsModal(BuildContext context, WidgetRef ref, SongItem song) {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 4),
+          const AppleSheetDivider(indent: 0, endIndent: 0),
+          const SizedBox(height: 4),
 
           // Group 2: Navigation & Queue Actions
           AppleSheetGroup(
@@ -209,7 +213,9 @@ void showTrackOptionsModal(BuildContext context, WidgetRef ref, SongItem song) {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 4),
+          const AppleSheetDivider(indent: 0, endIndent: 0),
+          const SizedBox(height: 4),
 
           // Group 3: Favorites & Sharing
           AppleSheetGroup(

@@ -233,7 +233,7 @@ void main() {
         await tester.pump();
 
         expect(find.byType(WavifyCachedImage), findsOneWidget);
-        expect(find.byType(Image), findsOneWidget);
+        expect(find.byType(Image), findsWidgets);
       },
     );
   });

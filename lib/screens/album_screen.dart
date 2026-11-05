@@ -255,6 +255,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 ),
               ),
             ),
+            const AppleSheetDivider(indent: 0, endIndent: 0),
+            const SizedBox(height: 4),
             AppleSheetGroup(
               children: [
                 AppleSheetActionTile(
@@ -380,8 +382,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                             _album.artist,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white70,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.85),
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
                             ),
@@ -393,6 +395,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 ],
               ),
             ),
+            const AppleSheetDivider(indent: 0, endIndent: 0),
+            const SizedBox(height: 4),
             AppleSheetGroup(
               children: [
                 AppleSheetActionTile(

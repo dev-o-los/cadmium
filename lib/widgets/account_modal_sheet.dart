@@ -43,10 +43,12 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
                           ),
                           child: CircleAvatar(
                             radius: 28,
-                            backgroundColor:
-                                Colors.white.withValues(alpha: 0.18),
+                            backgroundColor: Colors.white.withValues(
+                              alpha: 0.18,
+                            ),
                             child: ClipOval(
-                              child: account.avatarUrl != null &&
+                              child:
+                                  account.avatarUrl != null &&
                                       account.avatarUrl!.isNotEmpty
                                   ? WavifyCachedImage(
                                       imageUrl: account.avatarUrl!,
@@ -116,7 +118,9 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
                                   Text(
                                     'Connected to YouTube',
                                     style: TextStyle(
-                                      color: Colors.white.withValues(alpha: 0.65),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.65,
+                                      ),
                                       fontSize: 11.5,
                                       fontWeight: FontWeight.w500,
                                     ),
@@ -130,7 +134,9 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
+                const AppleSheetDivider(indent: 0, endIndent: 0),
+                const SizedBox(height: 8),
 
                 // Account Actions Group
                 AppleSheetGroup(
@@ -144,25 +150,29 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
                       title: 'Sync Library & Home Feed',
                       onTap: () {
                         ref.read(homeDataProvider.notifier).refresh();
-                        ref.read(youtubeLikedSongsProvider.notifier).fetchLikedSongs();
+                        ref
+                            .read(youtubeLikedSongsProvider.notifier)
+                            .fetchLikedSongs();
                         Navigator.pop(modalCtx);
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Syncing your YouTube Music account...'),
+                            content: Text(
+                              'Syncing your YouTube Music account...',
+                            ),
                             backgroundColor: Color(0xFF1C1C1E),
                             duration: Duration(seconds: 2),
                           ),
                         );
                       },
                     ),
+                    const AppleSheetDivider(),
                     AppleSheetActionTile(
                       leading: const Icon(
                         CupertinoIcons.arrow_right_square,
-                        color: Color(0xFFFF453A),
+                        color: Colors.white,
                         size: 22,
                       ),
                       title: 'Log Out',
-                      isDestructive: true,
                       onTap: () {
                         Navigator.pop(modalCtx);
                         ref.read(authProvider.notifier).signOut();

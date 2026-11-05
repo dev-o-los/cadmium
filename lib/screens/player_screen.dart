@@ -275,7 +275,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                         ],
                       ],
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 6),
+                    const AppleSheetDivider(indent: 0, endIndent: 0),
+                    const SizedBox(height: 6),
                     AppleSheetGroup(
                       children: [
                         Padding(
@@ -330,17 +332,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: song.thumbnailUrl != null
-                        ? WavifyCachedImage(
-                            imageUrl: song.highResThumbnailUrl ?? song.thumbnailUrl!,
-                            songId: song.id,
-                            width: 50,
-                            height: 50,
-                            fit: BoxFit.cover,
-                            filterQuality: FilterQuality.medium,
-                            errorWidget: _fallbackMiniArt(),
-                          )
-                        : _fallbackMiniArt(),
+                    child: WavifyCachedImage(
+                      imageUrl: song.highResThumbnailUrl ?? song.resolvedThumbnailUrl,
+                      placeholderImageUrl: song.resolvedThumbnailUrl ?? song.thumbnailUrl,
+                      songId: song.id,
+                      width: 50,
+                      height: 50,
+                      fit: BoxFit.cover,
+                      filterQuality: FilterQuality.medium,
+                      errorWidget: _fallbackMiniArt(),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -452,7 +453,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 6),
+            const AppleSheetDivider(indent: 0, endIndent: 0),
+            const SizedBox(height: 6),
             // Actions
             AppleSheetGroup(
               children: [
@@ -629,11 +632,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     PlayerStateModel playerState,
     double screenHeight,
   ) {
-    if (song.thumbnailUrl == null) {
+    final artworkUrl = song.highResThumbnailUrl ?? song.resolvedThumbnailUrl;
+    if (artworkUrl == null || artworkUrl.isEmpty) {
       return Container(color: Colors.black);
     }
 
-    final artworkUrl = song.highResThumbnailUrl ?? song.thumbnailUrl!;
     final animatedArtworkUrl = playerState.animatedArtworkUrl ?? song.animatedArtworkUrl;
 
     return Positioned.fill(
@@ -663,7 +666,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                           imageUrl: AmbientVideoCanvas.isVideoUrl(animatedArtworkUrl)
                               ? artworkUrl
                               : (animatedArtworkUrl ?? artworkUrl),
-                          placeholderImageUrl: song.thumbnailUrl,
+                          placeholderImageUrl: song.resolvedThumbnailUrl ?? song.thumbnailUrl,
                           songId: song.id,
                           fit: BoxFit.cover,
                           alignment: Alignment.topCenter,
@@ -744,11 +747,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     required double screenHeight,
     required double headerTop,
   }) {
-    if (song.thumbnailUrl == null) {
+    final artworkUrl = song.highResThumbnailUrl ?? song.resolvedThumbnailUrl;
+    if (artworkUrl == null || artworkUrl.isEmpty) {
       return Container(color: Colors.black);
     }
 
-    final artworkUrl = song.highResThumbnailUrl ?? song.thumbnailUrl!;
     final animatedArtworkUrl = playerState.animatedArtworkUrl ?? song.animatedArtworkUrl;
     final animatedArtworkHeaders = playerState.animatedArtworkHeaders;
     final isPlaying = playerState.isPlaying;
@@ -776,7 +779,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         // Base image content
         Widget imageWidget = WavifyCachedImage(
           imageUrl: artworkUrl,
-          placeholderImageUrl: song.thumbnailUrl,
+          placeholderImageUrl: song.resolvedThumbnailUrl ?? song.thumbnailUrl,
           songId: song.id,
           fit: BoxFit.cover,
           alignment: Alignment.topCenter,
@@ -1527,17 +1530,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    song.thumbnailUrl != null
-                        ? WavifyCachedImage(
-                            imageUrl: song.highResThumbnailUrl ?? song.thumbnailUrl!,
-                            songId: song.id,
-                            width: 48,
-                            height: 48,
-                            fit: BoxFit.cover,
-                            filterQuality: FilterQuality.medium,
-                            errorWidget: _fallbackMiniArt(size: 48, borderRadius: 8),
-                          )
-                        : _fallbackMiniArt(size: 48, borderRadius: 8),
+                    WavifyCachedImage(
+                      imageUrl: song.highResThumbnailUrl ?? song.resolvedThumbnailUrl,
+                      placeholderImageUrl: song.resolvedThumbnailUrl ?? song.thumbnailUrl,
+                      songId: song.id,
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.cover,
+                      filterQuality: FilterQuality.medium,
+                      errorWidget: _fallbackMiniArt(size: 48, borderRadius: 8),
+                    ),
                     if (playerState.isPlaying)
                       Container(
                         width: 48,
@@ -1691,17 +1693,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                                 ),
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
-                                  child: item.thumbnailUrl != null
-                                      ? WavifyCachedImage(
-                                          imageUrl: item.highResThumbnailUrl ?? item.thumbnailUrl!,
-                                          songId: item.id,
-                                          width: 44,
-                                          height: 44,
-                                          fit: BoxFit.cover,
-                                          filterQuality: FilterQuality.medium,
-                                          errorWidget: _fallbackMiniArt(size: 44, borderRadius: 8),
-                                        )
-                                      : _fallbackMiniArt(size: 44, borderRadius: 8),
+                                  child: WavifyCachedImage(
+                                    imageUrl: item.highResThumbnailUrl ?? item.resolvedThumbnailUrl,
+                                    placeholderImageUrl: item.resolvedThumbnailUrl ?? item.thumbnailUrl,
+                                    songId: item.id,
+                                    width: 44,
+                                    height: 44,
+                                    fit: BoxFit.cover,
+                                    filterQuality: FilterQuality.medium,
+                                    errorWidget: _fallbackMiniArt(size: 44, borderRadius: 8),
+                                  ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(

@@ -1058,7 +1058,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 const Text(
                   'Paste a YouTube Music or YouTube playlist link or ID to save it directly to your library.',
                   style: TextStyle(
-                    color: Colors.white70,
+                    color: Colors.white,
                     fontSize: 13,
                     height: 1.35,
                   ),
@@ -1069,8 +1069,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     color: Colors.white.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.15),
-                      width: 0.8,
+                      color: Colors.white.withValues(alpha: 0.18),
+                      width: 0.85,
                     ),
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -1078,7 +1078,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     children: [
                       const Icon(
                         CupertinoIcons.link,
-                        color: Colors.white70,
+                        color: Colors.white,
                         size: 20,
                       ),
                       const SizedBox(width: 10),
@@ -1090,10 +1090,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                             color: Colors.white,
                             fontSize: 14,
                           ),
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             hintText: 'https://music.youtube.com/playlist?list=...',
                             hintStyle: TextStyle(
-                              color: Colors.white38,
+                              color: Colors.white.withValues(alpha: 0.55),
                               fontSize: 13,
                             ),
                             border: InputBorder.none,
@@ -1109,7 +1109,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           },
                           child: const Icon(
                             CupertinoIcons.clear_circled_solid,
-                            color: Colors.white60,
+                            color: Colors.white,
                             size: 18,
                           ),
                         ),
@@ -1325,8 +1325,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       color: Colors.white.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        width: 0.8,
+                        color: Colors.white.withValues(alpha: 0.18),
+                        width: 0.85,
                       ),
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1334,7 +1334,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       children: [
                         const Icon(
                           CupertinoIcons.search,
-                          color: Colors.white70,
+                          color: Colors.white,
                           size: 20,
                         ),
                         const SizedBox(width: 8),
@@ -1346,10 +1346,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                               color: Colors.white,
                               fontSize: 15,
                             ),
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               hintText: 'Search artists on YouTube...',
                               hintStyle: TextStyle(
-                                color: Colors.white38,
+                                color: Colors.white.withValues(alpha: 0.55),
                                 fontSize: 14,
                               ),
                               border: InputBorder.none,
@@ -1454,8 +1454,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                           const SizedBox(height: 2),
                                           Text(
                                             artist.subtitle,
-                                            style: const TextStyle(
-                                              color: Colors.white70,
+                                            style: TextStyle(
+                                              color: Colors.white.withValues(alpha: 0.85),
                                               fontSize: 12,
                                             ),
                                           ),
@@ -1560,8 +1560,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       color: Colors.white.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        width: 0.8,
+                        color: Colors.white.withValues(alpha: 0.18),
+                        width: 0.85,
                       ),
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1569,7 +1569,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       children: [
                         const Icon(
                           CupertinoIcons.search,
-                          color: Colors.white70,
+                          color: Colors.white,
                           size: 20,
                         ),
                         const SizedBox(width: 8),
@@ -1581,10 +1581,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                               color: Colors.white,
                               fontSize: 15,
                             ),
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               hintText: 'Search albums on YouTube...',
                               hintStyle: TextStyle(
-                                color: Colors.white38,
+                                color: Colors.white.withValues(alpha: 0.55),
                                 fontSize: 14,
                               ),
                               border: InputBorder.none,
@@ -1689,8 +1689,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                           const SizedBox(height: 2),
                                           Text(
                                             album.subtitle,
-                                            style: const TextStyle(
-                                              color: Colors.white70,
+                                            style: TextStyle(
+                                              color: Colors.white.withValues(alpha: 0.85),
                                               fontSize: 12,
                                             ),
                                           ),

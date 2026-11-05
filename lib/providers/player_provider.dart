@@ -215,6 +215,8 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
           isBuffering: false,
           isResolvingStream: false,
         );
+
+        unawaited(_resolveMasterArtwork(cachedSong));
       }
     }
   }
@@ -718,6 +720,11 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       if (masterArt != null && masterArt.isNotEmpty && state.currentSong?.id == song.id) {
         final updatedSong = song.copyWith(thumbnailUrl: masterArt);
         state = state.copyWith(currentSong: updatedSong);
+        unawaited(PlayerHistoryCacheService.instance.saveLastPlayedSong(
+          updatedSong,
+          history: state.recentlyPlayed,
+          queue: state.queue,
+        ));
       }
     } catch (_) {}
   }

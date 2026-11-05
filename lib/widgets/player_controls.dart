@@ -38,9 +38,9 @@ class PlayerControls extends ConsumerWidget {
               .clamp(0.0, 1.0)
         : 0.0;
 
-    final highResArt =
-        currentSong.highResThumbnailUrl ?? currentSong.thumbnailUrl;
-    final thumbArt = currentSong.thumbnailUrl;
+    final effectiveArt =
+        currentSong.highResThumbnailUrl ?? currentSong.resolvedThumbnailUrl;
+    final thumbArt = currentSong.resolvedThumbnailUrl ?? currentSong.thumbnailUrl;
 
     // Detect whether we are rendering inline inside minimized GlassTabBar or expanded
     final placement = GlassTabBarAccessoryPlacementScope.of(context);
@@ -52,7 +52,7 @@ class PlayerControls extends ConsumerWidget {
         ref: ref,
         title: currentSong.title,
         artist: currentSong.artist,
-        highResArt: highResArt,
+        highResArt: effectiveArt,
         thumbArt: thumbArt,
         songId: currentSong.id,
         isPlaying: isPlaying,
@@ -65,7 +65,7 @@ class PlayerControls extends ConsumerWidget {
       ref: ref,
       title: currentSong.title,
       artist: currentSong.artist,
-      highResArt: highResArt,
+      highResArt: effectiveArt,
       thumbArt: thumbArt,
       songId: currentSong.id,
       isPlaying: isPlaying,
@@ -112,18 +112,16 @@ class PlayerControls extends ConsumerWidget {
                 flightShuttleBuilder: playerHeroFlightShuttleBuilder,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: highResArt != null
-                      ? WavifyCachedImage(
-                          imageUrl: highResArt,
-                          placeholderImageUrl: thumbArt,
-                          songId: songId,
-                          width: 34,
-                          height: 34,
-                          fit: BoxFit.cover,
-                          filterQuality: FilterQuality.medium,
-                          errorWidget: _fallbackArtwork(size: 34),
-                        )
-                      : _fallbackArtwork(size: 34),
+                  child: WavifyCachedImage(
+                    imageUrl: highResArt ?? thumbArt,
+                    placeholderImageUrl: thumbArt,
+                    songId: songId,
+                    width: 34,
+                    height: 34,
+                    fit: BoxFit.cover,
+                    filterQuality: FilterQuality.medium,
+                    errorWidget: _fallbackArtwork(size: 34),
+                  ),
                 )
                 .animate(key: ValueKey('mini_art_inline_$songId'))
                 .fadeIn(
@@ -273,18 +271,16 @@ class PlayerControls extends ConsumerWidget {
                           flightShuttleBuilder: playerHeroFlightShuttleBuilder,
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: highResArt != null
-                                ? WavifyCachedImage(
-                                    imageUrl: highResArt,
-                                    placeholderImageUrl: thumbArt,
-                                    songId: songId,
-                                    width: 40,
-                                    height: 40,
-                                    fit: BoxFit.cover,
-                                    filterQuality: FilterQuality.medium,
-                                    errorWidget: _fallbackArtwork(size: 40),
-                                  )
-                                : _fallbackArtwork(size: 40),
+                            child: WavifyCachedImage(
+                              imageUrl: highResArt ?? thumbArt,
+                              placeholderImageUrl: thumbArt,
+                              songId: songId,
+                              width: 40,
+                              height: 40,
+                              fit: BoxFit.cover,
+                              filterQuality: FilterQuality.medium,
+                              errorWidget: _fallbackArtwork(size: 40),
+                            ),
                           )
                           .animate(key: ValueKey('mini_art_expanded_$songId'))
                           .fadeIn(

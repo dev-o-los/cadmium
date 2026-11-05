@@ -12,7 +12,8 @@ import 'app_shimmer.dart';
 ///    (e.g. for songs heard repeatedly), it renders directly from [Image.file],
 ///    delivering instant 0ms render without network requests.
 /// 2. Otherwise renders with [CachedNetworkImage], caching to disk across sessions.
-/// 3. Graceful fallback and error builder.
+/// 3. Graceful fallback and error builder with cascading fallback URLs:
+///    maxresdefault -> sddefault -> hqdefault (guaranteed) -> placeholder -> YouTube ID.
 class WavifyCachedImage extends StatelessWidget {
   final String? imageUrl;
   final String? placeholderImageUrl;
@@ -49,10 +50,88 @@ class WavifyCachedImage extends StatelessWidget {
         return FileImage(file);
       }
     }
-    if (url != null && url.isNotEmpty) {
-      return CachedNetworkImageProvider(url);
+    final cleanUrl = _sanitizeUrl(url);
+    if (cleanUrl != null && cleanUrl.isNotEmpty) {
+      return CachedNetworkImageProvider(cleanUrl);
+    }
+    if (songId != null &&
+        songId.trim().isNotEmpty &&
+        !songId.startsWith('local_') &&
+        !songId.contains('/')) {
+      return CachedNetworkImageProvider(
+        'https://i.ytimg.com/vi/${songId.trim()}/hqdefault.jpg',
+      );
     }
     return null;
+  }
+
+  /// Builds an ordered list of candidate URLs trying high-res, standard-res,
+  /// placeholder, and guaranteed YouTube thumbnail endpoints.
+  static List<String> buildCandidates({
+    String? imageUrl,
+    String? placeholderImageUrl,
+    String? songId,
+  }) {
+    final candidates = <String>[];
+    final seen = <String>{};
+
+    void addUrl(String? u) {
+      final clean = _sanitizeUrl(u);
+      if (clean != null && clean.isNotEmpty && seen.add(clean)) {
+        candidates.add(clean);
+      }
+    }
+
+    // 1. Primary candidate
+    addUrl(imageUrl);
+
+    // 2. YouTube variants if imageUrl is a YouTube thumbnail
+    if (imageUrl != null) {
+      if (imageUrl.contains('i.ytimg.com') || imageUrl.contains('img.youtube.com')) {
+        if (imageUrl.contains('maxresdefault.jpg')) {
+          addUrl(imageUrl.replaceAll('maxresdefault.jpg', 'sddefault.jpg'));
+          addUrl(imageUrl.replaceAll('maxresdefault.jpg', 'hqdefault.jpg'));
+          addUrl(imageUrl.replaceAll('maxresdefault.jpg', 'mqdefault.jpg'));
+        } else if (imageUrl.contains('hq720.jpg')) {
+          addUrl(imageUrl.replaceAll('hq720.jpg', 'sddefault.jpg'));
+          addUrl(imageUrl.replaceAll('hq720.jpg', 'hqdefault.jpg'));
+          addUrl(imageUrl.replaceAll('hq720.jpg', 'mqdefault.jpg'));
+        } else if (imageUrl.contains('sddefault.jpg')) {
+          addUrl(imageUrl.replaceAll('sddefault.jpg', 'hqdefault.jpg'));
+          addUrl(imageUrl.replaceAll('sddefault.jpg', 'mqdefault.jpg'));
+        }
+      } else if (imageUrl.contains('googleusercontent.com') || imageUrl.contains('ggpht.com')) {
+        if (imageUrl.contains('=w') || imageUrl.contains('=s')) {
+          addUrl(imageUrl.replaceAll(RegExp(r'=(w\d+-h\d+|s\d+).*'), '=w544-h544-l90-rj'));
+          addUrl(imageUrl.replaceAll(RegExp(r'=.*'), ''));
+        }
+      }
+    }
+
+    // 3. Placeholder image URL and its variants
+    addUrl(placeholderImageUrl);
+    if (placeholderImageUrl != null) {
+      if (placeholderImageUrl.contains('maxresdefault.jpg') ||
+          placeholderImageUrl.contains('hq720.jpg')) {
+        addUrl(placeholderImageUrl.replaceAll(
+          RegExp(r'(maxresdefault|hq720)\.jpg'),
+          'hqdefault.jpg',
+        ));
+      }
+    }
+
+    // 4. Direct YouTube video ID guaranteed fallbacks
+    if (songId != null &&
+        songId.trim().isNotEmpty &&
+        !songId.startsWith('local_') &&
+        !songId.contains('/')) {
+      final cleanId = songId.trim();
+      addUrl('https://i.ytimg.com/vi/$cleanId/hqdefault.jpg');
+      addUrl('https://i.ytimg.com/vi/$cleanId/mqdefault.jpg');
+      addUrl('https://i.ytimg.com/vi/$cleanId/default.jpg');
+    }
+
+    return candidates;
   }
 
   @override
@@ -78,66 +157,35 @@ class WavifyCachedImage extends StatelessWidget {
       }
     }
 
-    return _buildNetworkImage(context);
+    Widget content = _buildNetworkImage(context);
+    if (borderRadius != null) {
+      content = ClipRRect(borderRadius: borderRadius!, child: content);
+    }
+    return content;
   }
 
   Widget _buildNetworkImage(BuildContext context) {
-    final cleanUrl = _sanitizeUrl(imageUrl);
-    if (cleanUrl == null || cleanUrl.isEmpty) {
-      return _buildFallback();
+    final candidates = buildCandidates(
+      imageUrl: imageUrl,
+      placeholderImageUrl: placeholderImageUrl,
+      songId: songId,
+    );
+
+    if (candidates.isEmpty) {
+      return errorWidget ?? _buildFallback();
     }
 
-    // In unit / widget test environment, use standard Image.network to avoid
-    // background sqflite / cache manager timers that interfere with tester.pumpAndSettle()
-    if (Platform.environment.containsKey('FLUTTER_TEST')) {
-      Widget image = Image.network(
-        cleanUrl,
-        width: width,
-        height: height,
-        fit: fit,
-        alignment: alignment,
-        filterQuality: filterQuality,
-        errorBuilder: (context, error, stackTrace) =>
-            errorWidget ?? _buildFallback(),
-      );
-      if (borderRadius != null) {
-        image = ClipRRect(borderRadius: borderRadius!, child: image);
-      }
-      return image;
-    }
-
-    Widget content = CachedNetworkImage(
-      imageUrl: cleanUrl,
+    return _CascadingCachedImage(
+      candidates: candidates,
+      candidateIndex: 0,
       width: width,
       height: height,
       fit: fit,
       alignment: alignment,
       filterQuality: filterQuality,
-      fadeInDuration: const Duration(milliseconds: 150),
-      fadeOutDuration: const Duration(milliseconds: 150),
-      placeholder: (context, url) => placeholder ?? _buildPlaceholder(),
-      errorWidget: (context, url, error) {
-        // Fallback for YouTube standard thumbnails if maxresdefault 404s
-        if (cleanUrl.contains('maxresdefault.jpg')) {
-          final fallbackUrl = cleanUrl.replaceAll('maxresdefault.jpg', 'hq720.jpg');
-          return CachedNetworkImage(
-            imageUrl: fallbackUrl,
-            width: width,
-            height: height,
-            fit: fit,
-            alignment: alignment,
-            errorWidget: (_, _, _) => errorWidget ?? _buildFallback(),
-          );
-        }
-        return errorWidget ?? _buildFallback();
-      },
+      placeholder: placeholder ?? _buildPlaceholder(),
+      fallbackWidget: errorWidget ?? _buildFallback(),
     );
-
-    if (borderRadius != null) {
-      content = ClipRRect(borderRadius: borderRadius!, child: content);
-    }
-
-    return content;
   }
 
   Widget _buildPlaceholder() {
@@ -193,10 +241,86 @@ class WavifyCachedImage extends StatelessWidget {
     );
   }
 
-  String? _sanitizeUrl(String? url) {
+  static String? _sanitizeUrl(String? url) {
     if (url == null || url.trim().isEmpty) return null;
     final trimmed = url.trim();
     if (trimmed.startsWith('//')) return 'https:$trimmed';
     return trimmed;
+  }
+}
+
+/// Recursively cascades through candidate thumbnail URLs until an image loads successfully.
+class _CascadingCachedImage extends StatelessWidget {
+  final List<String> candidates;
+  final int candidateIndex;
+  final double? width;
+  final double? height;
+  final BoxFit fit;
+  final Alignment alignment;
+  final FilterQuality filterQuality;
+  final Widget placeholder;
+  final Widget fallbackWidget;
+
+  const _CascadingCachedImage({
+    required this.candidates,
+    required this.candidateIndex,
+    required this.width,
+    required this.height,
+    required this.fit,
+    required this.alignment,
+    required this.filterQuality,
+    required this.placeholder,
+    required this.fallbackWidget,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (candidateIndex >= candidates.length) {
+      return fallbackWidget;
+    }
+
+    final currentUrl = candidates[candidateIndex];
+
+    Widget nextFallback() {
+      if (candidateIndex + 1 < candidates.length) {
+        return _CascadingCachedImage(
+          candidates: candidates,
+          candidateIndex: candidateIndex + 1,
+          width: width,
+          height: height,
+          fit: fit,
+          alignment: alignment,
+          filterQuality: filterQuality,
+          placeholder: placeholder,
+          fallbackWidget: fallbackWidget,
+        );
+      }
+      return fallbackWidget;
+    }
+
+    if (Platform.environment.containsKey('FLUTTER_TEST')) {
+      return Image.network(
+        currentUrl,
+        width: width,
+        height: height,
+        fit: fit,
+        alignment: alignment,
+        filterQuality: filterQuality,
+        errorBuilder: (context, error, stackTrace) => nextFallback(),
+      );
+    }
+
+    return CachedNetworkImage(
+      imageUrl: currentUrl,
+      width: width,
+      height: height,
+      fit: fit,
+      alignment: alignment,
+      filterQuality: filterQuality,
+      fadeInDuration: const Duration(milliseconds: 150),
+      fadeOutDuration: const Duration(milliseconds: 150),
+      placeholder: (context, url) => placeholder,
+      errorWidget: (context, url, error) => nextFallback(),
+    );
   }
 }

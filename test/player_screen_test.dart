@@ -387,6 +387,7 @@ void main() {
     // Tap play/pause button while resolving stream
     notifier.togglePlayPause();
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
 
     // Must immediately cancel resolving and enter paused state
     expect(container.read(playerProvider).isPlaying, isFalse);
