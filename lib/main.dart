@@ -97,5 +97,4 @@ class AurumApp extends StatelessWidget {
 }
 
 /// Backwards-compatible aliases for [AurumApp].
-typedef MelomaniacApp = AurumApp;
 typedef WavifyApp = AurumApp;
