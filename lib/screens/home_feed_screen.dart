@@ -112,7 +112,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
           data: (data) => _buildHomeContent(context, ref, data),
         ),
 
-        // 2. Fixed Top Navigation Bar (Always visible with Melomaniac logo & Profile Avatar)
+        // 2. Fixed Top Navigation Bar (Profile Avatar & subtle ambient dissolve)
         Positioned(
           top: 0,
           left: 0,
@@ -124,41 +124,32 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
   }
 
   Widget _buildTopNavigationBar(BuildContext context, double topPadding) {
-    return Container(
-      padding: EdgeInsets.fromLTRB(16, topPadding + 4, 16, 12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.black.withValues(alpha: 0.90),
-            Colors.black.withValues(alpha: 0.60),
-            Colors.transparent,
-          ],
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.center,
+    return SizedBox(
+      height: topPadding + 52,
+      child: Stack(
         children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              MelomaniacLogo(size: 28, color: Colors.white),
-              SizedBox(width: 10),
-              Text(
-                'Melomaniac',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.6,
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.90),
+                      Colors.black.withValues(alpha: 0.60),
+                      Colors.transparent,
+                    ],
+                  ),
                 ),
               ),
-            ],
+            ),
           ),
-          // Interactive Top Right Profile Avatar Button
-          const TopProfileAvatarButton(),
+          Positioned(
+            top: topPadding + 4,
+            right: 16,
+            child: const TopProfileAvatarButton(),
+          ),
         ],
       ),
     );
@@ -180,8 +171,17 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics(),
             ),
-            padding: EdgeInsets.fromLTRB(0, topPadding + 52, 0, 160),
+            padding: EdgeInsets.fromLTRB(0, topPadding + 6, 0, 160),
             children: [
+              // Scrollable Brand Logo Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: const AurumLogo(size: 30, color: Colors.white),
+                ),
+              ),
+
               // Section 1: "Top Picks for You" Hero Cards Carousel
               _buildTopPicksHeroSection(context, ref, data.heroCards),
               const SizedBox(height: 28),

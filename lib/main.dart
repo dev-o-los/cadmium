@@ -26,11 +26,11 @@ void main() async {
   SongMetricsCacheService.instance.init();
   HomeCacheService.instance.loadHomeData();
 
-  runApp(const ProviderScope(child: MelomaniacApp()));
+  runApp(const ProviderScope(child: AurumApp()));
 }
 
-class MelomaniacApp extends StatelessWidget {
-  const MelomaniacApp({super.key});
+class AurumApp extends StatelessWidget {
+  const AurumApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +39,7 @@ class MelomaniacApp extends StatelessWidget {
     const appleDarkSurfaceHigh = Color(0xFF2C2C2E);
 
     return MaterialApp(
-      title: 'Melomaniac',
+      title: 'Aurum',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.dark, // Dark mode only as requested
       darkTheme: ThemeData(
@@ -96,5 +96,6 @@ class MelomaniacApp extends StatelessWidget {
   }
 }
 
-/// Backwards-compatible alias for [MelomaniacApp].
-typedef WavifyApp = MelomaniacApp;
+/// Backwards-compatible aliases for [AurumApp].
+typedef MelomaniacApp = AurumApp;
+typedef WavifyApp = AurumApp;

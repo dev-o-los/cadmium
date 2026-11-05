@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-/// The signature Apple-style musical frequency 'M' monogram logo for Melomaniac.
-/// Features twin harmonic audio wave peaks forming the letter 'M' with resonance.
-class MelomaniacLogo extends StatelessWidget {
+/// The signature Apple-style musical frequency 'A' monogram logo for Aurum.
+/// Features an acoustic harmonic arch forming the letter 'A' with a resonant wave bar.
+class AurumLogo extends StatelessWidget {
   final double size;
   final Color color;
 
-  const MelomaniacLogo({
+  const AurumLogo({
     super.key,
     this.size = 28,
     this.color = Colors.white,
@@ -15,16 +15,16 @@ class MelomaniacLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      size: Size(size, size * 0.85),
-      painter: _MelomaniacLogoPainter(color: color),
+      size: Size(size, size * 0.90),
+      painter: _AurumLogoPainter(color: color),
     );
   }
 }
 
-class _MelomaniacLogoPainter extends CustomPainter {
+class _AurumLogoPainter extends CustomPainter {
   final Color color;
 
-  const _MelomaniacLogoPainter({required this.color});
+  const _AurumLogoPainter({required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -39,52 +39,44 @@ class _MelomaniacLogoPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    // Harmonic 'M' wave path with smooth musical curvature
+    // Harmonic 'A' arch path with smooth musical curvature
     final path = Path();
-    path.moveTo(w * 0.12, h * 0.88);
+    path.moveTo(w * 0.15, h * 0.88);
     path.cubicTo(
-      w * 0.12, h * 0.40,
-      w * 0.26, h * 0.10,
+      w * 0.22, h * 0.50,
       w * 0.38, h * 0.10,
+      w * 0.50, h * 0.10,
     );
     path.cubicTo(
-      w * 0.46, h * 0.10,
-      w * 0.47, h * 0.58,
-      w * 0.50, h * 0.65,
-    );
-    path.cubicTo(
-      w * 0.53, h * 0.58,
-      w * 0.54, h * 0.10,
       w * 0.62, h * 0.10,
-    );
-    path.cubicTo(
-      w * 0.74, h * 0.10,
-      w * 0.88, h * 0.40,
-      w * 0.88, h * 0.88,
+      w * 0.78, h * 0.50,
+      w * 0.85, h * 0.88,
     );
 
     canvas.drawPath(path, linePaint);
 
-    // Subtle resonant frequency pulse bar at center bottom
+    // Resonant frequency pulse bar across the letter 'A'
     final pulsePaint = Paint()
-      ..color = color.withValues(alpha: 0.85)
+      ..color = color.withValues(alpha: 0.90)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth * 0.9
+      ..strokeWidth = strokeWidth * 0.95
       ..strokeCap = StrokeCap.round;
 
     canvas.drawLine(
-      Offset(w * 0.50, h * 0.86),
-      Offset(w * 0.50, h * 0.62),
+      Offset(w * 0.28, h * 0.60),
+      Offset(w * 0.72, h * 0.60),
       pulsePaint,
     );
   }
 
   @override
-  bool shouldRepaint(covariant _MelomaniacLogoPainter oldDelegate) =>
+  bool shouldRepaint(covariant _AurumLogoPainter oldDelegate) =>
       oldDelegate.color != color;
 }
 
-/// Backwards-compatible alias for [MelomaniacLogo].
+/// Backwards-compatible aliases for [AurumLogo].
+typedef MelomaniacLogo = AurumLogo;
+
 class WavifyLogo extends StatelessWidget {
   final double size;
   final Color color;
@@ -97,7 +89,7 @@ class WavifyLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MelomaniacLogo(size: size, color: color);
+    return AurumLogo(size: size, color: color);
   }
 }
 
