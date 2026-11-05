@@ -1,97 +1,47 @@
 import 'package:flutter/material.dart';
 
-/// The signature Apple-style musical frequency 'A' monogram logo for Aurum.
-/// Features an acoustic harmonic arch forming the letter 'A' with a resonant wave bar.
+/// The signature liquid glass audio capsule brand logo for Aurum.
+/// Features three ascending metallic liquid-glass frequency droplets with luminous chrome reflections.
 class AurumLogo extends StatelessWidget {
   final double size;
-  final Color color;
+  final Color? color;
+  final BoxFit fit;
 
   const AurumLogo({
     super.key,
     this.size = 28,
-    this.color = Colors.white,
+    this.color,
+    this.fit = BoxFit.contain,
   });
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(size, size * 0.90),
-      painter: _AurumLogoPainter(color: color),
+    // Aspect ratio: 666 / 544 = 1.22
+    final width = size * 1.22;
+    final height = size;
+
+    return Image.asset(
+      'assets/images/app_logo_cropped.png',
+      width: width,
+      height: height,
+      fit: fit,
+      color: color,
+      filterQuality: FilterQuality.medium,
+      errorBuilder: (context, error, stackTrace) {
+        return Image.asset(
+          'assets/images/app_logo.png',
+          width: width,
+          height: height,
+          fit: fit,
+        );
+      },
     );
   }
-}
-
-class _AurumLogoPainter extends CustomPainter {
-  final Color color;
-
-  const _AurumLogoPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    final strokeWidth = w * 0.11;
-
-    final linePaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    // Harmonic 'A' arch path with smooth musical curvature
-    final path = Path();
-    path.moveTo(w * 0.15, h * 0.88);
-    path.cubicTo(
-      w * 0.22, h * 0.50,
-      w * 0.38, h * 0.10,
-      w * 0.50, h * 0.10,
-    );
-    path.cubicTo(
-      w * 0.62, h * 0.10,
-      w * 0.78, h * 0.50,
-      w * 0.85, h * 0.88,
-    );
-
-    canvas.drawPath(path, linePaint);
-
-    // Resonant frequency pulse bar across the letter 'A'
-    final pulsePaint = Paint()
-      ..color = color.withValues(alpha: 0.90)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth * 0.95
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawLine(
-      Offset(w * 0.28, h * 0.60),
-      Offset(w * 0.72, h * 0.60),
-      pulsePaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _AurumLogoPainter oldDelegate) =>
-      oldDelegate.color != color;
 }
 
 /// Backwards-compatible aliases for [AurumLogo].
 typedef MelomaniacLogo = AurumLogo;
-
-class WavifyLogo extends StatelessWidget {
-  final double size;
-  final Color color;
-
-  const WavifyLogo({
-    super.key,
-    this.size = 28,
-    this.color = Colors.white,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AurumLogo(size: size, color: color);
-  }
-}
+typedef WavifyLogo = AurumLogo;
 
 /// Zen balancing stones line-art icon seen in the "Relax" mood card.
 class ZenStonesIcon extends StatelessWidget {

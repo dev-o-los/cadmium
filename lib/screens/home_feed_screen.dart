@@ -164,7 +164,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: const AurumLogo(size: 30, color: Colors.white),
+                  child: const AurumLogo(size: 30),
                 ),
               ),
 
@@ -765,7 +765,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                           const Positioned(
                             top: 10,
                             right: 10,
-                            child: WavifyLogo(size: 16, color: Colors.white70),
+                            child: WavifyLogo(size: 16),
                           ),
                           Center(child: _buildMoodIcon(mood.icon)),
                         ],
