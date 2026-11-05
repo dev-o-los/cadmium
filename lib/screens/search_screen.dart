@@ -13,18 +13,16 @@ import '../models/recent_search_item.dart';
 import '../models/search_result_set.dart';
 import '../models/song_item.dart';
 import '../models/video_item.dart';
-import '../providers/auth_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/search_provider.dart';
 import '../utils/playback_utils.dart';
-import '../widgets/account_modal_sheet.dart';
 import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/sliding_pill_segmented_bar.dart';
+import '../widgets/top_profile_avatar_button.dart';
 import '../widgets/track_options_sheet.dart';
 import '../widgets/wavify_cached_image.dart';
-import 'google_signin_screen.dart';
 
 /// The Apple Music-inspired Search Screen featuring:
 /// - Liquid Glass Search Bar with search icon, text field, clear button, and profile avatar
@@ -269,65 +267,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
 
   /// Profile Avatar button on top right opening account modal sheet.
   Widget _buildProfileAvatarButton() {
-    return Consumer(
-      builder: (context, ref, child) {
-        final account = ref.watch(authProvider);
-
-        return ApplePressable(
-          onTap: () {
-            if (account != null) {
-              showAccountModalSheet(context, ref);
-            } else {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const GoogleSignInScreen(),
-                ),
-              );
-            }
-          },
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: account != null
-                    ? Colors.white.withValues(alpha: 0.85)
-                    : Colors.white.withValues(alpha: 0.4),
-                width: 1.5,
-              ),
-            ),
-            child: CircleAvatar(
-              radius: 19,
-              backgroundColor: account != null
-                  ? Colors.white.withValues(alpha: 0.20)
-                  : AppColors.appleDarkSurfaceHigh,
-              backgroundImage: account?.avatarUrl != null
-                  ? WavifyCachedImage.provider(account!.avatarUrl!)
-                  : null,
-              child: account?.avatarUrl == null
-                  ? (account != null
-                        ? Text(
-                            account.initials,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          )
-                        : const Icon(
-                            CupertinoIcons.person_crop_circle_fill,
-                            color: Colors.white,
-                            size: 24,
-                          ))
-                  : null,
-            ),
-          ),
-        );
-      },
-    );
+    return const TopProfileAvatarButton(size: 40);
   }
 
   /// Unified sliding pill segmented bar with animated white highlight pill.

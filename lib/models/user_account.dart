@@ -41,6 +41,29 @@ class UserAccount {
     return jar['SAPISID'] ?? jar['__Secure-3PAPISID'] ?? jar['__Secure-1PAPISID'];
   }
 
+  /// Normalizes DATASYNC_ID as in BitChord (handling account||delegated forms)
+  static String? normalizeDataSyncId(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return null;
+    final value = raw.trim();
+    if (!value.contains('||')) return value;
+    final after = value.substring(value.indexOf('||') + 2).trim();
+    if (after.isNotEmpty) return after;
+    final before = value.substring(0, value.indexOf('||')).trim();
+    return before.isNotEmpty ? before : null;
+  }
+
+  /// Upgrades avatar URL to crisp resolution (256x256) and ensures https
+  static String? cleanAvatarUrl(String? url) {
+    if (url == null || url.trim().isEmpty) return null;
+    var cleaned = url.trim();
+    if (cleaned.startsWith('//')) {
+      cleaned = 'https:$cleaned';
+    }
+    // Upgrades common low-res sizes (=s88, =s64, =s32, etc.) to 256
+    cleaned = cleaned.replaceAll(RegExp(r'=s\d+(-c)?'), '=s256-c');
+    return cleaned;
+  }
+
   /// Initial letters of display name for fallback avatar circle
   String get initials {
     final parts = displayName.trim().split(RegExp(r'\s+'));

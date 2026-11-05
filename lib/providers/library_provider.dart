@@ -449,20 +449,19 @@ final userAlbumsProvider = FutureProvider<List<AlbumItem>>((ref) async {
   final seen = <String>{'LM'};
   final result = <AlbumItem>[];
 
-  // Feature the full album of Liked Music
-  if (ytLikes.isNotEmpty) {
-    result.add(
-      AlbumItem(
-        id: 'LM',
-        title: 'Liked Music',
-        artist: 'YouTube Music',
-        thumbnailUrl: ytLikes.first.thumbnailUrl,
-        type: 'Auto Playlist',
-        year: DateTime.now().year,
-        isCustom: false,
-      ),
-    );
-  }
+  // Feature the full album of Liked Music prominently as requested
+  result.add(
+    AlbumItem(
+      id: 'LM',
+      title: 'Liked Music',
+      artist: 'YouTube Music',
+      thumbnailUrl: ytLikes.isNotEmpty ? ytLikes.first.thumbnailUrl : null,
+      type: 'Auto Playlist',
+      year: DateTime.now().year,
+      trackCount: ytLikes.isNotEmpty ? ytLikes.length : null,
+      isCustom: false,
+    ),
+  );
 
   for (final a in [...customUserAlbums, ...ytAlbums]) {
     if (!seen.contains(a.id)) {

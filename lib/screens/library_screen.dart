@@ -17,6 +17,7 @@ import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_glass_bottom_sheet.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/dynamic_album_artwork.dart';
+import '../widgets/top_profile_avatar_button.dart';
 
 /// The Library Tab screen featuring personal collections:
 /// Playlists, Liked Music, Saved Albums, Subscribed Artists, and Recently Played tracks.
@@ -81,15 +82,24 @@ class LibraryScreen extends ConsumerWidget {
                   letterSpacing: -1.2,
                 ),
               ),
-              if (account != null)
-                Text(
-                  account.displayName.split(' ').first,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+              // Top Right YouTube Music Profile Button & Name
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (account != null) ...[
+                    Text(
+                      account.displayName.split(' ').first,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  const TopProfileAvatarButton(),
+                ],
+              ),
             ],
           ),
         ),

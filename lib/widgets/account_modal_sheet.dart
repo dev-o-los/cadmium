@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/home_data_provider.dart';
+import '../providers/library_provider.dart';
 import '../screens/google_signin_screen.dart';
 import 'apple_glass_bottom_sheet.dart';
 import 'apple_pressable.dart';
+import 'wavify_cached_image.dart';
 
 /// Shows the Google / YouTube Music account overview sheet with authentic
 /// Apple-style Liquid Glass blur, grouped cards, and pure white typography.
@@ -21,7 +24,7 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Account Overview Card
+                // Account Overview Card (matching BitChord's AccountCard)
                 AppleSheetGroup(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -30,22 +33,49 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
                   children: [
                     Row(
                       children: [
-                        CircleAvatar(
-                          radius: 28,
-                          backgroundColor: Colors.white.withValues(alpha: 0.18),
-                          backgroundImage: account.avatarUrl != null
-                              ? NetworkImage(account.avatarUrl!)
-                              : null,
-                          child: account.avatarUrl == null
-                              ? Text(
-                                  account.initials,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                )
-                              : null,
+                        Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.6),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: CircleAvatar(
+                            radius: 28,
+                            backgroundColor:
+                                Colors.white.withValues(alpha: 0.18),
+                            child: ClipOval(
+                              child: account.avatarUrl != null &&
+                                      account.avatarUrl!.isNotEmpty
+                                  ? WavifyCachedImage(
+                                      imageUrl: account.avatarUrl!,
+                                      width: 56,
+                                      height: 56,
+                                      fit: BoxFit.cover,
+                                      errorWidget: Center(
+                                        child: Text(
+                                          account.initials,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : Center(
+                                      child: Text(
+                                        account.initials,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                            ),
+                          ),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -71,6 +101,28 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
                                   ),
                                 ),
                               ],
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.greenAccent,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Connected to YouTube',
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.65),
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ],
                           ),
                         ),
@@ -83,6 +135,26 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
                 // Account Actions Group
                 AppleSheetGroup(
                   children: [
+                    AppleSheetActionTile(
+                      leading: const Icon(
+                        CupertinoIcons.arrow_2_circlepath,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      title: 'Sync Library & Home Feed',
+                      onTap: () {
+                        ref.read(homeDataProvider.notifier).refresh();
+                        ref.read(youtubeLikedSongsProvider.notifier).fetchLikedSongs();
+                        Navigator.pop(modalCtx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Syncing your YouTube Music account...'),
+                            backgroundColor: Color(0xFF1C1C1E),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                    ),
                     AppleSheetActionTile(
                       leading: const Icon(
                         CupertinoIcons.arrow_right_square,
@@ -127,7 +199,7 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Sign In to Melomaniac',
+                'Sign In to Wavify',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white,
@@ -140,7 +212,7 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
-                  'Connect your Google / YouTube Music account to synchronize your favorites, library, playlists, and tailor personalized recommendations.',
+                  'Connect your YouTube Music account to synchronize your Liked Music, playlists, saved albums, and personalize your Home recommendations.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.75),

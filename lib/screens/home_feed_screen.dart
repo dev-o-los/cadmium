@@ -12,15 +12,14 @@ import '../models/home_data.dart';
 import '../models/music_category.dart';
 import '../models/song_item.dart';
 import '../models/video_item.dart';
-import '../providers/auth_provider.dart';
 import '../providers/home_data_provider.dart';
 import '../providers/player_provider.dart';
 import '../utils/playback_utils.dart';
-import '../widgets/account_modal_sheet.dart';
 import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/dynamic_album_artwork.dart';
+import '../widgets/top_profile_avatar_button.dart';
 import '../widgets/track_options_sheet.dart';
 import '../widgets/wavify_cached_image.dart';
 import '../widgets/wavify_logo.dart';
@@ -55,57 +54,113 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
   @override
   Widget build(BuildContext context) {
     final homeDataAsync = ref.watch(homeDataProvider);
+    final topPadding = MediaQuery.of(context).padding.top;
 
-    return homeDataAsync.when(
-      loading: () => const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(color: Colors.white),
-            SizedBox(height: 16),
-            Text(
-              'Loading music...',
-              style: TextStyle(
-                color: AppColors.appleSecondaryText,
-                fontSize: 14,
+    return Stack(
+      children: [
+        // 1. Main Feed Content / Loading / Error
+        homeDataAsync.when(
+          loading: () => const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: Colors.white),
+                SizedBox(height: 16),
+                Text(
+                  'Loading music...',
+                  style: TextStyle(
+                    color: AppColors.appleSecondaryText,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          error: (err, stack) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    CupertinoIcons.exclamationmark_circle,
+                    size: 52,
+                    color: Colors.white70,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Failed to load music: $err',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white, fontSize: 15),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.tonal(
+                    onPressed: () =>
+                        ref.read(homeDataProvider.notifier).refresh(),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.appleDarkSurfaceHigh,
+                    ),
+                    child: const Text(
+                      'Try Again',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ],
               ),
             ),
+          ),
+          data: (data) => _buildHomeContent(context, ref, data),
+        ),
+
+        // 2. Fixed Top Navigation Bar (Always visible with Melomaniac logo & Profile Avatar)
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: _buildTopNavigationBar(context, topPadding),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTopNavigationBar(BuildContext context, double topPadding) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(16, topPadding + 4, 16, 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.black.withValues(alpha: 0.90),
+            Colors.black.withValues(alpha: 0.60),
+            Colors.transparent,
           ],
         ),
       ),
-      error: (err, stack) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Row(
             mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                CupertinoIcons.exclamationmark_circle,
-                size: 52,
-                color: Colors.white70,
-              ),
-              const SizedBox(height: 12),
+            children: const [
+              MelomaniacLogo(size: 28, color: Colors.white),
+              SizedBox(width: 10),
               Text(
-                'Failed to load music: $err',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white, fontSize: 15),
-              ),
-              const SizedBox(height: 16),
-              FilledButton.tonal(
-                onPressed: () => ref.read(homeDataProvider.notifier).refresh(),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.appleDarkSurfaceHigh,
-                ),
-                child: const Text(
-                  'Try Again',
-                  style: TextStyle(color: Colors.white),
+                'Melomaniac',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.6,
                 ),
               ),
             ],
           ),
-        ),
+          // Interactive Top Right Profile Avatar Button
+          const TopProfileAvatarButton(),
+        ],
       ),
-      data: (data) => _buildHomeContent(context, ref, data),
     );
   }
 
@@ -125,232 +180,132 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics(),
             ),
-            padding: EdgeInsets.fromLTRB(0, topPadding, 0, 160),
+            padding: EdgeInsets.fromLTRB(0, topPadding + 52, 0, 160),
             children: [
-                // Top Header: Melomaniac Logo on Left + Profile Avatar on Right
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 14),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          MelomaniacLogo(size: 28, color: Colors.white),
-                          SizedBox(width: 10),
-                          Text(
-                            'Melomaniac',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.6,
-                            ),
-                          ),
-                        ],
-                      ),
+              // Section 1: "Top Picks for You" Hero Cards Carousel
+              _buildTopPicksHeroSection(context, ref, data.heroCards),
+              const SizedBox(height: 28),
 
-                      // Interactive Top Right Google / YouTube Music Profile Button
-                      Consumer(
-                        builder: (context, ref, child) {
-                          final account = ref.watch(authProvider);
+              // Section 2: "Recents" (4-item vertical column horizontal paging)
+              _build4ItemColumnsSection(
+                context: context,
+                ref: ref,
+                title: 'Recents',
+                songs: data.recents,
+              ),
+              const SizedBox(height: 28),
 
-                          return ApplePressable(
-                            onTap: () => showAccountModalSheet(context, ref),
-                            borderRadius: BorderRadius.circular(22),
-                            child: Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                Container(
-                                  width: 38,
-                                  height: 38,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: account != null
-                                          ? Colors.white.withValues(alpha: 0.85)
-                                          : Colors.white.withValues(alpha: 0.5),
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  child: CircleAvatar(
-                                    radius: 18,
-                                    backgroundColor: account != null
-                                        ? Colors.white.withValues(alpha: 0.20)
-                                        : AppColors.appleDarkSurfaceHigh,
-                                    backgroundImage: account?.avatarUrl != null
-                                        ? NetworkImage(account!.avatarUrl!)
-                                        : null,
-                                    child: account?.avatarUrl == null
-                                        ? account != null
-                                              ? Text(
-                                                  account.initials,
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                )
-                                              : const Icon(
-                                                  CupertinoIcons
-                                                      .person_crop_circle_fill,
-                                                  color: Colors.white,
-                                                  size: 24,
-                                                )
-                                        : null,
-                                  ),
-                                ),
-                                // Connected status dot indicator
-                                if (account != null)
-                                  Positioned(
-                                    right: -1,
-                                    bottom: -1,
-                                    child: Container(
-                                      width: 12,
-                                      height: 12,
-                                      decoration: BoxDecoration(
-                                        color: Colors.greenAccent,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: Colors.black,
-                                          width: 2,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
+              // Section 3: "Find Your Mood" with "Show all"
+              _buildFindYourMoodSection(context, data.moods),
+              const SizedBox(height: 28),
 
-                // Section 1: "Top Picks for You" Hero Cards Carousel
-                _buildTopPicksHeroSection(context, ref, data.heroCards),
-                const SizedBox(height: 28),
+              // Section 4: "Albums & singles"
+              _buildAlbumsAndSinglesSection(
+                context,
+                ref,
+                data.albumsAndSingles,
+              ),
+              const SizedBox(height: 28),
 
-                // Section 2: "Recents" (4-item vertical column horizontal paging)
+              // Section 5: "Music videos" (16:9 widescreen)
+              _buildMusicVideosSection(context, ref, data.musicVideos),
+              const SizedBox(height: 28),
+
+              // Section 6: "Listen again" (listening history from playerProvider)
+              if (playerState.recentlyPlayed.isNotEmpty) ...[
                 _build4ItemColumnsSection(
                   context: context,
                   ref: ref,
-                  title: 'Recents',
-                  songs: data.recents,
+                  title: 'Listen again',
+                  subtitle: 'UTKARSH',
+                  songs: playerState.recentlyPlayed,
                 ),
                 const SizedBox(height: 28),
-
-                // Section 3: "Find Your Mood" with "Show all"
-                _buildFindYourMoodSection(context, data.moods),
-                const SizedBox(height: 28),
-
-                // Section 4: "Albums & singles"
-                _buildAlbumsAndSinglesSection(
-                  context,
-                  ref,
-                  data.albumsAndSingles,
-                ),
-                const SizedBox(height: 28),
-
-                // Section 5: "Music videos" (16:9 widescreen)
-                _buildMusicVideosSection(context, ref, data.musicVideos),
-                const SizedBox(height: 28),
-
-                // Section 6: "Listen again" (listening history from playerProvider)
-                if (playerState.recentlyPlayed.isNotEmpty) ...[
-                  _build4ItemColumnsSection(
-                    context: context,
-                    ref: ref,
-                    title: 'Listen again',
-                    subtitle: 'UTKARSH',
-                    songs: playerState.recentlyPlayed,
-                  ),
-                  const SizedBox(height: 28),
-                ],
-
-                // Section 7: "Quick picks" (4-item vertical column horizontal paging)
-                _build4ItemColumnsSection(
-                  context: context,
-                  ref: ref,
-                  title: 'Quick picks',
-                  songs: data.quickPicks,
-                ),
-                const SizedBox(height: 28),
-
-                // Section 8: "Your daily discover"
-                _buildHorizontalSongCarousel(
-                  context: context,
-                  ref: ref,
-                  title: 'Your daily discover',
-                  songs: data.dailyDiscover,
-                ),
-                const SizedBox(height: 28),
-
-                // Section 9: "Trending songs for you"
-                _buildHorizontalSongCarousel(
-                  context: context,
-                  ref: ref,
-                  title: 'Trending songs for you',
-                  songs: data.trendingSongs,
-                ),
               ],
-            ),
+
+              // Section 7: "Quick picks" (4-item vertical column horizontal paging)
+              _build4ItemColumnsSection(
+                context: context,
+                ref: ref,
+                title: 'Quick picks',
+                songs: data.quickPicks,
+              ),
+              const SizedBox(height: 28),
+
+              // Section 8: "Your daily discover"
+              _buildHorizontalSongCarousel(
+                context: context,
+                ref: ref,
+                title: 'Your daily discover',
+                songs: data.dailyDiscover,
+              ),
+              const SizedBox(height: 28),
+
+              // Section 9: "Trending songs for you"
+              _buildHorizontalSongCarousel(
+                context: context,
+                ref: ref,
+                title: 'Trending songs for you',
+                songs: data.trendingSongs,
+              ),
+            ],
           ),
+        ),
 
-          // 2. Subtle Top Status Bar Dissolve on Scroll (confined strictly to the battery & notification edge)
-          AnimatedBuilder(
-            animation: _scrollController,
-            builder: (context, _) {
-              final offset =
-                  _scrollController.hasClients ? _scrollController.offset : 0.0;
-              final progress = (offset / 32.0).clamp(0.0, 1.0);
-              if (progress <= 0.001) {
-                return const SizedBox.shrink();
-              }
+        // 2. Subtle Top Status Bar Dissolve on Scroll (confined strictly to the battery & notification edge)
+        AnimatedBuilder(
+          animation: _scrollController,
+          builder: (context, _) {
+            final offset = _scrollController.hasClients
+                ? _scrollController.offset
+                : 0.0;
+            final progress = (offset / 32.0).clamp(0.0, 1.0);
+            if (progress <= 0.001) {
+              return const SizedBox.shrink();
+            }
 
-              // Confined strictly to the status bar / battery bar height
-              final topBlurHeight = topPadding + 4.0;
+            // Confined strictly to the status bar / battery bar height
+            final topBlurHeight = topPadding + 4.0;
 
-              return Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                height: topBlurHeight,
-                child: IgnorePointer(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      // Very delicate progressive blur directly at the top status bar edge
-                      ProgressiveBlur(
-                        maxSigma: 4.0 * progress,
-                        direction: ProgressiveBlurDirection.topToBottom,
-                        falloff: 2.0,
-                      ),
-                      // Soft darkening dissolve so content naturally fades away under the battery/clock
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.black.withValues(alpha: 0.85 * progress),
-                              Colors.black.withValues(alpha: 0.35 * progress),
-                              Colors.transparent,
-                            ],
-                            stops: const [0.0, 0.55, 1.0],
-                          ),
+            return Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: topBlurHeight,
+              child: IgnorePointer(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Very delicate progressive blur directly at the top status bar edge
+                    ProgressiveBlur(
+                      maxSigma: 4.0 * progress,
+                      direction: ProgressiveBlurDirection.topToBottom,
+                      falloff: 2.0,
+                    ),
+                    // Soft darkening dissolve so content naturally fades away under the battery/clock
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.85 * progress),
+                            Colors.black.withValues(alpha: 0.35 * progress),
+                            Colors.transparent,
+                          ],
+                          stops: const [0.0, 0.55, 1.0],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              );
-            },
-          ),
-        ],
-      );
-    }
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
 
   // =========================================================================
   // HOME SCREEN SECTION WIDGETS

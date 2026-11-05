@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:dart_ytmusic_api/types.dart';
 import 'package:dart_ytmusic_api/utils/traverse.dart';
 import 'package:dart_ytmusic_api/yt_music.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import '../models/song_item.dart';
 import '../models/album_item.dart';
 import '../models/video_item.dart';
@@ -176,6 +177,77 @@ class MusicService {
     return jar['SAPISID'] ?? jar['__Secure-3PAPISID'] ?? jar['__Secure-1PAPISID'];
   }
 
+  /// Sanitizes cookie header so that tokens with the same key take their latest
+  /// and most specific value (e.g. YouTube session cookies over Google accounts cookies).
+  static String sanitizeCookieStringForYouTube(String cookies) {
+    if (cookies.isEmpty) return cookies;
+    final jar = <String, String>{};
+    for (final part in cookies.split(';')) {
+      final trimmed = part.trim();
+      final eq = trimmed.indexOf('=');
+      if (eq > 0) {
+        final name = trimmed.substring(0, eq).trim();
+        final val = trimmed.substring(eq + 1).trim();
+        if (name.isNotEmpty && val.isNotEmpty) {
+          jar[name] = val;
+        }
+      }
+    }
+    return jar.entries.map((e) => '${e.key}=${e.value}').join('; ');
+  }
+
+  /// Extracts the fresh, complete cookie jar from WebView with YouTube cookies
+  /// taking precedence over generic Google cookies.
+  static Future<String?> extractFreshCookiesFromWebView() async {
+    try {
+      WebViewCookieManager cm;
+      try {
+        cm = WebViewCookieManager();
+      } catch (_) {
+        return null;
+      }
+
+      final googleDomains = [
+        Uri.parse('https://accounts.google.com'),
+        Uri.parse('https://google.com'),
+        Uri.parse('https://www.google.com'),
+      ];
+      final youtubeDomains = [
+        Uri.parse('https://youtube.com'),
+        Uri.parse('https://www.youtube.com'),
+        Uri.parse('https://music.youtube.com'),
+      ];
+
+      final jar = <String, String>{};
+      for (final domain in googleDomains) {
+        try {
+          final cookies = await cm.getCookies(domain: domain);
+          for (final c in cookies) {
+            if (c.name.isNotEmpty && c.value.isNotEmpty) {
+              jar[c.name] = c.value;
+            }
+          }
+        } catch (_) {}
+      }
+
+      for (final domain in youtubeDomains) {
+        try {
+          final cookies = await cm.getCookies(domain: domain);
+          for (final c in cookies) {
+            if (c.name.isNotEmpty && c.value.isNotEmpty) {
+              jar[c.name] = c.value;
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (jar.isNotEmpty && (jar.containsKey('SAPISID') || jar.containsKey('__Secure-3PAPISID'))) {
+        return jar.entries.map((e) => '${e.key}=${e.value}').join('; ');
+      }
+    } catch (_) {}
+    return null;
+  }
+
   /// Computes SAPISIDHASH authorization header from a SAPISID token
   static String computeSapisidHash(String sapisid, {String origin = 'https://music.youtube.com'}) {
     final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
@@ -279,7 +351,7 @@ class MusicService {
         return (
           displayName: name.isNotEmpty ? name : 'YouTube Music User',
           email: email,
-          avatarUrl: avatar,
+          avatarUrl: avatar ?? _findAvatarInJson(data),
         );
       }
     }
@@ -301,16 +373,47 @@ class MusicService {
         return (
           displayName: name.isNotEmpty ? name : 'YouTube Music User',
           email: email,
-          avatarUrl: avatar,
+          avatarUrl: avatar ?? _findAvatarInJson(data),
         );
       }
+    }
+
+    // Fallback: If no structured header matched, search for user avatar URL in raw JSON
+    final foundAvatar = _findAvatarInJson(data);
+    if (foundAvatar != null) {
+      return (
+        displayName: 'YouTube Music User',
+        email: '',
+        avatarUrl: foundAvatar,
+      );
     }
 
     return null;
   }
 
+  /// Extracts Google avatar URL directly from JSON string as fallback
+  static String? _findAvatarInJson(dynamic data) {
+    if (data == null) return null;
+    try {
+      final raw = jsonEncode(data);
+      final regex = RegExp(r'https:\/\/[a-zA-Z0-9_\-\.]+\.(googleusercontent\.com|ggpht\.com)\/[a-zA-Z0-9_\-=\/]+');
+      final matches = regex.allMatches(raw);
+      for (final m in matches) {
+        final u = m.group(0);
+        if (u != null && (u.contains('/yti/') || u.contains('/a/') || u.contains('=s') || u.contains('/a-/'))) {
+          return u;
+        }
+      }
+      if (matches.isNotEmpty) {
+        return matches.first.group(0);
+      }
+    } catch (_) {}
+    return null;
+  }
+
   /// Connects to YouTube Music InnerTube account_menu endpoint using authentic
   /// session cookies and SAPISIDHASH to retrieve the user's verified profile.
+  /// Falls back to getAccountSwitcherEndpoint as in BitChord if needed.
   Future<({String displayName, String email, String? avatarUrl})?> fetchAccountProfile({
     required String cookies,
     String? dataSyncId,
@@ -325,41 +428,43 @@ class MusicService {
       return null;
     }
 
+    final cleanCookies = sanitizeCookieStringForYouTube(cookies);
     final sapisidHash = computeSapisidHash(sapisid);
-    final version = clientVersion ?? '1.20240101.01.00';
-    final uri = Uri.parse('https://music.youtube.com/youtubei/v1/account/account_menu?prettyPrint=false&hl=en');
+    final version = clientVersion ?? '1.20250101.01.00';
+    final normalizedDataSync = UserAccount.normalizeDataSyncId(dataSyncId);
 
-    final userContext = <String, dynamic>{
-      'lockedSafetyMode': false,
-    };
-    if (dataSyncId != null && dataSyncId.isNotEmpty) {
-      userContext['onBehalfOfUser'] = dataSyncId;
-    }
-
-    final body = jsonEncode({
-      'context': {
-        'client': {
-          'clientName': 'WEB_REMIX',
-          'clientVersion': version,
-          'hl': 'en',
-          'gl': 'US',
-          if (visitorData != null && visitorData.isNotEmpty) 'visitorData': visitorData,
-        },
-        'user': userContext,
-        'request': {
-          'useSsl': true,
-        },
-      },
-    });
-
-    HttpClient? client;
+    // 1. Try InnerTube account/account_menu endpoint (as in BitChord)
     try {
-      client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+      final uri = Uri.parse('https://music.youtube.com/youtubei/v1/account/account_menu?prettyPrint=false&hl=en');
+      final userContext = <String, dynamic>{
+        'lockedSafetyMode': false,
+      };
+      if (normalizedDataSync != null && normalizedDataSync.isNotEmpty) {
+        userContext['onBehalfOfUser'] = normalizedDataSync;
+      }
+
+      final body = jsonEncode({
+        'context': {
+          'client': {
+            'clientName': 'WEB_REMIX',
+            'clientVersion': version,
+            'hl': 'en',
+            'gl': 'US',
+            if (visitorData != null && visitorData.isNotEmpty) 'visitorData': visitorData,
+          },
+          'user': userContext,
+          'request': {
+            'useSsl': true,
+          },
+        },
+      });
+
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
       final request = await client.postUrl(uri);
       request.headers.contentType = ContentType.json;
       request.headers.set(
         'User-Agent',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
       );
       request.headers.set('Accept-Language', 'en-US,en;q=0.9');
       request.headers.set('X-Origin', 'https://music.youtube.com');
@@ -367,7 +472,7 @@ class MusicService {
       request.headers.set('Referer', 'https://music.youtube.com/');
       request.headers.set('X-YouTube-Client-Name', '67');
       request.headers.set('X-YouTube-Client-Version', version);
-      request.headers.set('Cookie', cookies);
+      request.headers.set('Cookie', cleanCookies);
       request.headers.set('Authorization', sapisidHash);
       request.headers.set('X-Goog-AuthUser', authUser ?? '0');
       if (pageId != null && pageId.isNotEmpty) {
@@ -380,21 +485,112 @@ class MusicService {
       request.write(body);
 
       final response = await request.close().timeout(const Duration(seconds: 8));
-      if (response.statusCode != 200) {
-        debugPrint('fetchAccountProfile: InnerTube account_menu returned status ${response.statusCode}');
+      if (response.statusCode == 200) {
+        final responseBody = await utf8.decoder.bind(response).join();
+        final data = jsonDecode(responseBody);
+        final parsed = parseAccountMenu(data);
+        if (parsed != null && (parsed.displayName.isNotEmpty || parsed.avatarUrl != null)) {
+          return (
+            displayName: parsed.displayName,
+            email: parsed.email,
+            avatarUrl: UserAccount.cleanAvatarUrl(parsed.avatarUrl),
+          );
+        }
+      } else {
         await response.drain();
-        return null;
+        // If onBehalfOfUser was rejected, retry without it
+        if (userContext.containsKey('onBehalfOfUser')) {
+          userContext.remove('onBehalfOfUser');
+          final retryBody = jsonEncode({
+            'context': {
+              'client': {
+                'clientName': 'WEB_REMIX',
+                'clientVersion': version,
+                'hl': 'en',
+                'gl': 'US',
+                if (visitorData != null && visitorData.isNotEmpty) 'visitorData': visitorData,
+              },
+              'user': userContext,
+              'request': {'useSsl': true},
+            },
+          });
+          final retryReq = await client.postUrl(uri);
+          retryReq.headers.contentType = ContentType.json;
+          retryReq.headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36');
+          retryReq.headers.set('Accept-Language', 'en-US,en;q=0.9');
+          retryReq.headers.set('X-Origin', 'https://music.youtube.com');
+          retryReq.headers.set('Origin', 'https://music.youtube.com');
+          retryReq.headers.set('Referer', 'https://music.youtube.com/');
+          retryReq.headers.set('X-YouTube-Client-Name', '67');
+          retryReq.headers.set('X-YouTube-Client-Version', version);
+          retryReq.headers.set('Cookie', cookies);
+          retryReq.headers.set('Authorization', sapisidHash);
+          retryReq.headers.set('X-Goog-AuthUser', authUser ?? '0');
+          retryReq.write(retryBody);
+          final retryRes = await retryReq.close().timeout(const Duration(seconds: 8));
+          if (retryRes.statusCode == 200) {
+            final retryStr = await utf8.decoder.bind(retryRes).join();
+            final retryData = jsonDecode(retryStr);
+            final parsedRetry = parseAccountMenu(retryData);
+            if (parsedRetry != null && (parsedRetry.displayName.isNotEmpty || parsedRetry.avatarUrl != null)) {
+              return (
+                displayName: parsedRetry.displayName,
+                email: parsedRetry.email,
+                avatarUrl: UserAccount.cleanAvatarUrl(parsedRetry.avatarUrl),
+              );
+            }
+          } else {
+            await retryRes.drain();
+          }
+        }
       }
-
-      final responseBody = await utf8.decoder.bind(response).join();
-      final data = jsonDecode(responseBody);
-      return parseAccountMenu(data);
+      client.close(force: true);
     } catch (e) {
-      debugPrint('fetchAccountProfile error: $e');
-      return null;
-    } finally {
-      client?.close(force: true);
+      debugPrint('fetchAccountProfile account_menu error: $e');
     }
+
+    // 2. Fallback: Query getAccountSwitcherEndpoint on youtube.com (as in BitChord)
+    try {
+      final ytOrigin = 'https://www.youtube.com';
+      final ytHash = computeSapisidHash(sapisid, origin: ytOrigin);
+      final uri = Uri.parse('$ytOrigin/getAccountSwitcherEndpoint');
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+      final request = await client.getUrl(uri);
+      request.headers.set(
+        'User-Agent',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+      );
+      request.headers.set('Accept-Language', 'en-US,en;q=0.9');
+      request.headers.set('X-Origin', ytOrigin);
+      request.headers.set('Referer', '$ytOrigin/');
+      request.headers.set('Cookie', cleanCookies);
+      request.headers.set('Authorization', ytHash);
+      request.headers.set('X-Goog-AuthUser', authUser ?? '0');
+
+      final response = await request.close().timeout(const Duration(seconds: 8));
+      if (response.statusCode == 200) {
+        var responseBody = await utf8.decoder.bind(response).join();
+        if (responseBody.contains(")]}'")) {
+          responseBody = responseBody.substring(responseBody.indexOf(")]}'") + 4).trim();
+        }
+        final data = jsonDecode(responseBody);
+        final parsed = parseAccountMenu(data);
+        if (parsed != null && (parsed.displayName.isNotEmpty || parsed.avatarUrl != null)) {
+          return (
+            displayName: parsed.displayName,
+            email: parsed.email,
+            avatarUrl: UserAccount.cleanAvatarUrl(parsed.avatarUrl),
+          );
+        }
+      } else {
+        await response.drain();
+      }
+      client.close(force: true);
+    } catch (e) {
+      debugPrint('fetchAccountProfile getAccountSwitcherEndpoint error: $e');
+    }
+
+    return null;
   }
 
   /// Parses standard duration strings ("MM:SS" or "HH:MM:SS") into total seconds
@@ -414,10 +610,39 @@ class MusicService {
     return null;
   }
 
+  /// Extracts continuation token from browse / playlist response (BitChord style)
+  static String? extractContinuationToken(dynamic root) {
+    if (root == null) return null;
+    final itemRenderers = _collectRenderers(root, 'continuationItemRenderer');
+    for (final item in itemRenderers) {
+      final endpoint = item['continuationEndpoint'];
+      if (endpoint is Map) {
+        final token = endpoint['continuationCommand']?['token'];
+        if (token != null && token.toString().isNotEmpty) {
+          return token.toString();
+        }
+        final commands = endpoint['commandExecutorCommand']?['commands'];
+        if (commands is List && commands.isNotEmpty && commands.first is Map) {
+          final subToken = commands.first['continuationCommand']?['token'];
+          if (subToken != null && subToken.toString().isNotEmpty) {
+            return subToken.toString();
+          }
+        }
+      }
+    }
+    final nextCont = _collectRenderers(root, 'nextContinuationData');
+    if (nextCont.isNotEmpty && nextCont.first['continuation'] != null) {
+      return nextCont.first['continuation'].toString();
+    }
+    return null;
+  }
+
   /// Parses a SongItem from a YouTube Music InnerTube musicResponsiveListItemRenderer
   static SongItem? parseSongFromRenderer(Map<String, dynamic> item) {
     final videoId = item['playlistItemData']?['videoId']?.toString() ??
+        traverseString(item, ['overlay', 'musicItemThumbnailOverlayRenderer', 'content', 'musicPlayButtonRenderer', 'playNavigationEndpoint', 'watchEndpoint', 'videoId']) ??
         traverseString(item, ['navigationEndpoint', 'watchEndpoint', 'videoId']) ??
+        traverseString(item, ['doubleTapCommand', 'watchEndpoint', 'videoId']) ??
         traverseString(item, ['menu', 'menuRenderer', 'topLevelButtons', 'likeButtonRenderer', 'target', 'videoId']);
     if (videoId == null || videoId.isEmpty) return null;
 
@@ -477,6 +702,7 @@ class MusicService {
   Future<dynamic> postInnerTube(
     String endpoint, {
     Map<String, dynamic>? bodyExtras,
+    Map<String, String>? queryParams,
   }) async {
     final account = _currentAccount;
     if (account == null) return null;
@@ -485,14 +711,22 @@ class MusicService {
     if (sapisid == null || sapisid.isEmpty) return null;
 
     final sapisidHash = computeSapisidHash(sapisid);
-    final version = '1.20240101.01.00';
-    final uri = Uri.parse('https://music.youtube.com/youtubei/v1/$endpoint?prettyPrint=false&hl=en');
+    final version = '1.20250101.01.00';
+    final query = <String, String>{
+      'prettyPrint': 'false',
+      'hl': 'en',
+      ...?queryParams,
+    };
+    final uri = Uri.parse('https://music.youtube.com/youtubei/v1/$endpoint').replace(
+      queryParameters: query,
+    );
 
+    final normalizedDataSync = UserAccount.normalizeDataSyncId(account.dataSyncId);
     final userContext = <String, dynamic>{
       'lockedSafetyMode': false,
     };
-    if (account.dataSyncId != null && account.dataSyncId!.isNotEmpty) {
-      userContext['onBehalfOfUser'] = account.dataSyncId;
+    if (normalizedDataSync != null && normalizedDataSync.isNotEmpty) {
+      userContext['onBehalfOfUser'] = normalizedDataSync;
     }
 
     final payload = {
@@ -515,12 +749,12 @@ class MusicService {
 
     HttpClient? client;
     try {
-      client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+      client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
       final request = await client.postUrl(uri);
       request.headers.contentType = ContentType.json;
       request.headers.set(
         'User-Agent',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
       );
       request.headers.set('Accept-Language', 'en-US,en;q=0.9');
       request.headers.set('X-Origin', 'https://music.youtube.com');
@@ -540,7 +774,7 @@ class MusicService {
 
       request.write(jsonEncode(payload));
 
-      final response = await request.close().timeout(const Duration(seconds: 8));
+      final response = await request.close().timeout(const Duration(seconds: 10));
       if (response.statusCode != 200) {
         debugPrint('postInnerTube ($endpoint) returned ${response.statusCode}');
         await response.drain();
@@ -555,6 +789,21 @@ class MusicService {
     } finally {
       client?.close(force: true);
     }
+  }
+
+  /// Paginates InnerTube browse endpoint using continuation token
+  Future<dynamic> browseContinuation(String token) async {
+    return postInnerTube(
+      'browse',
+      queryParams: {
+        'ctoken': token,
+        'continuation': token,
+        'type': 'next',
+      },
+      bodyExtras: {
+        'continuation': token,
+      },
+    );
   }
 
   // Cached streams to prevent duplicate Innertube player requests (5 min TTL)
@@ -593,28 +842,6 @@ class MusicService {
       clientVersion: '20.10.4',
       userAgent: 'com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)',
     ),
-  ];
-
-  static const List<MusicCategory> _defaultMoods = [
-    MusicCategory(title: 'Chill', colorValue: 0xFF4A90E2),
-    MusicCategory(title: 'Energize', colorValue: 0xFFFF9500),
-    MusicCategory(title: 'Feel Good', colorValue: 0xFF34C759),
-    MusicCategory(title: 'Focus', colorValue: 0xFF5856D6),
-    MusicCategory(title: 'Workout', colorValue: 0xFFFF2D55),
-    MusicCategory(title: 'Party', colorValue: 0xFFAF52DE),
-    MusicCategory(title: 'Romance', colorValue: 0xFFFF3B30),
-    MusicCategory(title: 'Sleep', colorValue: 0xFF1C1C1E),
-  ];
-
-  static const List<MusicCategory> _defaultGenres = [
-    MusicCategory(title: 'Pop', colorValue: 0xFFFF2D55),
-    MusicCategory(title: 'Hip-Hop', colorValue: 0xFFFF9500),
-    MusicCategory(title: 'Rock', colorValue: 0xFFE02424),
-    MusicCategory(title: 'Bollywood', colorValue: 0xFFFF5722),
-    MusicCategory(title: 'Electronic', colorValue: 0xFF00C7BE),
-    MusicCategory(title: 'R&B / Soul', colorValue: 0xFFAF52DE),
-    MusicCategory(title: 'Indie & Alt', colorValue: 0xFF34C759),
-    MusicCategory(title: 'Acoustic', colorValue: 0xFF8E8E93),
   ];
 
   /// Initializes the YouTube Music API client.
@@ -657,7 +884,7 @@ class MusicService {
     // fetch recommendations and mixes specific to that user's account.
     if (_currentAccount != null && _currentAccount!.isPersonalizedEnabled) {
       final personalData = await _fetchPersonalizedHomeData();
-      if (personalData != null) {
+      if (personalData != null && !personalData.isEmpty) {
         _cachedHomeData = personalData;
         await HomeCacheService.instance.saveHomeData(personalData);
         ArtworkCacheService.instance.prefetchArtworks(personalData.recents);
@@ -669,38 +896,8 @@ class MusicService {
       }
     }
 
-    // Curated & trending fallback queries
-    final results = await Future.wait([
-      _fetchHeroCards(),
-      _fetchRecents(),
-      _fetchQuickPicks(),
-      _fetchMoodsAndGenres(),
-      _fetchAlbumsAndSingles(),
-      _fetchMusicVideos(),
-      _fetchDailyDiscover(),
-      _fetchTrendingTracks(),
-    ]);
-
-    final heroCards = results[0] as List<HeroCardItem>;
-    final recents = results[1] as List<SongItem>;
-    final quickPicks = results[2] as List<SongItem>;
-    final categories = results[3] as ({List<MusicCategory> moods, List<MusicCategory> genres});
-    final albumsAndSingles = results[4] as List<AlbumItem>;
-    final musicVideos = results[5] as List<VideoItem>;
-    final dailyDiscover = results[6] as List<SongItem>;
-    final trendingSongs = results[7] as List<SongItem>;
-
-    final homeData = HomeData(
-      heroCards: heroCards,
-      recents: recents,
-      quickPicks: quickPicks,
-      moods: categories.moods,
-      genres: categories.genres,
-      albumsAndSingles: albumsAndSingles,
-      musicVideos: musicVideos,
-      dailyDiscover: dailyDiscover,
-      trendingSongs: trendingSongs,
-    );
+    // Always fetch raw, dynamic data from YouTube Music API (no hardcoded data)
+    final homeData = await _fetchRawYouTubeHomeData();
 
     _cachedHomeData = homeData;
     await HomeCacheService.instance.saveHomeData(homeData);
@@ -713,6 +910,9 @@ class MusicService {
   }
 
   /// Fetches personalized home recommendations from YouTube Music using account authorization.
+  /// Follows BitChord architecture: queries FEmusic_history for genuine playback history,
+  /// FEmusic_home for personalized algorithmic shelves and Supermixes, and integrates
+  /// two-row and responsive item renderers.
   Future<HomeData?> _fetchPersonalizedHomeData() async {
     try {
       final personalizedRecents = <SongItem>[];
@@ -720,8 +920,26 @@ class MusicService {
       final personalizedAlbums = <AlbumItem>[];
       final personalizedVideos = <VideoItem>[];
       final personalizedHeroCards = <HeroCardItem>[];
+      final seenSongIds = <String>{};
 
-      // 1. Authenticated InnerTube browse for FEmusic_home
+      // 1. Authenticated InnerTube browse for FEmusic_history (User's authentic recent listens)
+      try {
+        final historyJson = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_history'});
+        if (historyJson != null) {
+          final renderers = _collectRenderers(historyJson, 'musicResponsiveListItemRenderer');
+          for (final it in renderers) {
+            final song = parseSongFromRenderer(it);
+            if (song != null && !seenSongIds.contains(song.id)) {
+              seenSongIds.add(song.id);
+              personalizedRecents.add(song);
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('FEmusic_history InnerTube error: $e');
+      }
+
+      // 2. Authenticated InnerTube browse for FEmusic_home
       try {
         final homeJson = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_home'});
         if (homeJson != null) {
@@ -734,37 +952,106 @@ class MusicService {
             final songs = <SongItem>[];
 
             for (final it in items) {
-              if (it is Map && it['musicResponsiveListItemRenderer'] is Map) {
-                final song = parseSongFromRenderer(
-                  it['musicResponsiveListItemRenderer'] as Map<String, dynamic>,
-                );
-                if (song != null) songs.add(song);
+              if (it is Map) {
+                if (it['musicResponsiveListItemRenderer'] is Map) {
+                  final song = parseSongFromRenderer(
+                    it['musicResponsiveListItemRenderer'] as Map<String, dynamic>,
+                  );
+                  if (song != null) {
+                    songs.add(song);
+                    if (!seenSongIds.contains(song.id)) {
+                      seenSongIds.add(song.id);
+                    }
+                  }
+                } else if (it['musicTwoRowItemRenderer'] is Map) {
+                  final twoRow = it['musicTwoRowItemRenderer'] as Map<String, dynamic>;
+                  final title = _extractNodeText(twoRow['title']);
+                  final subtitle = _extractNodeText(twoRow['subtitle']);
+                  final thumb = _extractNodePhoto(twoRow);
+                  final browseId = traverseString(twoRow, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
+                  final videoId = traverseString(twoRow, ['navigationEndpoint', 'watchEndpoint', 'videoId']);
+
+                  if (videoId != null && videoId.isNotEmpty) {
+                    final song = SongItem(
+                      id: videoId,
+                      title: title.isNotEmpty ? title : 'Track',
+                      artist: subtitle.isNotEmpty ? subtitle : 'YouTube Music',
+                      thumbnailUrl: thumb,
+                    );
+                    songs.add(song);
+                  } else if (browseId != null && browseId.isNotEmpty) {
+                    if (browseId.startsWith('MPREb') || browseId.contains('album')) {
+                      personalizedAlbums.add(
+                        AlbumItem(
+                          id: browseId,
+                          title: title.isNotEmpty ? title : 'Album',
+                          artist: subtitle.isNotEmpty ? subtitle : 'Artist',
+                          thumbnailUrl: thumb,
+                          type: 'Album',
+                          isCustom: false,
+                        ),
+                      );
+                    }
+                  }
+                }
               }
             }
 
             if (titleLower.contains('listen again') ||
                 titleLower.contains('recent') ||
-                titleLower.contains('history') ||
-                titleLower.contains('play it again')) {
-              personalizedRecents.addAll(songs);
+                titleLower.contains('play it again') ||
+                titleLower.contains('repeat')) {
+              for (final s in songs) {
+                if (!personalizedRecents.any((r) => r.id == s.id)) {
+                  personalizedRecents.add(s);
+                }
+              }
             } else if (titleLower.contains('quick pick') ||
                 titleLower.contains('recommended') ||
                 titleLower.contains('for you') ||
-                titleLower.contains('favorites')) {
+                titleLower.contains('favorites') ||
+                titleLower.contains('similar to')) {
               personalizedQuickPicks.addAll(songs);
             } else if (titleLower.contains('supermix') ||
                 titleLower.contains('mix') ||
-                titleLower.contains('mixed for you')) {
+                titleLower.contains('mixed for you') ||
+                titleLower.contains('radio')) {
               if (songs.isNotEmpty) {
                 personalizedHeroCards.add(
                   HeroCardItem(
                     id: 'hero_personal_${personalizedHeroCards.length}',
-                    title: sectionTitle.isNotEmpty ? sectionTitle : 'Personal Mix',
+                    title: sectionTitle.isNotEmpty ? sectionTitle : 'Personal Supermix',
                     subtitle: 'For ${_currentAccount?.displayName ?? "You"}',
                     caption: 'YouTube Music • Personalized',
                     imageUrl: songs.first.thumbnailUrl,
                     primaryColor: 0xFF1C1C1E,
                     playTrack: songs.first,
+                  ),
+                );
+              }
+            } else if (titleLower.contains('album') ||
+                titleLower.contains('single') ||
+                titleLower.contains('new release')) {
+              for (final s in songs) {
+                personalizedAlbums.add(
+                  AlbumItem(
+                    id: s.id,
+                    title: s.title,
+                    artist: s.artist,
+                    thumbnailUrl: s.thumbnailUrl,
+                    type: 'Release',
+                    isCustom: false,
+                  ),
+                );
+              }
+            } else if (titleLower.contains('video')) {
+              for (final s in songs) {
+                personalizedVideos.add(
+                  VideoItem(
+                    id: s.id,
+                    title: s.title,
+                    artist: s.artist,
+                    thumbnailUrl: s.thumbnailUrl,
                   ),
                 );
               }
@@ -837,40 +1124,38 @@ class MusicService {
 
       // If personalized content was resolved, build personalized HomeData
       if (personalizedRecents.isNotEmpty || personalizedQuickPicks.isNotEmpty) {
+        final rawHome = await _fetchRawYouTubeHomeData();
         final defaultCategories = await _fetchMoodsAndGenres();
-        final fallbackHero = await _fetchHeroCards();
-        final fallbackAlbums = personalizedAlbums.isNotEmpty
-            ? personalizedAlbums
-            : await _fetchAlbumsAndSingles();
-        final fallbackVideos = personalizedVideos.isNotEmpty
-            ? personalizedVideos
-            : await _fetchMusicVideos();
 
         return HomeData(
           heroCards: personalizedHeroCards.isNotEmpty
               ? [
                   ...personalizedHeroCards,
-                  ...fallbackHero.take(
-                    (3 - personalizedHeroCards.length).clamp(0, 2),
+                  ...rawHome.heroCards.take(
+                    (3 - personalizedHeroCards.length).clamp(0, 3),
                   ),
                 ]
-              : fallbackHero,
+              : rawHome.heroCards,
           recents: personalizedRecents.isNotEmpty
               ? personalizedRecents
-              : await _fetchRecents(),
+              : rawHome.recents,
           quickPicks: personalizedQuickPicks.isNotEmpty
               ? personalizedQuickPicks
-              : await _fetchQuickPicks(),
-          moods: defaultCategories.moods,
-          genres: defaultCategories.genres,
-          albumsAndSingles: fallbackAlbums,
-          musicVideos: fallbackVideos,
-          dailyDiscover: await _fetchDailyDiscover(),
-          trendingSongs: await _fetchTrendingTracks(),
+              : rawHome.quickPicks,
+          moods: defaultCategories.moods.isNotEmpty ? defaultCategories.moods : rawHome.moods,
+          genres: defaultCategories.genres.isNotEmpty ? defaultCategories.genres : rawHome.genres,
+          albumsAndSingles: personalizedAlbums.isNotEmpty
+              ? personalizedAlbums
+              : rawHome.albumsAndSingles,
+          musicVideos: personalizedVideos.isNotEmpty
+              ? personalizedVideos
+              : rawHome.musicVideos,
+          dailyDiscover: rawHome.dailyDiscover,
+          trendingSongs: rawHome.trendingSongs,
         );
       }
     } catch (e) {
-      debugPrint('Personalized home sections fetch error: $e, falling back to curated feed');
+      debugPrint('Personalized home sections fetch error: $e, falling back to raw feed');
     }
     return null;
   }
@@ -949,116 +1234,160 @@ class MusicService {
     return list;
   }
 
-  Future<List<HeroCardItem>> _fetchHeroCards() async {
+  /// Fetches raw home feed sections from YouTube Music API without any hardcoded data.
+  Future<HomeData> _fetchRawYouTubeHomeData() async {
+    final heroCards = <HeroCardItem>[];
+    final recents = <SongItem>[];
+    final quickPicks = <SongItem>[];
+    final albums = <AlbumItem>[];
+    final videos = <VideoItem>[];
+    final dailyDiscover = <SongItem>[];
+    final trendingSongs = <SongItem>[];
+
+    // 1. Fetch raw home sections from YouTube Music API
     try {
-      final aujlaSongs = await searchSongs('Karan Aujla');
-      final shubhSongs = await searchSongs('Shubh');
-      final weekndSongs = await searchSongs('The Weeknd');
+      final sections = await _ytMusic.getHomeSections();
+      for (final section in sections) {
+        final title = section.title.trim();
+        final titleLower = title.toLowerCase();
+        final songs = _extractSongsFromHomeSection(section);
+        final sectionAlbums = _extractAlbumsFromHomeSection(section);
+        final sectionVideos = _extractVideosFromHomeSection(section);
 
-      final aujlaTrack = aujlaSongs.isNotEmpty ? aujlaSongs.first : null;
-      final shubhTrack = shubhSongs.isNotEmpty ? shubhSongs.first : null;
-      final weekndTrack = weekndSongs.isNotEmpty ? weekndSongs.first : null;
+        if (titleLower.contains('quick pick') ||
+            titleLower.contains('start radio') ||
+            titleLower.contains('recommended') ||
+            titleLower.contains('picks')) {
+          quickPicks.addAll(songs);
+        } else if (titleLower.contains('listen again') ||
+            titleLower.contains('recent') ||
+            titleLower.contains('repeat') ||
+            titleLower.contains('history') ||
+            titleLower.contains('forgotten') ||
+            titleLower.contains('again')) {
+          recents.addAll(songs);
+        } else if (titleLower.contains('trend') ||
+            titleLower.contains('chart') ||
+            titleLower.contains('hit') ||
+            titleLower.contains('popular') ||
+            titleLower.contains('top')) {
+          trendingSongs.addAll(songs);
+        } else if (titleLower.contains('discover') ||
+            titleLower.contains('mixed for you') ||
+            titleLower.contains('mix') ||
+            titleLower.contains('for you') ||
+            titleLower.contains('radio') ||
+            titleLower.contains('energy') ||
+            titleLower.contains('chill')) {
+          dailyDiscover.addAll(songs);
+        }
 
-      return [
-        HeroCardItem(
-          id: 'hero_aujla',
-          title: 'AUJLA SZN 1',
-          subtitle: 'New from Karan Aujla',
-          caption: 'EP • 2026',
-          imageUrl: aujlaTrack?.thumbnailUrl ??
-              'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
-          primaryColor: 0xFF2A2825,
-          playTrack: aujlaTrack,
-        ),
-        HeroCardItem(
-          id: 'hero_jaeybxrd',
-          title: 'JaeyBxrd',
-          subtitle: 'Featuring JaeyBxrd',
-          caption: '1.39M monthly audience',
-          imageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&auto=format&fit=crop&q=80',
-          primaryColor: 0xFF1C1C1E,
-          playTrack: shubhTrack,
-        ),
-        HeroCardItem(
-          id: 'hero_weeknd',
-          title: 'After Hours & Dawn',
-          subtitle: 'Featuring The Weeknd',
-          caption: 'Spatial Audio • Hit Mix',
-          imageUrl: weekndTrack?.thumbnailUrl,
-          primaryColor: 0xFF1C1C1E,
-          playTrack: weekndTrack,
-        ),
-      ];
-    } catch (_) {
-      return const [
-        HeroCardItem(
-          id: 'hero_default_1',
-          title: 'AUJLA SZN 1',
-          subtitle: 'New from Karan Aujla',
-          caption: 'EP • 2026',
-          imageUrl:
-              'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
-          primaryColor: 0xFF2A2825,
-        ),
-        HeroCardItem(
-          id: 'hero_default_2',
-          title: 'JaeyBxrd',
-          subtitle: 'Featuring JaeyBxrd',
-          caption: '1.39M monthly audience',
-          imageUrl:
-              'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&auto=format&fit=crop&q=80',
-          primaryColor: 0xFF1C1C1E,
-        ),
-      ];
+        if (sectionAlbums.isNotEmpty ||
+            titleLower.contains('album') ||
+            titleLower.contains('single') ||
+            titleLower.contains('release')) {
+          albums.addAll(sectionAlbums);
+        }
+
+        if (sectionVideos.isNotEmpty || titleLower.contains('video')) {
+          videos.addAll(sectionVideos);
+        }
+
+        // Real Hero Cards from featured sections / mixes
+        if (heroCards.length < 3 && songs.isNotEmpty) {
+          final topSong = songs.first;
+          heroCards.add(
+            HeroCardItem(
+              id: 'hero_${section.title.hashCode}_${heroCards.length}',
+              title: section.title.isNotEmpty ? section.title : topSong.title,
+              subtitle: topSong.artist,
+              caption: 'YouTube Music • Featured',
+              imageUrl: topSong.thumbnailUrl,
+              primaryColor: 0xFF1C1C1E,
+              playTrack: topSong,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('_fetchRawYouTubeHomeData getHomeSections error: $e');
     }
-  }
 
-  Future<List<SongItem>> _fetchRecents() async {
-    try {
-      final songs = await searchSongs('Ken Carson SoFaygo Gunna');
-      if (songs.isNotEmpty) return songs;
-    } catch (_) {}
-    return searchSongs('Hip Hop');
-  }
+    // 2. Fetch real moods and genres from YouTube Music browse API
+    final categories = await _fetchMoodsAndGenres();
 
-  Future<List<AlbumItem>> _fetchAlbumsAndSingles() async {
-    try {
-      final albums = await searchAlbums('Hits 2026');
-      if (albums.isNotEmpty) return albums;
-    } catch (_) {}
-    return searchAlbums('Trending Albums');
-  }
+    // 3. Fallbacks using raw search if specific categories were not in home sections
+    if (quickPicks.isEmpty) {
+      final results = await searchSongs('Top Hits');
+      quickPicks.addAll(results);
+    }
 
-  Future<List<VideoItem>> _fetchMusicVideos() async {
-    try {
-      final videos = await searchVideos('Official Music Video 2026');
-      if (videos.isNotEmpty) return videos;
-    } catch (_) {}
-    return searchVideos('Official Music Video');
-  }
+    if (recents.isEmpty) {
+      if (dailyDiscover.isNotEmpty) {
+        recents.addAll(dailyDiscover);
+      } else if (quickPicks.isNotEmpty) {
+        recents.addAll(quickPicks.skip(quickPicks.length > 4 ? 4 : 0));
+      }
+    }
 
-  Future<List<SongItem>> _fetchDailyDiscover() async {
-    try {
-      final songs = await searchSongs('Daily Discover');
-      if (songs.isNotEmpty) return songs;
-    } catch (_) {}
-    return searchSongs('Top Discover Weekly');
-  }
+    if (trendingSongs.isEmpty) {
+      if (quickPicks.isNotEmpty) {
+        trendingSongs.addAll(quickPicks);
+      }
+    }
 
-  Future<List<SongItem>> _fetchTrendingTracks() async {
-    try {
-      final songs = await searchSongs('Trending top hits');
-      if (songs.isNotEmpty) return songs;
-    } catch (_) {}
-    return searchSongs('Top hits');
-  }
+    if (dailyDiscover.isEmpty) {
+      if (trendingSongs.isNotEmpty) {
+        dailyDiscover.addAll(trendingSongs);
+      } else if (quickPicks.isNotEmpty) {
+        dailyDiscover.addAll(quickPicks);
+      }
+    }
 
-  Future<List<SongItem>> _fetchQuickPicks() async {
-    try {
-      final songs = await searchSongs('Billboard Hot 100');
-      if (songs.isNotEmpty) return songs;
-    } catch (_) {}
-    return [];
+    if (albums.isEmpty) {
+      try {
+        final rawAlbums = await searchAlbums('Top Albums');
+        albums.addAll(rawAlbums);
+      } catch (_) {}
+    }
+
+    if (videos.isEmpty) {
+      try {
+        final rawVideos = await searchVideos('Official Music Videos');
+        videos.addAll(rawVideos);
+      } catch (_) {}
+    }
+
+    // Ensure heroCards has real items from the top songs
+    if (heroCards.isEmpty) {
+      final pool = [...quickPicks, ...recents, ...trendingSongs];
+      for (int i = 0; i < pool.length && heroCards.length < 3; i++) {
+        final track = pool[i];
+        heroCards.add(
+          HeroCardItem(
+            id: 'hero_track_${track.id}_$i',
+            title: track.title,
+            subtitle: track.artist,
+            caption: 'YouTube Music • Featured',
+            imageUrl: track.thumbnailUrl,
+            primaryColor: 0xFF1C1C1E,
+            playTrack: track,
+          ),
+        );
+      }
+    }
+
+    return HomeData(
+      heroCards: heroCards,
+      recents: recents,
+      quickPicks: quickPicks,
+      moods: categories.moods,
+      genres: categories.genres,
+      albumsAndSingles: albums,
+      musicVideos: videos,
+      dailyDiscover: dailyDiscover,
+      trendingSongs: trendingSongs,
+    );
   }
 
   Future<List<AlbumItem>> searchAlbums(String query) async {
@@ -1569,48 +1898,59 @@ class MusicService {
     return [];
   }
 
-  /// Fetches Liked Music ('LM') from the logged-in YouTube Music user account.
+  /// Fetches Liked Music ('LM' / 'VLLM') from the logged-in YouTube Music user account.
+  /// Follows continuation tokens up to 10 pages (~1,000 tracks) as in BitChord.
   Future<List<SongItem>> getLikedSongs() async {
     if (!_isInitialized) {
       await initialize();
     }
 
     if (_currentAccount != null) {
-      // 1. Authenticated InnerTube request for user's full Liked Music playlist
+      final songs = <SongItem>[];
+      final seenIds = <String>{};
+
+      void addSongs(dynamic root) {
+        if (root == null) return;
+        final renderers = _collectRenderers(root, 'musicResponsiveListItemRenderer');
+        for (final r in renderers) {
+          final s = parseSongFromRenderer(r);
+          if (s != null && !seenIds.contains(s.id)) {
+            seenIds.add(s.id);
+            songs.add(s);
+          }
+        }
+      }
+
+      // 1. Authenticated InnerTube request for VLLM (authoritative browse ID in BitChord)
       try {
-        final data = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_liked_videos'});
+        var data = await postInnerTube('browse', bodyExtras: {'browseId': 'VLLM'});
+        data ??= await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_liked_videos'});
+
         if (data != null) {
-          final renderers = _collectRenderers(data, 'musicResponsiveListItemRenderer');
-          final parsed = renderers
-              .map(parseSongFromRenderer)
-              .whereType<SongItem>()
-              .toList();
-          if (parsed.isNotEmpty) {
-            return parsed;
+          addSongs(data);
+
+          // Follow continuation tokens up to 10 pages
+          int pages = 0;
+          String? token = extractContinuationToken(data);
+          while (token != null && token.isNotEmpty && pages < 10) {
+            pages++;
+            final nextData = await browseContinuation(token);
+            if (nextData == null) break;
+            final prevCount = songs.length;
+            addSongs(nextData);
+            if (songs.length == prevCount) break;
+            token = extractContinuationToken(nextData);
+          }
+
+          if (songs.isNotEmpty) {
+            return songs;
           }
         }
       } catch (e) {
-        debugPrint('getLikedSongs FEmusic_liked_videos error: $e');
+        debugPrint('getLikedSongs InnerTube VLLM error: $e');
       }
 
-      // 2. Authenticated InnerTube request for VLLM
-      try {
-        final data = await postInnerTube('browse', bodyExtras: {'browseId': 'VLLM'});
-        if (data != null) {
-          final renderers = _collectRenderers(data, 'musicResponsiveListItemRenderer');
-          final parsed = renderers
-              .map(parseSongFromRenderer)
-              .whereType<SongItem>()
-              .toList();
-          if (parsed.isNotEmpty) {
-            return parsed;
-          }
-        }
-      } catch (e) {
-        debugPrint('getLikedSongs VLLM error: $e');
-      }
-
-      // 3. Fallback to _ytMusic.getPlaylistVideos
+      // 2. Fallback to _ytMusic.getPlaylistVideos('LM')
       try {
         final videos = await _ytMusic.getPlaylistVideos('LM');
         if (videos.isNotEmpty) {
@@ -2384,10 +2724,20 @@ class MusicService {
       }
     }
 
-    // 1. Authenticated InnerTube liked playlists
+    // 1. Authenticated InnerTube liked playlists & library corpus
     try {
       final likedData = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_liked_playlists'});
       extractPlaylistsFromData(likedData);
+
+      String? token = extractContinuationToken(likedData);
+      int p = 0;
+      while (token != null && token.isNotEmpty && p < 5) {
+        p++;
+        final next = await browseContinuation(token);
+        if (next == null) break;
+        extractPlaylistsFromData(next);
+        token = extractContinuationToken(next);
+      }
     } catch (e) {
       debugPrint('getUserPlaylists liked playlists error: $e');
     }
@@ -2445,28 +2795,31 @@ class MusicService {
     final albums = <AlbumItem>[];
     final seenIds = <String>{};
 
-    // 1. Authenticated InnerTube library saved albums
+    // 1. Authenticated InnerTube library saved & liked albums
     try {
-      final data = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_library_corpus_albums'});
-      if (data != null) {
-        final items = _collectRenderers(data, 'musicTwoRowItemRenderer');
-        for (final item in items) {
-          final browseId = traverseString(item, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
-          if (browseId != null && browseId.isNotEmpty && !seenIds.contains(browseId)) {
-            seenIds.add(browseId);
-            final title = _extractNodeText(item['title']);
-            final artist = _extractNodeText(item['subtitle']);
-            final thumb = _extractNodePhoto(item);
-            albums.add(
-              AlbumItem(
-                id: browseId,
-                title: title.isNotEmpty ? title : 'Album',
-                artist: artist.isNotEmpty ? artist : 'Unknown Artist',
-                thumbnailUrl: thumb,
-                type: 'Album',
-                isCustom: false,
-              ),
-            );
+      final feedIds = ['FEmusic_liked_albums', 'FEmusic_library_corpus_albums'];
+      for (final feedId in feedIds) {
+        final data = await postInnerTube('browse', bodyExtras: {'browseId': feedId});
+        if (data != null) {
+          final items = _collectRenderers(data, 'musicTwoRowItemRenderer');
+          for (final item in items) {
+            final browseId = traverseString(item, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
+            if (browseId != null && browseId.isNotEmpty && !seenIds.contains(browseId)) {
+              seenIds.add(browseId);
+              final title = _extractNodeText(item['title']);
+              final artist = _extractNodeText(item['subtitle']);
+              final thumb = _extractNodePhoto(item);
+              albums.add(
+                AlbumItem(
+                  id: browseId,
+                  title: title.isNotEmpty ? title : 'Album',
+                  artist: artist.isNotEmpty ? artist : 'Unknown Artist',
+                  thumbnailUrl: thumb,
+                  type: 'Album',
+                  isCustom: false,
+                ),
+              );
+            }
           }
         }
       }
@@ -2523,25 +2876,28 @@ class MusicService {
 
     // 1. Authenticated InnerTube library subscribed artists
     try {
-      final data = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_library_corpus_artists'});
-      if (data != null) {
-        final items = _collectRenderers(data, 'musicTwoRowItemRenderer');
-        for (final item in items) {
-          final browseId = traverseString(item, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
-          if (browseId != null && browseId.isNotEmpty && !seenIds.contains(browseId)) {
-            seenIds.add(browseId);
-            final name = _extractNodeText(item['title']);
-            final subscribers = _extractNodeText(item['subtitle']);
-            final thumb = _extractNodePhoto(item);
-            artists.add(
-              ArtistItem(
-                id: browseId,
-                name: name.isNotEmpty ? name : 'Artist',
-                thumbnailUrl: thumb,
-                subscribers: subscribers.isNotEmpty ? subscribers : 'Subscribed',
-                isCustom: false,
-              ),
-            );
+      final feedIds = ['FEmusic_library_corpus_track_artists', 'FEmusic_library_corpus_artists'];
+      for (final feedId in feedIds) {
+        final data = await postInnerTube('browse', bodyExtras: {'browseId': feedId});
+        if (data != null) {
+          final items = _collectRenderers(data, 'musicTwoRowItemRenderer');
+          for (final item in items) {
+            final browseId = traverseString(item, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
+            if (browseId != null && browseId.isNotEmpty && !seenIds.contains(browseId)) {
+              seenIds.add(browseId);
+              final name = _extractNodeText(item['title']);
+              final subscribers = _extractNodeText(item['subtitle']);
+              final thumb = _extractNodePhoto(item);
+              artists.add(
+                ArtistItem(
+                  id: browseId,
+                  name: name.isNotEmpty ? name : 'Artist',
+                  thumbnailUrl: thumb,
+                  subscribers: subscribers.isNotEmpty ? subscribers : 'Subscribed',
+                  isCustom: false,
+                ),
+              );
+            }
           }
         }
       }
@@ -2737,56 +3093,76 @@ class MusicService {
   }
 
   Future<({List<MusicCategory> moods, List<MusicCategory> genres})> _fetchMoodsAndGenres() async {
+    final List<MusicCategory> parsedMoods = [];
+    final List<MusicCategory> parsedGenres = [];
+
     try {
-      final moodRes = await _ytMusic.constructRequest(
+      dynamic moodRes;
+      if (_currentAccount != null) {
+        moodRes = await postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_moods_and_genres'});
+      }
+      moodRes ??= await _ytMusic.constructRequest(
         'browse',
         body: {'browseId': 'FEmusic_moods_and_genres'},
       );
 
-      if (moodRes is! Map) {
-        return (moods: _defaultMoods, genres: _defaultGenres);
-      }
+      if (moodRes is Map) {
+        final tabs = traverseList(moodRes, ['contents', 'singleColumnBrowseResultsRenderer', 'tabs']);
+        final sectionContents = tabs.firstOrNull?['tabRenderer']?['content']?['sectionListRenderer']?['contents'] as List? ?? [];
 
-      final tabs = traverseList(moodRes, ['contents', 'singleColumnBrowseResultsRenderer', 'tabs']);
-      final sectionContents = tabs.firstOrNull?['tabRenderer']?['content']?['sectionListRenderer']?['contents'] as List? ?? [];
+        for (final section in sectionContents) {
+          final title = traverseString(section, ['gridRenderer', 'header', 'gridHeaderRenderer', 'title', 'runs']) ??
+              traverseString(section, ['musicCarouselShelfRenderer', 'header', 'musicCarouselShelfBasicHeaderRenderer', 'title', 'runs']) ??
+              '';
 
-      final List<MusicCategory> parsedMoods = [];
-      final List<MusicCategory> parsedGenres = [];
+          final items = (section['gridRenderer']?['items'] as List?) ??
+              (section['musicCarouselShelfRenderer']?['contents'] as List?) ??
+              [];
 
-      for (final section in sectionContents) {
-        final title = traverseString(section, ['gridRenderer', 'header', 'gridHeaderRenderer', 'title', 'runs']) ??
-            traverseString(section, ['musicCarouselShelfRenderer', 'header', 'musicCarouselShelfBasicHeaderRenderer', 'title', 'runs']) ??
-            '';
+          for (final it in items) {
+            final btn = it['musicNavigationButtonRenderer'];
+            if (btn == null) continue;
+            final textRuns = btn['buttonText']?['runs'] as List? ?? [];
+            final text = textRuns.isNotEmpty ? textRuns.first['text'] as String? ?? '' : '';
+            final color = (btn['solid']?['leftStripeColor'] as num?)?.toInt();
 
-        final items = (section['gridRenderer']?['items'] as List?) ??
-            (section['musicCarouselShelfRenderer']?['contents'] as List?) ??
-            [];
+            if (text.isNotEmpty) {
+              final cat = MusicCategory(title: text, colorValue: color);
+              if (title.toLowerCase().contains('mood') || title.toLowerCase().contains('moment')) {
+                parsedMoods.add(cat);
+              } else {
+                parsedGenres.add(cat);
+              }
+            }
+          }
+        }
 
-        for (final it in items) {
-          final btn = it['musicNavigationButtonRenderer'];
-          if (btn == null) continue;
-          final textRuns = btn['buttonText']?['runs'] as List? ?? [];
-          final text = textRuns.isNotEmpty ? textRuns.first['text'] as String? ?? '' : '';
-          final color = (btn['solid']?['leftStripeColor'] as num?)?.toInt();
-
-          if (text.isNotEmpty) {
-            final cat = MusicCategory(title: text, colorValue: color);
-            if (title.toLowerCase().contains('mood') || title.toLowerCase().contains('moment')) {
-              parsedMoods.add(cat);
-            } else {
-              parsedGenres.add(cat);
+        // If sectionContents didn't yield items, collect any navigation buttons
+        if (parsedMoods.isEmpty && parsedGenres.isEmpty) {
+          final buttons = _collectRenderers(moodRes, 'musicNavigationButtonRenderer');
+          for (int i = 0; i < buttons.length; i++) {
+            final btn = buttons[i];
+            final text = _extractNodeText(btn['buttonText']).trim();
+            final color = (btn['solid']?['leftStripeColor'] as num?)?.toInt();
+            if (text.isNotEmpty) {
+              final cat = MusicCategory(title: text, colorValue: color);
+              if (i < 8) {
+                parsedMoods.add(cat);
+              } else {
+                parsedGenres.add(cat);
+              }
             }
           }
         }
       }
-
-      return (
-        moods: parsedMoods.isNotEmpty ? parsedMoods : _defaultMoods,
-        genres: parsedGenres.isNotEmpty ? parsedGenres : _defaultGenres,
-      );
-    } catch (_) {
-      return (moods: _defaultMoods, genres: _defaultGenres);
+    } catch (e) {
+      debugPrint('_fetchMoodsAndGenres error: $e');
     }
+
+    return (
+      moods: parsedMoods,
+      genres: parsedGenres,
+    );
   }
 
   /// Fetches lyrics using either lrc.red (Apple Music TTML / word-synced) or YouTube Music.

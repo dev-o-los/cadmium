@@ -10,16 +10,14 @@ import '../utils/playback_utils.dart';
 import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_pressable.dart';
+import '../widgets/top_profile_avatar_button.dart';
 import '../widgets/track_options_sheet.dart';
 
 /// The Explore Tab screen featuring Genres & Categories grid and Global Hits & Charts.
 class ExploreScreen extends ConsumerWidget {
   final ValueChanged<String>? onSearch;
 
-  const ExploreScreen({
-    super.key,
-    this.onSearch,
-  });
+  const ExploreScreen({super.key, this.onSearch});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -30,14 +28,20 @@ class ExploreScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 160),
       children: [
-        const Text(
-          'Explore',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 34,
-            fontWeight: FontWeight.bold,
-            letterSpacing: -1.2,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Explore',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 34,
+                fontWeight: FontWeight.bold,
+                letterSpacing: -1.2,
+              ),
+            ),
+            const TopProfileAvatarButton(),
+          ],
         ),
         const SizedBox(height: 16),
         const Text(
@@ -107,12 +111,19 @@ class ExploreScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-        ...trending.take(10).map((track) => _buildSongRow(context, ref, track, trending)),
+        ...trending
+            .take(10)
+            .map((track) => _buildSongRow(context, ref, track, trending)),
       ],
     );
   }
 
-  Widget _buildSongRow(BuildContext context, WidgetRef ref, SongItem song, List<SongItem> allTracks) {
+  Widget _buildSongRow(
+    BuildContext context,
+    WidgetRef ref,
+    SongItem song,
+    List<SongItem> allTracks,
+  ) {
     final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
     final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
     final isSelected = currentSong?.id == song.id;
@@ -231,4 +242,3 @@ class ExploreScreen extends ConsumerWidget {
     );
   }
 }
-
