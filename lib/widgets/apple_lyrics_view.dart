@@ -357,18 +357,19 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
   }
 
   int _computeActiveIndex(int currentMs) {
-    final idx = LyricsService.computeActiveLyricIndex(currentMs, _displayLyrics);
+    final idx = LyricsService.computeActiveLyricIndex(currentMs, _displayLyrics, leadInMs: 500);
     if (idx >= 0) return idx;
 
     // During momentary pauses between lines, hold the last active lyric line
-    // so lyrics don't collapse or flicker before the next line begins
+    // until the next line enters its pre-scroll lead-in window (500ms before start)
     if (_activeLyricIndex >= 0 && _activeLyricIndex < _displayLyrics.length) {
       final currentLine = _displayLyrics[_activeLyricIndex];
-      final currentStart = currentLine.startTimeMs ?? 0;
+      final currentStart = math.max(0, (currentLine.startTimeMs ?? 0) - 500);
       if (currentMs >= currentStart) {
         if (_activeLyricIndex + 1 < _displayLyrics.length) {
           final nextStart = _displayLyrics[_activeLyricIndex + 1].startTimeMs;
-          if (nextStart != null && currentMs < nextStart) {
+          final nextLead = nextStart != null ? math.max(0, nextStart - 500) : null;
+          if (nextLead != null && currentMs < nextLead) {
             return _activeLyricIndex;
           }
         } else {
@@ -400,7 +401,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
         targetContext,
         alignment: 0.0, // Positions active live lyric exactly beneath the album art header
         alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
-        duration: immediate ? Duration.zero : const Duration(milliseconds: 320),
+        duration: immediate ? Duration.zero : const Duration(milliseconds: 400),
         curve: Curves.easeOutCubic,
       );
     } else {
@@ -413,7 +414,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
             postContext,
             alignment: 0.0,
             alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
-            duration: immediate ? Duration.zero : const Duration(milliseconds: 320),
+            duration: immediate ? Duration.zero : const Duration(milliseconds: 400),
             curve: Curves.easeOutCubic,
           );
         }
@@ -584,24 +585,21 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
                   Colors.black,
                   Colors.transparent,
                 ],
-                stops: [0.0, 0.02, 0.88, 1.0],
+                stops: [0.0, 0.09, 0.86, 1.0],
               ).createShader(bounds);
             },
             blendMode: BlendMode.dstIn,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: ListView.builder(
-                controller: _scrollController,
-                physics: const BouncingScrollPhysics(),
-                cacheExtent: 2500.0,
-                padding: const EdgeInsets.only(top: 16, bottom: 220),
-                itemCount: displayLines.length + 1,
-                itemBuilder: (context, index) {
-                  if (index == displayLines.length) {
-                    return _buildAttributionFooter();
-                  }
-                  return _buildLyricLineItem(displayLines, index);
-                },
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.only(top: 14, bottom: 260, left: 24, right: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (int i = 0; i < displayLines.length; i++)
+                    _buildLyricLineItem(displayLines, i),
+                  _buildAttributionFooter(),
+                ],
               ),
             ),
           ),
@@ -637,7 +635,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     if (isActive) {
       opacity = 1.0;
     } else if (index < _activeLyricIndex) {
-      // Past line: dimmer as it scrolls away into the top fade
+      // Past line: dimmer as it scrolls away and fades into the top upside vignette
       opacity = 0.28;
     } else {
       // Upcoming line: readable secondary tone
@@ -655,18 +653,18 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
       pressedScale: 0.96,
       pressedOpacity: 0.85,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 360),
+        duration: const Duration(milliseconds: 400),
         curve: Curves.easeOutCubic,
         alignment: alignment,
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: AnimatedScale(
           scale: scale,
-          duration: const Duration(milliseconds: 360),
+          duration: const Duration(milliseconds: 400),
           curve: Curves.easeOutCubic,
           alignment: line.isOppositeTurn ? Alignment.centerRight : Alignment.centerLeft,
           child: AnimatedOpacity(
             opacity: opacity,
-            duration: const Duration(milliseconds: 360),
+            duration: const Duration(milliseconds: 400),
             curve: Curves.easeOutCubic,
             child: line.isWordSynced && line.syllables.isNotEmpty
                 ? (isActive

@@ -1005,22 +1005,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                             ),
                           ),
                           _buildLiquidGlassButton(
-                            size: 34,
+                            size: 36,
                             onTap: () => ref.read(favoritesProvider.notifier).toggleFavorite(song),
                             icon: AnimatedCupertinoIcon(
                               icon: isFavorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
-                              color: isFavorite ? Colors.white : Colors.white70,
-                              size: 16,
+                              color: Colors.white,
+                              size: 17,
                             ),
                           ),
                           const SizedBox(width: 8),
                           _buildLiquidGlassButton(
-                            size: 34,
+                            size: 36,
                             onTap: () => _showSongOptionsSheet(song),
                             icon: const AnimatedCupertinoIcon(
                               icon: CupertinoIcons.ellipsis,
-                              color: Colors.white70,
-                              size: 15,
+                              color: Colors.white,
+                              size: 16,
                             ),
                           ),
                         ],
@@ -1288,23 +1288,49 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     );
   }
 
-  /// Reusable circular Liquid Glass button for actions like favourite and ellipsis
+  /// Reusable circular Liquid Glass button for actions like favourite and ellipsis.
+  /// Uses a high-contrast dark frosted glass backing + crisp white border rim + backdrop blur
+  /// to ensure the button and icon are sharply visible over any album art (light or dark).
   Widget _buildLiquidGlassButton({
     required Widget icon,
     required VoidCallback onTap,
-    double size = 34,
+    double size = 36,
   }) {
     return ApplePressable(
       onTap: onTap,
       borderRadius: BorderRadius.circular(size / 2),
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.12),
-          shape: BoxShape.circle,
+      child: ClipOval(
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.38),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.32),
+                width: 0.9,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.30),
+                  blurRadius: 6,
+                  offset: const Offset(0, 1.5),
+                ),
+              ],
+            ),
+            child: Center(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(child: icon),
+              ),
+            ),
+          ),
         ),
-        child: Center(child: icon),
       ),
     );
   }
@@ -1397,30 +1423,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
 
           // Liquid Glass Star / Favourite Button
           _buildLiquidGlassButton(
-            size: 34,
+            size: 36,
             onTap: () {
               ref.read(favoritesProvider.notifier).toggleFavorite(song);
               _resetAutoHideTimer();
             },
             icon: AnimatedCupertinoIcon(
               icon: isFavorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
-              color: isFavorite ? Colors.white : Colors.white.withValues(alpha: 0.85),
-              size: 16,
+              color: Colors.white,
+              size: 17,
             ),
           ),
           const SizedBox(width: 8),
 
           // Liquid Glass 3-dots Button
           _buildLiquidGlassButton(
-            size: 34,
+            size: 36,
             onTap: () {
               _showSongOptionsSheet(song);
               _cancelAutoHideTimer();
             },
-            icon: AnimatedCupertinoIcon(
+            icon: const AnimatedCupertinoIcon(
               icon: CupertinoIcons.ellipsis,
-              color: Colors.white.withValues(alpha: 0.85),
-              size: 15,
+              color: Colors.white,
+              size: 16,
             ),
           ),
         ],

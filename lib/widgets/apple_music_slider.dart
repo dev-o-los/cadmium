@@ -56,7 +56,7 @@ class _AppleMusicSliderState extends State<AppleMusicSlider>
       duration: const Duration(milliseconds: 160),
     );
 
-    _trackHeightAnimation = Tween<double>(begin: 4.5, end: 7.5).animate(
+    _trackHeightAnimation = Tween<double>(begin: 6.5, end: 10.0).animate(
       CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
     );
   }
@@ -109,7 +109,7 @@ class _AppleMusicSliderState extends State<AppleMusicSlider>
                 thumbColor: Colors.transparent,
               ),
               child: SizedBox(
-                height: 22,
+                height: 26,
                 child: Slider(
                   min: widget.min,
                   max: safeMax,
@@ -160,7 +160,7 @@ class _AppleMusicSliderState extends State<AppleMusicSlider>
 class AppleSliderTrackShape extends SliderTrackShape with BaseSliderTrackShape {
   final double trackHeight;
 
-  const AppleSliderTrackShape({this.trackHeight = 4.5});
+  const AppleSliderTrackShape({this.trackHeight = 6.5});
 
   @override
   Rect getPreferredRect({

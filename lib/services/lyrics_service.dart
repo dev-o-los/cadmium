@@ -465,15 +465,15 @@ class LyricsService {
   /// Computes the exact active lyric line index for [currentMs] within [lyrics].
   ///
   /// Features:
-  /// - Automatic 180ms lead-in anticipation so that upcoming lines scroll into
-  ///   position right as vocal delivery begins, eliminating perceived lag.
+  /// - Automatic 500ms pre-scroll lead-in anticipation so that upcoming lines scroll into
+  ///   top position beneath album art BEFORE vocal delivery begins, eliminating perceived lag.
   /// - Priority-based matching for overlapping vocals (duets, backing vocals):
   ///   Lead vocals (!isBackground) are prioritized over background vocals.
   ///   The line that began most recently (highest startTimeMs <= currentMs) takes precedence.
   /// - Instrumental gap lines (text == '') are matched directly when [currentMs] falls in their range.
   /// - Natural vocal pauses (< 2.5s) keep the preceding lyric active.
   /// - Returns -1 if playback is in an unvoiced intro or break before any line starts.
-  static int computeActiveLyricIndex(int currentMs, List<LyricLine> lyrics, {int leadInMs = 180}) {
+  static int computeActiveLyricIndex(int currentMs, List<LyricLine> lyrics, {int leadInMs = 500}) {
     if (lyrics.isEmpty) return -1;
 
     // 1. Guard: If before first line starts and first line is not an intro gap
