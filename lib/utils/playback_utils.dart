@@ -25,6 +25,8 @@ void showWavifySnackBar(BuildContext context, String message) {
   );
 }
 
+const showCadmiumSnackBar = showWavifySnackBar;
+
 /// Flight shuttle builder for smooth, lag-free morphing of album artwork between
 /// the mini player and full player screen, gradually interpolating corner radii.
 Widget playerHeroFlightShuttleBuilder(

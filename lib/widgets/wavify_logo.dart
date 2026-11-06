@@ -39,6 +39,7 @@ class AurumLogo extends StatelessWidget {
 }
 
 /// Backwards-compatible aliases for [AurumLogo].
+typedef CadmiumLogo = AurumLogo;
 typedef MelomaniacLogo = AurumLogo;
 typedef WavifyLogo = AurumLogo;
 

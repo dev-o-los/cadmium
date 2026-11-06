@@ -789,7 +789,7 @@ class LyricsService {
   Future<String?> _getString(Uri uri) async {
     try {
       final request = await _httpClient.getUrl(uri).timeout(const Duration(seconds: 5));
-      request.headers.set('User-Agent', 'Wavify-Lyrics/1.0 (Flutter; Mobile)');
+      request.headers.set('User-Agent', 'Cadmium-Lyrics/1.0 (Flutter; Mobile)');
       request.headers.set('Accept', 'application/xml, text/xml, */*');
 
       final response = await request.close().timeout(const Duration(seconds: 5));
@@ -805,7 +805,7 @@ class LyricsService {
   Future<Map<String, dynamic>?> _getJson(Uri uri) async {
     try {
       final request = await _httpClient.getUrl(uri).timeout(const Duration(seconds: 5));
-      request.headers.set('User-Agent', 'Wavify-Lyrics/1.0 (Flutter; Mobile)');
+      request.headers.set('User-Agent', 'Cadmium-Lyrics/1.0 (Flutter; Mobile)');
       request.headers.set('Accept', 'application/json');
 
       final response = await request.close().timeout(const Duration(seconds: 5));

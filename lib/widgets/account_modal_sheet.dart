@@ -175,7 +175,7 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Sign In to Wavify',
+                'Sign In to Cadmium',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white,

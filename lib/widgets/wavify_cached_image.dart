@@ -324,3 +324,6 @@ class _CascadingCachedImage extends StatelessWidget {
     );
   }
 }
+
+/// Backwards-compatible aliases for [WavifyCachedImage].
+typedef CadmiumCachedImage = WavifyCachedImage;
