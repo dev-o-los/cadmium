@@ -223,15 +223,26 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      // Account modal sheet displays only user details and the single clean Log Out button
+      // Account modal sheet displays only user details, settings tile, and the single clean Log Out button
       expect(find.text('Utkarsh Google'), findsOneWidget);
       expect(find.text('utkarsh@gmail.com'), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
       expect(find.text('Log Out'), findsOneWidget);
 
-      // Verify AI-looking switches and text are removed
+      // Verify removed items
+      expect(find.text('Sync Library & Home Feed'), findsNothing);
+      expect(find.text('Connected to YouTube'), findsNothing);
       expect(find.text('YouTube Music Connected'), findsNothing);
       expect(find.text('Personalized Feed'), findsNothing);
       expect(find.text('Refresh Recommendations'), findsNothing);
+
+      // Tap on Settings tile and verify SettingsScreen is pushed
+      await tester.tap(find.text('Settings'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('PLAYBACK & AUDIO'), findsOneWidget);
+      expect(find.text('High Quality Streaming'), findsOneWidget);
     });
 
     testWidgets('When not signed in, tapping top-right icon opens dialogue and transfers to GoogleSignInScreen',

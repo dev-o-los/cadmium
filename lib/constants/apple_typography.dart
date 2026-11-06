@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'app_colors.dart';
 
 /// Central Apple Music typography system adhering to Apple Human Interface Guidelines (HIG)

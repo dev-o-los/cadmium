@@ -2,10 +2,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../constants/apple_typography.dart';
 import '../providers/auth_provider.dart';
-import '../providers/home_data_provider.dart';
-import '../providers/library_provider.dart';
 import '../screens/google_signin_screen.dart';
+import '../screens/settings_screen.dart';
 import 'apple_glass_bottom_sheet.dart';
 import 'apple_pressable.dart';
 import 'wavify_cached_image.dart';
@@ -24,7 +24,7 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Account Overview Card (matching BitChord's AccountCard)
+                // Profile Header Card: Avatar, Full Name, and Username
                 AppleSheetGroup(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -49,33 +49,33 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
                             child: ClipOval(
                               child:
                                   account.avatarUrl != null &&
-                                      account.avatarUrl!.isNotEmpty
-                                  ? WavifyCachedImage(
-                                      imageUrl: account.avatarUrl!,
-                                      width: 56,
-                                      height: 56,
-                                      fit: BoxFit.cover,
-                                      errorWidget: Center(
-                                        child: Text(
-                                          account.initials,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.bold,
+                                          account.avatarUrl!.isNotEmpty
+                                      ? WavifyCachedImage(
+                                          imageUrl: account.avatarUrl!,
+                                          width: 56,
+                                          height: 56,
+                                          fit: BoxFit.cover,
+                                          errorWidget: Center(
+                                            child: Text(
+                                              account.initials,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 20,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                      : Center(
+                                          child: Text(
+                                            account.initials,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                    )
-                                  : Center(
-                                      child: Text(
-                                        account.initials,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
                             ),
                           ),
                         ),
@@ -86,47 +86,23 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
                             children: [
                               Text(
                                 account.displayName,
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppleTypography.songTitle.copyWith(
                                   fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: -0.3,
                                 ),
                               ),
                               if (account.email.isNotEmpty) ...[
-                                const SizedBox(height: 2),
+                                const SizedBox(
+                                  height: AppleSpacing.titleToSubtitle,
+                                ),
                                 Text(
                                   account.email,
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.75),
-                                    fontSize: 13,
-                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppleTypography.songArtist,
                                 ),
                               ],
-                              const SizedBox(height: 6),
-                              Row(
-                                children: [
-                                  Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: const BoxDecoration(
-                                      color: Colors.greenAccent,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Connected to YouTube',
-                                    style: TextStyle(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.65,
-                                      ),
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
                             ],
                           ),
                         ),
@@ -136,42 +112,32 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
                 ),
                 const SizedBox(height: 8),
                 const AppleSheetDivider(indent: 0, endIndent: 0),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
 
-                // Account Actions Group
+                // Actions Group: Settings & Log Out
                 AppleSheetGroup(
                   children: [
                     AppleSheetActionTile(
-                      leading: const Icon(
-                        CupertinoIcons.arrow_2_circlepath,
-                        color: Colors.white,
-                        size: 20,
+                      icon: CupertinoIcons.gear_alt,
+                      title: 'Settings',
+                      trailing: const Icon(
+                        CupertinoIcons.chevron_forward,
+                        color: Colors.white38,
+                        size: 16,
                       ),
-                      title: 'Sync Library & Home Feed',
                       onTap: () {
-                        ref.read(homeDataProvider.notifier).refresh();
-                        ref
-                            .read(youtubeLikedSongsProvider.notifier)
-                            .fetchLikedSongs();
                         Navigator.pop(modalCtx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Syncing your YouTube Music account...',
-                            ),
-                            backgroundColor: Color(0xFF1C1C1E),
-                            duration: Duration(seconds: 2),
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SettingsScreen(),
                           ),
                         );
                       },
                     ),
                     const AppleSheetDivider(),
                     AppleSheetActionTile(
-                      leading: const Icon(
-                        CupertinoIcons.arrow_right_square,
-                        color: Colors.white,
-                        size: 22,
-                      ),
+                      icon: CupertinoIcons.arrow_right_square,
                       title: 'Log Out',
                       onTap: () {
                         Navigator.pop(modalCtx);
@@ -184,7 +150,7 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
             );
           }
 
-          // Not Signed In: Clean Apple-styled Sign-In promotion
+          // Not Signed In: Clean Apple-styled Sign-In promotion + Settings
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -277,6 +243,26 @@ void showAccountModalSheet(BuildContext context, WidgetRef ref) {
                     ],
                   ),
                 ),
+              ),
+              const SizedBox(height: 12),
+              const AppleSheetDivider(indent: 0, endIndent: 0),
+              AppleSheetActionTile(
+                icon: CupertinoIcons.gear_alt,
+                title: 'Settings',
+                trailing: const Icon(
+                  CupertinoIcons.chevron_forward,
+                  color: Colors.white38,
+                  size: 16,
+                ),
+                onTap: () {
+                  Navigator.pop(modalCtx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SettingsScreen(),
+                    ),
+                  );
+                },
               ),
             ],
           );
