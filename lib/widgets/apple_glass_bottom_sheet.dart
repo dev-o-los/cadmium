@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../constants/apple_typography.dart';
 import 'apple_pressable.dart';
 
 /// Shows an authentic bottom sheet with a deep black surface,
@@ -190,24 +191,15 @@ class AppleSheetActionTile extends StatelessWidget {
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: -0.2,
-                    ),
+                    style: AppleTypography.sheetAction,
                   ),
                   if (subtitle != null && subtitle!.isNotEmpty) ...[
-                    const SizedBox(height: 3),
+                    const SizedBox(height: AppleSpacing.titleToSubtitle),
                     Text(
                       subtitle!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.85),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w400,
-                      ),
+                      style: AppleTypography.sheetSubtitle,
                     ),
                   ],
                 ],

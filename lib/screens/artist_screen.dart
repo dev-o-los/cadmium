@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../constants/app_colors.dart';
+import '../constants/apple_typography.dart';
 import '../models/album_item.dart';
 import '../models/artist_details.dart';
 import '../models/artist_item.dart';
@@ -780,15 +781,10 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
           padding: EdgeInsets.symmetric(horizontal: 20),
           child: Text(
             'Top songs',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.6,
-            ),
+            style: AppleTypography.sectionTitle,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppleSpacing.sectionHeaderToContent),
         if (_isLoading && songs.isEmpty)
           _buildTopSongsSkeleton()
         else
@@ -865,26 +861,17 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                                             song.title,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w600,
-                                              letterSpacing: -0.3,
-                                            ),
+                                            style: AppleTypography.songTitle,
                                           ),
                                         ),
                                       ],
                                     ),
-                                    const SizedBox(height: 3),
+                                    const SizedBox(height: AppleSpacing.titleToSubtitle),
                                     Text(
                                       song.artist,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: AppColors.appleSecondaryText,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w400,
-                                      ),
+                                      style: AppleTypography.songArtist,
                                     ),
                                   ],
                                 ),
@@ -1090,15 +1077,10 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
           padding: EdgeInsets.symmetric(horizontal: 20),
           child: Text(
             'From your library',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.6,
-            ),
+            style: AppleTypography.sectionTitle,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppleSpacing.sectionHeaderToContent),
         SizedBox(
           height: 196,
           child: ListView.separated(
@@ -1261,14 +1243,9 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
         children: [
           const Text(
             'About the artist',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.6,
-            ),
+            style: AppleTypography.sectionTitle,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppleSpacing.sectionHeaderToContent),
 
           // Multi-line bio description with expandable More / Less toggle
           if (description != null && description.isNotEmpty) ...[
@@ -1330,12 +1307,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
         children: [
           Text(
             title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.6,
-            ),
+            style: AppleTypography.sectionTitle,
           ),
           if (onShowAll != null)
             ApplePressable(

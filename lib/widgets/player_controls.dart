@@ -7,7 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-import '../constants/app_colors.dart';
+import '../constants/apple_typography.dart';
 import '../providers/player_provider.dart';
 import '../utils/playback_utils.dart';
 import 'animated_cupertino_icon.dart';
@@ -155,23 +155,14 @@ class PlayerControls extends ConsumerWidget {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -0.2,
-                      ),
+                      style: AppleTypography.miniPlayerInlineTitle,
                     ),
-                    const SizedBox(height: 1),
+                    const SizedBox(height: AppleSpacing.titleToSubtitle),
                     Text(
                       artist.isNotEmpty ? artist : 'Unknown Artist',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.appleSecondaryText,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w400,
-                      ),
+                      style: AppleTypography.miniPlayerInlineArtist,
                     ),
                   ],
                 ),
@@ -315,23 +306,14 @@ class PlayerControls extends ConsumerWidget {
                                 title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: -0.3,
-                                ),
+                                style: AppleTypography.miniPlayerTitle,
                               ),
-                              const SizedBox(height: 2),
+                              const SizedBox(height: AppleSpacing.titleToSubtitle),
                               Text(
                                 artist.isNotEmpty ? artist : 'Unknown Artist',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: AppColors.appleSecondaryText,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w400,
-                                ),
+                                style: AppleTypography.miniPlayerArtist,
                               ),
                             ],
                           ),

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../constants/app_colors.dart';
+import '../constants/apple_typography.dart';
 import '../models/album_item.dart';
 import '../models/hero_card_item.dart';
 import '../models/home_data.dart';
@@ -170,7 +171,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
 
               // Section 1: "Top Picks for You" Hero Cards Carousel
               _buildTopPicksHeroSection(context, ref, data.heroCards),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppleSpacing.sectionSpacing),
 
               // Section 2: "Recents" (4-item vertical column horizontal paging)
               _build4ItemColumnsSection(
@@ -179,11 +180,11 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                 title: 'Recents',
                 songs: data.recents,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppleSpacing.sectionSpacing),
 
               // Section 3: "Find Your Mood" with "Show all"
               _buildFindYourMoodSection(context, data.moods),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppleSpacing.sectionSpacing),
 
               // Section 4: "Albums & singles"
               _buildAlbumsAndSinglesSection(
@@ -191,11 +192,11 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                 ref,
                 data.albumsAndSingles,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppleSpacing.sectionSpacing),
 
               // Section 5: "Music videos" (16:9 widescreen)
               _buildMusicVideosSection(context, ref, data.musicVideos),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppleSpacing.sectionSpacing),
 
               // Section 6: "Listen again" (listening history from playerProvider)
               if (playerState.recentlyPlayed.isNotEmpty) ...[
@@ -206,7 +207,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                   subtitle: 'UTKARSH',
                   songs: playerState.recentlyPlayed,
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppleSpacing.sectionSpacing),
               ],
 
               // Section 7: "Quick picks" (4-item vertical column horizontal paging)
@@ -216,7 +217,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                 title: 'Quick picks',
                 songs: data.quickPicks,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppleSpacing.sectionSpacing),
 
               // Section 8: "Your daily discover"
               _buildHorizontalSongCarousel(
@@ -225,7 +226,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                 title: 'Your daily discover',
                 songs: data.dailyDiscover,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppleSpacing.sectionSpacing),
 
               // Section 9: "Trending songs for you"
               _buildHorizontalSongCarousel(
@@ -260,18 +261,13 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
+          padding: EdgeInsets.symmetric(horizontal: AppleSpacing.horizontalPadding),
           child: Text(
             'Top Picks for You',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.3,
-            ),
+            style: AppleTypography.sectionTitle,
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: AppleSpacing.sectionHeaderToContent),
         SizedBox(
           height: 305,
           child: ListView.separated(
@@ -409,14 +405,11 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      hero.subtitle,
+                      hero.subtitle.toUpperCase(),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.75),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
-                        letterSpacing: -0.1,
+                      style: AppleTypography.eyebrow.copyWith(
+                        color: Colors.white.withValues(alpha: 0.85),
                       ),
                     ),
                     const SizedBox(height: 3),
@@ -424,22 +417,15 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                       hero.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.3,
-                      ),
+                      style: AppleTypography.sectionTitle,
                     ),
                     const SizedBox(height: 3),
                     Text(
                       hero.caption,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.60),
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w400,
+                      style: AppleTypography.sectionSubtitle.copyWith(
+                        color: Colors.white.withValues(alpha: 0.70),
                       ),
                     ),
                   ],
@@ -487,35 +473,25 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: AppleSpacing.horizontalPadding),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (subtitle != null) ...[
+                Text(
+                  subtitle.toUpperCase(),
+                  style: AppleTypography.eyebrow,
+                ),
+                const SizedBox(height: 3),
+              ],
               Text(
                 title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.3,
-                ),
+                style: AppleTypography.sectionTitle,
               ),
-              if (subtitle != null) ...[
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    color: AppColors.appleSecondaryText,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.6,
-                  ),
-                ),
-              ],
             ],
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: AppleSpacing.sectionHeaderToContent),
         _Snapping4ItemColumns(
           chunked: chunked,
           totalHeight: totalHeight,
@@ -597,15 +573,9 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                       song.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: -0.2,
-                        height: 1.25,
-                      ),
+                      style: AppleTypography.songTitle,
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: AppleSpacing.titleToSubtitle),
                     ApplePressable(
                       onTap: () =>
                           openArtistScreen(context, artistName: song.artist),
@@ -613,12 +583,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                         song.artist,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.appleSecondaryText,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w400,
-                          height: 1.2,
-                        ),
+                        style: AppleTypography.songArtist,
                       ),
                     ),
                   ],
@@ -797,18 +762,13 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
+          padding: EdgeInsets.symmetric(horizontal: AppleSpacing.horizontalPadding),
           child: Text(
             'Albums & singles',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.3,
-            ),
+            style: AppleTypography.sectionTitle,
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: AppleSpacing.sectionHeaderToContent),
         SizedBox(
           height: cardHeight,
           child: ListView.separated(
@@ -879,25 +839,14 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                                       album.title,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        letterSpacing: -0.2,
-                                      ),
+                                      style: AppleTypography.cardTitle,
                                     ),
-                                    const SizedBox(height: 2),
+                                    const SizedBox(height: AppleSpacing.titleToSubtitle),
                                     Text(
                                       album.subtitle,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.65,
-                                        ),
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w400,
-                                      ),
+                                      style: AppleTypography.cardSubtitle,
                                     ),
                                   ],
                                 ),
@@ -934,18 +883,13 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
+          padding: EdgeInsets.symmetric(horizontal: AppleSpacing.horizontalPadding),
           child: Text(
-            'Music videos',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.3,
-            ),
+            'Music Videos',
+            style: AppleTypography.sectionTitle,
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: AppleSpacing.sectionHeaderToContent),
         SizedBox(
           height: videoCardHeight,
           child: ListView.separated(
@@ -1033,25 +977,14 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                         video.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.2,
-                          height: 1.2,
-                        ),
+                        style: AppleTypography.cardTitle,
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: AppleSpacing.titleToSubtitle),
                       Text(
                         video.subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.appleSecondaryText,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
-                          height: 1.2,
-                        ),
+                        style: AppleTypography.cardSubtitle,
                       ),
                     ],
                   ),
@@ -1083,18 +1016,13 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: AppleSpacing.horizontalPadding),
           child: Text(
             title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.3,
-            ),
+            style: AppleTypography.sectionTitle,
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: AppleSpacing.sectionHeaderToContent),
         SizedBox(
           height: cardHeight,
           child: ListView.separated(
@@ -1166,15 +1094,9 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                         song.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.2,
-                          height: 1.2,
-                        ),
+                        style: AppleTypography.cardTitle,
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: AppleSpacing.titleToSubtitle),
                       ApplePressable(
                         onTap: () =>
                             openArtistScreen(context, artistName: song.artist),
@@ -1182,12 +1104,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                           song.artist,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: AppColors.appleSecondaryText,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w400,
-                            height: 1.2,
-                          ),
+                          style: AppleTypography.cardSubtitle,
                         ),
                       ),
                     ],

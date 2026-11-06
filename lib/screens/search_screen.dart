@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../constants/app_colors.dart';
+import '../constants/apple_typography.dart';
 import '../models/album_item.dart';
 import '../models/artist_item.dart';
 import '../models/playlist_item.dart';
@@ -412,12 +413,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
           children: [
             const Text(
               'Recent searches',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                letterSpacing: -0.5,
-              ),
+              style: AppleTypography.sectionTitle,
             ),
             ApplePressable(
               onTap: () => ref.read(recentSearchProvider.notifier).clearAll(),
@@ -427,16 +423,16 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                 child: Text(
                   'Clear',
                   style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w400,
+                    color: AppColors.appleBlue,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppleSpacing.sectionHeaderToContent),
         ...recentSearches.map((item) => _buildRecentSearchRow(item)),
       ],
     );
@@ -559,23 +555,15 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                       item.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -0.3,
-                      ),
+                      style: AppleTypography.songTitle,
                     ),
                     if (item.subtitle.isNotEmpty) ...[
-                      const SizedBox(height: 3),
+                      const SizedBox(height: AppleSpacing.titleToSubtitle),
                       Text(
                         item.subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.appleSecondaryText,
-                          fontSize: 13,
-                        ),
+                        style: AppleTypography.songArtist,
                       ),
                     ],
                   ],
@@ -739,15 +727,13 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _buildSectionHeader(String title, {VoidCallback? onSeeAll}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.only(
+        top: 8,
+        bottom: AppleSpacing.sectionHeaderToContent,
+      ),
       child: Text(
         title,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-          letterSpacing: -0.4,
-        ),
+        style: AppleTypography.sectionTitle,
       ),
     );
   }
@@ -848,17 +834,12 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                             displayTitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: -0.3,
-                            ),
+                            style: AppleTypography.songTitle,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: AppleSpacing.titleToSubtitle),
                     ApplePressable(
                       onTap: () =>
                           openArtistScreen(context, artistName: song.artist),
@@ -866,10 +847,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                         song.artist,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.appleSecondaryText,
-                          fontSize: 13,
-                        ),
+                        style: AppleTypography.songArtist,
                       ),
                     ),
                   ],
@@ -882,10 +860,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                   padding: const EdgeInsets.only(right: 6),
                   child: Text(
                     song.formattedDuration,
-                    style: const TextStyle(
-                      color: AppColors.appleSecondaryText,
-                      fontSize: 13,
-                    ),
+                    style: AppleTypography.timestamp,
                   ),
                 ),
 
@@ -965,22 +940,14 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                       artist.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -0.3,
-                      ),
+                      style: AppleTypography.songTitle,
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: AppleSpacing.titleToSubtitle),
                     Text(
                       artist.subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.appleSecondaryText,
-                        fontSize: 13,
-                      ),
+                      style: AppleTypography.songArtist,
                     ),
                   ],
                 ),
@@ -1040,22 +1007,14 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                       album.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -0.3,
-                      ),
+                      style: AppleTypography.songTitle,
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: AppleSpacing.titleToSubtitle),
                     Text(
                       album.subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.appleSecondaryText,
-                        fontSize: 13,
-                      ),
+                      style: AppleTypography.songArtist,
                     ),
                   ],
                 ),
@@ -1115,22 +1074,14 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                       playlist.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -0.3,
-                      ),
+                      style: AppleTypography.songTitle,
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: AppleSpacing.titleToSubtitle),
                     Text(
                       playlist.subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.appleSecondaryText,
-                        fontSize: 13,
-                      ),
+                      style: AppleTypography.songArtist,
                     ),
                   ],
                 ),
@@ -1203,23 +1154,14 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                       video.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -0.2,
-                        height: 1.25,
-                      ),
+                      style: AppleTypography.cardTitle,
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: AppleSpacing.titleToSubtitle),
                     Text(
                       video.artist,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.appleSecondaryText,
-                        fontSize: 13,
-                      ),
+                      style: AppleTypography.cardSubtitle,
                     ),
                   ],
                 ),
@@ -1229,10 +1171,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                   padding: const EdgeInsets.only(right: 6),
                   child: Text(
                     durationStr,
-                    style: const TextStyle(
-                      color: AppColors.appleSecondaryText,
-                      fontSize: 13,
-                    ),
+                    style: AppleTypography.timestamp,
                   ),
                 ),
               IconButton(
@@ -1270,12 +1209,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
       ),
       child: const Text(
         'E',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          height: 1.0,
-        ),
+        style: AppleTypography.explicitBadge,
       ),
     );
   }

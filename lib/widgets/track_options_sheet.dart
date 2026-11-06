@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../constants/apple_typography.dart';
 import '../models/song_item.dart';
 import '../providers/favorites_provider.dart';
 import '../providers/player_provider.dart';
@@ -49,14 +50,9 @@ void showTrackOptionsModal(BuildContext context, WidgetRef ref, SongItem song) {
                       song.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16.5,
-                        letterSpacing: -0.3,
-                      ),
+                      style: AppleTypography.sheetTitle,
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: AppleSpacing.titleToSubtitle),
                     GestureDetector(
                       onTap: () {
                         Navigator.pop(modalContext);
@@ -66,11 +62,7 @@ void showTrackOptionsModal(BuildContext context, WidgetRef ref, SongItem song) {
                         song.artist,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.75),
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w500,
-                        ),
+                        style: AppleTypography.sheetSubtitle,
                       ),
                     ),
                   ],

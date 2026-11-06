@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../constants/app_colors.dart';
+import '../constants/apple_typography.dart';
 import '../models/song_item.dart';
 import '../providers/favorites_provider.dart';
 import '../providers/player_provider.dart';
@@ -353,14 +354,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                           song.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: -0.2,
-                          ),
+                          style: AppleTypography.songTitle,
                         ),
-                        const SizedBox(height: 3),
+                        const SizedBox(height: AppleSpacing.titleToSubtitle),
                         GestureDetector(
                           onTap: () {
                             Navigator.pop(context);
@@ -370,11 +366,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                             song.artist,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
+                            style: AppleTypography.songArtist,
                           ),
                         ),
                       ],
@@ -981,28 +973,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                                         song.title,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          letterSpacing: -0.3,
-                                        ),
+                                        style: AppleTypography.songTitle,
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 3),
+                                const SizedBox(height: AppleSpacing.titleToSubtitle),
                                 ApplePressable(
                                   onTap: () => openArtistScreen(context, artistName: song.artist),
                                   child: Text(
                                     song.artist,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: Colors.white.withValues(alpha: 0.78),
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w500,
-                                    ),
+                                    style: AppleTypography.songArtist,
                                   ),
                                 ),
                               ],
@@ -1357,12 +1340,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
       ),
       child: const Text(
         'E',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          height: 1.1,
-        ),
+        style: AppleTypography.explicitBadge,
       ),
     );
   }
@@ -1393,31 +1371,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                         song.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: -0.4,
-                          height: 1.15,
-                        ),
+                        style: AppleTypography.playerTitle,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: AppleSpacing.titleToSubtitle),
                 ApplePressable(
                   onTap: () => openArtistScreen(context, artistName: song.artist),
                   child: Text(
                     song.artist,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.82),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: -0.2,
-                      height: 1.15,
-                    ),
+                    style: AppleTypography.playerArtist,
                   ),
                 ),
               ],
@@ -1504,24 +1470,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         children: [
           const Text(
             'Queue',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.5,
-            ),
+            style: AppleTypography.sectionTitle,
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: AppleSpacing.sectionHeaderToContent),
 
           // Now Playing Item
-          Text(
-            'Now playing',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.65),
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              letterSpacing: -0.2,
-            ),
+          const Text(
+            'NOW PLAYING',
+            style: AppleTypography.eyebrow,
           ),
           const SizedBox(height: 8),
           Row(
@@ -1574,28 +1530,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                             song.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: -0.2,
-                            ),
+                            style: AppleTypography.songTitle,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: AppleSpacing.titleToSubtitle),
                     GestureDetector(
                       onTap: () => openArtistScreen(context, artistName: song.artist),
                       child: Text(
                         song.artist,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.70),
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w500,
-                        ),
+                        style: AppleTypography.songArtist,
                       ),
                     ),
                   ],
@@ -1621,13 +1568,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
 
           // Next From Queue List Header
           Text(
-            nextFromTitle,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.65),
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              letterSpacing: -0.2,
-            ),
+            nextFromTitle.toUpperCase(),
+            style: AppleTypography.eyebrow,
           ),
           const SizedBox(height: 8),
 
@@ -1724,26 +1666,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                                                 item.title,
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 15,
-                                                  fontWeight: FontWeight.w600,
-                                                  letterSpacing: -0.2,
-                                                ),
+                                                style: AppleTypography.songTitle,
                                               ),
                                             ),
                                           ],
                                         ),
-                                        const SizedBox(height: 3),
+                                        const SizedBox(height: AppleSpacing.titleToSubtitle),
                                         Text(
                                           item.artist,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            color: Colors.white.withValues(alpha: 0.60),
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.normal,
-                                          ),
+                                          style: AppleTypography.songArtist,
                                         ),
                                       ],
                                     ),

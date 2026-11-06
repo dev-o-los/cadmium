@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../constants/app_colors.dart';
+import '../constants/apple_typography.dart';
 import '../models/album_item.dart';
 import '../models/song_item.dart';
 import '../providers/library_provider.dart';
@@ -982,14 +983,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                   width: 28,
                                   child: Text(
                                     '${index + 1}',
-                                    style: TextStyle(
-                                      color: isCurrentTrack
-                                          ? Colors.white
-                                          : AppColors.appleSecondaryText,
-                                      fontSize: 15,
-                                      fontWeight: isCurrentTrack
-                                          ? FontWeight.w600
-                                          : FontWeight.w500,
+                                    style: AppleTypography.trackNumber(
+                                      isCurrent: isCurrentTrack,
                                     ),
                                   ),
                                 ),
@@ -1020,11 +1015,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                               ),
                                               child: const Text(
                                                 'E',
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
+                                                style: AppleTypography.explicitBadge,
                                               ),
                                             ),
                                           ],
@@ -1033,26 +1024,17 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                               track.title,
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                                letterSpacing: -0.3,
-                                              ),
+                                              style: AppleTypography.songTitle,
                                             ),
                                           ),
                                         ],
                                       ),
-                                      const SizedBox(height: 3),
+                                      const SizedBox(height: AppleSpacing.titleToSubtitle),
                                       Text(
                                         track.artist,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: AppColors.appleSecondaryText,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w400,
-                                        ),
+                                        style: AppleTypography.songArtist,
                                       ),
                                     ],
                                   ),
@@ -1061,11 +1043,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                 // Track Duration
                                 Text(
                                   track.formattedDuration,
-                                  style: const TextStyle(
-                                    color: AppColors.appleSecondaryText,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w400,
-                                  ),
+                                  style: AppleTypography.timestamp,
                                 ),
                                 const SizedBox(width: 4),
 

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'constants/app_colors.dart';
+import 'constants/apple_typography.dart';
 import 'screens/splash_screen.dart';
 import 'services/artwork_cache_service.dart';
 import 'services/audio_cache_service.dart';
@@ -70,12 +71,7 @@ class AurumApp extends StatelessWidget {
           elevation: 0,
           scrolledUnderElevation: 0,
           centerTitle: false,
-          titleTextStyle: TextStyle(
-            color: Colors.white,
-            fontSize: 34,
-            fontWeight: FontWeight.bold,
-            letterSpacing: -1.0,
-          ),
+          titleTextStyle: AppleTypography.largeTitle,
           iconTheme: IconThemeData(color: Colors.white),
         ),
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(

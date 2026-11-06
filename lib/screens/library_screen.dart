@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../constants/app_colors.dart';
+import '../constants/apple_typography.dart';
 import '../models/album_item.dart';
 import '../models/artist_item.dart';
 import '../models/playlist_item.dart';
@@ -108,12 +109,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             children: [
               const Text(
                 'Library',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 34,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: -1.2,
-                ),
+                style: AppleTypography.largeTitle,
               ),
               // Top Right YouTube Music Profile Button & Name
               Row(
@@ -441,12 +437,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         children: [
           Text(
             title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.6,
-            ),
+            style: AppleTypography.sectionTitle,
           ),
           if (count != null && count > 0)
             Text(
@@ -501,25 +492,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               playlist.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.2,
-                height: 1.2,
-              ),
+              style: AppleTypography.cardTitle,
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: AppleSpacing.titleToSubtitle),
             Text(
               playlist.subtitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.appleSecondaryText,
-                fontSize: 12,
-                fontWeight: FontWeight.w400,
-                height: 1.2,
-              ),
+              style: AppleTypography.cardSubtitle,
             ),
           ],
         ),
@@ -590,25 +570,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               'Liked Songs',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.2,
-                height: 1.2,
-              ),
+              style: AppleTypography.cardTitle,
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: AppleSpacing.titleToSubtitle),
             Text(
               'Full Album • ${songs.length} tracks',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.appleSecondaryText,
-                fontSize: 12,
-                fontWeight: FontWeight.w400,
-                height: 1.2,
-              ),
+              style: AppleTypography.cardSubtitle,
             ),
           ],
         ),
