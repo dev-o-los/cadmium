@@ -115,35 +115,18 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
               );
             },
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Signature Brand Logo
-                Image.asset(
-                  'assets/images/app_logo_cropped.png',
-                  width: 96,
-                  height: 96,
-                  fit: BoxFit.contain,
-                  filterQuality: FilterQuality.high,
-                  errorBuilder: (context, error, stackTrace) => Image.asset(
-                    'assets/images/app_logo.png',
-                    width: 96,
-                    height: 96,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                // Sleek Apple Music Typography
-                const Text(
-                  'Wavify',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.6,
-                  ),
-                ),
-              ],
+            child: Image.asset(
+              'assets/images/app_logo_cropped.png',
+              width: 96,
+              height: 96,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+              errorBuilder: (context, error, stackTrace) => Image.asset(
+                'assets/images/app_logo.png',
+                width: 96,
+                height: 96,
+                fit: BoxFit.contain,
+              ),
             ),
           ),
         ),
