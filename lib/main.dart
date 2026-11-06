@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'constants/app_colors.dart';
 import 'screens/splash_screen.dart';
 import 'services/artwork_cache_service.dart';
 import 'services/audio_cache_service.dart';
@@ -60,7 +61,7 @@ class AurumApp extends StatelessWidget {
           secondary: Colors.white,
           surface: appleDarkSurface,
           onSurface: Colors.white,
-          onSurfaceVariant: Color(0xFF8E8E93),
+          onSurfaceVariant: AppColors.appleSecondaryText,
           surfaceContainerHighest: appleDarkSurfaceHigh,
           outline: Color(0xFF3A3A3C),
         ),
@@ -80,7 +81,7 @@ class AurumApp extends StatelessWidget {
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           backgroundColor: Color(0xCC161618),
           selectedItemColor: Colors.white,
-          unselectedItemColor: Color(0xFF8E8E93),
+          unselectedItemColor: AppColors.appleSecondaryText,
           type: BottomNavigationBarType.fixed,
           elevation: 0,
           selectedLabelStyle: TextStyle(

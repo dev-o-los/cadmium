@@ -6,7 +6,7 @@ abstract final class AppColors {
   static const Color appleBlue = Color(0xFF007AFF);
   static const Color appleDarkSurface = Color(0xFF1C1C1E);
   static const Color appleDarkSurfaceHigh = Color(0xFF2C2C2E);
-  static const Color appleSecondaryText = Color(0xFF8E8E93);
+  static const Color appleSecondaryText = Color(0xFFBEBEC6);
   static const Color appleDarkBackground = Color(0xFF000000);
 }
 

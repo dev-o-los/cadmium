@@ -174,7 +174,7 @@ void main() {
     expect(container.read(currentTabProvider), 0);
 
     // Tap Explore tab (index 1) in the bottom navigation bar
-    await tester.tap(find.byIcon(CupertinoIcons.square_grid_2x2));
+    await tester.tap(find.byIcon(CupertinoIcons.square_grid_2x2_fill).first);
     await tester.pump();
 
     // currentTabProvider is updated to 1

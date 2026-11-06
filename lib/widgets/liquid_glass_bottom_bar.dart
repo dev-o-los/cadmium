@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
+import '../constants/app_colors.dart';
 import 'animated_cupertino_icon.dart';
 
 /// Floating Liquid Glass Bottom Navigation Dock using official [GlassTabBar.minimizable]
@@ -35,17 +36,17 @@ class LiquidGlassBottomBar extends StatelessWidget {
     return GlassTabBar.minimizable(
       tabs: const [
         GlassTab(
-          icon: Icon(CupertinoIcons.house),
+          icon: Icon(CupertinoIcons.house_fill),
           activeIcon: Icon(CupertinoIcons.house_fill),
           label: 'Home',
         ),
         GlassTab(
-          icon: Icon(CupertinoIcons.square_grid_2x2),
+          icon: Icon(CupertinoIcons.square_grid_2x2_fill),
           activeIcon: Icon(CupertinoIcons.square_grid_2x2_fill),
           label: 'Explore',
         ),
         GlassTab(
-          icon: Icon(CupertinoIcons.rectangle_stack),
+          icon: Icon(CupertinoIcons.rectangle_stack_fill),
           activeIcon: Icon(CupertinoIcons.rectangle_stack_fill),
           label: 'Library',
         ),
@@ -58,7 +59,7 @@ class LiquidGlassBottomBar extends StatelessWidget {
       trailingButton: GlassTabBarTrailingButton(
         icon: AnimatedCupertinoIcon(
           icon: CupertinoIcons.search,
-          color: currentIndex == 3 ? Colors.white : const Color(0xFF8E8E93),
+          color: currentIndex == 3 ? Colors.white : AppColors.appleSecondaryText,
           size: 22,
         ),
         onTap: () => onTabSelected(3),
@@ -74,9 +75,9 @@ class LiquidGlassBottomBar extends StatelessWidget {
       spacing: 8.0,
       barBorderRadius: 29.0,
       selectedIconColor: Colors.white,
-      unselectedIconColor: const Color(0xFF8E8E93),
+      unselectedIconColor: AppColors.appleSecondaryText,
       selectedLabelColor: Colors.white,
-      unselectedLabelColor: const Color(0xFF8E8E93),
+      unselectedLabelColor: AppColors.appleSecondaryText,
       indicatorColor: Colors.white.withValues(alpha: 0.18),
       settings: const LiquidGlassSettings(
         glassColor: Color(0xF2121216),

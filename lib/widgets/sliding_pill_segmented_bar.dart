@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+import '../constants/app_colors.dart';
+
 /// An Apple Music-inspired unified sliding pill segmented bar:
 /// - A single continuous grey pill container with stadium border radius fixed on screen.
 /// - Contains all category tabs (All, Songs, Videos, Albums, Artists, Playlists).
@@ -295,7 +297,7 @@ class _SlidingPillSegmentedBarState extends State<SlidingPillSegmentedBar> {
             curve: Curves.easeInOutCubic,
             style: TextStyle(
               // Crisp jet-black text on white highlight; crisp secondary-grey on dark track
-              color: isSelected ? Colors.black : const Color(0xFF8E8E93),
+              color: isSelected ? Colors.black : AppColors.appleSecondaryText,
               fontSize: 13.5,
               fontWeight: FontWeight.w600,
               letterSpacing: -0.2,

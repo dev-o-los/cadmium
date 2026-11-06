@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wavify/constants/app_colors.dart';
 import 'package:wavify/widgets/sliding_pill_segmented_bar.dart';
 
 void main() {
@@ -68,7 +69,7 @@ void main() {
             )
             .first,
       );
-      expect(songsText.style.color, const Color(0xFF8E8E93));
+      expect(songsText.style.color, AppColors.appleSecondaryText);
       expect(songsText.style.fontWeight, FontWeight.w600);
     });
 
@@ -141,7 +142,7 @@ void main() {
               )
               .first,
         );
-        expect(allText.style.color, const Color(0xFF8E8E93));
+        expect(allText.style.color, AppColors.appleSecondaryText);
       },
     );
 

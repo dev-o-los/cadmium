@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../constants/app_colors.dart';
 import '../models/lyric_line.dart';
 import '../services/lyric_clock.dart';
 import '../services/lyrics_service.dart';
@@ -525,7 +526,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
             const SizedBox(height: 16),
             Text(
               'Connecting ${widget.selectedProvider.displayName} lyrics...',
-              style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 14),
+              style: const TextStyle(color: AppColors.appleSecondaryText, fontSize: 14),
             ),
           ],
         ),
@@ -554,7 +555,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
                   widget.selectedProvider == LyricsProviderType.lrcRed
                       ? CupertinoIcons.music_mic
                       : CupertinoIcons.quote_bubble,
-                  color: const Color(0xFF8E8E93),
+                  color: AppColors.appleSecondaryText,
                   size: 34,
                 ),
               ),
@@ -977,7 +978,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Color(0xFF8E8E93),
+                    color: AppColors.appleSecondaryText,
                     fontSize: 13,
                     decoration: TextDecoration.underline,
                   ),

@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../constants/app_colors.dart';
+
 /// Apple Music-styled precision scrubber slider.
 /// Features:
 /// - Sleek 4.5px rounded capsule track at rest with flush seamless finish (matching Apple Music)
@@ -129,7 +131,7 @@ class _AppleMusicSliderState extends State<AppleMusicSlider>
                 Text(
                   widget.elapsedText ?? '',
                   style: const TextStyle(
-                    color: Color(0xFF8E8E93),
+                    color: AppColors.appleSecondaryText,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     letterSpacing: -0.2,
@@ -138,7 +140,7 @@ class _AppleMusicSliderState extends State<AppleMusicSlider>
                 Text(
                   widget.remainingText ?? '',
                   style: const TextStyle(
-                    color: Color(0xFF8E8E93),
+                    color: AppColors.appleSecondaryText,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     letterSpacing: -0.2,

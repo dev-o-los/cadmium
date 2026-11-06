@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
+import '../constants/app_colors.dart';
 import '../providers/player_provider.dart';
 import '../utils/playback_utils.dart';
 import 'animated_cupertino_icon.dart';
@@ -40,7 +42,8 @@ class PlayerControls extends ConsumerWidget {
 
     final effectiveArt =
         currentSong.highResThumbnailUrl ?? currentSong.resolvedThumbnailUrl;
-    final thumbArt = currentSong.resolvedThumbnailUrl ?? currentSong.thumbnailUrl;
+    final thumbArt =
+        currentSong.resolvedThumbnailUrl ?? currentSong.thumbnailUrl;
 
     // Detect whether we are rendering inline inside minimized GlassTabBar or expanded
     final placement = GlassTabBarAccessoryPlacementScope.of(context);
@@ -110,30 +113,31 @@ class PlayerControls extends ConsumerWidget {
               child: Hero(
                 tag: 'player_album_art_$songId',
                 flightShuttleBuilder: playerHeroFlightShuttleBuilder,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: WavifyCachedImage(
-                    imageUrl: highResArt ?? thumbArt,
-                    placeholderImageUrl: thumbArt,
-                    songId: songId,
-                    width: 34,
-                    height: 34,
-                    fit: BoxFit.cover,
-                    filterQuality: FilterQuality.medium,
-                    errorWidget: _fallbackArtwork(size: 34),
-                  ),
-                )
-                .animate(key: ValueKey('mini_art_inline_$songId'))
-                .fadeIn(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOut,
-                )
-                .scale(
-                  begin: const Offset(0.85, 0.85),
-                  end: const Offset(1.0, 1.0),
-                  duration: const Duration(milliseconds: 350),
-                  curve: Curves.easeOutCubic,
-                ),
+                child:
+                    ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: WavifyCachedImage(
+                            imageUrl: highResArt ?? thumbArt,
+                            placeholderImageUrl: thumbArt,
+                            songId: songId,
+                            width: 34,
+                            height: 34,
+                            fit: BoxFit.cover,
+                            filterQuality: FilterQuality.medium,
+                            errorWidget: _fallbackArtwork(size: 34),
+                          ),
+                        )
+                        .animate(key: ValueKey('mini_art_inline_$songId'))
+                        .fadeIn(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOut,
+                        )
+                        .scale(
+                          begin: const Offset(0.85, 0.85),
+                          end: const Offset(1.0, 1.0),
+                          duration: const Duration(milliseconds: 350),
+                          curve: Curves.easeOutCubic,
+                        ),
               ),
             ),
             const SizedBox(width: 8),
@@ -164,7 +168,7 @@ class PlayerControls extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Color(0xFF8E8E93),
+                        color: AppColors.appleSecondaryText,
                         fontSize: 11,
                         fontWeight: FontWeight.w400,
                       ),
@@ -187,7 +191,9 @@ class PlayerControls extends ConsumerWidget {
                 width: 32,
                 height: 34,
                 alignment: Alignment.center,
-                child: (isLoading && !Platform.environment.containsKey('FLUTTER_TEST'))
+                child:
+                    (isLoading &&
+                        !Platform.environment.containsKey('FLUTTER_TEST'))
                     ? const CupertinoActivityIndicator(
                         radius: 9,
                         color: Colors.white,
@@ -269,30 +275,33 @@ class PlayerControls extends ConsumerWidget {
                         Hero(
                           tag: 'player_album_art_$songId',
                           flightShuttleBuilder: playerHeroFlightShuttleBuilder,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: WavifyCachedImage(
-                              imageUrl: highResArt ?? thumbArt,
-                              placeholderImageUrl: thumbArt,
-                              songId: songId,
-                              width: 40,
-                              height: 40,
-                              fit: BoxFit.cover,
-                              filterQuality: FilterQuality.medium,
-                              errorWidget: _fallbackArtwork(size: 40),
-                            ),
-                          )
-                          .animate(key: ValueKey('mini_art_expanded_$songId'))
-                          .fadeIn(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeOut,
-                          )
-                          .scale(
-                            begin: const Offset(0.85, 0.85),
-                            end: const Offset(1.0, 1.0),
-                            duration: const Duration(milliseconds: 350),
-                            curve: Curves.easeOutCubic,
-                          ),
+                          child:
+                              ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: WavifyCachedImage(
+                                      imageUrl: highResArt ?? thumbArt,
+                                      placeholderImageUrl: thumbArt,
+                                      songId: songId,
+                                      width: 40,
+                                      height: 40,
+                                      fit: BoxFit.cover,
+                                      filterQuality: FilterQuality.medium,
+                                      errorWidget: _fallbackArtwork(size: 40),
+                                    ),
+                                  )
+                                  .animate(
+                                    key: ValueKey('mini_art_expanded_$songId'),
+                                  )
+                                  .fadeIn(
+                                    duration: const Duration(milliseconds: 300),
+                                    curve: Curves.easeOut,
+                                  )
+                                  .scale(
+                                    begin: const Offset(0.85, 0.85),
+                                    end: const Offset(1.0, 1.0),
+                                    duration: const Duration(milliseconds: 350),
+                                    curve: Curves.easeOutCubic,
+                                  ),
                         ),
                         const SizedBox(width: 10),
 
@@ -319,7 +328,7 @@ class PlayerControls extends ConsumerWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  color: Color(0xFF8E8E93),
+                                  color: AppColors.appleSecondaryText,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w400,
                                 ),
@@ -345,7 +354,9 @@ class PlayerControls extends ConsumerWidget {
                     width: 40,
                     height: 44,
                     alignment: Alignment.center,
-                    child: (isLoading && !Platform.environment.containsKey('FLUTTER_TEST'))
+                    child:
+                        (isLoading &&
+                            !Platform.environment.containsKey('FLUTTER_TEST'))
                         ? const CupertinoActivityIndicator(
                             radius: 12,
                             color: Colors.white,

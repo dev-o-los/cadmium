@@ -9,6 +9,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
+import '../constants/app_colors.dart';
 import '../models/song_item.dart';
 import '../providers/favorites_provider.dart';
 import '../providers/player_provider.dart';
@@ -45,7 +46,7 @@ class PlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProviderStateMixin {
-  static const Color appleSecondaryText = Color(0xFF8E8E93);
+  static const Color appleSecondaryText = AppColors.appleSecondaryText;
 
   PlayerViewMode _currentMode = PlayerViewMode.nowPlaying;
 

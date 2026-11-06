@@ -584,7 +584,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
               IconButton(
                 icon: const Icon(
                   CupertinoIcons.clear,
-                  color: Color(0xFF8E8E93),
+                  color: AppColors.appleSecondaryText,
                   size: 16,
                 ),
                 onPressed: () => ref

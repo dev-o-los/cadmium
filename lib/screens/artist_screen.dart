@@ -688,7 +688,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                     Text(
                       recent.year != null ? 'Single • ${recent.year}' : 'Single',
                       style: const TextStyle(
-                        color: Color(0xFF8E8E93),
+                        color: AppColors.appleSecondaryText,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
@@ -709,7 +709,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                     const Text(
                       'Recent Single',
                       style: TextStyle(
-                        color: Color(0xFF8E8E93),
+                        color: AppColors.appleSecondaryText,
                         fontSize: 13,
                         fontWeight: FontWeight.w400,
                       ),
@@ -881,7 +881,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
-                                        color: Color(0xFF8E8E93),
+                                        color: AppColors.appleSecondaryText,
                                         fontSize: 13,
                                         fontWeight: FontWeight.w400,
                                       ),
@@ -894,7 +894,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                               GlassIconButton(
                                 icon: const Icon(
                                   CupertinoIcons.ellipsis_vertical,
-                                  color: Color(0xFF8E8E93),
+                                  color: AppColors.appleSecondaryText,
                                   size: 18,
                                 ),
                                 onPressed: () => showTrackOptionsModal(context, ref, song),
@@ -1065,7 +1065,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Color(0xFF8E8E93),
+                          color: AppColors.appleSecondaryText,
                           fontSize: 12,
                           fontWeight: FontWeight.w400,
                         ),
@@ -1228,7 +1228,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Color(0xFF8E8E93),
+                          color: AppColors.appleSecondaryText,
                           fontSize: 12,
                           fontWeight: FontWeight.w400,
                         ),
@@ -1415,7 +1415,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                color: Color(0xFF8E8E93),
+                color: AppColors.appleSecondaryText,
                 fontSize: 12,
                 fontWeight: FontWeight.w400,
               ),
@@ -1469,7 +1469,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                color: Color(0xFF8E8E93),
+                color: AppColors.appleSecondaryText,
                 fontSize: 12,
                 fontWeight: FontWeight.w400,
               ),
@@ -1516,7 +1516,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
       decoration: BoxDecoration(
-        color: const Color(0xFF8E8E93),
+        color: AppColors.appleSecondaryText,
         borderRadius: BorderRadius.circular(2.5),
       ),
       child: const Text(
