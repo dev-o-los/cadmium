@@ -33,7 +33,8 @@
 
 Download the latest release for Android directly from GitHub:
 
-* **[Download Cadmium v1.0.0 APK](https://github.com/dev-o-los/wavify/releases/latest)** (`app-release.apk`)
+* **[Download Cadmium v1.0.0 APK](https://github.com/dev-o-los/wavify/releases/download/v1.0.0/cadmium-v1.0.0.apk)** (`cadmium-v1.0.0.apk` — 59.4 MB)
+* **[GitHub Releases Page](https://github.com/dev-o-los/wavify/releases/latest)** (All assets and release notes)
 
 > Supports **Android 7.0 (API 24)** and above across `arm64-v8a`, `armeabi-v7a`, and `x86_64` architectures.
 
