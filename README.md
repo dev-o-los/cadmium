@@ -8,10 +8,10 @@
 
   [![Flutter](https://img.shields.io/badge/Flutter-3.47.4-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
   [![Dart](https://img.shields.io/badge/Dart-3.13.3-0175C2?logo=dart&logoColor=white)](https://dart.dev)
-  [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS-black?logo=apple&logoColor=white)](https://github.com/dev-o-los/wavify)
-  [![Release](https://img.shields.io/badge/Release-v1.0.0-E10600?logo=github&logoColor=white)](https://github.com/dev-o-los/wavify/releases)
+  [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS-black?logo=apple&logoColor=white)](https://github.com/dev-o-los/cadmium)
+  [![Release](https://img.shields.io/badge/Release-v1.0.0-E10600?logo=github&logoColor=white)](https://github.com/dev-o-los/cadmium/releases)
   [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-  [![Tests](https://img.shields.io/badge/Tests-126%20Passing-success?logo=checkmarx&logoColor=white)](https://github.com/dev-o-los/wavify)
+  [![Tests](https://img.shields.io/badge/Tests-126%20Passing-success?logo=checkmarx&logoColor=white)](https://github.com/dev-o-los/cadmium)
 
   <p align="center">
     <b>Cadmium</b> is a modern, high-performance music streaming client engineered with Flutter. Combining the refined minimalism of <b>Apple Music</b> with the catalog of <b>YouTube Music Innertube</b>, Cadmium delivers zero-lag audio playback, word-by-word synced TTML lyrics, and an OLED pitch-black interface.
@@ -33,8 +33,8 @@
 
 Download the latest release for Android directly from GitHub:
 
-* **[Download Cadmium v1.0.0 APK](https://github.com/dev-o-los/wavify/releases/download/v1.0.0/cadmium-v1.0.0.apk)** (`cadmium-v1.0.0.apk` — 59.4 MB)
-* **[GitHub Releases Page](https://github.com/dev-o-los/wavify/releases/latest)** (All assets and release notes)
+* **[Download Cadmium v1.0.0 APK](https://github.com/dev-o-los/cadmium/releases/download/v1.0.0/cadmium-v1.0.0.apk)** (`cadmium-v1.0.0.apk` — 62.6 MB)
+* **[GitHub Releases Page](https://github.com/dev-o-los/cadmium/releases/latest)** (All assets and release notes)
 
 > Supports **Android 7.0 (API 24)** and above across `arm64-v8a`, `armeabi-v7a`, and `x86_64` architectures.
 
@@ -158,8 +158,8 @@ Ensure your development environment meets the following requirements:
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/dev-o-los/wavify.git
-   cd wavify
+   git clone https://github.com/dev-o-los/cadmium.git
+   cd cadmium
    ```
 
 2. **Install Flutter dependencies**:
