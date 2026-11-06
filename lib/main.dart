@@ -43,7 +43,7 @@ class AurumApp extends StatelessWidget {
     const appleDarkSurfaceHigh = Color(0xFF2C2C2E);
 
     return MaterialApp(
-      title: 'Aurum',
+      title: 'Wavify',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.dark, // Dark mode only as requested
       darkTheme: ThemeData(

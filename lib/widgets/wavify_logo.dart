@@ -16,8 +16,7 @@ class AurumLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Aspect ratio: 666 / 544 = 1.22
-    final width = size * 1.22;
+    final width = size;
     final height = size;
 
     return Image.asset(
