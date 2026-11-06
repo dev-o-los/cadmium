@@ -13,6 +13,7 @@ import '../services/audio_cache_service.dart';
 import '../services/player_history_cache_service.dart';
 import '../services/song_metrics_cache_service.dart';
 import '../services/lyrics_service.dart';
+import '../services/cadmium_audio_handler.dart';
 import 'music_service_provider.dart';
 
 /// Immutable model representing the active player playback state.
@@ -147,7 +148,8 @@ class PlayerStateModel {
 /// and queue handling using Riverpod for clean, reactive state management.
 class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   final Ref _ref;
-  final AudioPlayer _audioPlayer = AudioPlayer();
+  final CadmiumAudioHandler _audioHandler;
+  AudioPlayer get _audioPlayer => _audioHandler.player;
 
   StreamSubscription<PlayerState>? _playerStateSub;
   StreamSubscription<Duration>? _positionSub;
@@ -168,7 +170,11 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   int _lastPositionEmitMs = -1000;
   int _lastSavedPositionSec = -1;
 
-  PlayerNotifier(this._ref) : super(_buildInitialState()) {
+  PlayerNotifier(this._ref)
+      : _audioHandler = _ref.read(cadmiumAudioHandlerProvider),
+        super(_buildInitialState()) {
+    _audioHandler.onSkipNext = () => skipNext();
+    _audioHandler.onSkipPrevious = () => skipPrevious();
     _initAudioListeners();
     _initAudioSession();
     _restorePersistedPlayback();
@@ -214,6 +220,13 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
           isPlaying: false,
           isBuffering: false,
           isResolvingStream: false,
+        );
+
+        final cachedArt = ArtworkCacheService.instance.getCachedArtworkFile(cachedSong.id);
+        _audioHandler.updateCurrentSong(
+          cachedSong,
+          duration: initialDuration,
+          localArtworkPath: cachedArt?.path,
         );
 
         unawaited(_resolveMasterArtwork(cachedSong));
@@ -331,6 +344,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     _durationSub = _audioPlayer.durationStream.listen((dur) {
       if (dur != null && dur > Duration.zero) {
         state = state.copyWith(duration: dur);
+        _audioHandler.updateDuration(dur);
         final songId = state.currentSong?.id;
         if (songId != null && songId.isNotEmpty) {
           unawaited(SongMetricsCacheService.instance.setDuration(songId, dur.inSeconds));
@@ -508,6 +522,14 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       duration: initialDuration,
     );
 
+    // Immediately broadcast to system media notification & lock screen
+    final cachedArt = ArtworkCacheService.instance.getCachedArtworkFile(song.id);
+    _audioHandler.updateCurrentSong(
+      song,
+      duration: initialDuration,
+      localArtworkPath: cachedArt?.path,
+    );
+
     // Fetch lyrics asynchronously in background
     _fetchLyrics(song);
 
@@ -584,6 +606,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       final playerDur = _audioPlayer.duration;
       if (playerDur != null && playerDur > Duration.zero) {
         state = state.copyWith(duration: playerDur);
+        _audioHandler.updateDuration(playerDur);
         unawaited(SongMetricsCacheService.instance.setDuration(song.id, playerDur.inSeconds));
       }
 
@@ -720,6 +743,14 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       if (masterArt != null && masterArt.isNotEmpty && state.currentSong?.id == song.id) {
         final updatedSong = song.copyWith(thumbnailUrl: masterArt);
         state = state.copyWith(currentSong: updatedSong);
+
+        final cachedArt = ArtworkCacheService.instance.getCachedArtworkFile(song.id);
+        _audioHandler.updateCurrentSong(
+          updatedSong,
+          duration: state.duration,
+          localArtworkPath: cachedArt?.path,
+        );
+
         unawaited(PlayerHistoryCacheService.instance.saveLastPlayedSong(
           updatedSong,
           history: state.recentlyPlayed,

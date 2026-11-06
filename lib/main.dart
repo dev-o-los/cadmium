@@ -10,6 +10,7 @@ import 'services/audio_cache_service.dart';
 import 'services/home_cache_service.dart';
 import 'services/player_history_cache_service.dart';
 import 'services/song_metrics_cache_service.dart';
+import 'services/cadmium_audio_handler.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +24,9 @@ void main() async {
     ),
   );
 
+  // Initialize background audio notification service for lock screen & system status
+  final audioHandler = await initCadmiumAudioService();
+
   // Initialize persistent caches asynchronously so app launch and playback are instant
   ArtworkCacheService.instance.init();
   AudioCacheService.instance.init();
@@ -30,7 +34,14 @@ void main() async {
   PlayerHistoryCacheService.instance.init();
   HomeCacheService.instance.loadHomeData();
 
-  runApp(const ProviderScope(child: AurumApp()));
+  runApp(
+    ProviderScope(
+      overrides: [
+        cadmiumAudioHandlerProvider.overrideWithValue(audioHandler),
+      ],
+      child: const AurumApp(),
+    ),
+  );
 }
 
 class AurumApp extends StatelessWidget {
