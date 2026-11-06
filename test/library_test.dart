@@ -13,6 +13,7 @@ import 'package:wavify/providers/favorites_provider.dart';
 import 'package:wavify/providers/library_provider.dart';
 import 'package:wavify/screens/home_screen.dart';
 import 'package:wavify/services/music_service.dart';
+import 'package:wavify/widgets/top_profile_avatar_button.dart';
 
 class _MockAuthNotifier extends AuthNotifier {
   _MockAuthNotifier(super.ref, UserAccount? initial) {
@@ -204,8 +205,19 @@ void main() {
       expect(find.text('Save Playlist'), findsOneWidget);
       expect(find.text('From YouTube'), findsWidgets);
 
-      // Verify "Favorite Track 1" is displayed
+      // Verify single songs are NOT loaded as square cards on the library screen
+      expect(find.text('Favorite Track 1'), findsNothing);
+
+      // Tap on Liked Music playlist card to open it
+      await tester.tap(find.text('Liked Music'));
+      await tester.pumpAndSettle();
+
+      // Verify Liked Music tracks appear inside the playlist/album screen
       expect(find.text('Favorite Track 1'), findsOneWidget);
+
+      // Go back to Library
+      await tester.tap(find.byIcon(CupertinoIcons.chevron_back));
+      await tester.pumpAndSettle();
 
       // Verify OLD list tiles have been removed!
       expect(find.text('Connect YouTube Music Account'), findsNothing);
@@ -263,8 +275,9 @@ void main() {
       await tester.tap(find.text('Library'));
       await tester.pumpAndSettle();
 
-      // Verify connected user badge
-      expect(find.text('Utkarsh'), findsOneWidget);
+      // Verify connected user avatar is rendered without username text
+      expect(find.text('Utkarsh'), findsNothing);
+      expect(find.byType(TopProfileAvatarButton), findsOneWidget);
 
       // Verify user's own specific playlist and album appear
       expect(find.text('My Custom Jams'), findsOneWidget);

@@ -16,8 +16,17 @@ class PlaylistItem {
   });
 
   String get subtitle {
+    if (author.toLowerCase() == 'youtube music' ||
+        id == 'LM' ||
+        id == 'VLLM' ||
+        title.toLowerCase() == 'liked music') {
+      if (trackCount != null) {
+        return '$trackCount songs';
+      }
+      return 'Playlist';
+    }
     if (trackCount != null) {
-      return '$trackCount songs • $author';
+      return author.isNotEmpty ? '$trackCount songs • $author' : '$trackCount songs';
     }
     return author.isNotEmpty ? author : 'Playlist';
   }

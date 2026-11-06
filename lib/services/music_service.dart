@@ -3572,18 +3572,19 @@ class MusicService {
             !browseId.startsWith('UC') &&
             !seenIds.contains(browseId)) {
           seenIds.add(browseId);
-          final author = _extractNodeText(item['subtitle']);
+          var author = _extractNodeText(item['subtitle']);
           String? thumb = _extractNodePhoto(item);
           if (browseId == 'VLLM' ||
               browseId == 'LM' ||
               title.toLowerCase() == 'liked music') {
             thumb ??= 'https://www.gstatic.com/youtube/media/ytm/images/pbg/liked-songs-delhi-576.png';
+            author = '';
           }
           playlists.add(
             PlaylistItem(
               id: browseId,
               title: title.isNotEmpty ? title : 'Playlist',
-              author: author.isNotEmpty ? author : 'YouTube Music',
+              author: author.isNotEmpty && author.toLowerCase() != 'youtube music' ? author : '',
               thumbnailUrl: thumb,
               isCustom: false,
             ),
@@ -3631,12 +3632,13 @@ class MusicService {
               browseId == 'LM' ||
               title.toLowerCase() == 'liked music') {
             thumb ??= 'https://www.gstatic.com/youtube/media/ytm/images/pbg/liked-songs-delhi-576.png';
+            author = '';
           }
           playlists.add(
             PlaylistItem(
               id: browseId,
               title: title,
-              author: author,
+              author: author.isNotEmpty && author.toLowerCase() != 'youtube music' ? author : '',
               thumbnailUrl: thumb,
               isCustom: false,
             ),

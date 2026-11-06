@@ -449,9 +449,9 @@ final userAlbumsProvider = FutureProvider<List<AlbumItem>>((ref) async {
     AlbumItem(
       id: 'LM',
       title: 'Liked Music',
-      artist: 'YouTube Music',
+      artist: '',
       thumbnailUrl: likedArt,
-      type: 'Auto Playlist',
+      type: 'Playlist',
       year: DateTime.now().year,
       trackCount: ytLikes.isNotEmpty ? ytLikes.length : 0,
       isCustom: false,

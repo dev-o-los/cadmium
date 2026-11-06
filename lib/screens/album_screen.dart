@@ -8,6 +8,7 @@ import '../constants/app_colors.dart';
 import '../constants/apple_typography.dart';
 import '../models/album_item.dart';
 import '../models/song_item.dart';
+import '../providers/favorites_provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/music_service_provider.dart';
 import '../providers/navigation_provider.dart';
@@ -152,10 +153,44 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       }
 
       // 2. Fetch all tracks and album details
-      final details = await musicService.getAlbumDetails(
+      var details = await musicService.getAlbumDetails(
         widget.album.copyWith(thumbnailUrl: _resolvedArtwork),
         queryFallback: '${widget.album.title} ${widget.album.artist}',
       );
+
+      if (widget.album.id == 'LM' ||
+          widget.album.id == 'VLLM' ||
+          widget.album.id == 'liked_music' ||
+          widget.album.title.toLowerCase() == 'liked music') {
+        final localFavs = ref.read(favoritesProvider);
+        final ytLikes = ref.read(youtubeLikedSongsProvider).asData?.value ?? [];
+        final Map<String, SongItem> map = {};
+        for (final t in details.tracks) {
+          map[t.id] = t;
+        }
+        for (final t in ytLikes) {
+          map[t.id] = t;
+        }
+        for (final t in localFavs) {
+          map[t.id] = t;
+        }
+        if (map.isNotEmpty) {
+          final mergedTracks = map.values.toList();
+          final totalSec = mergedTracks.fold<int>(
+            0,
+            (acc, s) => acc + (s.durationSeconds ?? 0),
+          );
+          details = AlbumDetails(
+            album: details.album.copyWith(
+              thumbnailUrl: _resolvedArtwork ?? mergedTracks.first.thumbnailUrl,
+            ),
+            tracks: mergedTracks,
+            totalDurationSeconds: totalSec > 0
+                ? totalSec
+                : details.totalDurationSeconds,
+          );
+        }
+      }
 
       if (!mounted) return;
 
@@ -329,6 +364,13 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         .read(savedAlbumsProvider.notifier)
         .isAlbumSaved(_album.id);
 
+    final isLikedMusic =
+        _album.id == 'LM' ||
+        _album.id == 'VLLM' ||
+        _album.id == 'liked_music' ||
+        _album.title.toLowerCase() == 'liked music' ||
+        _album.artist.toLowerCase() == 'youtube music';
+
     showAppleGlassBottomSheet(
       context: context,
       builder: (modalCtx) {
@@ -370,26 +412,29 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                             letterSpacing: -0.2,
                           ),
                         ),
-                        const SizedBox(height: 3),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.pop(modalCtx);
-                            openArtistScreen(
-                              context,
-                              artistName: _album.artist,
-                            );
-                          },
-                          child: Text(
-                            _album.artist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.85),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
+                        if (!isLikedMusic &&
+                            _album.artist.trim().isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.pop(modalCtx);
+                              openArtistScreen(
+                                context,
+                                artistName: _album.artist,
+                              );
+                            },
+                            child: Text(
+                              _album.artist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
@@ -400,15 +445,17 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
             const SizedBox(height: 4),
             AppleSheetGroup(
               children: [
-                AppleSheetActionTile(
-                  icon: CupertinoIcons.person_crop_circle,
-                  title: 'View Artist: ${_album.artist}',
-                  onTap: () {
-                    Navigator.pop(modalCtx);
-                    openArtistScreen(context, artistName: _album.artist);
-                  },
-                ),
-                const AppleSheetDivider(),
+                if (!isLikedMusic && _album.artist.trim().isNotEmpty) ...[
+                  AppleSheetActionTile(
+                    icon: CupertinoIcons.person_crop_circle,
+                    title: 'View Artist: ${_album.artist}',
+                    onTap: () {
+                      Navigator.pop(modalCtx);
+                      openArtistScreen(context, artistName: _album.artist);
+                    },
+                  ),
+                  const AppleSheetDivider(),
+                ],
                 AppleSheetActionTile(
                   icon: isSaved
                       ? CupertinoIcons.bookmark_fill
@@ -569,21 +616,33 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         isPlaying && _allTracks.any((t) => t.id == currentSong?.id);
     final currentTabIndex = ref.watch(currentTabProvider);
 
+    final isLikedMusic =
+        _album.id == 'LM' ||
+        _album.id == 'VLLM' ||
+        _album.id == 'liked_music' ||
+        _album.title.toLowerCase() == 'liked music' ||
+        _album.artist.toLowerCase() == 'youtube music';
+
     final totalDurationStr = _formatTotalDuration();
     final yearStr = _album.year ?? 2022;
     final trackCount = _allTracks.length;
-    final metadataString =
-        '${_album.type} · $yearStr · $trackCount Tracks · $totalDurationStr';
+    final metadataString = isLikedMusic
+        ? 'Playlist · $trackCount Tracks · $totalDurationStr'
+        : '${_album.type} · $yearStr · $trackCount Tracks · $totalDurationStr';
 
     final defaultDescription =
         _album.description ??
-        '${_album.title} is the debut studio album by American artist ${_album.artist}. It was released in $yearStr with a dynamic sound and cohesive track experience.';
+        (isLikedMusic
+            ? 'All your favorite and liked tracks in one playlist.'
+            : '${_album.title} is the debut studio album by American artist ${_album.artist}. It was released in $yearStr with a dynamic sound and cohesive track experience.');
 
-    final resolvedColor = _backgroundColor ??
+    final resolvedColor =
+        _backgroundColor ??
         ArtworkColorService.instance.getCachedColor(_resolvedArtwork ?? '') ??
         const Color(0xFF16161A);
-    final deeperTone =
-        ArtworkColorService.instance.computeDeeperTone(resolvedColor);
+    final deeperTone = ArtworkColorService.instance.computeDeeperTone(
+      resolvedColor,
+    );
 
     return Scaffold(
       backgroundColor: resolvedColor,
@@ -598,10 +657,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    resolvedColor,
-                    deeperTone,
-                  ],
+                  colors: [resolvedColor, deeperTone],
                   stops: const [0.0, 0.75],
                 ),
               ),
@@ -757,24 +813,27 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                             letterSpacing: -0.6,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        if (!isLikedMusic &&
+                            _album.artist.trim().isNotEmpty) ...[
+                          const SizedBox(height: 4),
 
-                        // Artist Name
-                        ApplePressable(
-                          onTap: () => openArtistScreen(
-                            context,
-                            artistName: _album.artist,
-                          ),
-                          child: Text(
-                            _album.artist,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w500,
+                          // Artist Name
+                          ApplePressable(
+                            onTap: () => openArtistScreen(
+                              context,
+                              artistName: _album.artist,
+                            ),
+                            child: Text(
+                              _album.artist,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                         const SizedBox(height: 6),
 
                         // Album · Year · X Tracks · Y min
@@ -1015,7 +1074,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                               ),
                                               child: const Text(
                                                 'E',
-                                                style: AppleTypography.explicitBadge,
+                                                style: AppleTypography
+                                                    .explicitBadge,
                                               ),
                                             ),
                                           ],
@@ -1029,7 +1089,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                           ),
                                         ],
                                       ),
-                                      const SizedBox(height: AppleSpacing.titleToSubtitle),
+                                      const SizedBox(
+                                        height: AppleSpacing.titleToSubtitle,
+                                      ),
                                       Text(
                                         track.artist,
                                         maxLines: 1,
