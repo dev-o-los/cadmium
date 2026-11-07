@@ -160,12 +160,12 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             ),
             padding: EdgeInsets.fromLTRB(0, topPadding + 6, 0, 160),
             children: [
-              // Scrollable Brand Logo Header
+              // Scrollable Brand Logo Header (Prominent Cadmium logo with comfortable top breathing room)
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: const AurumLogo(size: 30),
+                  child: const CadmiumLogo(size: 42),
                 ),
               ),
 

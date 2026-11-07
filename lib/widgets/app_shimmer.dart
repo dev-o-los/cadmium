@@ -95,8 +95,12 @@ class HomeScreenSkeleton extends StatelessWidget {
           children: [
             // Top Logo placeholder
             const Padding(
-              padding: EdgeInsets.fromLTRB(16, 4, 16, 20),
-              child: ShimmerBox(width: 32, height: 28),
+              padding: EdgeInsets.fromLTRB(16, 14, 16, 20),
+              child: ShimmerBox(
+                width: 42,
+                height: 42,
+                borderRadius: BorderRadius.all(Radius.circular(10)),
+              ),
             ),
 
             // 1. Top Picks for You Section
