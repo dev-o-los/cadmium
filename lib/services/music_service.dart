@@ -1882,6 +1882,9 @@ class MusicService {
             raw.startsWith('//') ? 'https:$raw' : raw,
           );
         }
+        if (thumb != null && thumb.isNotEmpty) {
+          _albumArtworkCache[a.albumId] = thumb;
+        }
         return AlbumItem(
           id: a.albumId,
           title: a.name.isNotEmpty ? a.name : 'Untitled Album',
@@ -3921,6 +3924,13 @@ class MusicService {
       playlists: results[3] as List<PlaylistItem>,
       videos: results[4] as List<VideoItem>,
     );
+
+    // Warm album artwork cache for discovered albums
+    for (final album in searchResultSet.albums) {
+      if (album.thumbnailUrl != null && album.thumbnailUrl!.isNotEmpty) {
+        _albumArtworkCache[album.id] = album.thumbnailUrl!;
+      }
+    }
 
     // Warm duration & artwork cache for discovered songs
     for (final song in searchResultSet.songs) {

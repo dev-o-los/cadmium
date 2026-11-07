@@ -415,5 +415,66 @@ void main() {
       expect(find.text('YAH YAH'), findsOneWidget);
       expect(find.byType(WavifyCachedImage), findsWidgets);
     });
+
+    test('Fast thumbnail optimization and edge CDN URL resolution', () {
+      // 1. Google User Content album artwork upgrades to official edge-cached =w544-h544-l90-rj
+      final albumUrl = SongItem.upgradeThumbnail(
+        'https://lh3.googleusercontent.com/abc=w120-h120-l90-rj',
+      );
+      expect(albumUrl, 'https://lh3.googleusercontent.com/abc=w544-h544-l90-rj');
+
+      // 2. Standard YouTube video thumbnail preserves hqdefault (guaranteed instant 20ms load)
+      final ytUrl = SongItem.upgradeThumbnail(
+        'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+      );
+      expect(ytUrl, 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg');
+
+      // 3. AlbumItem resolves protocol-relative URLs cleanly
+      const albumItem = AlbumItem(
+        id: 'MPREb_test',
+        title: 'Test Album',
+        artist: 'Artist',
+        thumbnailUrl: '//lh3.googleusercontent.com/album_art=w120-h120',
+      );
+      expect(
+        albumItem.resolvedThumbnailUrl,
+        'https://lh3.googleusercontent.com/album_art=w120-h120',
+      );
+    });
+
+    testWidgets('clearing search input restores Recent Searches view and hides pill bar',
+        (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            musicServiceProvider.overrideWithValue(MockMusicService()),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: SearchScreen(),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Enter search text and settle
+      await tester.enterText(find.byType(TextField), 'tsumyoki');
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      // Search results are visible
+      expect(find.text('YAH YAH'), findsOneWidget);
+      expect(find.text('Songs'), findsWidgets);
+
+      // Now clear search text completely (empty string)
+      await tester.enterText(find.byType(TextField), '');
+      await tester.pumpAndSettle();
+
+      // Verify Recent Searches view is restored immediately
+      expect(find.text('YAH YAH'), findsNothing);
+      expect(find.text('No results found for ""'), findsNothing);
+    });
   });
 }

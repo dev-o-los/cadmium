@@ -85,8 +85,12 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
 
     _debounceTimer?.cancel();
     if (query != null && _controller.text != query) {
-      _controller.text = query;
+      _controller.value = TextEditingValue(
+        text: query,
+        selection: TextSelection.collapsed(offset: query.length),
+      );
     }
+    _debounceTimer?.cancel();
 
     // Save query to recent searches
     ref
@@ -114,7 +118,14 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
       return;
     }
 
-    _debounceTimer = Timer(const Duration(milliseconds: 380), () {
+    final currentState = ref.read(searchProvider);
+    if (trimmed == currentState.query &&
+        currentState.hasSearched &&
+        !currentState.isLoading) {
+      return;
+    }
+
+    _debounceTimer = Timer(const Duration(milliseconds: 320), () {
       if (!mounted) return;
       ref.read(searchProvider.notifier).search(trimmed);
     });
@@ -124,6 +135,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
     _debounceTimer?.cancel();
     _controller.clear();
     ref.read(searchProvider.notifier).clearQuery();
+    _focusNode.unfocus();
     setState(() {});
   }
 
@@ -165,8 +177,11 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
               ),
             ),
 
-            // Unified Sliding Pill Segmented Bar (Only when searching or results active)
-            if (isQueryActive || searchState.hasSearched) ...[
+            // Unified Sliding Pill Segmented Bar (Only when actively searching with query)
+            if (isQueryActive &&
+                (searchState.hasSearched ||
+                    searchState.isLoading ||
+                    searchState.results.isNotEmpty)) ...[
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: _buildSlidingPillSegmentedBar(
@@ -291,7 +306,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
   /// Main body routing based on search state and query.
   Widget _buildBodyContent(SearchState searchState, bool isQueryActive) {
     // 1. Idle state (no active query): Show Recent Searches
-    if (!isQueryActive && !searchState.hasSearched) {
+    if (!isQueryActive) {
       return _buildRecentSearchesSection();
     }
 
@@ -443,7 +458,6 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
 
     return ApplePressable(
       onTap: () {
-        _controller.text = item.title;
         switch (item.type) {
           case RecentSearchType.song:
             playSong(
@@ -457,7 +471,19 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
               ),
               forceReload: true,
             );
-            search(item.title);
+            break;
+          case RecentSearchType.video:
+            playSong(
+              context,
+              ref,
+              SongItem(
+                id: item.id,
+                title: item.title,
+                artist: item.subtitle,
+                thumbnailUrl: item.thumbnailUrl,
+              ),
+              forceReload: true,
+            );
             break;
           case RecentSearchType.artist:
             openArtistScreen(
@@ -490,7 +516,6 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
               ),
             );
             break;
-          case RecentSearchType.video:
           case RecentSearchType.query:
             search(item.title);
             break;
@@ -987,7 +1012,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                 id: album.id,
                 title: album.title,
                 subtitle: album.subtitle,
-                thumbnailUrl: album.thumbnailUrl,
+                thumbnailUrl: album.resolvedThumbnailUrl ?? album.thumbnailUrl,
                 type: RecentSearchType.album,
                 timestamp: DateTime.now().millisecondsSinceEpoch,
               ),
@@ -1005,7 +1030,8 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: WavifyCachedImage(
-                  imageUrl: album.thumbnailUrl,
+                  imageUrl:
+                      album.resolvedThumbnailUrl ?? album.thumbnailUrl,
                   width: 50,
                   height: 50,
                   fit: BoxFit.cover,

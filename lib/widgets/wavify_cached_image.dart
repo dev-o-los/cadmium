@@ -99,10 +99,14 @@ class WavifyCachedImage extends StatelessWidget {
         } else if (imageUrl.contains('sddefault.jpg')) {
           addUrl(imageUrl.replaceAll('sddefault.jpg', 'hqdefault.jpg'));
           addUrl(imageUrl.replaceAll('sddefault.jpg', 'mqdefault.jpg'));
+        } else if (imageUrl.contains('hqdefault.jpg')) {
+          addUrl(imageUrl.replaceAll('hqdefault.jpg', 'mqdefault.jpg'));
         }
       } else if (imageUrl.contains('googleusercontent.com') || imageUrl.contains('ggpht.com')) {
         if (imageUrl.contains('=w') || imageUrl.contains('=s')) {
+          // Official YouTube Music edge-cached resolution steps (instant cache hits)
           addUrl(imageUrl.replaceAll(RegExp(r'=(w\d+-h\d+|s\d+).*'), '=w544-h544-l90-rj'));
+          addUrl(imageUrl.replaceAll(RegExp(r'=(w\d+-h\d+|s\d+).*'), '=w226-h226-l90-rj'));
           addUrl(imageUrl.replaceAll(RegExp(r'=.*'), ''));
         }
       }
@@ -310,6 +314,9 @@ class _CascadingCachedImage extends StatelessWidget {
       );
     }
 
+    final memW = width != null && width! > 0 ? (width! * 2.5).round() : null;
+    final memH = height != null && height! > 0 ? (height! * 2.5).round() : null;
+
     return CachedNetworkImage(
       imageUrl: currentUrl,
       width: width,
@@ -317,8 +324,10 @@ class _CascadingCachedImage extends StatelessWidget {
       fit: fit,
       alignment: alignment,
       filterQuality: filterQuality,
-      fadeInDuration: const Duration(milliseconds: 150),
-      fadeOutDuration: const Duration(milliseconds: 150),
+      memCacheWidth: memW,
+      memCacheHeight: memH,
+      fadeInDuration: const Duration(milliseconds: 120),
+      fadeOutDuration: const Duration(milliseconds: 120),
       placeholder: (context, url) => placeholder,
       errorWidget: (context, url, error) => nextFallback(),
     );

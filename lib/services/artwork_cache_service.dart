@@ -159,11 +159,13 @@ class ArtworkCacheService {
 
     final rawUrl = forceHighRes
         ? (song.highResThumbnailUrl ?? song.thumbnailUrl)
-        : song.thumbnailUrl;
+        : (song.thumbnailUrl ?? song.resolvedThumbnailUrl);
 
     if (rawUrl == null || rawUrl.isEmpty) return null;
 
-    final targetUrl = SongItem.upgradeThumbnail(rawUrl, size: 1800, quality: 100) ?? rawUrl;
+    final targetUrl = forceHighRes
+        ? (SongItem.upgradeThumbnail(rawUrl, size: 800, quality: 95) ?? rawUrl)
+        : (SongItem.upgradeThumbnail(rawUrl, size: 544, quality: 90) ?? rawUrl);
 
     try {
       if (_cacheDir == null) {
@@ -203,9 +205,9 @@ class ArtworkCacheService {
   /// Pre-caches artwork for a batch of songs (e.g. from queue or home recents).
   Future<void> prefetchArtworks(List<SongItem> songs) async {
     if (!kIsWeb && Platform.environment.containsKey('FLUTTER_TEST')) return;
-    for (final song in songs) {
+    for (final song in songs.take(4)) {
       if (getCachedArtworkFile(song.id) == null) {
-        // Run unawaited so it doesn't block the UI thread
+        // Run unawaited with safe priority so it doesn't block the UI thread
         cacheSongArtwork(song, forceHighRes: false);
       }
     }

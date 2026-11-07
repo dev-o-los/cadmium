@@ -31,9 +31,14 @@ class VideoItem {
   }
 
   /// High-resolution upgraded thumbnail for crisp AMOLED display.
-  String? get highResThumbnailUrl =>
-      SongItem.upgradeThumbnail(resolvedThumbnailUrl, size: 800, quality: 95) ??
-      resolvedThumbnailUrl;
+  String? get highResThumbnailUrl {
+    final base = resolvedThumbnailUrl;
+    if (base == null || base.isEmpty) return null;
+    if (base.contains('i.ytimg.com') || base.contains('img.youtube.com')) {
+      return base.replaceAll(RegExp(r'(mqdefault|default|hqdefault|sddefault|hq720)\.jpg'), 'maxresdefault.jpg');
+    }
+    return SongItem.upgradeThumbnail(base, size: 800, quality: 95) ?? base;
+  }
 
   String get subtitle {
     final parts = <String>[];

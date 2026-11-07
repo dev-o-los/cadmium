@@ -30,6 +30,15 @@ class AlbumItem {
     return '$type • $artist$yearStr';
   }
 
+  /// Clean, sanitized thumbnail URL for the album.
+  String? get resolvedThumbnailUrl {
+    if (thumbnailUrl != null && thumbnailUrl!.trim().isNotEmpty) {
+      final clean = thumbnailUrl!.trim();
+      return clean.startsWith('//') ? 'https:$clean' : clean;
+    }
+    return null;
+  }
+
   AlbumItem copyWith({
     String? id,
     String? title,
