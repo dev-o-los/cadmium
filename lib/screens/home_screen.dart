@@ -8,6 +8,7 @@ import '../providers/player_provider.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/liquid_glass_bottom_bar.dart';
 import '../widgets/player_controls.dart';
+import '../widgets/top_profile_avatar_button.dart';
 import 'explore_screen.dart';
 import 'home_feed_screen.dart';
 import 'library_screen.dart';
@@ -105,6 +106,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final playerState = ref.watch(playerProvider);
     final currentTabIndex = ref.watch(currentTabProvider);
+    final topPadding = MediaQuery.of(context).padding.top;
 
     // Listen for audio stream resolution errors
     ref.listen<String?>(playerProvider.select((s) => s.errorMessage), (
@@ -157,9 +159,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 SearchScreen(
                   key: _searchKey,
                   searchController: _searchController,
+                  showAvatar: false,
                 ),
               ],
             ),
+          ),
+
+          // Fixed Top Status Bar Gradient Dissolve across Home, Explore, and Library tabs
+          // Creates a natural liquid fading of scrolling headers under the top bezel
+          if (currentTabIndex != 3)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: topPadding + 44,
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black,
+                        Colors.black.withValues(alpha: 0.85),
+                        Colors.black.withValues(alpha: 0.40),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.45, 0.75, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // Global Fixed Top-Right Profile Avatar Button
+          // Rock-solid fixed in place across all tabs (Home, Explore, Library, Search)
+          Positioned(
+            top: topPadding + 12,
+            right: 16,
+            child: const TopProfileAvatarButton(size: 40),
           ),
 
           // Floating Player + Floating Liquid Glass Navigation Dock

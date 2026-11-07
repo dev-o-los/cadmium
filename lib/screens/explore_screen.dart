@@ -10,7 +10,6 @@ import '../utils/playback_utils.dart';
 import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_pressable.dart';
-import '../widgets/top_profile_avatar_button.dart';
 import '../widgets/top_status_bar_blur.dart';
 import '../widgets/track_options_sheet.dart';
 import '../widgets/app_shimmer.dart';
@@ -57,22 +56,17 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
           ),
           padding: EdgeInsets.fromLTRB(20, topPadding + 14, 20, 160),
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Explore',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 34,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: -1.2,
-                  ),
-                ),
-                const TopProfileAvatarButton(),
-              ],
+            // Body Content Large Title Header (moves and fades away naturally on scroll)
+            const Text(
+              'Explore',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 34,
+                fontWeight: FontWeight.bold,
+                letterSpacing: -1.2,
+              ),
             ),
-        const SizedBox(height: 16),
+            const SizedBox(height: 16),
         const Text(
           'Genres & Categories',
           style: TextStyle(

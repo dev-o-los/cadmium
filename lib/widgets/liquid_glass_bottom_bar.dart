@@ -2,7 +2,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-import '../constants/app_colors.dart';
 import 'animated_cupertino_icon.dart';
 
 /// Floating Liquid Glass Bottom Navigation Dock using official [GlassTabBar.minimizable]
@@ -59,7 +58,7 @@ class LiquidGlassBottomBar extends StatelessWidget {
       trailingButton: GlassTabBarTrailingButton(
         icon: AnimatedCupertinoIcon(
           icon: CupertinoIcons.search,
-          color: currentIndex == 3 ? Colors.white : AppColors.appleSecondaryText,
+          color: currentIndex == 3 ? Colors.white : const Color(0xB3FFFFFF),
           size: 22,
         ),
         onTap: () => onTabSelected(3),
@@ -75,12 +74,32 @@ class LiquidGlassBottomBar extends StatelessWidget {
       spacing: 8.0,
       barBorderRadius: 29.0,
       selectedIconColor: Colors.white,
-      unselectedIconColor: AppColors.appleSecondaryText,
+      unselectedIconColor: const Color(0xB3FFFFFF),
       selectedLabelColor: Colors.white,
-      unselectedLabelColor: AppColors.appleSecondaryText,
-      indicatorColor: Colors.white.withValues(alpha: 0.18),
+      unselectedLabelColor: const Color(0xB3FFFFFF),
+      selectedLabelStyle: const TextStyle(
+        color: Colors.white,
+        fontSize: 11,
+        fontWeight: FontWeight.w600,
+        letterSpacing: -0.2,
+      ),
+      unselectedLabelStyle: const TextStyle(
+        color: Color(0xB3FFFFFF),
+        fontSize: 11,
+        fontWeight: FontWeight.w500,
+        letterSpacing: -0.2,
+      ),
+      indicatorColor: Colors.white.withValues(alpha: 0.22),
+      indicatorSettings: const LiquidGlassSettings(
+        glassColor: Color(0x30FFFFFF),
+        thickness: 18,
+        blur: 20,
+        refractiveIndex: 1.15,
+        lightIntensity: 0.55,
+        specularSharpness: GlassSpecularSharpness.sharp,
+      ),
       settings: const LiquidGlassSettings(
-        glassColor: Color(0xF2121216),
+        glassColor: Color(0x3D1A1A22),
         thickness: 24,
         blur: 24,
         refractiveIndex: 1.15,

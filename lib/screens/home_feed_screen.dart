@@ -19,7 +19,6 @@ import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/dynamic_album_artwork.dart';
-import '../widgets/top_profile_avatar_button.dart';
 import '../widgets/top_status_bar_blur.dart';
 import '../widgets/app_shimmer.dart';
 import '../widgets/track_options_sheet.dart';
@@ -56,89 +55,43 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
   @override
   Widget build(BuildContext context) {
     final homeDataAsync = ref.watch(homeDataProvider);
-    final topPadding = MediaQuery.of(context).padding.top;
 
-    return Stack(
-      children: [
-        // 1. Main Feed Content / Loading / Error
-        homeDataAsync.when(
-          loading: () => const HomeScreenSkeleton(),
-          error: (err, stack) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    CupertinoIcons.exclamationmark_circle,
-                    size: 52,
-                    color: Colors.white70,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Failed to load music: $err',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.white, fontSize: 15),
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton.tonal(
-                    onPressed: () =>
-                        ref.read(homeDataProvider.notifier).refresh(),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.appleDarkSurfaceHigh,
-                    ),
-                    child: const Text(
-                      'Try Again',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                ],
+    return homeDataAsync.when(
+      loading: () => const HomeScreenSkeleton(),
+      error: (err, stack) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                CupertinoIcons.exclamationmark_circle,
+                size: 52,
+                color: Colors.white70,
               ),
-            ),
-          ),
-          data: (data) => _buildHomeContent(context, ref, data),
-        ),
-
-        // 2. Fixed Top Navigation Bar (Profile Avatar & subtle ambient dissolve)
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          child: _buildTopNavigationBar(context, topPadding),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTopNavigationBar(BuildContext context, double topPadding) {
-    return SizedBox(
-      height: topPadding + 52,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: IgnorePointer(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withValues(alpha: 0.90),
-                      Colors.black.withValues(alpha: 0.60),
-                      Colors.transparent,
-                    ],
-                  ),
+              const SizedBox(height: 12),
+              Text(
+                'Failed to load music: $err',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 15),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.tonal(
+                onPressed: () =>
+                    ref.read(homeDataProvider.notifier).refresh(),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.appleDarkSurfaceHigh,
+                ),
+                child: const Text(
+                  'Try Again',
+                  style: TextStyle(color: Colors.white),
                 ),
               ),
-            ),
+            ],
           ),
-          Positioned(
-            top: topPadding + 4,
-            right: 16,
-            child: const TopProfileAvatarButton(),
-          ),
-        ],
+        ),
       ),
+      data: (data) => _buildHomeContent(context, ref, data),
     );
   }
 

@@ -21,8 +21,8 @@ import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/sliding_pill_segmented_bar.dart';
-import '../widgets/top_profile_avatar_button.dart';
 import '../widgets/top_status_bar_blur.dart';
+import '../widgets/top_profile_avatar_button.dart';
 import '../widgets/track_options_sheet.dart';
 import '../widgets/wavify_cached_image.dart';
 import '../widgets/app_shimmer.dart';
@@ -37,8 +37,13 @@ import '../widgets/app_shimmer.dart';
 /// - Responsive categorization matching Apple Music OLED aesthetics
 class SearchScreen extends ConsumerStatefulWidget {
   final TextEditingController? searchController;
+  final bool showAvatar;
 
-  const SearchScreen({super.key, this.searchController});
+  const SearchScreen({
+    super.key,
+    this.searchController,
+    this.showAvatar = true,
+  });
 
   @override
   ConsumerState<SearchScreen> createState() => SearchScreenState();
@@ -172,7 +177,11 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                 children: [
                   Expanded(child: _buildLiquidGlassSearchBar()),
                   const SizedBox(width: 12),
-                  _buildProfileAvatarButton(),
+                  if (widget.showAvatar)
+                    const TopProfileAvatarButton(size: 40)
+                  else
+                    // Reserved 40x40 slot aligning with fixed global avatar in HomeScreen
+                    const SizedBox(width: 40, height: 40),
                 ],
               ),
             ),
@@ -285,11 +294,6 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
         ),
       ),
     );
-  }
-
-  /// Profile Avatar button on top right opening account modal sheet.
-  Widget _buildProfileAvatarButton() {
-    return const TopProfileAvatarButton(size: 40);
   }
 
   /// Unified sliding pill segmented bar with animated white highlight pill.

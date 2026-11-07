@@ -19,7 +19,6 @@ import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_glass_bottom_sheet.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/dynamic_album_artwork.dart';
-import '../widgets/top_profile_avatar_button.dart';
 import '../widgets/top_status_bar_blur.dart';
 import '../widgets/app_shimmer.dart';
 import '../widgets/wavify_cached_image.dart';
@@ -103,16 +102,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           ),
           padding: EdgeInsets.fromLTRB(0, topPadding + 14, 0, 160),
           children: [
-            // 1. Library Title
+            // 1. Library Title (in body content, fades smoothly under top bezel on scroll)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Library', style: AppleTypography.largeTitle),
-                  TopProfileAvatarButton(),
-                ],
-              ),
+              child: Text('Library', style: AppleTypography.largeTitle),
             ),
             const SizedBox(height: 20),
 
