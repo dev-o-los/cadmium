@@ -22,6 +22,8 @@ class CadmiumAudioHandler extends BaseAudioHandler with SeekHandler {
   final AudioPlayer _player;
   VoidCallback? onSkipNext;
   VoidCallback? onSkipPrevious;
+  VoidCallback? onPlay;
+  VoidCallback? onPause;
 
   StreamSubscription<PlaybackEvent>? _playbackEventSub;
   StreamSubscription<PlayerState>? _playerStateSub;
@@ -56,6 +58,16 @@ class CadmiumAudioHandler extends BaseAudioHandler with SeekHandler {
       MediaControl.stop,
     ];
 
+    final audioProcessingState = const {
+      ProcessingState.idle: AudioProcessingState.idle,
+      ProcessingState.loading: AudioProcessingState.loading,
+      ProcessingState.buffering: AudioProcessingState.buffering,
+      ProcessingState.ready: AudioProcessingState.ready,
+      ProcessingState.completed: AudioProcessingState.completed,
+    }[processingState] ?? AudioProcessingState.idle;
+
+    final isActuallyPlaying = isPlaying && processingState == ProcessingState.ready;
+
     playbackState.add(
       PlaybackState(
         controls: controls,
@@ -66,17 +78,11 @@ class CadmiumAudioHandler extends BaseAudioHandler with SeekHandler {
         },
         // In Android notifications, shows Previous, Play/Pause, and Next in compact mode
         androidCompactActionIndices: const [0, 1, 2],
-        processingState: const {
-          ProcessingState.idle: AudioProcessingState.idle,
-          ProcessingState.loading: AudioProcessingState.loading,
-          ProcessingState.buffering: AudioProcessingState.buffering,
-          ProcessingState.ready: AudioProcessingState.ready,
-          ProcessingState.completed: AudioProcessingState.completed,
-        }[processingState] ?? AudioProcessingState.idle,
+        processingState: audioProcessingState,
         playing: isPlaying,
         updatePosition: _player.position,
         bufferedPosition: _player.bufferedPosition,
-        speed: _player.speed,
+        speed: isActuallyPlaying ? (_player.speed > 0 ? _player.speed : 1.0) : 0.0,
         queueIndex: 0,
       ),
     );
@@ -119,7 +125,7 @@ class CadmiumAudioHandler extends BaseAudioHandler with SeekHandler {
     // Immediately emit an active playback state so that the OS MediaSession
     // enters the active foreground state, displaying the notification player and
     // Dynamic Island / Aqua Dynamics live alert capsule without delay!
-    final isPlaying = isBuffering || _player.playing;
+    final isPlaying = !isBuffering && _player.playing;
     final controls = [
       MediaControl.skipToPrevious,
       if (isPlaying) MediaControl.pause else MediaControl.play,
@@ -141,10 +147,10 @@ class CadmiumAudioHandler extends BaseAudioHandler with SeekHandler {
             : (_player.playing
                 ? AudioProcessingState.ready
                 : AudioProcessingState.idle),
-        playing: isPlaying,
+        playing: isBuffering || _player.playing,
         updatePosition: _player.position,
         bufferedPosition: _player.bufferedPosition,
-        speed: 1.0,
+        speed: isPlaying ? (_player.speed > 0 ? _player.speed : 1.0) : 0.0,
         queueIndex: 0,
       ),
     );
@@ -155,17 +161,26 @@ class CadmiumAudioHandler extends BaseAudioHandler with SeekHandler {
     final current = mediaItem.value;
     if (current != null && current.duration != duration) {
       mediaItem.add(current.copyWith(duration: duration));
+      _broadcastPlaybackState();
     }
   }
 
   @override
   Future<void> play() async {
-    await _player.play();
+    if (onPlay != null) {
+      onPlay!();
+    } else {
+      await _player.play();
+    }
   }
 
   @override
   Future<void> pause() async {
-    await _player.pause();
+    if (onPause != null) {
+      onPause!();
+    } else {
+      await _player.pause();
+    }
   }
 
   @override
@@ -177,6 +192,7 @@ class CadmiumAudioHandler extends BaseAudioHandler with SeekHandler {
   @override
   Future<void> seek(Duration position) async {
     await _player.seek(position);
+    _broadcastPlaybackState();
   }
 
   @override
@@ -220,8 +236,8 @@ Future<CadmiumAudioHandler> initCadmiumAudioService() async {
         androidNotificationChannelName: 'Music Playback',
         androidNotificationChannelDescription:
             'Cadmium high-fidelity background music playback controls',
-        androidNotificationOngoing: true,
-        androidStopForegroundOnPause: true,
+        androidNotificationOngoing: false,
+        androidStopForegroundOnPause: false,
         androidNotificationIcon: 'drawable/ic_notification',
         androidShowNotificationBadge: true,
         androidNotificationClickStartsActivity: true,

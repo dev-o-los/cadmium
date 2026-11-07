@@ -176,6 +176,8 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         super(_buildInitialState()) {
     _audioHandler.onSkipNext = () => skipNext();
     _audioHandler.onSkipPrevious = () => skipPrevious();
+    _audioHandler.onPlay = () => play();
+    _audioHandler.onPause = () => pause();
     _initAudioListeners();
     _initAudioSession();
     _restorePersistedPlayback();

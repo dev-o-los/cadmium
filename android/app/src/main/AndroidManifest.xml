@@ -9,7 +9,11 @@
         android:label="Cadmium"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        android:appCategory="audio">
+        <meta-data
+            android:name="com.samsung.android.support.ongoing_activity"
+            android:value="true" />
         <service android:name="com.ryanheise.audioservice.AudioService"
             android:foregroundServiceType="mediaPlayback"
             android:exported="true"
