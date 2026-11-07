@@ -19,3 +19,4 @@ Future<bool> requestNotificationPermissionIfNeeded() async {
     return false;
   }
 }
+
