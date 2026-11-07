@@ -88,6 +88,7 @@ class CadmiumAudioHandler extends BaseAudioHandler with SeekHandler {
     SongItem song, {
     Duration? duration,
     String? localArtworkPath,
+    bool isBuffering = false,
   }) {
     Uri? artUri;
     if (localArtworkPath != null && localArtworkPath.isNotEmpty) {
@@ -112,6 +113,39 @@ class CadmiumAudioHandler extends BaseAudioHandler with SeekHandler {
         artist: song.artist,
         duration: effectiveDuration,
         artUri: artUri,
+      ),
+    );
+
+    // Immediately emit an active playback state so that the OS MediaSession
+    // enters the active foreground state, displaying the notification player and
+    // Dynamic Island / Aqua Dynamics live alert capsule without delay!
+    final isPlaying = isBuffering || _player.playing;
+    final controls = [
+      MediaControl.skipToPrevious,
+      if (isPlaying) MediaControl.pause else MediaControl.play,
+      MediaControl.skipToNext,
+      MediaControl.stop,
+    ];
+
+    playbackState.add(
+      PlaybackState(
+        controls: controls,
+        systemActions: const {
+          MediaAction.seek,
+          MediaAction.seekForward,
+          MediaAction.seekBackward,
+        },
+        androidCompactActionIndices: const [0, 1, 2],
+        processingState: isBuffering
+            ? AudioProcessingState.buffering
+            : (_player.playing
+                ? AudioProcessingState.ready
+                : AudioProcessingState.idle),
+        playing: isPlaying,
+        updatePosition: _player.position,
+        bufferedPosition: _player.bufferedPosition,
+        speed: 1.0,
+        queueIndex: 0,
       ),
     );
   }
@@ -182,15 +216,16 @@ Future<CadmiumAudioHandler> initCadmiumAudioService() async {
     return await AudioService.init(
       builder: () => CadmiumAudioHandler(),
       config: const AudioServiceConfig(
-        androidNotificationChannelId: 'com.devolos.cadmium.channel.audio',
-        androidNotificationChannelName: 'Cadmium Playback',
+        androidNotificationChannelId: 'com.devolos.cadmium.playback',
+        androidNotificationChannelName: 'Music Playback',
         androidNotificationChannelDescription:
             'Cadmium high-fidelity background music playback controls',
         androidNotificationOngoing: false,
-        androidStopForegroundOnPause: true,
-        androidNotificationIcon: 'mipmap/ic_launcher',
+        androidStopForegroundOnPause: false,
+        androidNotificationIcon: 'drawable/ic_notification',
         androidShowNotificationBadge: true,
-        notificationColor: Color(0xFF000000),
+        androidNotificationClickStartsActivity: true,
+        notificationColor: Color(0xFF1C1C1E),
       ),
     );
   } catch (e) {

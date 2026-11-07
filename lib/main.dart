@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,7 @@ import 'services/home_cache_service.dart';
 import 'services/player_history_cache_service.dart';
 import 'services/song_metrics_cache_service.dart';
 import 'services/cadmium_audio_handler.dart';
+import 'utils/notification_permission.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +28,10 @@ void main() async {
 
   // Initialize background audio notification service for lock screen & system status
   final audioHandler = await initCadmiumAudioService();
+
+  // Request Android 13+ notification permissions so that media controls and
+  // OnePlus Aqua Dynamics / Dynamic Island capsules display reliably
+  unawaited(requestNotificationPermissionIfNeeded());
 
   // Initialize persistent caches asynchronously so app launch and playback are instant
   ArtworkCacheService.instance.init();

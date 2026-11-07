@@ -51,6 +51,7 @@ dependencies:
   xml: ^7.1.0
   shimmer: ^4.0.0
   palette_generator: ^0.3.3+7
+  permission_handler: ^13.0.2
 
 dev_dependencies:
   flutter_test:

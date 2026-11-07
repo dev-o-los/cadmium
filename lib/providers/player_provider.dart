@@ -14,6 +14,7 @@ import '../services/player_history_cache_service.dart';
 import '../services/song_metrics_cache_service.dart';
 import '../services/lyrics_service.dart';
 import '../services/cadmium_audio_handler.dart';
+import '../utils/notification_permission.dart';
 import 'music_service_provider.dart';
 
 /// Immutable model representing the active player playback state.
@@ -412,6 +413,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         initialPosition: resumePosition,
         preload: true,
       );
+      await _audioSession?.setActive(true);
       await _audioPlayer.play();
 
       state = state.copyWith(
@@ -522,12 +524,16 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       duration: initialDuration,
     );
 
-    // Immediately broadcast to system media notification & lock screen
+    // Request notification permission on Android 13+ (OnePlus, Samsung, Pixel) if needed
+    unawaited(requestNotificationPermissionIfNeeded());
+
+    // Immediately broadcast to system media notification & lock screen with active buffering state
     final cachedArt = ArtworkCacheService.instance.getCachedArtworkFile(song.id);
     _audioHandler.updateCurrentSong(
       song,
       duration: initialDuration,
       localArtworkPath: cachedArt?.path,
+      isBuffering: true,
     );
 
     // Fetch lyrics asynchronously in background
@@ -618,6 +624,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         return;
       }
 
+      await _audioSession?.setActive(true);
       await _audioPlayer.play();
 
       if (requestId != _currentStreamRequestId) return;
@@ -937,6 +944,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       _audioSession = session;
 
       await session.configure(const AudioSessionConfiguration.music());
+      await session.setActive(true);
 
       final devices = await session.getDevices(includeOutputs: true, includeInputs: false);
       _updateAudioDevices(devices);
