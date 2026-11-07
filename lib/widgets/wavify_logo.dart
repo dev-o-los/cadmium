@@ -48,11 +48,7 @@ class ZenStonesIcon extends StatelessWidget {
   final double size;
   final Color color;
 
-  const ZenStonesIcon({
-    super.key,
-    this.size = 64,
-    this.color = Colors.white,
-  });
+  const ZenStonesIcon({super.key, this.size = 64, this.color = Colors.white});
 
   @override
   Widget build(BuildContext context) {
@@ -119,11 +115,7 @@ class VortexRingsIcon extends StatelessWidget {
   final double size;
   final Color color;
 
-  const VortexRingsIcon({
-    super.key,
-    this.size = 64,
-    this.color = Colors.white,
-  });
+  const VortexRingsIcon({super.key, this.size = 64, this.color = Colors.white});
 
   @override
   Widget build(BuildContext context) {
@@ -167,4 +159,3 @@ class _VortexRingsPainter extends CustomPainter {
   bool shouldRepaint(covariant _VortexRingsPainter oldDelegate) =>
       oldDelegate.color != color;
 }
-
