@@ -97,9 +97,9 @@ class HomeScreenSkeleton extends StatelessWidget {
             const Padding(
               padding: EdgeInsets.fromLTRB(16, 14, 16, 20),
               child: ShimmerBox(
-                width: 42,
-                height: 42,
-                borderRadius: BorderRadius.all(Radius.circular(10)),
+                width: 56,
+                height: 56,
+                borderRadius: BorderRadius.all(Radius.circular(12)),
               ),
             ),
 
