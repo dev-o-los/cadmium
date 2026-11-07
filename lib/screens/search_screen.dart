@@ -510,10 +510,8 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                     width: 48,
                     height: 48,
                     fit: BoxFit.cover,
-                    placeholder: _fallbackSquareArt(
-                      size: 48,
-                      icon: CupertinoIcons.person_fill,
-                      isCircle: true,
+                    placeholder: const AppShimmer(
+                      child: ShimmerBox.circle(size: 48),
                     ),
                     errorWidget: _fallbackSquareArt(
                       size: 48,
@@ -527,16 +525,29 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                   borderRadius: BorderRadius.circular(8),
                   child: WavifyCachedImage(
                     imageUrl: item.thumbnailUrl,
-                    songId: item.type == RecentSearchType.song ? item.id : null,
+                    songId: item.type == RecentSearchType.song ||
+                            item.type == RecentSearchType.video
+                        ? item.id
+                        : null,
                     width: 48,
                     height: 48,
                     fit: BoxFit.cover,
-                    placeholder: _fallbackSquareArt(
-                      size: 48,
-                      icon: item.type == RecentSearchType.query
-                          ? CupertinoIcons.search
-                          : CupertinoIcons.music_note,
-                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    placeholder: item.thumbnailUrl != null
+                        ? const AppShimmer(
+                            child: ShimmerBox(
+                              width: 48,
+                              height: 48,
+                              borderRadius:
+                                  BorderRadius.all(Radius.circular(8)),
+                            ),
+                          )
+                        : _fallbackSquareArt(
+                            size: 48,
+                            icon: item.type == RecentSearchType.query
+                                ? CupertinoIcons.search
+                                : CupertinoIcons.music_note,
+                          ),
                     errorWidget: _fallbackSquareArt(
                       size: 48,
                       icon: item.type == RecentSearchType.query
@@ -796,7 +807,14 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                       width: 50,
                       height: 50,
                       fit: BoxFit.cover,
-                      placeholder: _fallbackSquareArt(),
+                      borderRadius: BorderRadius.circular(8),
+                      placeholder: const AppShimmer(
+                        child: ShimmerBox(
+                          width: 50,
+                          height: 50,
+                          borderRadius: BorderRadius.all(Radius.circular(8)),
+                        ),
+                      ),
                       errorWidget: _fallbackSquareArt(),
                     ),
                     if (isSelected && isPlaying)
@@ -918,10 +936,8 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                   width: 52,
                   height: 52,
                   fit: BoxFit.cover,
-                  placeholder: _fallbackSquareArt(
-                    size: 52,
-                    icon: CupertinoIcons.person_fill,
-                    isCircle: true,
+                  placeholder: const AppShimmer(
+                    child: ShimmerBox.circle(size: 52),
                   ),
                   errorWidget: _fallbackSquareArt(
                     size: 52,
@@ -993,7 +1009,14 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                   width: 50,
                   height: 50,
                   fit: BoxFit.cover,
-                  placeholder: _fallbackSquareArt(),
+                  borderRadius: BorderRadius.circular(8),
+                  placeholder: const AppShimmer(
+                    child: ShimmerBox(
+                      width: 50,
+                      height: 50,
+                      borderRadius: BorderRadius.all(Radius.circular(8)),
+                    ),
+                  ),
                   errorWidget: _fallbackSquareArt(),
                 ),
               ),
@@ -1060,7 +1083,14 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                   width: 50,
                   height: 50,
                   fit: BoxFit.cover,
-                  placeholder: _fallbackSquareArt(),
+                  borderRadius: BorderRadius.circular(8),
+                  placeholder: const AppShimmer(
+                    child: ShimmerBox(
+                      width: 50,
+                      height: 50,
+                      borderRadius: BorderRadius.all(Radius.circular(8)),
+                    ),
+                  ),
                   errorWidget: _fallbackSquareArt(),
                 ),
               ),
@@ -1107,7 +1137,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
           id: video.id,
           title: video.title,
           artist: video.artist,
-          thumbnailUrl: video.thumbnailUrl,
+          thumbnailUrl: video.resolvedThumbnailUrl,
           durationSeconds: video.durationSeconds,
         );
 
@@ -1118,7 +1148,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                 id: video.id,
                 title: video.title,
                 subtitle: video.artist,
-                thumbnailUrl: video.thumbnailUrl,
+                thumbnailUrl: video.resolvedThumbnailUrl,
                 type: RecentSearchType.video,
                 timestamp: DateTime.now().millisecondsSinceEpoch,
               ),
@@ -1136,11 +1166,19 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: WavifyCachedImage(
-                  imageUrl: video.thumbnailUrl,
+                  imageUrl: video.resolvedThumbnailUrl,
+                  songId: video.id,
                   width: 104,
                   height: 58,
                   fit: BoxFit.cover,
-                  placeholder: _fallbackWidescreenArt(),
+                  borderRadius: BorderRadius.circular(8),
+                  placeholder: const AppShimmer(
+                    child: ShimmerBox(
+                      width: 104,
+                      height: 58,
+                      borderRadius: BorderRadius.all(Radius.circular(8)),
+                    ),
+                  ),
                   errorWidget: _fallbackWidescreenArt(),
                 ),
               ),

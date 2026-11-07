@@ -25,6 +25,7 @@ import '../widgets/player_controls.dart';
 import '../widgets/track_options_sheet.dart';
 import '../widgets/top_status_bar_blur.dart';
 import '../widgets/app_shimmer.dart';
+import '../widgets/wavify_cached_image.dart';
 
 /// Full-Page Album View matching the user's reference screenshots:
 /// - Dynamic album background derived from the most attractive color of the album artwork
@@ -385,16 +386,21 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: _resolvedArtwork != null
-                        ? Image.network(
-                            _resolvedArtwork!,
-                            width: 50,
-                            height: 50,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                _fallbackCover(50),
-                          )
-                        : _fallbackCover(50),
+                    child: WavifyCachedImage(
+                      imageUrl: _resolvedArtwork,
+                      width: 50,
+                      height: 50,
+                      fit: BoxFit.cover,
+                      borderRadius: BorderRadius.circular(8),
+                      placeholder: const AppShimmer(
+                        child: ShimmerBox(
+                          width: 50,
+                          height: 50,
+                          borderRadius: BorderRadius.all(Radius.circular(8)),
+                        ),
+                      ),
+                      errorWidget: _fallbackCover(50),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -768,20 +774,22 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                               child: Stack(
                                 fit: StackFit.expand,
                                 children: [
-                                  _resolvedArtwork != null &&
-                                          _resolvedArtwork!.isNotEmpty
-                                      ? Image.network(
-                                          _resolvedArtwork!,
-                                          fit: BoxFit.cover,
-                                          filterQuality: FilterQuality.high,
-                                          isAntiAlias: true,
-                                          errorBuilder: (
-                                            context,
-                                            error,
-                                            stackTrace,
-                                          ) => _fallbackCover(artworkSize),
-                                        )
-                                      : _fallbackCover(artworkSize),
+                                  WavifyCachedImage(
+                                    imageUrl: _resolvedArtwork,
+                                    width: artworkSize,
+                                    height: artworkSize,
+                                    fit: BoxFit.cover,
+                                    borderRadius: BorderRadius.circular(20),
+                                    placeholder: AppShimmer(
+                                      child: ShimmerBox(
+                                        width: artworkSize,
+                                        height: artworkSize,
+                                        borderRadius:
+                                            BorderRadius.circular(20),
+                                      ),
+                                    ),
+                                    errorWidget: _fallbackCover(artworkSize),
+                                  ),
                                   if (isAnyTrackPlaying)
                                     Container(
                                       color: Colors.black.withValues(

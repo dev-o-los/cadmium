@@ -21,6 +21,8 @@ import '../widgets/apple_pressable.dart';
 import '../widgets/dynamic_album_artwork.dart';
 import '../widgets/top_profile_avatar_button.dart';
 import '../widgets/top_status_bar_blur.dart';
+import '../widgets/app_shimmer.dart';
+import '../widgets/wavify_cached_image.dart';
 
 /// The Library Tab screen featuring personal collections:
 /// Playlists, Liked Music, Saved Albums, Subscribed Artists, and Recently Played tracks.
@@ -405,22 +407,24 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: playlist.thumbnailUrl != null
-                  ? Image.network(
-                      playlist.thumbnailUrl!,
-                      width: cardWidth,
-                      height: cardWidth,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          _fallbackSquareArt(
-                            size: cardWidth,
-                            icon: CupertinoIcons.music_note_list,
-                          ),
-                    )
-                  : _fallbackSquareArt(
-                      size: cardWidth,
-                      icon: CupertinoIcons.music_note_list,
-                    ),
+              child: WavifyCachedImage(
+                imageUrl: playlist.thumbnailUrl,
+                width: cardWidth,
+                height: cardWidth,
+                fit: BoxFit.cover,
+                borderRadius: BorderRadius.circular(14),
+                placeholder: AppShimmer(
+                  child: ShimmerBox(
+                    width: cardWidth,
+                    height: cardWidth,
+                    borderRadius: BorderRadius.all(Radius.circular(14)),
+                  ),
+                ),
+                errorWidget: _fallbackSquareArt(
+                  size: cardWidth,
+                  icon: CupertinoIcons.music_note_list,
+                ),
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -471,16 +475,21 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(14),
-                  child: firstThumb != null
-                      ? Image.network(
-                          firstThumb,
-                          width: cardWidth,
-                          height: cardWidth,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              _buildLikedAlbumCover(cardWidth),
-                        )
-                      : _buildLikedAlbumCover(cardWidth),
+                  child: WavifyCachedImage(
+                    imageUrl: firstThumb,
+                    width: cardWidth,
+                    height: cardWidth,
+                    fit: BoxFit.cover,
+                    borderRadius: BorderRadius.circular(14),
+                    placeholder: AppShimmer(
+                      child: ShimmerBox(
+                        width: cardWidth,
+                        height: cardWidth,
+                        borderRadius: BorderRadius.all(Radius.circular(14)),
+                      ),
+                    ),
+                    errorWidget: _buildLikedAlbumCover(cardWidth),
+                  ),
                 ),
                 Positioned(
                   top: 8,
@@ -570,16 +579,22 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(14),
-                  child: song.thumbnailUrl != null
-                      ? Image.network(
-                          song.thumbnailUrl!,
-                          width: cardWidth,
-                          height: cardWidth,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              _fallbackSquareArt(size: cardWidth),
-                        )
-                      : _fallbackSquareArt(size: cardWidth),
+                  child: WavifyCachedImage(
+                    imageUrl: song.thumbnailUrl,
+                    songId: song.id,
+                    width: cardWidth,
+                    height: cardWidth,
+                    fit: BoxFit.cover,
+                    borderRadius: BorderRadius.circular(14),
+                    placeholder: AppShimmer(
+                      child: ShimmerBox(
+                        width: cardWidth,
+                        height: cardWidth,
+                        borderRadius: BorderRadius.all(Radius.circular(14)),
+                      ),
+                    ),
+                    errorWidget: _fallbackSquareArt(size: cardWidth),
+                  ),
                 ),
                 if (isCurrent && isPlaying)
                   Positioned(
@@ -710,22 +725,24 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: artist.thumbnailUrl != null
-                  ? Image.network(
-                      artist.thumbnailUrl!,
-                      width: cardWidth,
-                      height: cardWidth,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          _fallbackSquareArt(
-                            size: cardWidth,
-                            icon: CupertinoIcons.person_solid,
-                          ),
-                    )
-                  : _fallbackSquareArt(
-                      size: cardWidth,
-                      icon: CupertinoIcons.person_solid,
-                    ),
+              child: WavifyCachedImage(
+                imageUrl: artist.thumbnailUrl,
+                width: cardWidth,
+                height: cardWidth,
+                fit: BoxFit.cover,
+                borderRadius: BorderRadius.circular(14),
+                placeholder: AppShimmer(
+                  child: ShimmerBox(
+                    width: cardWidth,
+                    height: cardWidth,
+                    borderRadius: BorderRadius.all(Radius.circular(14)),
+                  ),
+                ),
+                errorWidget: _fallbackSquareArt(
+                  size: cardWidth,
+                  icon: CupertinoIcons.person_solid,
+                ),
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -1325,27 +1342,21 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                   children: [
                                     ClipRRect(
                                       borderRadius: BorderRadius.circular(22),
-                                      child: artist.thumbnailUrl != null
-                                          ? Image.network(
-                                              artist.thumbnailUrl!,
-                                              width: 44,
-                                              height: 44,
-                                              fit: BoxFit.cover,
-                                              errorBuilder:
-                                                  (
-                                                    context,
-                                                    error,
-                                                    stackTrace,
-                                                  ) => _fallbackSquareArt(
-                                                    size: 44,
-                                                    icon: CupertinoIcons
-                                                        .person_solid,
-                                                  ),
-                                            )
-                                          : _fallbackSquareArt(
-                                              size: 44,
-                                              icon: CupertinoIcons.person_solid,
-                                            ),
+                                      child: WavifyCachedImage(
+                                        imageUrl: artist.thumbnailUrl,
+                                        width: 44,
+                                        height: 44,
+                                        fit: BoxFit.cover,
+                                        borderRadius:
+                                            BorderRadius.circular(22),
+                                        placeholder: const AppShimmer(
+                                          child: ShimmerBox.circle(size: 44),
+                                        ),
+                                        errorWidget: _fallbackSquareArt(
+                                          size: 44,
+                                          icon: CupertinoIcons.person_solid,
+                                        ),
+                                      ),
                                     ),
                                     const SizedBox(width: 12),
                                     Expanded(
@@ -1573,27 +1584,26 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                   children: [
                                     ClipRRect(
                                       borderRadius: BorderRadius.circular(8),
-                                      child: album.thumbnailUrl != null
-                                          ? Image.network(
-                                              album.thumbnailUrl!,
-                                              width: 44,
-                                              height: 44,
-                                              fit: BoxFit.cover,
-                                              errorBuilder:
-                                                  (
-                                                    context,
-                                                    error,
-                                                    stackTrace,
-                                                  ) => _fallbackSquareArt(
-                                                    size: 44,
-                                                    icon: CupertinoIcons
-                                                        .music_albums,
-                                                  ),
-                                            )
-                                          : _fallbackSquareArt(
-                                              size: 44,
-                                              icon: CupertinoIcons.music_albums,
-                                            ),
+                                      child: WavifyCachedImage(
+                                        imageUrl: album.thumbnailUrl,
+                                        width: 44,
+                                        height: 44,
+                                        fit: BoxFit.cover,
+                                        borderRadius:
+                                            BorderRadius.circular(8),
+                                        placeholder: const AppShimmer(
+                                          child: ShimmerBox(
+                                            width: 44,
+                                            height: 44,
+                                            borderRadius: BorderRadius.all(
+                                                Radius.circular(8)),
+                                          ),
+                                        ),
+                                        errorWidget: _fallbackSquareArt(
+                                          size: 44,
+                                          icon: CupertinoIcons.music_albums,
+                                        ),
+                                      ),
                                     ),
                                     const SizedBox(width: 12),
                                     Expanded(

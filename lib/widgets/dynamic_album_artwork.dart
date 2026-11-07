@@ -121,6 +121,14 @@ class _DynamicAlbumArtworkState extends ConsumerState<DynamicAlbumArtwork> {
         width: widget.size,
         height: widget.size,
         fit: BoxFit.cover,
+        borderRadius: BorderRadius.circular(10),
+        placeholder: AppShimmer(
+          child: ShimmerBox(
+            width: widget.size,
+            height: widget.size,
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
         errorWidget: Builder(
           builder: (context) {
             if (!_hasAttemptedFetch) {

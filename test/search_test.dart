@@ -327,6 +327,48 @@ void main() {
       // Full 16:9 video item is displayed
       expect(find.text('OKTOBER FEST GOA 2025'), findsOneWidget);
       expect(find.text('Travel Goa With Sandeep'), findsOneWidget);
+
+      // Verify video thumbnail passes resolvedThumbnailUrl and songId to WavifyCachedImage
+      final videoImageFinder = find.byWidgetPredicate(
+        (widget) =>
+            widget is WavifyCachedImage &&
+            widget.songId == 'test_video_1' &&
+            widget.imageUrl == 'https://i.ytimg.com/vi/test_video_1/hqdefault.jpg',
+      );
+      expect(videoImageFinder, findsOneWidget);
+    });
+
+    test('VideoItem thumbnail resolution fallbacks and upgrades', () {
+      // 1. Without thumbnail, resolves guaranteed YouTube static endpoint
+      const videoWithoutThumb = VideoItem(
+        id: 'dQw4w9WgXcQ',
+        title: 'Never Gonna Give You Up',
+        artist: 'Rick Astley',
+      );
+      expect(
+        videoWithoutThumb.resolvedThumbnailUrl,
+        'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+      );
+      expect(
+        videoWithoutThumb.highResThumbnailUrl,
+        'https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
+      );
+
+      // 2. Protocol-relative thumbnail prepends https:
+      const videoWithProtoRelative = VideoItem(
+        id: 'dQw4w9WgXcQ',
+        title: 'Never Gonna Give You Up',
+        artist: 'Rick Astley',
+        thumbnailUrl: '//i.ytimg.com/vi/dQw4w9WgXcQ/sddefault.jpg',
+      );
+      expect(
+        videoWithProtoRelative.resolvedThumbnailUrl,
+        'https://i.ytimg.com/vi/dQw4w9WgXcQ/sddefault.jpg',
+      );
+      expect(
+        videoWithProtoRelative.highResThumbnailUrl,
+        'https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
+      );
     });
 
     testWidgets('switching between tabs maintains IndexedStack and WavifyCachedImage across categories',

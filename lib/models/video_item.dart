@@ -1,3 +1,5 @@
+import 'song_item.dart';
+
 class VideoItem {
   final String id;
   final String title;
@@ -14,6 +16,24 @@ class VideoItem {
     this.durationSeconds,
     this.views,
   });
+
+  /// Guaranteed thumbnail URL. If [thumbnailUrl] is provided and clean, uses it.
+  /// Otherwise resolves guaranteed YouTube video thumbnail endpoint for [id].
+  String? get resolvedThumbnailUrl {
+    if (thumbnailUrl != null && thumbnailUrl!.trim().isNotEmpty) {
+      final clean = thumbnailUrl!.trim();
+      return clean.startsWith('//') ? 'https:$clean' : clean;
+    }
+    if (id.isNotEmpty && !id.startsWith('local_') && !id.contains('/')) {
+      return 'https://i.ytimg.com/vi/$id/hqdefault.jpg';
+    }
+    return null;
+  }
+
+  /// High-resolution upgraded thumbnail for crisp AMOLED display.
+  String? get highResThumbnailUrl =>
+      SongItem.upgradeThumbnail(resolvedThumbnailUrl, size: 800, quality: 95) ??
+      resolvedThumbnailUrl;
 
   String get subtitle {
     final parts = <String>[];

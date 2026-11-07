@@ -3815,8 +3815,12 @@ class MusicService {
       return results.where((v) => v.videoId.isNotEmpty).map((v) {
         String? thumb;
         if (v.thumbnails.isNotEmpty) {
-          thumb = v.thumbnails.last.url;
+          final raw = v.thumbnails.last.url;
+          thumb = SongItem.upgradeThumbnail(
+            raw.startsWith('//') ? 'https:$raw' : raw,
+          );
         }
+        thumb ??= 'https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg';
         return VideoItem(
           id: v.videoId,
           title: v.name.isNotEmpty ? v.name : 'Untitled Video',

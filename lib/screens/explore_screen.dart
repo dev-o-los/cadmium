@@ -13,6 +13,8 @@ import '../widgets/apple_pressable.dart';
 import '../widgets/top_profile_avatar_button.dart';
 import '../widgets/top_status_bar_blur.dart';
 import '../widgets/track_options_sheet.dart';
+import '../widgets/app_shimmer.dart';
+import '../widgets/wavify_cached_image.dart';
 
 /// The Explore Tab screen featuring Genres & Categories grid and Global Hits & Charts.
 class ExploreScreen extends ConsumerStatefulWidget {
@@ -179,16 +181,22 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    song.thumbnailUrl != null
-                        ? Image.network(
-                            song.thumbnailUrl!,
-                            width: 48,
-                            height: 48,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                _fallbackSquareArt(),
-                          )
-                        : _fallbackSquareArt(),
+                    WavifyCachedImage(
+                      imageUrl: song.thumbnailUrl,
+                      songId: song.id,
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.cover,
+                      borderRadius: BorderRadius.circular(8),
+                      placeholder: const AppShimmer(
+                        child: ShimmerBox(
+                          width: 48,
+                          height: 48,
+                          borderRadius: BorderRadius.all(Radius.circular(8)),
+                        ),
+                      ),
+                      errorWidget: _fallbackSquareArt(),
+                    ),
                     if (isSelected && isPlaying)
                       Container(
                         width: 48,

@@ -31,6 +31,7 @@ import '../widgets/player_controls.dart';
 import '../widgets/track_options_sheet.dart';
 import '../widgets/top_status_bar_blur.dart';
 import '../widgets/app_shimmer.dart';
+import '../widgets/wavify_cached_image.dart';
 
 /// Full-Page Artist View matching the Apple Music aesthetic and YouTube Music data:
 /// - Sticky ambient top bar with floating back button, share, and account avatar
@@ -669,16 +670,21 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(14),
-                child: recent.thumbnailUrl != null
-                    ? Image.network(
-                        recent.thumbnailUrl!,
-                        width: 72,
-                        height: 72,
-                        fit: BoxFit.cover,
-                        filterQuality: FilterQuality.medium,
-                        errorBuilder: (context, error, stackTrace) => _fallbackSquareArt(72),
-                      )
-                    : _fallbackSquareArt(72),
+                child: WavifyCachedImage(
+                  imageUrl: recent.thumbnailUrl,
+                  width: 72,
+                  height: 72,
+                  fit: BoxFit.cover,
+                  borderRadius: BorderRadius.circular(14),
+                  placeholder: const AppShimmer(
+                    child: ShimmerBox(
+                      width: 72,
+                      height: 72,
+                      borderRadius: BorderRadius.all(Radius.circular(14)),
+                    ),
+                  ),
+                  errorWidget: _fallbackSquareArt(72),
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -1004,17 +1010,26 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                         borderRadius: BorderRadius.circular(12),
                         child: Stack(
                           children: [
-                            video.thumbnailUrl != null
-                                ? Image.network(
-                                    video.thumbnailUrl!,
-                                    width: cardWidth,
-                                    height: cardHeight,
-                                    fit: BoxFit.cover,
-                                    filterQuality: FilterQuality.medium,
-                                    errorBuilder: (context, error, stackTrace) =>
-                                        _fallbackWidescreenArt(cardWidth, cardHeight),
-                                  )
-                                : _fallbackWidescreenArt(cardWidth, cardHeight),
+                            WavifyCachedImage(
+                              imageUrl: video.resolvedThumbnailUrl,
+                              songId: video.id,
+                              width: cardWidth,
+                              height: cardHeight,
+                              fit: BoxFit.cover,
+                              borderRadius: BorderRadius.circular(12),
+                              placeholder: const AppShimmer(
+                                child: ShimmerBox(
+                                  width: cardWidth,
+                                  height: cardHeight,
+                                  borderRadius:
+                                      BorderRadius.all(Radius.circular(12)),
+                                ),
+                              ),
+                              errorWidget: _fallbackWidescreenArt(
+                                cardWidth,
+                                cardHeight,
+                              ),
+                            ),
                             Positioned(
                               right: 8,
                               bottom: 8,
@@ -1355,17 +1370,21 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: album.thumbnailUrl != null
-                  ? Image.network(
-                      album.thumbnailUrl!,
-                      width: cardWidth,
-                      height: cardWidth,
-                      fit: BoxFit.cover,
-                      filterQuality: FilterQuality.medium,
-                      errorBuilder: (context, error, stackTrace) =>
-                          _fallbackSquareArt(cardWidth),
-                    )
-                  : _fallbackSquareArt(cardWidth),
+              child: WavifyCachedImage(
+                imageUrl: album.thumbnailUrl,
+                width: cardWidth,
+                height: cardWidth,
+                fit: BoxFit.cover,
+                borderRadius: BorderRadius.circular(12),
+                placeholder: const AppShimmer(
+                  child: ShimmerBox(
+                    width: cardWidth,
+                    height: cardWidth,
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                  ),
+                ),
+                errorWidget: _fallbackSquareArt(cardWidth),
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -1640,15 +1659,22 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                       return AppleSheetActionTile(
                         leading: ClipRRect(
                           borderRadius: BorderRadius.circular(6),
-                          child: item.thumbnailUrl != null
-                              ? Image.network(
-                                  item.thumbnailUrl!,
-                                  width: 44,
-                                  height: 44,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) => _fallbackSquareArt(44),
-                                )
-                              : _fallbackSquareArt(44),
+                          child: WavifyCachedImage(
+                            imageUrl: item.thumbnailUrl,
+                            width: 44,
+                            height: 44,
+                            fit: BoxFit.cover,
+                            borderRadius: BorderRadius.circular(6),
+                            placeholder: const AppShimmer(
+                              child: ShimmerBox(
+                                width: 44,
+                                height: 44,
+                                borderRadius:
+                                    BorderRadius.all(Radius.circular(6)),
+                              ),
+                            ),
+                            errorWidget: _fallbackSquareArt(44),
+                          ),
                         ),
                         title: item.title,
                         subtitle: item.year != null
