@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/song_item.dart';
 import '../providers/navigation_provider.dart';
 import '../providers/player_provider.dart';
+import '../utils/notification_permission.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/liquid_glass_bottom_bar.dart';
 import '../widgets/player_controls.dart';
@@ -38,6 +39,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // Crawl / Minimization state for floating mini player and bottom bar
   bool _isMiniPlayerCrawled = false;
   double _accumulatedScrollDelta = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Prompt for notification permission on Android 13+ after Activity is focused
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      requestNotificationPermissionIfNeeded();
+    });
+  }
 
   bool _handleScrollNotification(ScrollNotification notification) {
     if (notification.metrics.axis != Axis.vertical) {

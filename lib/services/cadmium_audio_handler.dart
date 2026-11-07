@@ -220,8 +220,8 @@ Future<CadmiumAudioHandler> initCadmiumAudioService() async {
         androidNotificationChannelName: 'Music Playback',
         androidNotificationChannelDescription:
             'Cadmium high-fidelity background music playback controls',
-        androidNotificationOngoing: false,
-        androidStopForegroundOnPause: false,
+        androidNotificationOngoing: true,
+        androidStopForegroundOnPause: true,
         androidNotificationIcon: 'drawable/ic_notification',
         androidShowNotificationBadge: true,
         androidNotificationClickStartsActivity: true,
