@@ -54,3 +54,4 @@ jobs:
             cadmium-*.apk
             build/app/outputs/flutter-apk/app-release.apk
           generate_release_notes: true
+

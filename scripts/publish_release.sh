@@ -111,3 +111,4 @@ curl -s -X POST \
 echo ""
 echo "✅ Successfully published to GitHub Releases!"
 echo "Release URL: https://github.com/$REPO/releases/tag/$TAG"
+
