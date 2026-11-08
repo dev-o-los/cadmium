@@ -84,12 +84,12 @@ The buttons and links below navigate to the official GitHub Releases where you c
 
 | Package | Version | Architecture | Download Link |
 | :--- | :--- | :--- | :--- |
-| **Latest Cadmium APK** | **v1.0.1** | `arm64-v8a`, `armeabi-v7a`, `x86_64` | [**Download cadmium-v1.0.1.apk**](https://github.com/dev-o-los/cadmium/releases/download/v1.0.1/cadmium-v1.0.1.apk) |
+| **Latest Cadmium APK** | **v1.0.2** | `arm64-v8a`, `armeabi-v7a`, `x86_64` | [**Download cadmium-v1.0.2.apk**](https://github.com/dev-o-los/cadmium/releases/download/v1.0.2/cadmium-v1.0.2.apk) |
 | **GitHub Releases** | All Versions | Universal | [**View Latest Release Page**](https://github.com/dev-o-los/cadmium/releases/latest) |
 
 </div>
 
-> 💡 **Tip:** Official release binaries are exclusively named **`cadmium-v<version>.apk`** (e.g., `cadmium-v1.0.1.apk`). Visiting the [GitHub Releases](https://github.com/dev-o-los/cadmium/releases/latest) page will always redirect you directly to the latest release notes and assets.
+> 💡 **Tip:** Official release binaries are exclusively named **`cadmium-v<version>.apk`** (e.g., `cadmium-v1.0.2.apk`). Visiting the [GitHub Releases](https://github.com/dev-o-los/cadmium/releases/latest) page will always redirect you directly to the latest release notes and assets.
 
 ---
 
