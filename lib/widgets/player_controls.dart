@@ -86,50 +86,45 @@ class PlayerControls extends ConsumerWidget {
       useOwnLayer: true,
       height: 52,
       shape: const LiquidRoundedSuperellipse(borderRadius: 26),
-      color: const Color(0x3D1A1A1E),
-      settings: const LiquidGlassSettings(
-        thickness: 24,
-        blur: 24,
-        refractiveIndex: 1.15,
-        lightIntensity: 0.45,
-        specularSharpness: GlassSpecularSharpness.sharp,
-      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Row(
           children: [
-            // Album Artwork (Compact 34x34 with rounded corners)
-            GestureDetector(
-              onTap: onTap,
-              behavior: HitTestBehavior.opaque,
-              child: Hero(
-                tag: 'player_album_art_$songId',
-                flightShuttleBuilder: playerHeroFlightShuttleBuilder,
-                child:
-                    ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: WavifyCachedImage(
-                            imageUrl: highResArt ?? thumbArt,
-                            placeholderImageUrl: thumbArt,
-                            songId: songId,
-                            width: 34,
-                            height: 34,
-                            fit: BoxFit.cover,
-                            filterQuality: FilterQuality.medium,
-                            errorWidget: _fallbackArtwork(size: 34),
+            // Album Artwork (Compact with 4-5px padding and rounded corners)
+            Padding(
+              padding: const EdgeInsets.only(left: 4, right: 4),
+              child: GestureDetector(
+                onTap: onTap,
+                behavior: HitTestBehavior.opaque,
+                child: Hero(
+                  tag: 'player_album_art_$songId',
+                  flightShuttleBuilder: playerHeroFlightShuttleBuilder,
+                  child:
+                      ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: WavifyCachedImage(
+                              imageUrl: highResArt ?? thumbArt,
+                              placeholderImageUrl: thumbArt,
+                              songId: songId,
+                              width: 34,
+                              height: 34,
+                              fit: BoxFit.cover,
+                              filterQuality: FilterQuality.medium,
+                              errorWidget: _fallbackArtwork(size: 34),
+                            ),
+                          )
+                          .animate(key: ValueKey('mini_art_inline_$songId'))
+                          .fadeIn(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeOut,
+                          )
+                          .scale(
+                            begin: const Offset(0.85, 0.85),
+                            end: const Offset(1.0, 1.0),
+                            duration: const Duration(milliseconds: 350),
+                            curve: Curves.easeOutCubic,
                           ),
-                        )
-                        .animate(key: ValueKey('mini_art_inline_$songId'))
-                        .fadeIn(
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeOut,
-                        )
-                        .scale(
-                          begin: const Offset(0.85, 0.85),
-                          end: const Offset(1.0, 1.0),
-                          duration: const Duration(milliseconds: 350),
-                          curve: Curves.easeOutCubic,
-                        ),
+                ),
               ),
             ),
             const SizedBox(width: 8),
@@ -163,7 +158,7 @@ class PlayerControls extends ConsumerWidget {
 
             const SizedBox(width: 4),
 
-            // Play / Pause Button with instant responsive tap
+            // Play / Pause Button only when scrolled down into dock (Next track removed)
             GestureDetector(
               onTap: () {
                 HapticFeedback.lightImpact();
@@ -171,8 +166,8 @@ class PlayerControls extends ConsumerWidget {
               },
               behavior: HitTestBehavior.opaque,
               child: Container(
-                width: 32,
-                height: 34,
+                width: 36,
+                height: 36,
                 alignment: Alignment.center,
                 child:
                     (isLoading &&
@@ -188,25 +183,6 @@ class PlayerControls extends ConsumerWidget {
                         color: Colors.white,
                         size: 20,
                       ),
-              ),
-            ),
-
-            // Skip Next Button
-            GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                ref.read(playerProvider.notifier).skipNext();
-              },
-              behavior: HitTestBehavior.opaque,
-              child: Container(
-                width: 28,
-                height: 34,
-                alignment: Alignment.center,
-                child: const AnimatedCupertinoIcon(
-                  icon: CupertinoIcons.forward_fill,
-                  color: Colors.white,
-                  size: 18,
-                ),
               ),
             ),
           ],
@@ -231,151 +207,133 @@ class PlayerControls extends ConsumerWidget {
       useOwnLayer: true,
       height: 52,
       shape: const LiquidRoundedSuperellipse(borderRadius: 26),
-      color: const Color(0x3D1A1A1E),
-      settings: const LiquidGlassSettings(
-        thickness: 24,
-        blur: 24,
-        refractiveIndex: 1.15,
-        lightIntensity: 0.45,
-        specularSharpness: GlassSpecularSharpness.sharp,
-      ),
-      child: Stack(
-        children: [
-          // Main Content: Artwork, Metadata & Playback Controls
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Row(
-              children: [
-                // Tappable song info (Artwork + Title + Artist) to open full player screen
-                Expanded(
-                  child: GestureDetector(
-                    onTap: onTap,
-                    behavior: HitTestBehavior.opaque,
-                    child: Row(
-                      children: [
-                        // Album Artwork with High-Res Upgrade & bicubic filtering
-                        Hero(
-                          tag: 'player_album_art_$songId',
-                          flightShuttleBuilder: playerHeroFlightShuttleBuilder,
-                          child:
-                              ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: WavifyCachedImage(
-                                      imageUrl: highResArt ?? thumbArt,
-                                      placeholderImageUrl: thumbArt,
-                                      songId: songId,
-                                      width: 40,
-                                      height: 40,
-                                      fit: BoxFit.cover,
-                                      filterQuality: FilterQuality.medium,
-                                      errorWidget: _fallbackArtwork(size: 40),
-                                    ),
-                                  )
-                                  .animate(
-                                    key: ValueKey('mini_art_expanded_$songId'),
-                                  )
-                                  .fadeIn(
-                                    duration: const Duration(milliseconds: 300),
-                                    curve: Curves.easeOut,
-                                  )
-                                  .scale(
-                                    begin: const Offset(0.85, 0.85),
-                                    end: const Offset(1.0, 1.0),
-                                    duration: const Duration(milliseconds: 350),
-                                    curve: Curves.easeOutCubic,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Row(
+          children: [
+            // Tappable song info (Artwork + Title + Artist) to open full player screen
+            Expanded(
+              child: GestureDetector(
+                onTap: onTap,
+                behavior: HitTestBehavior.opaque,
+                child: Row(
+                  children: [
+                    // Album Artwork with 4-5px appropriate padding & High-Res Upgrade
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4, right: 4, top: 4, bottom: 4),
+                      child: Hero(
+                        tag: 'player_album_art_$songId',
+                        flightShuttleBuilder: playerHeroFlightShuttleBuilder,
+                        child:
+                            ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: WavifyCachedImage(
+                                    imageUrl: highResArt ?? thumbArt,
+                                    placeholderImageUrl: thumbArt,
+                                    songId: songId,
+                                    width: 38,
+                                    height: 38,
+                                    fit: BoxFit.cover,
+                                    filterQuality: FilterQuality.medium,
+                                    errorWidget: _fallbackArtwork(size: 38),
                                   ),
-                        ),
-                        const SizedBox(width: 10),
-
-                        // Song Title & Artist
-                        Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppleTypography.miniPlayerTitle,
-                              ),
-                              const SizedBox(height: AppleSpacing.titleToSubtitle),
-                              Text(
-                                artist.isNotEmpty ? artist : 'Unknown Artist',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppleTypography.miniPlayerArtist,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                                )
+                                .animate(
+                                  key: ValueKey('mini_art_expanded_$songId'),
+                                )
+                                .fadeIn(
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeOut,
+                                )
+                                .scale(
+                                  begin: const Offset(0.85, 0.85),
+                                  end: const Offset(1.0, 1.0),
+                                  duration: const Duration(milliseconds: 350),
+                                  curve: Curves.easeOutCubic,
+                                ),
+                      ),
                     ),
-                  ),
-                ),
+                    const SizedBox(width: 8),
 
-                const SizedBox(width: 6),
-
-                // Play / Pause Button: Dedicated gesture target with immediate animated response
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    ref.read(playerProvider.notifier).togglePlayPause();
-                  },
-                  behavior: HitTestBehavior.opaque,
-                  child: Container(
-                    width: 40,
-                    height: 44,
-                    alignment: Alignment.center,
-                    child:
-                        (isLoading &&
-                            !Platform.environment.containsKey('FLUTTER_TEST'))
-                        ? const CupertinoActivityIndicator(
-                            radius: 12,
-                            color: Colors.white,
-                          )
-                        : AnimatedCupertinoIcon(
-                            icon: isPlaying
-                                ? CupertinoIcons.pause_fill
-                                : CupertinoIcons.play_fill,
-                            color: Colors.white,
-                            size: 26,
+                    // Song Title & Artist
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppleTypography.miniPlayerTitle,
                           ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-
-                // Skip Next Button (Fast Forward)
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    ref.read(playerProvider.notifier).skipNext();
-                  },
-                  behavior: HitTestBehavior.opaque,
-                  child: Container(
-                    width: 36,
-                    height: 44,
-                    alignment: Alignment.center,
-                    child: const AnimatedCupertinoIcon(
-                      icon: CupertinoIcons.forward_fill,
-                      color: Colors.white,
-                      size: 22,
+                          const SizedBox(height: AppleSpacing.titleToSubtitle),
+                          Text(
+                            artist.isNotEmpty ? artist : 'Unknown Artist',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppleTypography.miniPlayerArtist,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 4),
-              ],
+              ),
             ),
-          ),
 
-          // Subtle hairline progress bar at bottom of the pill (isolated consumer rebuild)
-          const Positioned(
-            left: 14,
-            right: 14,
-            bottom: 0,
-            child: _MiniPlayerProgressBar(),
-          ),
-        ],
+            const SizedBox(width: 6),
+
+            // Play / Pause Button: Dedicated gesture target with immediate animated response
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                ref.read(playerProvider.notifier).togglePlayPause();
+              },
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                width: 40,
+                height: 44,
+                alignment: Alignment.center,
+                child:
+                    (isLoading &&
+                        !Platform.environment.containsKey('FLUTTER_TEST'))
+                    ? const CupertinoActivityIndicator(
+                        radius: 12,
+                        color: Colors.white,
+                      )
+                    : AnimatedCupertinoIcon(
+                        icon: isPlaying
+                            ? CupertinoIcons.pause_fill
+                            : CupertinoIcons.play_fill,
+                        color: Colors.white,
+                        size: 26,
+                      ),
+              ),
+            ),
+            const SizedBox(width: 4),
+
+            // Skip Next Button (Fast Forward)
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                ref.read(playerProvider.notifier).skipNext();
+              },
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                width: 36,
+                height: 44,
+                alignment: Alignment.center,
+                child: const AnimatedCupertinoIcon(
+                  icon: CupertinoIcons.forward_fill,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+          ],
+        ),
       ),
     );
   }
@@ -390,39 +348,6 @@ class PlayerControls extends ConsumerWidget {
           CupertinoIcons.music_note,
           color: Colors.white38,
           size: size * 0.5,
-        ),
-      ),
-    );
-  }
-}
-
-/// Dedicated, micro-scoped consumer widget for the hairline progress bar.
-/// Prevents the entire [PlayerControls] widget, liquid glass container,
-/// artwork, and labels from rebuilding on 250ms audio position ticks.
-class _MiniPlayerProgressBar extends ConsumerWidget {
-  const _MiniPlayerProgressBar();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final progress = ref.watch(
-      playerProvider.select((s) {
-        final total = s.duration.inMilliseconds;
-        if (total <= 0) return 0.0;
-        return (s.position.inMilliseconds / total).clamp(0.0, 1.0);
-      }),
-    );
-
-    return ClipRRect(
-      borderRadius: const BorderRadius.only(
-        bottomLeft: Radius.circular(26),
-        bottomRight: Radius.circular(26),
-      ),
-      child: LinearProgressIndicator(
-        value: progress,
-        minHeight: 2.0,
-        backgroundColor: Colors.transparent,
-        valueColor: const AlwaysStoppedAnimation<Color>(
-          Color(0x99FFFFFF),
         ),
       ),
     );

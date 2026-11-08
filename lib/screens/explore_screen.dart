@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../constants/app_colors.dart';
+import '../constants/apple_typography.dart';
 import '../models/song_item.dart';
 import '../providers/home_data_provider.dart';
 import '../providers/player_provider.dart';
@@ -43,7 +44,6 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   @override
   Widget build(BuildContext context) {
     final homeDataAsync = ref.watch(homeDataProvider);
-    final genres = homeDataAsync.valueOrNull?.genres ?? [];
     final trending = homeDataAsync.valueOrNull?.trendingSongs ?? [];
     final topPadding = MediaQuery.of(context).padding.top;
 
@@ -66,83 +66,21 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 letterSpacing: -1.2,
               ),
             ),
-            const SizedBox(height: 16),
-        const Text(
-          'Genres & Categories',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
+            const SizedBox(height: 20),
+            const Text(
+              'Global Hits & Charts',
+              style: AppleTypography.sectionTitle,
+            ),
+            const SizedBox(height: 12),
+            ...trending
+                .take(15)
+                .map((track) => _buildSongRow(context, ref, track, trending)),
+          ],
         ),
-        const SizedBox(height: 12),
-        Builder(
-          builder: (context) {
-            final screenWidth = MediaQuery.of(context).size.width;
-            final crossAxisCount = screenWidth > 600 ? 3 : 2;
-            final childAspectRatio = screenWidth > 600 ? 3.0 : 2.4;
-
-            return GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: genres.length,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: crossAxisCount,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                childAspectRatio: childAspectRatio,
-              ),
-              itemBuilder: (context, index) {
-                final g = genres[index];
-                final color = g.colorValue != null
-                    ? Color(g.colorValue!).withValues(alpha: 0.85)
-                    : AppColors.appleDarkSurfaceHigh;
-
-                return ApplePressable(
-                  onTap: () {
-                    widget.onSearch?.call(g.title);
-                  },
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      color: color,
-                    ),
-                    alignment: Alignment.bottomLeft,
-                    child: Text(
-                      g.title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            );
-          },
-        ),
-        const SizedBox(height: 24),
-        const Text(
-          'Global Hits & Charts',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 12),
-        ...trending
-            .take(10)
-            .map((track) => _buildSongRow(context, ref, track, trending)),
+        // Dynamic Apple-style status bar blur & fading dissolve on scroll
+        TopStatusBarBlur(scrollController: _scrollController),
       ],
-    ),
-    // Dynamic Apple-style status bar blur & fading dissolve on scroll
-    TopStatusBarBlur(scrollController: _scrollController),
-  ],
-);
+    );
   }
 
   Widget _buildSongRow(

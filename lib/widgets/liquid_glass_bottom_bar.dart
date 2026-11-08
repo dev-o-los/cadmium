@@ -90,22 +90,6 @@ class LiquidGlassBottomBar extends StatelessWidget {
         letterSpacing: -0.2,
       ),
       indicatorColor: Colors.white.withValues(alpha: 0.22),
-      indicatorSettings: const LiquidGlassSettings(
-        glassColor: Color(0x30FFFFFF),
-        thickness: 18,
-        blur: 20,
-        refractiveIndex: 1.15,
-        lightIntensity: 0.55,
-        specularSharpness: GlassSpecularSharpness.sharp,
-      ),
-      settings: const LiquidGlassSettings(
-        glassColor: Color(0x3D1A1A22),
-        thickness: 24,
-        blur: 24,
-        refractiveIndex: 1.15,
-        lightIntensity: 0.45,
-        specularSharpness: GlassSpecularSharpness.sharp,
-      ),
     );
   }
 }

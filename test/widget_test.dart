@@ -96,19 +96,16 @@ void main() {
     expect(find.text('SoFaygo'), findsOneWidget);
     expect(find.byIcon(CupertinoIcons.play_fill), findsWidgets);
     expect(find.byIcon(CupertinoIcons.forward_fill), findsWidgets);
-    expect(find.byType(LinearProgressIndicator), findsOneWidget);
 
     // 2. Minimized State (isCrawled: true)
     await tester.pumpWidget(buildTestWidget(isCrawled: true));
     await tester.pumpAndSettle();
 
-    // Verify inline compact player is rendered
+    // Verify inline compact player is rendered with next track button removed (only play/pause)
     expect(find.text('Me Too'), findsOneWidget);
     expect(find.text('SoFaygo'), findsOneWidget);
     expect(find.byIcon(CupertinoIcons.play_fill), findsWidgets);
-    expect(find.byIcon(CupertinoIcons.forward_fill), findsWidgets);
-    // In inline mode, the hairline progress bar is omitted for a clean minimal dock
-    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.byIcon(CupertinoIcons.forward_fill), findsNothing);
 
     // Verify tapping on the search button calls onTabSelected
     await tester.tap(find.byIcon(CupertinoIcons.search).first);

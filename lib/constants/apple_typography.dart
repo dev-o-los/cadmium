@@ -104,20 +104,20 @@ abstract final class AppleTypography {
     height: 1.2,
   );
 
-  /// Mini-Player Artist (12pt, Regular, -0.1 tracking)
+  /// Mini-Player Artist (12.5pt, Medium, -0.1 tracking, high-visibility white)
   static const TextStyle miniPlayerArtist = TextStyle(
-    color: AppColors.appleSecondaryText,
-    fontSize: 12,
-    fontWeight: FontWeight.w400,
+    color: Color(0xE6FFFFFF),
+    fontSize: 12.5,
+    fontWeight: FontWeight.w500,
     letterSpacing: -0.1,
     height: 1.2,
   );
 
-  /// Mini-Player Compact Inline Artist (11pt, Regular, -0.1 tracking)
+  /// Mini-Player Compact Inline Artist (11.5pt, Medium, -0.1 tracking, high-visibility white)
   static const TextStyle miniPlayerInlineArtist = TextStyle(
-    color: AppColors.appleSecondaryText,
-    fontSize: 11,
-    fontWeight: FontWeight.w400,
+    color: Color(0xE6FFFFFF),
+    fontSize: 11.5,
+    fontWeight: FontWeight.w500,
     letterSpacing: -0.1,
     height: 1.2,
   );
