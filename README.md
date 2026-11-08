@@ -1,239 +1,231 @@
 <div align="center">
 
-  <img src="assets/images/app_logo.png" alt="Cadmium Logo" width="128" height="128" style="border-radius: 28px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);" />
+  <img src="assets/images/app_logo.png" alt="Cadmium Logo" width="120" height="120" style="border-radius: 26px; box-shadow: 0 12px 36px rgba(225, 6, 0, 0.25);" />
 
   # Cadmium
 
-  ### *The Pure, High-Fidelity Apple Music Experience for Android & iOS*
-
-  [![Flutter](https://img.shields.io/badge/Flutter-3.47.4-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
-  [![Dart](https://img.shields.io/badge/Dart-3.13.3-0175C2?logo=dart&logoColor=white)](https://dart.dev)
-  [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS-black?logo=apple&logoColor=white)](https://github.com/dev-o-los/cadmium)
-  [![Release](https://img.shields.io/badge/Release-v1.0.0-E10600?logo=github&logoColor=white)](https://github.com/dev-o-los/cadmium/releases)
-  [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-  [![Tests](https://img.shields.io/badge/Tests-126%20Passing-success?logo=checkmarx&logoColor=white)](https://github.com/dev-o-los/cadmium)
+  ### *The Pure, High-Fidelity Apple Music Experience for Android*
 
   <p align="center">
-    <b>Cadmium</b> is a modern, high-performance music streaming client engineered with Flutter. Combining the refined minimalism of <b>Apple Music</b> with the catalog of <b>YouTube Music Innertube</b>, Cadmium delivers zero-lag audio playback, word-by-word synced TTML lyrics, and an OLED pitch-black interface.
+    A modern, high-performance music streaming client engineered with Flutter.<br/>
+    Combining the refined minimalism of <b>Apple Music</b> with the massive catalog of <b>YouTube Music Innertube</b> — featuring OLED pitch-black styling, word-by-word synced TTML lyrics, and zero-latency audio playback.
   </p>
 
   <p align="center">
-    <a href="#-quick-download">Download APK</a> •
+    <a href="https://github.com/dev-o-los/cadmium/releases/latest">
+      <img src="https://img.shields.io/badge/Download-Latest_APK-E10600?style=for-the-badge&logo=android&logoColor=white" alt="Download Latest APK" />
+    </a>
+    <a href="https://github.com/dev-o-los/cadmium/releases/latest">
+      <img src="https://img.shields.io/badge/Releases-Changelog-black?style=for-the-badge&logo=github&logoColor=white" alt="Releases Changelog" />
+    </a>
+  </p>
+
+  <p align="center">
+    <img src="https://img.shields.io/badge/Platform-Android_7.0+-3DDC84?logo=android&logoColor=white" alt="Platform" />
+    <img src="https://img.shields.io/badge/Flutter-3.47.4-02569B?logo=flutter&logoColor=white" alt="Flutter" />
+    <img src="https://img.shields.io/badge/Dart-3.13.3-0175C2?logo=dart&logoColor=white" alt="Dart" />
+    <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License" />
+    <img src="https://img.shields.io/badge/Tests-129_Passing-success?logo=checkmarx&logoColor=white" alt="Tests" />
+  </p>
+
+  <p align="center">
+    <a href="#-app-showcase">Showcase</a> •
+    <a href="#-quick-download--installation">Quick Download</a> •
+    <a href="#-how-to-install-the-apk">How to Install</a> •
     <a href="#-key-features">Features</a> •
-    <a href="#-architecture--how-it-works">Architecture</a> •
-    <a href="#-tech-stack">Tech Stack</a> •
-    <a href="#-getting-started">Build from Source</a>
+    <a href="#-architecture">Architecture</a> •
+    <a href="#-building-from-source">Build from Source</a>
   </p>
 
 </div>
 
 ---
 
-## ⚡ Quick Download
+## 📱 App Showcase
 
-Download the latest release for Android directly from GitHub:
+Experience the fluid Apple Music interface recreated with pixel precision:
 
-* **[Download Cadmium v1.0.0 APK](https://github.com/dev-o-los/cadmium/releases/download/v1.0.0/cadmium-v1.0.0.apk)** (`cadmium-v1.0.0.apk` — 62.6 MB)
-* **[GitHub Releases Page](https://github.com/dev-o-los/cadmium/releases/latest)** (All assets and release notes)
+<div align="center">
+<table>
+  <tr>
+    <td width="33.3%" align="center">
+      <img src="assets/screenshots/player_view.png" alt="Full Player Screen" style="border-radius: 18px; max-width: 100%; box-shadow: 0 8px 24px rgba(0,0,0,0.6);" />
+      <br/>
+      <sub><b>Full Player & Live Lyrics Ticker</b></sub>
+    </td>
+    <td width="33.3%" align="center">
+      <img src="assets/screenshots/lyrics_view.jpg" alt="Word-Synced Lyrics" style="border-radius: 18px; max-width: 100%; box-shadow: 0 8px 24px rgba(0,0,0,0.6);" />
+      <br/>
+      <sub><b>Syllable-by-Syllable Karaoke Lyrics</b></sub>
+    </td>
+    <td width="33.3%" align="center">
+      <img src="assets/screenshots/album_view.jpg" alt="Album & Mini Player" style="border-radius: 18px; max-width: 100%; box-shadow: 0 8px 24px rgba(0,0,0,0.6);" />
+      <br/>
+      <sub><b>Album Tracklist & Liquid Mini Player</b></sub>
+    </td>
+  </tr>
+</table>
+</div>
 
-> Supports **Android 7.0 (API 24)** and above across `arm64-v8a`, `armeabi-v7a`, and `x86_64` architectures.
+---
+
+## ⚡ Quick Download & Installation
+
+The links below **automatically redirect to the newest version** published on GitHub Releases:
+
+<div align="center">
+
+| Package | Target Architecture | Link |
+| :--- | :--- | :--- |
+| **Latest Release (Recommended)** | `arm64-v8a`, `armeabi-v7a`, `x86_64` | [**Download Latest APK**](https://github.com/dev-o-los/cadmium/releases/latest/download/app-release.apk) |
+| **All Releases & Changelogs** | All Devices | [**View GitHub Releases**](https://github.com/dev-o-los/cadmium/releases/latest) |
+
+</div>
+
+> **System Compatibility:** Supports **Android 7.0 (Nougat, API 24)** up through **Android 15+**.
+
+---
+
+## 📥 How to Install the APK
+
+Follow these quick steps to get Cadmium running on your phone in under a minute:
+
+1. **Download the APK**:
+   Tap [**Download Latest APK**](https://github.com/dev-o-los/cadmium/releases/latest/download/app-release.apk) or visit the [GitHub Releases](https://github.com/dev-o-los/cadmium/releases/latest) page to grab the newest `.apk` asset.
+2. **Confirm Download**:
+   If your browser displays *"File might be harmful"* (standard Android warning for apps downloaded outside Google Play), tap **Download anyway**.
+3. **Allow Installation**:
+   Open the downloaded APK from your notifications or File Manager. If prompted with *"Install unknown apps"*, tap **Settings** and toggle **Allow from this source**.
+4. **Install & Enjoy**:
+   Tap **Install**, launch **Cadmium**, and start streaming your favorite tracks in high fidelity!
 
 ---
 
 ## ✨ Key Features
 
-### 🍎 Authentic Apple Music Design Language
-- **OLED Pure Black Theme (`#000000`)**: Tailored specifically for modern OLED and AMOLED displays to maximize contrast and battery life.
-- **Cupertino & SF Pro Typography**: Standardized font weights, tracking, and letter-spacing replicating Apple Music's design standards.
-- **Frosted Acrylic & Glass Elements**: Translucent bottom sheets, rounded action cards, subtle dividers, and responsive grabbers.
-- **Seamless Hero Morph Animations**: Album art transitions smoothly between the floating mini player and the expanded full-screen player using custom cubic bezier curves.
+### 🍎 Authentic Apple Music Aesthetics
+* **OLED Pitch-Black Design (`#000000`)**: Engineered specifically for AMOLED and OLED panels for deep contrasts and optimal power efficiency.
+* **SF Pro Typography & Tracking**: Replicates Apple's exact typography scale, tracking ratios, and font weights.
+* **Liquid Glass & Frosted Blur**: Translucent bottom sheets, rounded action cards, subtle dividers, and responsive grabbers with real-time blur shaders.
+* **Fluid Hero Animations**: Seamless artwork expansion transitioning between the floating mini player and the expanded player screen using custom cubic curves.
 
-### 🎵 High-Fidelity Audio Streaming Pipeline
-- **YouTube Music Innertube Integration**: Access millions of official tracks, albums, artist discographies, music videos, and user playlists without intrusive ads.
-- **Low-Latency Playback Engine**: Powered by `just_audio` with audio pre-caching, smart buffer management, and gapless transition capabilities.
-- **System Media Notifications**: Full background audio playback with lock screen controls, interactive scrub bars, and dynamic artwork broadcast to the OS notification center.
+### 🎵 High-Fidelity Streaming & Background Playback
+* **YouTube Music Innertube Catalog**: Access millions of official songs, albums, singles, artist discographies, and playlists without ads.
+* **OS Media Notification & Lock Screen**: Full Android media player in the notification bar and quick settings shade, complete with scrub bar, artwork, and lock screen controls.
+* **Persistent Background Playback**: Engineered to keep playing smoothly when your phone is locked or minimized without being terminated by OS battery optimization.
+* **Fast Audio Pre-Caching**: Frequently heard tracks are automatically cached to local storage for instantaneous 0ms playback and reduced mobile data consumption.
 
-### 🎤 Syllable-Level Synced Karaoke Lyrics
-- **Apple-Style Word-by-Word Animation**: Powered by Apple TTML and `lrc.red` parser integrations, lyrics highlight dynamically syllable-by-syllable in real-time as the song plays.
-- **Interactive Auto-Scroll & Seeking**: Tap on any lyric line or syllable to scrub playback immediately to that timestamp.
-- **Dual-Engine Lyric Fallback**: Automatically cascades from syllable-synced TTML to line-synced LRC, and finally to un-synced plain text when timestamps are unavailable.
+### 🎤 Syllable-Level Karaoke Lyrics
+* **Word-by-Word Real-Time Animations**: Synced via Apple TTML and `lrc.red` engines, glowing syllable-by-syllable alongside the artist's vocals.
+* **Interactive Tap-to-Seek**: Tap any lyric line or syllable to immediately scrub playback to that exact vocal moment.
+* **Smart Multi-Engine Fallback**: Cascades dynamically from syllable-level TTML to line-synced LRC, and falls back gracefully to plain text lyrics if timestamps are absent.
 
-### 🎨 Intelligent Dynamic Artwork & Multi-Tier Caching
-- **Cascading Fallbacks**: Automatically fetches the highest possible resolution (`maxresdefault` → `sddefault` → `hqdefault` → YouTube video thumbnail).
-- **Zero-Latency Disk Cache**: Cached artworks load instantly in 0ms from local storage, eliminating unnecessary bandwidth and network requests.
-- **Real-Time Mesh Gradients**: Extracts the dominant color accents from the active album cover to paint subtle ambient background reflections.
-
-### 📚 Curated Personal Library
-- **Account Integration**: Sign in to your YouTube Music account via secure Cookie session to access your personal playlists, subscribed artists, and saved albums.
-- **Liked Music & Favorites**: Dedicated, clean playlists section with streamlined metadata free of redundant tags.
-- **Unified Search**: Instant predictive search suggestions with categorized results for Songs, Artists, Albums, and Community Playlists.
+### 🎨 Dynamic Artwork & Colors
+* **Multi-Tier Artwork Resolution**: Cascades automatically to fetch the highest possible resolution (`maxresdefault` → `sddefault` → `hqdefault` → thumbnail).
+* **Ambient Mesh Gradients**: Extracts the dominant color accents from the active album cover to paint subtle ambient background reflections.
 
 ---
 
-## 🏗️ Architecture & How It Works
+## 🏗️ Architecture
 
-Cadmium is engineered with **Riverpod 2.x** state management following clean architecture principles:
+Cadmium is built with **Flutter 3.x** and **Riverpod 2.x** state management following clean architecture principles:
 
 ```
 lib/
-├── constants/             # Apple SF typography, OLED color palette & styles
-│   ├── app_colors.dart
-│   └── apple_typography.dart
-├── models/                # Immutable domain models (Song, Album, Artist, Lyrics)
-│   ├── song.dart
-│   ├── album_item.dart
-│   ├── playlist_item.dart
-│   └── lyrics_line.dart
-├── providers/             # Riverpod providers managing application state
-│   ├── audio_player_provider.dart
-│   ├── library_provider.dart
-│   ├── lyrics_provider.dart
-│   └── music_provider.dart
-├── screens/               # Core application views
-│   ├── home_screen.dart        # Main scaffold with persistent player bar
-│   ├── home_feed_screen.dart   # Editorial feed, quick picks & top carousels
-│   ├── player_screen.dart      # Full-screen player with lyrics canvas
-│   ├── search_screen.dart      # Predictive search & browse categories
-│   ├── library_screen.dart     # User playlists, liked songs & subscriptions
-│   ├── album_screen.dart       # Detailed album/playlist tracklist & actions
-│   ├── artist_screen.dart      # Hero header, top songs, and discography
-│   ├── settings_screen.dart    # Apple-style preferences & cache tools
-│   └── splash_screen.dart      # Minimalist branded splash screen
-├── services/              # External APIs, playback engine & cache storage
-│   ├── music_service.dart      # YouTube Music Innertube API client
-│   ├── audio_service.dart      # just_audio streaming & notification controller
-│   ├── lyrics_service.dart     # TTML syllable parser & lrc.red integration
-│   └── artwork_cache_service.dart # Local file & LRU memory artwork cache
-└── widgets/               # Modular reusable UI components
-    ├── wavify_cached_image.dart# Cascading high-performance network image loader
-    ├── player_controls.dart    # Scrub bar, play/pause & track controls
-    ├── apple_lyrics_view.dart  # Syllable-level dynamic lyrics renderer
-    ├── track_options_sheet.dart# Cupertino-style contextual action sheets
-    └── account_modal_sheet.dart# Profile avatar modal with quick settings
+├── constants/         # Apple typography scale, OLED palette & styles
+├── models/            # Immutable domain models (Song, Album, Artist, Lyrics)
+├── providers/         # Riverpod StateNotifiers (Player, Library, Navigation)
+├── screens/           # Core views (HomeFeed, Player, Album, Artist, Search, Library)
+├── services/          # Streaming engine, AudioHandler, Lyrics parser, Artwork caches
+└── widgets/           # Liquid glass bottom bar, Apple lyrics canvas, Player controls
 ```
 
-### Data Flow Overview
+### Data & Playback Flow
 
 ```mermaid
 flowchart LR
-    A["YouTube Music (Innertube)"] -->|"Search / Home / Metadata"| B["MusicService"]
-    B -->|"Immutable Data"| C["Riverpod Providers"]
-    C -->|"State Bindings"| D["UI Screens & Widgets"]
-    D -->|"Playback Request"| E["AudioPlayerNotifier"]
-    E -->|"Stream URL"| F["just_audio Engine"]
-    E -->|"Track Metadata"| G["LyricsService"]
-    G -->|"TTML Syllables / LRC"| H["AppleLyricsView"]
-    F -->|"Position Stream"| H
+    A["YouTube Music (Innertube)"] -->|"Search / Stream / Metadata"| B["MusicService"]
+    B -->|"State Updates"| C["Riverpod StateNotifiers"]
+    C -->|"Data Binding"| D["UI Screens & Widgets"]
+    D -->|"User Action"| E["PlayerNotifier"]
+    E -->|"Audio Source"| F["CadmiumAudioHandler & just_audio"]
+    F -->|"MediaSession & Notifications"| G["Android System UI"]
+    E -->|"Lyrics Payload"| H["AppleLyricsView (TTML Syllables)"]
 ```
 
 ---
 
-## 🛠️ Tech Stack & Dependencies
+## 🛠️ Tech Stack
 
-| Library | Version | Purpose |
-| :--- | :--- | :--- |
-| **[flutter_riverpod](https://pub.dev/packages/flutter_riverpod)** | `^2.6.1` | Declarative, compile-safe reactive state management |
-| **[just_audio](https://pub.dev/packages/just_audio)** | `^0.9.46` | High-fidelity audio playback and streaming engine |
-| **[audio_service](https://pub.dev/packages/audio_service)** | `^0.18.18` | OS-level media notifications and background playback control |
-| **[cached_network_image](https://pub.dev/packages/cached_network_image)** | `^3.4.1` | Multi-tier memory and disk image caching |
-| **[flutter_animate](https://pub.dev/packages/flutter_animate)** | `^4.5.2` | Fluid physics-based hero transitions and micro-interactions |
-| **[palette_generator](https://pub.dev/packages/palette_generator)** | `^0.3.3` | Dynamic color extraction for ambient player mesh backgrounds |
-| **[cupertino_icons](https://pub.dev/packages/cupertino_icons)** | `^1.0.8` | Standard Apple SF iconography set |
-| **[shared_preferences](https://pub.dev/packages/shared_preferences)** | `^2.5.3` | Persistent storage for settings, auth cookies, and cached data |
-| **[crypto](https://pub.dev/packages/crypto)** | `^3.0.6` | SHA-256 deterministic key generation for cache files |
+| Library | Purpose |
+| :--- | :--- |
+| **[flutter_riverpod](https://pub.dev/packages/flutter_riverpod)** | Compile-safe reactive state management |
+| **[just_audio](https://pub.dev/packages/just_audio)** | Low-latency audio streaming & caching engine |
+| **[audio_service](https://pub.dev/packages/audio_service)** | Android MediaSession & system notification player |
+| **[liquid_glass_widgets](https://pub.dev/packages/liquid_glass_widgets)** | Real-time GPU shaders for liquid frosted glass |
+| **[cached_network_image](https://pub.dev/packages/cached_network_image)** | Multi-tier memory and disk image caching |
+| **[palette_generator](https://pub.dev/packages/palette_generator)** | Dynamic color extraction for ambient player mesh backgrounds |
 
 ---
 
-## 💻 Getting Started
+## 💻 Building from Source
+
+If you want to contribute or compile the project locally:
 
 ### Prerequisites
+* **Flutter SDK**: `^3.13.0` or higher ([Flutter Install Guide](https://docs.flutter.dev/get-started/install))
+* **Dart SDK**: `^3.13.3`
+* **JDK**: Java 17 or Java 21
+* **Android Studio / Android SDK**
 
-Ensure your development environment meets the following requirements:
-- **Flutter SDK**: `^3.13.0` or higher ([Install Flutter](https://docs.flutter.dev/get-started/install))
-- **Dart SDK**: `^3.13.3`
-- **JDK**: Java 17 or Java 21
-- **Android Studio / Xcode**: For mobile deployment and simulator support
-
-### Installation & Run
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/dev-o-los/cadmium.git
-   cd cadmium
-   ```
-
-2. **Install Flutter dependencies**:
-   ```bash
-   flutter pub get
-   ```
-
-3. **Run code analysis and tests**:
-   ```bash
-   flutter analyze
-   flutter test
-   ```
-
-4. **Launch the application**:
-   ```bash
-   # Run on connected Android / iOS device or simulator
-   flutter run
-   ```
-
-### Building Release Artifacts
-
-To compile an optimized, signed release build for Android:
+### Setup & Run
 
 ```bash
-# Build Universal Release APK
-flutter build apk --release
+# 1. Clone repository
+git clone https://github.com/dev-o-los/cadmium.git
+cd cadmium
 
-# Build Split per-ABI APKs (Smaller download sizes)
-flutter build apk --split-per-abi
+# 2. Install dependencies
+flutter pub get
 
-# Build Google Play App Bundle (.aab)
-flutter build appbundle --release
+# 3. Run static analyzer and test suite
+flutter analyze
+flutter test
+
+# 4. Run on your connected device
+flutter run
 ```
 
-Output APK will be available at `build/app/outputs/flutter-apk/app-release.apk`.
+### Build Universal Release APK
+
+```bash
+flutter build apk --release
+```
+The output APK will be generated at `build/app/outputs/flutter-apk/app-release.apk`.
 
 ---
 
-## 🧪 Testing & Reliability
+## 🧪 Automated Testing
 
-The codebase features comprehensive unit, widget, and integration test coverage:
+Cadmium includes automated unit, widget, and integration test coverage:
 
 ```bash
 flutter test
 ```
 
-- **126 Automated Unit & Widget Tests**:
-  - Lyrics syllable parsing (`TTML`, `lrc.red`, clock formats)
-  - Audio stream resolution and fallback chains
-  - Liquid glass modal sheets and Cupertino interaction mechanics
-  - Artwork morph hero animation curves
-  - Dynamic cache cascade validation (`maxresdefault` down to placeholder)
-
----
-
-## 🤝 Contributing
-
-Contributions are warmly welcomed! If you'd like to contribute:
-
-1. Fork the repository.
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`).
-3. Commit your changes (`git commit -m 'feat: add some amazing feature'`).
-4. Ensure all tests and static analysis pass (`flutter analyze && flutter test`).
-5. Push to your branch (`git push origin feature/AmazingFeature`).
-6. Open a Pull Request.
+* **129 Passing Automated Tests** covering:
+  - TTML and lrc.red syllable-level lyrics parsers
+  - Audio stream resolution and auto-recovery fallbacks
+  - MediaSession background notifications and controls
+  - Liquid glass Cupertino components and touch responses
+  - High-precision lyric clock synchronization
 
 ---
 
 ## 📄 License
 
-Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for more information.
-
----
+Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for details.
 
 <div align="center">
-  <sub>Crafted with passion for music and precision design.</sub>
+  <sub>Crafted with passion for music, typography, and precision design.</sub>
 </div>
