@@ -10,12 +10,9 @@ import '../models/playlist_item.dart';
 import '../models/song_item.dart';
 import '../providers/auth_provider.dart';
 import '../providers/favorites_provider.dart';
-import '../providers/home_data_provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/music_service_provider.dart';
-import '../providers/player_provider.dart';
 import '../utils/playback_utils.dart';
-import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_glass_bottom_sheet.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/dynamic_album_artwork.dart';
@@ -62,14 +59,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final artistsAsync = ref.watch(userArtistsProvider);
     final localFavorites = ref.watch(favoritesProvider);
     final ytLikesAsync = ref.watch(youtubeLikedSongsProvider);
-    final recentlyPlayed = ref.watch(
-      playerProvider.select((s) => s.recentlyPlayed),
-    );
-    final homeData = ref.watch(homeDataProvider).asData?.value;
-    final trendingSongs = homeData?.trendingSongs ?? [];
-    final recentHistory = recentlyPlayed.isNotEmpty
-        ? recentlyPlayed
-        : (homeData?.recents ?? []);
 
     final playlists = playlistsAsync.asData?.value ?? [];
     final albums = albumsAsync.asData?.value ?? [];
@@ -294,66 +283,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 ),
               const SizedBox(height: 28),
             ],
-
-            // 6. Recents Section (Just like homepage)
-            if (recentHistory.isNotEmpty) ...[
-              _buildLibrarySectionHeader(
-                title: 'Recents',
-                count: recentHistory.length,
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: cardHeight,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  itemCount: recentHistory.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(width: 14),
-                  itemBuilder: (context, index) {
-                    final song = recentHistory[index];
-                    return _buildSongSquareCard(
-                      context,
-                      ref,
-                      song,
-                      cardWidth,
-                      recentHistory,
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 28),
-            ],
-
-            // 7. Trending in Your Region Section (Just like homepage)
-            if (trendingSongs.isNotEmpty) ...[
-              _buildLibrarySectionHeader(
-                title: 'Trending in Your Region',
-                count: trendingSongs.length,
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: cardHeight,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  itemCount: trendingSongs.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(width: 14),
-                  itemBuilder: (context, index) {
-                    final song = trendingSongs[index];
-                    return _buildSongSquareCard(
-                      context,
-                      ref,
-                      song,
-                      cardWidth,
-                      trendingSongs,
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 28),
-            ],
           ],
         ),
         // Dynamic Apple-style status bar blur & fading dissolve on scroll
@@ -535,113 +464,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       ),
       child: const Center(
         child: Icon(CupertinoIcons.heart_fill, color: Colors.white, size: 36),
-      ),
-    );
-  }
-
-  Widget _buildSongSquareCard(
-    BuildContext context,
-    WidgetRef ref,
-    SongItem song,
-    double cardWidth,
-    List<SongItem> queue,
-  ) {
-    final isCurrent = ref.watch(
-      playerProvider.select((s) => s.currentSong?.id == song.id),
-    );
-    final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
-
-    return ApplePressable(
-      onTap: () {
-        playSong(
-          context,
-          ref,
-          song,
-          contextQueue: queue.where((s) => s.id != song.id).toList(),
-          forceReload: true,
-        );
-      },
-      borderRadius: BorderRadius.circular(14),
-      child: SizedBox(
-        width: cardWidth,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: WavifyCachedImage(
-                    imageUrl: song.thumbnailUrl,
-                    songId: song.id,
-                    width: cardWidth,
-                    height: cardWidth,
-                    fit: BoxFit.cover,
-                    borderRadius: BorderRadius.circular(14),
-                    placeholder: AppShimmer(
-                      child: ShimmerBox(
-                        width: cardWidth,
-                        height: cardWidth,
-                        borderRadius: BorderRadius.all(Radius.circular(14)),
-                      ),
-                    ),
-                    errorWidget: _fallbackSquareArt(size: cardWidth),
-                  ),
-                ),
-                if (isCurrent && isPlaying)
-                  Positioned(
-                    right: 8,
-                    bottom: 8,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.75),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          width: 0.8,
-                        ),
-                      ),
-                      padding: const EdgeInsets.all(6),
-                      child: const AnimatedEqualizerBars(
-                        size: 14,
-                        color: Colors.white,
-                        isPlaying: true,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              song.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.2,
-                height: 1.2,
-              ),
-            ),
-            const SizedBox(height: 2),
-            ApplePressable(
-              onTap: () => openArtistScreen(context, artistName: song.artist),
-              child: Text(
-                song.artist,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: AppColors.appleSecondaryText,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w400,
-                  height: 1.2,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

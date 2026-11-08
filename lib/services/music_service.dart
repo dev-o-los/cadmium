@@ -1820,8 +1820,27 @@ class MusicService {
 
     if (albums.isEmpty) {
       try {
-        final rawAlbums = await searchAlbums('Top Albums');
-        albums.addAll(rawAlbums);
+        final tasteArtists = <String>{};
+        for (final song in [...recents, ...quickPicks]) {
+          if (song.artist.isNotEmpty && !song.artist.toLowerCase().contains('various')) {
+            final artist = song.artist.split(RegExp(r'[,&•/]')).first.trim();
+            if (artist.isNotEmpty && artist.length > 2) tasteArtists.add(artist);
+          }
+        }
+        for (final artist in tasteArtists.take(3)) {
+          try {
+            final artistAlbums = await searchAlbums(artist);
+            for (final alb in artistAlbums) {
+              if (!albums.any((existing) => existing.id == alb.id || existing.title.toLowerCase() == alb.title.toLowerCase())) {
+                albums.add(alb);
+              }
+            }
+          } catch (_) {}
+        }
+        if (albums.isEmpty) {
+          final rawAlbums = await searchAlbums('Top Albums');
+          albums.addAll(rawAlbums);
+        }
       } catch (_) {}
     }
 

@@ -973,11 +973,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                             children: [
                               const Text(
                                 'About the album',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                style: AppleTypography.sectionTitle,
                               ),
                               const SizedBox(height: 6),
                               Text(

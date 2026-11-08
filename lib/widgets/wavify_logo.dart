@@ -20,7 +20,7 @@ class AurumLogo extends StatelessWidget {
     final height = size;
 
     return Image.asset(
-      'assets/images/app_logo_cropped.png',
+      'assets/images/app_logo_cropped_transparent.png',
       width: width,
       height: height,
       fit: fit,
@@ -28,7 +28,7 @@ class AurumLogo extends StatelessWidget {
       filterQuality: FilterQuality.medium,
       errorBuilder: (context, error, stackTrace) {
         return Image.asset(
-          'assets/images/app_logo.png',
+          'assets/images/app_logo_transparent.png',
           width: width,
           height: height,
           fit: fit,

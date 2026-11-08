@@ -15,13 +15,13 @@ abstract final class AppleTypography {
     height: 1.2,
   );
 
-  /// Section Header / Title 1 (22pt, Bold, -0.35 tracking)
+  /// Section Header / Title 1 (16.5pt, Medium, -0.2 tracking)
   /// Used for major content section headers: "Quick Picks", "Top Songs", "Featured Albums"
   static const TextStyle sectionTitle = TextStyle(
     color: Colors.white,
-    fontSize: 22,
-    fontWeight: FontWeight.w700,
-    letterSpacing: -0.35,
+    fontSize: 16.5,
+    fontWeight: FontWeight.w500,
+    letterSpacing: -0.2,
     height: 1.25,
   );
 

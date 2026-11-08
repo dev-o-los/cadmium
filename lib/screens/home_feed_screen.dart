@@ -558,12 +558,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             children: [
               const Text(
                 'Find Your Mood',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.3,
-                ),
+                style: AppleTypography.sectionTitle,
               ),
               GestureDetector(
                 onTap: () {
@@ -673,13 +668,41 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
     }
   }
 
-  /// Albums & Singles Horizontal Carousel with Apple-style frosted blur
+  /// Albums & Singles Horizontal Carousel with continuous fade scrim matching Top Picks
   Widget _buildAlbumsAndSinglesSection(
     BuildContext context,
     WidgetRef ref,
     List<AlbumItem> albums,
   ) {
     if (albums.isEmpty) return const SizedBox.shrink();
+
+    // Filter and prioritize albums matching user's taste (from recently played & authentic listening history)
+    final recentSongs = ref.watch(playerProvider.select((s) => s.recentlyPlayed));
+    final listenedArtists = <String>{};
+    for (final s in recentSongs) {
+      if (s.artist.trim().isNotEmpty) {
+        listenedArtists.add(s.artist.toLowerCase().trim());
+        final primary = s.artist.split(RegExp(r'[,&•/]')).first.toLowerCase().trim();
+        if (primary.isNotEmpty) listenedArtists.add(primary);
+      }
+    }
+
+    final displayAlbums = List<AlbumItem>.from(albums);
+    if (listenedArtists.isNotEmpty) {
+      displayAlbums.sort((a, b) {
+        final aSub = a.subtitle.toLowerCase();
+        final aTitle = a.title.toLowerCase();
+        final bSub = b.subtitle.toLowerCase();
+        final bTitle = b.title.toLowerCase();
+
+        final aMatch = listenedArtists.any((la) => aSub.contains(la) || aTitle.contains(la));
+        final bMatch = listenedArtists.any((la) => bSub.contains(la) || bTitle.contains(la));
+
+        if (aMatch && !bMatch) return -1;
+        if (!aMatch && bMatch) return 1;
+        return 0;
+      });
+    }
 
     final screenWidth = MediaQuery.of(context).size.width;
     final cardWidth = (screenWidth * 0.40).clamp(148.0, 190.0);
@@ -701,10 +724,10 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: albums.length > 15 ? 15 : albums.length,
+            itemCount: displayAlbums.length > 15 ? 15 : displayAlbums.length,
             separatorBuilder: (context, index) => const SizedBox(width: 14),
             itemBuilder: (context, index) {
-              final album = albums[index];
+              final album = displayAlbums[index];
               return RepaintBoundary(
                 child: ApplePressable(
                   onTap: () => openAlbumScreen(context, album),
@@ -714,9 +737,10 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                     height: cardHeight,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
+                      color: const Color(0xFF141414),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.10),
-                        width: 0.8,
+                        color: Colors.white.withValues(alpha: 0.08),
+                        width: 0.6,
                       ),
                     ),
                     child: ClipRRect(
@@ -730,52 +754,56 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                               size: cardWidth,
                             ),
                           ),
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
+                          // High-contrast OLED gradient scrim slowly fading to black (same as Top picks for you)
+                          Positioned.fill(
                             child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
                                   begin: Alignment.topCenter,
                                   end: Alignment.bottomCenter,
                                   colors: [
+                                    Colors.transparent,
+                                    Colors.transparent,
                                     Color(0x66000000),
-                                    Color(0xEE000000),
+                                    Color(0xF0000000),
                                   ],
+                                  stops: [0.0, 0.38, 0.68, 1.0],
                                 ),
-                                border: Border(
-                                  top: BorderSide(
-                                    color: Colors.white.withValues(
-                                      alpha: 0.12,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            left: 12,
+                            right: 12,
+                            bottom: 12,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (album.subtitle.isNotEmpty) ...[
+                                  Text(
+                                    album.subtitle.toUpperCase(),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppleTypography.eyebrow.copyWith(
+                                      color: Colors.white.withValues(alpha: 0.80),
+                                      fontSize: 10,
                                     ),
-                                    width: 0.8,
+                                  ),
+                                  const SizedBox(height: 2),
+                                ],
+                                Text(
+                                  album.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: -0.2,
                                   ),
                                 ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    album.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AppleTypography.cardTitle,
-                                  ),
-                                  const SizedBox(height: AppleSpacing.titleToSubtitle),
-                                  Text(
-                                    album.subtitle,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AppleTypography.cardSubtitle,
-                                  ),
-                                ],
-                              ),
+                              ],
                             ),
                           ),
                         ],
