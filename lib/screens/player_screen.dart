@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -26,11 +27,7 @@ import '../widgets/apple_pressable.dart';
 import '../widgets/apple_lyrics_view.dart';
 import '../widgets/wavify_cached_image.dart';
 
-enum PlayerViewMode {
-  nowPlaying,
-  lyrics,
-  queue,
-}
+enum PlayerViewMode { nowPlaying, lyrics, queue }
 
 /// Full-Screen Apple Music-inspired Now Playing screen:
 /// - Seamless edge-to-edge artwork extending behind status bar with gradual downward blur transition
@@ -46,7 +43,8 @@ class PlayerScreen extends ConsumerStatefulWidget {
   ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
 }
 
-class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProviderStateMixin {
+class _PlayerScreenState extends ConsumerState<PlayerScreen>
+    with TickerProviderStateMixin {
   static const Color appleSecondaryText = AppColors.appleSecondaryText;
 
   PlayerViewMode _currentMode = PlayerViewMode.nowPlaying;
@@ -97,14 +95,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     );
 
     // Interactive downward drag snap back
-    _dragSnapBackController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 240),
-    )..addListener(() {
-      setState(() {
-        _dragOffsetY = _dragSnapBackAnimation.value;
-      });
-    });
+    _dragSnapBackController =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 240),
+        )..addListener(() {
+          setState(() {
+            _dragOffsetY = _dragSnapBackAnimation.value;
+          });
+        });
 
     // Auto-collapse check after initial screen load if a song is already playing
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -133,16 +132,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
   }
 
   void _onVerticalDragEnd(DragEndDetails details) {
-    if (_dragOffsetY > 110 || (details.primaryVelocity != null && details.primaryVelocity! > 400)) {
+    if (_dragOffsetY > 110 ||
+        (details.primaryVelocity != null && details.primaryVelocity! > 400)) {
       Navigator.of(context).pop();
     } else if (_dragOffsetY > 0) {
-      _dragSnapBackAnimation = Tween<double>(
-        begin: _dragOffsetY,
-        end: 0.0,
-      ).animate(CurvedAnimation(
-        parent: _dragSnapBackController,
-        curve: Curves.easeOutCubic,
-      ));
+      _dragSnapBackAnimation = Tween<double>(begin: _dragOffsetY, end: 0.0)
+          .animate(
+            CurvedAnimation(
+              parent: _dragSnapBackController,
+              curve: Curves.easeOutCubic,
+            ),
+          );
       _dragSnapBackController.forward(from: 0.0);
     }
   }
@@ -153,7 +153,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     final isPlaying = ref.read(playerProvider).isPlaying;
     if (isPlaying && !_isDraggingSlider) {
       _autoHideTimer = Timer(const Duration(seconds: 7), () {
-        if (mounted && ref.read(playerProvider).isPlaying && !_isDraggingSlider) {
+        if (mounted &&
+            ref.read(playerProvider).isPlaying &&
+            !_isDraggingSlider) {
           _controlsAnimController.reverse();
         }
       });
@@ -211,8 +213,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     _startAutoHideTimer();
   }
 
-
-
   String _formatDuration(Duration duration) {
     final minutes = duration.inMinutes;
     final seconds = duration.inSeconds % 60;
@@ -229,10 +229,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         return Consumer(
           builder: (context, ref, _) {
             final volume = ref.watch(playerProvider.select((s) => s.volume));
-            final devices = ref.watch(playerProvider.select((s) => s.availableAudioDevices));
-            final connectedDevice = ref.watch(playerProvider.select((s) => s.connectedDevice));
+            final devices = ref.watch(
+              playerProvider.select((s) => s.availableAudioDevices),
+            );
+            final connectedDevice = ref.watch(
+              playerProvider.select((s) => s.connectedDevice),
+            );
             double localVolume = volume;
-            final effectiveDevices = devices.isNotEmpty ? devices : [connectedDevice];
+            final effectiveDevices = devices.isNotEmpty
+                ? devices
+                : [connectedDevice];
 
             return StatefulBuilder(
               builder: (context, setModalState) {
@@ -266,7 +272,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                                 title: device.name,
                                 subtitle: device.subtitle,
                                 trailing: isCurrent
-                                    ? const Icon(CupertinoIcons.checkmark_circle_fill, color: Colors.white, size: 22)
+                                    ? const Icon(
+                                        CupertinoIcons.checkmark_circle_fill,
+                                        color: Colors.white,
+                                        size: 22,
+                                      )
                                     : null,
                                 onTap: () {
                                   notifier.selectAudioDevice(device);
@@ -283,10 +293,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                     AppleSheetGroup(
                       children: [
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
                           child: Row(
                             children: [
-                              const Icon(CupertinoIcons.volume_mute, color: Colors.white70, size: 20),
+                              const Icon(
+                                CupertinoIcons.volume_mute,
+                                color: Colors.white70,
+                                size: 20,
+                              ),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: AppleMusicSlider(
@@ -301,7 +318,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                                 ),
                               ),
                               const SizedBox(width: 10),
-                              const Icon(CupertinoIcons.volume_up, color: Colors.white70, size: 20),
+                              const Icon(
+                                CupertinoIcons.volume_up,
+                                color: Colors.white70,
+                                size: 20,
+                              ),
                             ],
                           ),
                         ),
@@ -335,8 +356,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: WavifyCachedImage(
-                      imageUrl: song.highResThumbnailUrl ?? song.resolvedThumbnailUrl,
-                      placeholderImageUrl: song.resolvedThumbnailUrl ?? song.thumbnailUrl,
+                      imageUrl:
+                          song.highResThumbnailUrl ?? song.resolvedThumbnailUrl,
+                      placeholderImageUrl:
+                          song.resolvedThumbnailUrl ?? song.thumbnailUrl,
                       songId: song.id,
                       width: 50,
                       height: 50,
@@ -379,18 +402,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
             AppleSheetGroup(
               children: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   child: Consumer(
                     builder: (context, ref, _) {
-                      final selectedProvider = ref.watch(playerProvider.select((s) => s.selectedLyricsProvider));
-                      final isLoadingLyrics = ref.watch(playerProvider.select((s) => s.isLoadingLyrics));
+                      final selectedProvider = ref.watch(
+                        playerProvider.select((s) => s.selectedLyricsProvider),
+                      );
+                      final isLoadingLyrics = ref.watch(
+                        playerProvider.select((s) => s.isLoadingLyrics),
+                      );
 
                       return Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Row(
                             children: const [
-                              Icon(CupertinoIcons.quote_bubble, color: Colors.white, size: 20),
+                              Icon(
+                                CupertinoIcons.quote_bubble,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                               SizedBox(width: 12),
                               Text(
                                 'Lyrics Provider',
@@ -419,10 +453,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                                   type: LyricsProviderType.lrcRed,
                                   label: 'lrc.red',
                                   icon: CupertinoIcons.sparkles,
-                                  isSelected: selectedProvider == LyricsProviderType.lrcRed,
-                                  isLoading: isLoadingLyrics && selectedProvider == LyricsProviderType.lrcRed,
+                                  isSelected:
+                                      selectedProvider ==
+                                      LyricsProviderType.lrcRed,
+                                  isLoading:
+                                      isLoadingLyrics &&
+                                      selectedProvider ==
+                                          LyricsProviderType.lrcRed,
                                   onTap: () {
-                                    ref.read(playerProvider.notifier).setLyricsProvider(LyricsProviderType.lrcRed);
+                                    ref
+                                        .read(playerProvider.notifier)
+                                        .setLyricsProvider(
+                                          LyricsProviderType.lrcRed,
+                                        );
                                   },
                                 ),
                                 const SizedBox(width: 3),
@@ -430,10 +473,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                                   type: LyricsProviderType.youTube,
                                   label: 'YouTube',
                                   icon: CupertinoIcons.play_rectangle,
-                                  isSelected: selectedProvider == LyricsProviderType.youTube,
-                                  isLoading: isLoadingLyrics && selectedProvider == LyricsProviderType.youTube,
+                                  isSelected:
+                                      selectedProvider ==
+                                      LyricsProviderType.youTube,
+                                  isLoading:
+                                      isLoadingLyrics &&
+                                      selectedProvider ==
+                                          LyricsProviderType.youTube,
                                   onTap: () {
-                                    ref.read(playerProvider.notifier).setLyricsProvider(LyricsProviderType.youTube);
+                                    ref
+                                        .read(playerProvider.notifier)
+                                        .setLyricsProvider(
+                                          LyricsProviderType.youTube,
+                                        );
                                   },
                                 ),
                               ],
@@ -469,7 +521,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                 const AppleSheetDivider(),
                 AppleSheetActionTile(
                   icon: CupertinoIcons.music_albums,
-                  title: (song.album != null && song.album!.isNotEmpty) ? 'View Album (${song.album})' : 'View Album',
+                  title: (song.album != null && song.album!.isNotEmpty)
+                      ? 'View Album (${song.album})'
+                      : 'View Album',
                   onTap: () => Navigator.pop(context),
                 ),
                 const AppleSheetDivider(),
@@ -513,15 +567,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
       return const Scaffold(
         backgroundColor: Colors.black,
         body: Center(
-          child: Text('No song currently playing', style: TextStyle(color: appleSecondaryText)),
+          child: Text(
+            'No song currently playing',
+            style: TextStyle(color: appleSecondaryText),
+          ),
         ),
       );
     }
 
-    final isFavorite = ref.watch(favoritesProvider.select((list) => list.any((s) => s.id == song.id)));
+    final isFavorite = ref.watch(
+      favoritesProvider.select((list) => list.any((s) => s.id == song.id)),
+    );
 
     // Auto-hide controls when song starts playing; reveal when paused
-    ref.listen<bool>(playerProvider.select((s) => s.isPlaying), (previous, isPlaying) {
+    ref.listen<bool>(playerProvider.select((s) => s.isPlaying), (
+      previous,
+      isPlaying,
+    ) {
       if (isPlaying) {
         _startAutoHideTimer();
       } else {
@@ -529,8 +591,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         _controlsAnimController.forward();
       }
     });
-
-
 
     final screenHeight = MediaQuery.sizeOf(context).height;
     final screenWidth = MediaQuery.sizeOf(context).width;
@@ -610,26 +670,44 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
   /// Gently enriches shadow depth, increases color saturation by ~5%,
   /// and ensures dark tones snap to pitch black on OLED/AMOLED displays.
   static const ColorFilter _amoledVibrancyFilter = ColorFilter.matrix([
-    1.05, 0.00, 0.00, 0.00, -2,
-    0.00, 1.05, 0.00, 0.00, -2,
-    0.00, 0.00, 1.05, 0.00, -2,
-    0.00, 0.00, 0.00, 1.00,  0,
+    1.05,
+    0.00,
+    0.00,
+    0.00,
+    -2,
+    0.00,
+    1.05,
+    0.00,
+    0.00,
+    -2,
+    0.00,
+    0.00,
+    1.05,
+    0.00,
+    -2,
+    0.00,
+    0.00,
+    0.00,
+    1.00,
+    0,
   ]);
 
-  Widget _buildAmbientBackdrop(
-    SongItem song,
-    double screenHeight,
-  ) {
+  Widget _buildAmbientBackdrop(SongItem song, double screenHeight) {
     final artworkUrl = song.highResThumbnailUrl ?? song.resolvedThumbnailUrl;
     if (artworkUrl == null || artworkUrl.isEmpty) {
       return Container(color: Colors.black);
     }
 
-    final animatedArtworkUrl = ref.watch(playerProvider.select((s) => s.animatedArtworkUrl)) ?? song.animatedArtworkUrl;
+    final animatedArtworkUrl =
+        ref.watch(playerProvider.select((s) => s.animatedArtworkUrl)) ??
+        song.animatedArtworkUrl;
 
     return Positioned.fill(
       child: AnimatedBuilder(
-        animation: Listenable.merge([_ambientAnimController, _modeAnimController]),
+        animation: Listenable.merge([
+          _ambientAnimController,
+          _modeAnimController,
+        ]),
         builder: (context, _) {
           final scale = 1.0 + (_ambientAnimController.value * 0.05);
           final modeVal = _modeAnimController.value;
@@ -642,35 +720,43 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
 
               // Full-bleed blurred artwork backdrop
               Positioned.fill(
-                child: ClipRect(
-                  child: Transform.scale(
-                    scale: scale * 1.15,
-                    alignment: Alignment.topCenter,
-                    child: ImageFiltered(
-                      imageFilter: ui.ImageFilter.blur(sigmaX: 42, sigmaY: 42),
-                      child: ColorFiltered(
-                        colorFilter: _amoledVibrancyFilter,
-                        child: WavifyCachedImage(
-                          imageUrl: AmbientVideoCanvas.isVideoUrl(animatedArtworkUrl)
-                              ? artworkUrl
-                              : (animatedArtworkUrl ?? artworkUrl),
-                          placeholderImageUrl: song.resolvedThumbnailUrl ?? song.thumbnailUrl,
-                          songId: song.id,
-                          fit: BoxFit.cover,
-                          alignment: Alignment.topCenter,
-                          filterQuality: FilterQuality.medium,
-                          errorWidget: const SizedBox(),
+                    child: ClipRect(
+                      child: Transform.scale(
+                        scale: scale * 1.15,
+                        alignment: Alignment.topCenter,
+                        child: ImageFiltered(
+                          imageFilter: ui.ImageFilter.blur(
+                            sigmaX: 42,
+                            sigmaY: 42,
+                          ),
+                          child: ColorFiltered(
+                            colorFilter: _amoledVibrancyFilter,
+                            child: WavifyCachedImage(
+                              imageUrl:
+                                  AmbientVideoCanvas.isVideoUrl(
+                                    animatedArtworkUrl,
+                                  )
+                                  ? artworkUrl
+                                  : (animatedArtworkUrl ?? artworkUrl),
+                              placeholderImageUrl:
+                                  song.resolvedThumbnailUrl ??
+                                  song.thumbnailUrl,
+                              songId: song.id,
+                              fit: BoxFit.cover,
+                              alignment: Alignment.topCenter,
+                              filterQuality: FilterQuality.medium,
+                              errorWidget: const SizedBox(),
+                            ),
+                          ),
                         ),
                       ),
                     ),
+                  )
+                  .animate(key: ValueKey('player_screen_ambient_${song.id}'))
+                  .fadeIn(
+                    duration: const Duration(milliseconds: 500),
+                    curve: Curves.easeOut,
                   ),
-                ),
-              )
-              .animate(key: ValueKey('player_screen_ambient_${song.id}'))
-              .fadeIn(
-                duration: const Duration(milliseconds: 500),
-                curve: Curves.easeOut,
-              ),
 
               // Smooth darkness dissolve in Now Playing expanded mode
               Positioned.fill(
@@ -697,7 +783,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
               if (modeVal > 0.0)
                 Positioned.fill(
                   child: Container(
-                    color: Color.lerp(Colors.transparent, const Color(0xD808080A), modeVal),
+                    color: Color.lerp(
+                      Colors.transparent,
+                      const Color(0xD808080A),
+                      modeVal,
+                    ),
                   ),
                 ),
 
@@ -739,14 +829,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
       return Container(color: Colors.black);
     }
 
-    final animatedArtworkUrl = ref.watch(playerProvider.select((s) => s.animatedArtworkUrl)) ?? song.animatedArtworkUrl;
-    final animatedArtworkHeaders = ref.watch(playerProvider.select((s) => s.animatedArtworkHeaders));
+    final animatedArtworkUrl =
+        ref.watch(playerProvider.select((s) => s.animatedArtworkUrl)) ??
+        song.animatedArtworkUrl;
+    final animatedArtworkHeaders = ref.watch(
+      playerProvider.select((s) => s.animatedArtworkHeaders),
+    );
     final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
 
     const double targetThumbSize = 48.0;
 
     return AnimatedBuilder(
-      animation: Listenable.merge([_modeAnimController, _ambientAnimController]),
+      animation: Listenable.merge([
+        _modeAnimController,
+        _ambientAnimController,
+      ]),
       builder: (context, _) {
         final modeVal = CurvedAnimation(
           parent: _modeAnimController,
@@ -754,13 +851,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         ).value;
 
         // Subtle breathing zoom scale (1.0 to 1.05) when in expanded nowPlaying mode
-        final breathingScale = 1.0 + (_ambientAnimController.value * 0.05 * (1.0 - modeVal));
+        final breathingScale =
+            1.0 + (_ambientAnimController.value * 0.05 * (1.0 - modeVal));
 
         // Interpolate rect geometry between Now Playing full canvas and Lyrics 48x48 header thumbnail
         final left = ui.lerpDouble(0.0, 24.0, modeVal)!;
         final top = ui.lerpDouble(0.0, headerTop, modeVal)!;
         final width = ui.lerpDouble(screenWidth, targetThumbSize, modeVal)!;
-        final height = ui.lerpDouble(screenHeight * 0.70, targetThumbSize, modeVal)!;
+        final height = ui.lerpDouble(
+          screenHeight * 0.70,
+          targetThumbSize,
+          modeVal,
+        )!;
         final borderRadius = ui.lerpDouble(0.0, 12.0, modeVal)!;
 
         // Base image content
@@ -771,7 +873,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
           fit: BoxFit.cover,
           alignment: Alignment.topCenter,
           filterQuality: FilterQuality.high,
-          errorWidget: _fallbackMiniArt(size: targetThumbSize, borderRadius: borderRadius),
+          errorWidget: _fallbackMiniArt(
+            size: targetThumbSize,
+            borderRadius: borderRadius,
+          ),
         );
 
         // Hardware-accelerated ambient moving video canvas when available
@@ -842,7 +947,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
               }
             },
             onVerticalDragStart: (modeVal < 0.3) ? _onVerticalDragStart : null,
-            onVerticalDragUpdate: (modeVal < 0.3) ? _onVerticalDragUpdate : null,
+            onVerticalDragUpdate: (modeVal < 0.3)
+                ? _onVerticalDragUpdate
+                : null,
             onVerticalDragEnd: (modeVal < 0.3) ? _onVerticalDragEnd : null,
             behavior: HitTestBehavior.opaque,
             child: Container(
@@ -881,7 +988,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     required double headerTop,
     required bool isFavorite,
   }) {
-    final playingFromText = (song.album != null && song.album!.trim().isNotEmpty)
+    final playingFromText =
+        (song.album != null && song.album!.trim().isNotEmpty)
         ? 'Playing from ${song.album!.trim()}'
         : 'Playing from ${song.artist.trim()}';
 
@@ -961,7 +1069,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                               children: [
                                 Row(
                                   children: [
-                                    if (_isExplicit(song.title, song.album)) _buildExplicitBadge(),
+                                    if (_isExplicit(song.title, song.album))
+                                      _buildExplicitBadge(),
                                     Expanded(
                                       child: Text(
                                         song.title,
@@ -972,9 +1081,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: AppleSpacing.titleToSubtitle),
+                                const SizedBox(
+                                  height: AppleSpacing.titleToSubtitle,
+                                ),
                                 ApplePressable(
-                                  onTap: () => openArtistScreen(context, artistName: song.artist),
+                                  onTap: () => openArtistScreen(
+                                    context,
+                                    artistName: song.artist,
+                                  ),
                                   child: Text(
                                     song.artist,
                                     maxLines: 1,
@@ -987,9 +1101,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                           ),
                           _buildLiquidGlassButton(
                             size: 36,
-                            onTap: () => ref.read(favoritesProvider.notifier).toggleFavorite(song),
+                            onTap: () => ref
+                                .read(favoritesProvider.notifier)
+                                .toggleFavorite(song),
                             icon: AnimatedCupertinoIcon(
-                              icon: isFavorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
+                              icon: isFavorite
+                                  ? CupertinoIcons.star_fill
+                                  : CupertinoIcons.star,
                               color: Colors.white,
                               size: 17,
                             ),
@@ -1022,7 +1140,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     required double bottomPadding,
   }) {
     return AnimatedBuilder(
-      animation: Listenable.merge([_modeAnimController, _controlsAnimController]),
+      animation: Listenable.merge([
+        _modeAnimController,
+        _controlsAnimController,
+      ]),
       builder: (context, _) {
         final modeVal = _modeAnimController.value;
         if (modeVal == 0.0) {
@@ -1123,15 +1244,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                     curve: const Interval(0.25, 1.0, curve: Curves.easeOut),
                   ),
                   child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0.0, 0.25),
-                      end: Offset.zero,
-                    ).animate(
-                      CurvedAnimation(
-                        parent: _controlsAnimController,
-                        curve: Curves.easeInOutCubic,
-                      ),
-                    ),
+                    position:
+                        Tween<Offset>(
+                          begin: const Offset(0.0, 0.25),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: _controlsAnimController,
+                            curve: Curves.easeInOutCubic,
+                          ),
+                        ),
                     child: AnimatedBuilder(
                       animation: _controlsAnimController,
                       builder: (context, child) {
@@ -1150,29 +1272,41 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                           if (_currentMode != PlayerViewMode.lyrics) ...[
                             Consumer(
                               builder: (context, ref, _) {
-                                final activeLyric = ref.watch(playerProvider.select((s) {
-                                  if (s.lyrics.isNotEmpty) {
-                                    if (s.activeLyricIndex >= 0 &&
-                                        s.activeLyricIndex < s.lyrics.length) {
-                                      final lyricText = s.lyrics[s.activeLyricIndex].text.trim();
-                                      if (lyricText.isNotEmpty) {
-                                        return lyricText;
+                                final activeLyric = ref.watch(
+                                  playerProvider.select((s) {
+                                    if (s.lyrics.isNotEmpty) {
+                                      if (s.activeLyricIndex >= 0 &&
+                                          s.activeLyricIndex <
+                                              s.lyrics.length) {
+                                        final lyricText = s
+                                            .lyrics[s.activeLyricIndex]
+                                            .text
+                                            .trim();
+                                        if (lyricText.isNotEmpty) {
+                                          return lyricText;
+                                        }
+                                      } else if (s.lyrics.first.text
+                                          .trim()
+                                          .isNotEmpty) {
+                                        return s.lyrics.first.text.trim();
                                       }
-                                    } else if (s.lyrics.first.text.trim().isNotEmpty) {
-                                      return s.lyrics.first.text.trim();
                                     }
-                                  }
-                                  return 'The hook is on the way';
-                                }));
+                                    return 'The hook is on the way';
+                                  }),
+                                );
 
                                 return ApplePressable(
-                                  onTap: () => _switchMode(PlayerViewMode.lyrics),
+                                  onTap: () =>
+                                      _switchMode(PlayerViewMode.lyrics),
                                   pressedScale: 0.98,
                                   child: Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 2),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 2,
+                                    ),
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
-                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.center,
                                       children: [
                                         const Icon(
                                           CupertinoIcons.music_note_2,
@@ -1182,51 +1316,82 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                                         const SizedBox(width: 8),
                                         Flexible(
                                           child: AnimatedSwitcher(
-                                            duration: const Duration(milliseconds: 320),
-                                            layoutBuilder: (currentChild, previousChildren) {
-                                              return Stack(
-                                                alignment: Alignment.centerLeft,
-                                                children: [
-                                                  ...previousChildren,
-                                                  ?currentChild,
-                                                ],
-                                              );
-                                            },
-                                            transitionBuilder: (child, animation) {
-                                              final isEntering = (child.key as ValueKey<String>?)?.value == activeLyric;
-                                              final offsetAnimation = isEntering
-                                                  ? Tween<Offset>(
-                                                      begin: const Offset(0.0, 0.9),
-                                                      end: Offset.zero,
-                                                    ).animate(CurvedAnimation(
-                                                      parent: animation,
-                                                      curve: Curves.easeOutCubic,
-                                                    ))
-                                                  : Tween<Offset>(
-                                                      begin: const Offset(0.0, -0.9),
-                                                      end: Offset.zero,
-                                                    ).animate(CurvedAnimation(
-                                                      parent: animation,
-                                                      curve: Curves.easeInCubic,
-                                                    ));
+                                            duration: const Duration(
+                                              milliseconds: 320,
+                                            ),
+                                            layoutBuilder:
+                                                (
+                                                  currentChild,
+                                                  previousChildren,
+                                                ) {
+                                                  return Stack(
+                                                    alignment:
+                                                        Alignment.centerLeft,
+                                                    children: [
+                                                      ...previousChildren,
+                                                      ?currentChild,
+                                                    ],
+                                                  );
+                                                },
+                                            transitionBuilder:
+                                                (child, animation) {
+                                                  final isEntering =
+                                                      (child.key
+                                                              as ValueKey<
+                                                                String
+                                                              >?)
+                                                          ?.value ==
+                                                      activeLyric;
+                                                  final offsetAnimation =
+                                                      isEntering
+                                                      ? Tween<Offset>(
+                                                          begin: const Offset(
+                                                            0.0,
+                                                            0.9,
+                                                          ),
+                                                          end: Offset.zero,
+                                                        ).animate(
+                                                          CurvedAnimation(
+                                                            parent: animation,
+                                                            curve: Curves
+                                                                .easeOutCubic,
+                                                          ),
+                                                        )
+                                                      : Tween<Offset>(
+                                                          begin: const Offset(
+                                                            0.0,
+                                                            -0.9,
+                                                          ),
+                                                          end: Offset.zero,
+                                                        ).animate(
+                                                          CurvedAnimation(
+                                                            parent: animation,
+                                                            curve: Curves
+                                                                .easeInCubic,
+                                                          ),
+                                                        );
 
-                                              return ClipRect(
-                                                child: SlideTransition(
-                                                  position: offsetAnimation,
-                                                  child: FadeTransition(
-                                                    opacity: animation,
-                                                    child: child,
-                                                  ),
-                                                ),
-                                              );
-                                            },
+                                                  return ClipRect(
+                                                    child: SlideTransition(
+                                                      position: offsetAnimation,
+                                                      child: FadeTransition(
+                                                        opacity: animation,
+                                                        child: child,
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
                                             child: Text(
                                               activeLyric,
-                                              key: ValueKey<String>(activeLyric),
+                                              key: ValueKey<String>(
+                                                activeLyric,
+                                              ),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                               style: TextStyle(
-                                                color: Colors.white.withValues(alpha: 0.85),
+                                                color: Colors.white.withValues(
+                                                  alpha: 0.85,
+                                                ),
                                                 fontSize: 13.5,
                                                 fontWeight: FontWeight.w500,
                                                 letterSpacing: -0.2,
@@ -1237,7 +1402,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                                         const SizedBox(width: 5),
                                         Icon(
                                           CupertinoIcons.chevron_right,
-                                          color: Colors.white.withValues(alpha: 0.45),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.45,
+                                          ),
                                           size: 12.5,
                                         ),
                                       ],
@@ -1336,10 +1503,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         color: Colors.white.withValues(alpha: 0.22),
         borderRadius: BorderRadius.circular(3),
       ),
-      child: const Text(
-        'E',
-        style: AppleTypography.explicitBadge,
-      ),
+      child: const Text('E', style: AppleTypography.explicitBadge),
     );
   }
 
@@ -1363,7 +1527,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
               children: [
                 Row(
                   children: [
-                    if (_isExplicit(song.title, song.album)) _buildExplicitBadge(),
+                    if (_isExplicit(song.title, song.album))
+                      _buildExplicitBadge(),
                     Expanded(
                       child: Text(
                         song.title,
@@ -1376,7 +1541,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                 ),
                 const SizedBox(height: AppleSpacing.titleToSubtitle),
                 ApplePressable(
-                  onTap: () => openArtistScreen(context, artistName: song.artist),
+                  onTap: () =>
+                      openArtistScreen(context, artistName: song.artist),
                   child: Text(
                     song.artist,
                     maxLines: 1,
@@ -1429,7 +1595,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         final effectivePositionMs = _isDraggingSlider
             ? _dragSliderValue.toInt()
             : playerState.position.inMilliseconds;
-        final isActuallyPlaying = playerState.isPlaying &&
+        final isActuallyPlaying =
+            playerState.isPlaying &&
             !playerState.isBuffering &&
             !playerState.isResolvingStream &&
             !_isDraggingSlider;
@@ -1463,7 +1630,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         final queue = ref.watch(playerProvider.select((s) => s.queue));
         final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
 
-        final nextFromTitle = (song.album != null && song.album!.trim().isNotEmpty)
+        final nextFromTitle =
+            (song.album != null && song.album!.trim().isNotEmpty)
             ? 'Next from: ${song.album!.trim()}'
             : 'Next from: ${song.artist.trim()}';
 
@@ -1472,17 +1640,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Queue',
-                style: AppleTypography.sectionTitle,
-              ),
+              const Text('Queue', style: AppleTypography.sectionTitle),
               const SizedBox(height: AppleSpacing.sectionHeaderToContent),
 
               // Now Playing Item
-              const Text(
-                'NOW PLAYING',
-                style: AppleTypography.eyebrow,
-              ),
+              const Text('NOW PLAYING', style: AppleTypography.eyebrow),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -1492,14 +1654,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                       alignment: Alignment.center,
                       children: [
                         WavifyCachedImage(
-                          imageUrl: song.highResThumbnailUrl ?? song.resolvedThumbnailUrl,
-                          placeholderImageUrl: song.resolvedThumbnailUrl ?? song.thumbnailUrl,
+                          imageUrl:
+                              song.highResThumbnailUrl ??
+                              song.resolvedThumbnailUrl,
+                          placeholderImageUrl:
+                              song.resolvedThumbnailUrl ?? song.thumbnailUrl,
                           songId: song.id,
                           width: 48,
                           height: 48,
                           fit: BoxFit.cover,
                           filterQuality: FilterQuality.medium,
-                          errorWidget: _fallbackMiniArt(size: 48, borderRadius: 8),
+                          errorWidget: _fallbackMiniArt(
+                            size: 48,
+                            borderRadius: 8,
+                          ),
                         ),
                         if (isPlaying)
                           Container(
@@ -1512,205 +1680,242 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                             child: const Center(
                               child: AnimatedEqualizerBars(
                                 isPlaying: true,
-                            size: 16,
-                            color: Colors.white,
+                                size: 16,
+                                color: Colors.white,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (_isExplicit(song.title, song.album)) _buildExplicitBadge(),
-                        Expanded(
+                        Row(
+                          children: [
+                            if (_isExplicit(song.title, song.album))
+                              _buildExplicitBadge(),
+                            Expanded(
+                              child: Text(
+                                song.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppleTypography.songTitle,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppleSpacing.titleToSubtitle),
+                        GestureDetector(
+                          onTap: () => openArtistScreen(
+                            context,
+                            artistName: song.artist,
+                          ),
                           child: Text(
-                            song.title,
+                            song.artist,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: AppleTypography.songTitle,
+                            style: AppleTypography.songArtist,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: AppleSpacing.titleToSubtitle),
-                    GestureDetector(
-                      onTap: () => openArtistScreen(context, artistName: song.artist),
-                      child: Text(
-                        song.artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppleTypography.songArtist,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              ApplePressable(
-                onTap: () {
-                  ref.read(playerProvider.notifier).skipNext();
-                },
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: Icon(
-                    CupertinoIcons.xmark,
-                    color: Colors.white.withValues(alpha: 0.45),
-                    size: 16,
                   ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          // Next From Queue List Header
-          Text(
-            nextFromTitle.toUpperCase(),
-            style: AppleTypography.eyebrow,
-          ),
-          const SizedBox(height: 8),
-
-          // Reorderable Queue Tracklist
-          Expanded(
-            child: queue.isEmpty
-                ? Center(
-                    child: Text(
-                      'No more songs in queue',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.50),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                  const SizedBox(width: 8),
+                  ApplePressable(
+                    onTap: () {
+                      ref.read(playerProvider.notifier).skipNext();
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(
+                        CupertinoIcons.xmark,
+                        color: Colors.white.withValues(alpha: 0.45),
+                        size: 16,
                       ),
                     ),
-                  )
-                : ShaderMask(
-                    shaderCallback: (Rect bounds) {
-                      return const LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.white,
-                          Colors.white,
-                          Colors.white,
-                          Colors.transparent,
-                        ],
-                        stops: [0.0, 0.85, 0.94, 1.0],
-                      ).createShader(bounds);
-                    },
-                    blendMode: BlendMode.dstIn,
-                    child: Theme(
-                      data: Theme.of(context).copyWith(
-                        canvasColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                      ),
-                      child: ReorderableListView.builder(
-                        padding: const EdgeInsets.only(bottom: 24),
-                        itemCount: queue.length,
-                        physics: const BouncingScrollPhysics(),
-                        buildDefaultDragHandles: false,
-                        // ignore: deprecated_member_use
-                        onReorder: (oldIndex, newIndex) {
-                          ref.read(playerProvider.notifier).reorderQueue(oldIndex, newIndex);
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // Next From Queue List Header
+              Text(nextFromTitle.toUpperCase(), style: AppleTypography.eyebrow),
+              const SizedBox(height: 8),
+
+              // Reorderable Queue Tracklist
+              Expanded(
+                child: queue.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No more songs in queue',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.50),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      )
+                    : ShaderMask(
+                        shaderCallback: (Rect bounds) {
+                          return const LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.white,
+                              Colors.white,
+                              Colors.white,
+                              Colors.transparent,
+                            ],
+                            stops: [0.0, 0.85, 0.94, 1.0],
+                          ).createShader(bounds);
                         },
-                        itemBuilder: (context, index) {
-                          final item = queue[index];
-                          return Container(
-                            key: ValueKey('queue_item_${item.id}_$index'),
-                            padding: const EdgeInsets.symmetric(vertical: 6),
-                            child: Row(
-                              children: [
-                                ReorderableDragStartListener(
-                                  index: index,
-                                  child: Container(
-                                    padding: const EdgeInsets.only(right: 12, top: 10, bottom: 10),
-                                    color: Colors.transparent,
-                                    child: Icon(
-                                      Icons.drag_handle_rounded,
-                                      color: Colors.white.withValues(alpha: 0.40),
-                                      size: 20,
+                        blendMode: BlendMode.dstIn,
+                        child: Theme(
+                          data: Theme.of(context).copyWith(
+                            canvasColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                          ),
+                          child: ReorderableListView.builder(
+                            padding: const EdgeInsets.only(bottom: 24),
+                            itemCount: queue.length,
+                            physics: const BouncingScrollPhysics(),
+                            buildDefaultDragHandles: false,
+                            // ignore: deprecated_member_use
+                            onReorder: (oldIndex, newIndex) {
+                              ref
+                                  .read(playerProvider.notifier)
+                                  .reorderQueue(oldIndex, newIndex);
+                            },
+                            itemBuilder: (context, index) {
+                              final item = queue[index];
+                              return Container(
+                                key: ValueKey('queue_item_${item.id}_$index'),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 6,
+                                ),
+                                child: Row(
+                                  children: [
+                                    ReorderableDragStartListener(
+                                      index: index,
+                                      child: Container(
+                                        padding: const EdgeInsets.only(
+                                          right: 12,
+                                          top: 10,
+                                          bottom: 10,
+                                        ),
+                                        color: Colors.transparent,
+                                        child: Icon(
+                                          Icons.drag_handle_rounded,
+                                          color: Colors.white.withValues(
+                                            alpha: 0.40,
+                                          ),
+                                          size: 20,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ),
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: WavifyCachedImage(
-                                    imageUrl: item.highResThumbnailUrl ?? item.resolvedThumbnailUrl,
-                                    placeholderImageUrl: item.resolvedThumbnailUrl ?? item.thumbnailUrl,
-                                    songId: item.id,
-                                    width: 44,
-                                    height: 44,
-                                    fit: BoxFit.cover,
-                                    filterQuality: FilterQuality.medium,
-                                    errorWidget: _fallbackMiniArt(size: 44, borderRadius: 8),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      ref.read(playerProvider.notifier).playSong(item, forceReload: true);
-                                    },
-                                    behavior: HitTestBehavior.opaque,
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Row(
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: WavifyCachedImage(
+                                        imageUrl:
+                                            item.highResThumbnailUrl ??
+                                            item.resolvedThumbnailUrl,
+                                        placeholderImageUrl:
+                                            item.resolvedThumbnailUrl ??
+                                            item.thumbnailUrl,
+                                        songId: item.id,
+                                        width: 44,
+                                        height: 44,
+                                        fit: BoxFit.cover,
+                                        filterQuality: FilterQuality.medium,
+                                        errorWidget: _fallbackMiniArt(
+                                          size: 44,
+                                          borderRadius: 8,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          ref
+                                              .read(playerProvider.notifier)
+                                              .playSong(
+                                                item,
+                                                forceReload: true,
+                                              );
+                                        },
+                                        behavior: HitTestBehavior.opaque,
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            if (_isExplicit(item.title, item.album)) _buildExplicitBadge(),
-                                            Expanded(
-                                              child: Text(
-                                                item.title,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: AppleTypography.songTitle,
-                                              ),
+                                            Row(
+                                              children: [
+                                                if (_isExplicit(
+                                                  item.title,
+                                                  item.album,
+                                                ))
+                                                  _buildExplicitBadge(),
+                                                Expanded(
+                                                  child: Text(
+                                                    item.title,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: AppleTypography
+                                                        .songTitle,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(
+                                              height:
+                                                  AppleSpacing.titleToSubtitle,
+                                            ),
+                                            Text(
+                                              item.artist,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: AppleTypography.songArtist,
                                             ),
                                           ],
                                         ),
-                                        const SizedBox(height: AppleSpacing.titleToSubtitle),
-                                        Text(
-                                          item.artist,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: AppleTypography.songArtist,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ApplePressable(
+                                      onTap: () {
+                                        ref
+                                            .read(playerProvider.notifier)
+                                            .removeFromQueue(index);
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(8),
+                                        child: Icon(
+                                          CupertinoIcons.xmark,
+                                          color: Colors.white.withValues(
+                                            alpha: 0.45,
+                                          ),
+                                          size: 16,
                                         ),
-                                      ],
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                 ),
-                                const SizedBox(width: 8),
-                                ApplePressable(
-                                  onTap: () {
-                                    ref.read(playerProvider.notifier).removeFromQueue(index);
-                                  },
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(8),
-                                    child: Icon(
-                                      CupertinoIcons.xmark,
-                                      color: Colors.white.withValues(alpha: 0.45),
-                                      size: 16,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
+                              );
+                            },
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
+        );
       },
     );
   }
@@ -1723,14 +1928,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
       builder: (context, ref, _) {
         final duration = ref.watch(playerProvider.select((s) => s.duration));
         final position = ref.watch(playerProvider.select((s) => s.position));
-        final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
+        final currentSong = ref.watch(
+          playerProvider.select((s) => s.currentSong),
+        );
 
         int durationMs = duration.inMilliseconds;
         if (durationMs <= 0 && currentSong != null) {
-          if (currentSong.durationSeconds != null && currentSong.durationSeconds! > 0) {
+          if (currentSong.durationSeconds != null &&
+              currentSong.durationSeconds! > 0) {
             durationMs = currentSong.durationSeconds! * 1000;
           } else {
-            final cached = SongMetricsCacheService.instance.getDuration(currentSong.id);
+            final cached = SongMetricsCacheService.instance.getDuration(
+              currentSong.id,
+            );
             if (cached != null && cached.inMilliseconds > 0) {
               durationMs = cached.inMilliseconds;
             }
@@ -1744,7 +1954,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
             ? _dragSliderValue
             : position.inMilliseconds.toDouble().clamp(0.0, totalMs);
 
-        final elapsedStr = _formatDuration(Duration(milliseconds: currentMs.toInt()));
+        final elapsedStr = _formatDuration(
+          Duration(milliseconds: currentMs.toInt()),
+        );
         final remainingStr = hasValidDuration
             ? '-${_formatDuration(Duration(milliseconds: (totalMs - currentMs).toInt()))}'
             : '--:--';
@@ -1761,7 +1973,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
           onChanged: (val) => setState(() => _dragSliderValue = val),
           onChangeEnd: (val) {
             setState(() => _isDraggingSlider = false);
-            ref.read(playerProvider.notifier).seek(Duration(milliseconds: val.toInt()));
+            ref
+                .read(playerProvider.notifier)
+                .seek(Duration(milliseconds: val.toInt()));
             _startAutoHideTimer();
           },
         );
@@ -1773,7 +1987,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     return Consumer(
       builder: (context, ref, _) {
         final notifier = ref.read(playerProvider.notifier);
-        final showPauseIcon = ref.watch(playerProvider.select((s) => s.isPlaying));
+        final showPauseIcon = ref.watch(
+          playerProvider.select((s) => s.isPlaying),
+        );
         final isLoading = ref.watch(playerIsLoadingProvider);
         final isTestMode = Platform.environment.containsKey('FLUTTER_TEST');
 
@@ -1785,7 +2001,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
           );
         } else {
           playPauseWidget = AnimatedCupertinoIcon(
-            icon: showPauseIcon ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
+            icon: showPauseIcon
+                ? CupertinoIcons.pause_fill
+                : CupertinoIcons.play_fill,
             color: Colors.white,
             size: 52,
           );
@@ -1799,7 +2017,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
             children: [
               // Previous Track
               IconButton(
-                icon: const AnimatedCupertinoIcon(icon: CupertinoIcons.backward_fill, color: Colors.white, size: 40),
+                icon: const AnimatedCupertinoIcon(
+                  icon: CupertinoIcons.backward_fill,
+                  color: Colors.white,
+                  size: 40,
+                ),
                 onPressed: () {
                   notifier.skipPrevious();
                   _resetAutoHideTimer();
@@ -1817,15 +2039,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                 child: SizedBox(
                   width: 72,
                   height: 72,
-                  child: Center(
-                    child: playPauseWidget,
-                  ),
+                  child: Center(child: playPauseWidget),
                 ),
               ),
 
               // Next Track
               IconButton(
-                icon: const AnimatedCupertinoIcon(icon: CupertinoIcons.forward_fill, color: Colors.white, size: 40),
+                icon: const AnimatedCupertinoIcon(
+                  icon: CupertinoIcons.forward_fill,
+                  color: Colors.white,
+                  size: 40,
+                ),
                 onPressed: () {
                   notifier.skipNext();
                   _resetAutoHideTimer();
@@ -1853,7 +2077,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         curve: Curves.easeOutCubic,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white.withValues(alpha: 0.22) : Colors.transparent,
+          color: isSelected
+              ? Colors.white.withValues(alpha: 0.22)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
         ),
         child: icon,
@@ -1867,7 +2093,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
       return Consumer(
         builder: (context, ref, _) {
           final notifier = ref.read(playerProvider.notifier);
-          final isShuffle = ref.watch(playerProvider.select((s) => s.isShuffle));
+          final isShuffle = ref.watch(
+            playerProvider.select((s) => s.isShuffle),
+          );
           final loopMode = ref.watch(playerProvider.select((s) => s.loopMode));
 
           return Row(
@@ -1899,7 +2127,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                     _buildQueueDockSegment(
                       icon: AnimatedCupertinoIcon(
                         icon: CupertinoIcons.shuffle,
-                        color: isShuffle ? Colors.white : Colors.white.withValues(alpha: 0.50),
+                        color: isShuffle
+                            ? Colors.white
+                            : Colors.white.withValues(alpha: 0.50),
                         size: 20,
                       ),
                       isSelected: isShuffle,
@@ -1913,7 +2143,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                         icon: loopMode == LoopMode.one
                             ? CupertinoIcons.repeat_1
                             : CupertinoIcons.repeat,
-                        color: loopMode != LoopMode.off ? Colors.white : Colors.white.withValues(alpha: 0.50),
+                        color: loopMode != LoopMode.off
+                            ? Colors.white
+                            : Colors.white.withValues(alpha: 0.50),
                         size: 20,
                       ),
                       isSelected: loopMode != LoopMode.off,
@@ -1940,7 +2172,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                 onTap: () => _switchMode(PlayerViewMode.nowPlaying),
                 borderRadius: BorderRadius.circular(14),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.22),
                     borderRadius: BorderRadius.circular(14),
@@ -1967,28 +2202,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         // Lyrics Toggle Button
         Container(
           decoration: BoxDecoration(
-            color: isLyricsActive ? Colors.white.withValues(alpha: 0.22) : Colors.transparent,
+            color: isLyricsActive
+                ? Colors.white.withValues(alpha: 0.22)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
           child: IconButton(
             icon: AnimatedCupertinoIcon(
-              icon: isLyricsActive ? CupertinoIcons.quote_bubble_fill : CupertinoIcons.quote_bubble,
+              icon: isLyricsActive
+                  ? CupertinoIcons.quote_bubble_fill
+                  : CupertinoIcons.quote_bubble,
               color: isLyricsActive ? Colors.white : Colors.white60,
               size: 24,
             ),
             onPressed: () {
-              _switchMode(isLyricsActive ? PlayerViewMode.nowPlaying : PlayerViewMode.lyrics);
+              _switchMode(
+                isLyricsActive
+                    ? PlayerViewMode.nowPlaying
+                    : PlayerViewMode.lyrics,
+              );
             },
           ),
         ),
 
         // Audio Output Route Button (Android Cast Icon for audio outputs)
         IconButton(
-          icon: const Icon(
-            Icons.cast_rounded,
-            color: Colors.white60,
-            size: 24,
-          ),
+          icon: const Icon(Icons.cast_rounded, color: Colors.white60, size: 24),
           onPressed: () {
             _showAudioRouteModal();
             _cancelAutoHideTimer();
@@ -1997,7 +2236,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
 
         // Queue Toggle Button
         IconButton(
-          icon: const AnimatedCupertinoIcon(icon: CupertinoIcons.list_bullet, color: Colors.white60, size: 24),
+          icon: const AnimatedCupertinoIcon(
+            icon: CupertinoIcons.list_bullet,
+            color: Colors.white60,
+            size: 24,
+          ),
           onPressed: () => _switchMode(PlayerViewMode.queue),
         ),
       ],
@@ -2036,7 +2279,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         curve: Curves.easeOutCubic,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white.withValues(alpha: 0.22) : Colors.transparent,
+          color: isSelected
+              ? Colors.white.withValues(alpha: 0.22)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
           boxShadow: isSelected
               ? [
@@ -2068,10 +2313,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
             ),
             if (isSelected && isLoading) ...[
               const SizedBox(width: 5),
-              const CupertinoActivityIndicator(
-                radius: 5,
-                color: Colors.white,
-              ),
+              const CupertinoActivityIndicator(radius: 5, color: Colors.white),
             ],
           ],
         ),
