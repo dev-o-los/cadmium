@@ -743,8 +743,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         alignment: Alignment.topCenter,
                         child: ImageFiltered(
                           imageFilter: ui.ImageFilter.blur(
-                            sigmaX: 42,
-                            sigmaY: 42,
+                            sigmaX: 20,
+                            sigmaY: 20,
                           ),
                           child: ColorFiltered(
                             colorFilter: _amoledVibrancyFilter,
@@ -775,7 +775,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     curve: Curves.easeOut,
                   ),
 
-              // Smooth darkness dissolve in Now Playing expanded mode (50% ratio dissolve)
+              // Smooth darkness dissolve in Now Playing: reduced blur allows artwork to gracefully fade in the downside
               Positioned.fill(
                 child: Container(
                   decoration: BoxDecoration(
@@ -785,12 +785,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       colors: [
                         Colors.transparent,
                         Colors.transparent,
-                        Colors.black.withValues(alpha: 0.18),
-                        Colors.black.withValues(alpha: 0.62),
-                        Colors.black.withValues(alpha: 0.92),
-                        Colors.black,
+                        Colors.black.withValues(alpha: 0.15),
+                        Colors.black.withValues(alpha: 0.45),
+                        Colors.black.withValues(alpha: 0.72),
+                        Colors.black.withValues(alpha: 0.86),
                       ],
-                      stops: const [0.0, 0.42, 0.54, 0.70, 0.86, 1.0],
+                      stops: const [0.0, 0.38, 0.52, 0.68, 0.84, 1.0],
                     ),
                   ),
                 ),
@@ -1260,7 +1260,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     return Positioned(
       left: 0,
       right: 0,
-      bottom: math.max(bottomPadding, 24) + 16,
+      bottom: math.max(bottomPadding, 20) + 12,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 26),
         child: Column(
@@ -1320,7 +1320,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 16),
 
                           // Lyrics Hook Preview Banner (visible in Now Playing and Queue modes)
                           if (_currentMode != PlayerViewMode.lyrics) ...[
@@ -1467,17 +1467,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                 );
                               },
                             ),
-                            const SizedBox(height: 2),
+                            const SizedBox(height: 10),
                           ] else
                             const SizedBox(height: 4),
 
                           // Scrubber Slider (Apple style sleek bar)
                           _buildDurationScrubber(),
-                          const SizedBox(height: 36),
+                          const SizedBox(height: 48),
 
                           // Transport Controls: Skip prev, Play/Pause, Skip next
                           _buildTransportControls(),
-                          const SizedBox(height: 36),
+                          const SizedBox(height: 40),
 
                           // Bottom Action Dock: Lyrics, Audio Route, Queue
                           _buildActionDock(),
