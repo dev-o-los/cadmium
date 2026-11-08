@@ -71,18 +71,18 @@ Experience the fluid Apple Music interface recreated with pixel precision:
 
 ## ⚡ Quick Download & Installation
 
-The links below **automatically redirect to the newest version** published on GitHub Releases:
+The buttons and links below navigate to the official GitHub Releases where you can always get the latest versioned `cadmium-*.apk`:
 
 <div align="center">
 
-| Package | Target Architecture | Link |
-| :--- | :--- | :--- |
-| **Latest Release (Recommended)** | `arm64-v8a`, `armeabi-v7a`, `x86_64` | [**Download Latest APK**](https://github.com/dev-o-los/cadmium/releases/latest/download/app-release.apk) |
-| **All Releases & Changelogs** | All Devices | [**View GitHub Releases**](https://github.com/dev-o-los/cadmium/releases/latest) |
+| Package | Version | Architecture | Download Link |
+| :--- | :--- | :--- | :--- |
+| **Latest Cadmium APK** | **v1.0.1** | `arm64-v8a`, `armeabi-v7a`, `x86_64` | [**Download cadmium-v1.0.1.apk**](https://github.com/dev-o-los/cadmium/releases/download/v1.0.1/cadmium-v1.0.1.apk) |
+| **GitHub Releases** | All Versions | Universal | [**View Latest Release Page**](https://github.com/dev-o-los/cadmium/releases/latest) |
 
 </div>
 
-> **System Compatibility:** Supports **Android 7.0 (Nougat, API 24)** up through **Android 15+**.
+> 💡 **Tip:** Official release binaries are exclusively named **`cadmium-v<version>.apk`** (e.g., `cadmium-v1.0.1.apk`). Visiting the [GitHub Releases](https://github.com/dev-o-los/cadmium/releases/latest) page will always redirect you directly to the latest release notes and assets.
 
 ---
 
@@ -91,7 +91,7 @@ The links below **automatically redirect to the newest version** published on Gi
 Follow these quick steps to get Cadmium running on your phone in under a minute:
 
 1. **Download the APK**:
-   Tap [**Download Latest APK**](https://github.com/dev-o-los/cadmium/releases/latest/download/app-release.apk) or visit the [GitHub Releases](https://github.com/dev-o-los/cadmium/releases/latest) page to grab the newest `.apk` asset.
+   Tap [**Download cadmium-v1.0.1.apk**](https://github.com/dev-o-los/cadmium/releases/download/v1.0.1/cadmium-v1.0.1.apk) or open the [GitHub Releases](https://github.com/dev-o-los/cadmium/releases/latest) page and select the latest `cadmium-v*.apk` under **Assets**.
 2. **Confirm Download**:
    If your browser displays *"File might be harmful"* (standard Android warning for apps downloaded outside Google Play), tap **Download anyway**.
 3. **Allow Installation**:
@@ -224,7 +224,20 @@ flutter test
 
 ## 📄 License
 
-Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for details.
+This project is licensed under the terms of the **MIT License**.
+
+```
+MIT License
+Copyright (c) 2026 dev-o-los
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software...
+```
+
+See the full text in the [`LICENSE`](LICENSE) file.
 
 <div align="center">
   <sub>Crafted with passion for music, typography, and precision design.</sub>

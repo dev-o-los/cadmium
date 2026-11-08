@@ -82,7 +82,7 @@ EXISTING_ASSETS=$(curl -s -H "Authorization: token $TOKEN" \
   -H "Accept: application/vnd.github.v3+json" \
   "https://api.github.com/repos/$REPO/releases/$RELEASE_ID/assets")
 
-for ASSET_NAME in "$TARGET_APK" "app-release.apk"; do
+for ASSET_NAME in "$TARGET_APK"; do
   ASSET_ID=$(echo "$EXISTING_ASSETS" | grep -B 2 "\"name\": \"$ASSET_NAME\"" | grep '"id":' | head -n 1 | awk '{print $2}' | tr -d ',' || true)
   if [ -n "$ASSET_ID" ] && [ "$ASSET_ID" != "null" ]; then
     echo "Removing previous asset $ASSET_NAME (ID: $ASSET_ID)..."
@@ -93,20 +93,13 @@ for ASSET_NAME in "$TARGET_APK" "app-release.apk"; do
   fi
 done
 
-# 6. Upload fresh APK assets
+# 6. Upload fresh APK asset
 echo "Uploading $TARGET_APK to GitHub Releases..."
 curl -s -X POST \
   -H "Authorization: token $TOKEN" \
   -H "Content-Type: application/vnd.android.package-archive" \
   --data-binary @"$TARGET_APK" \
   "https://uploads.github.com/repos/$REPO/releases/$RELEASE_ID/assets?name=$TARGET_APK" > /dev/null
-
-echo "Uploading app-release.apk..."
-curl -s -X POST \
-  -H "Authorization: token $TOKEN" \
-  -H "Content-Type: application/vnd.android.package-archive" \
-  --data-binary @"$APK_SOURCE" \
-  "https://uploads.github.com/repos/$REPO/releases/$RELEASE_ID/assets?name=app-release.apk" > /dev/null
 
 echo ""
 echo "✅ Successfully published to GitHub Releases!"
