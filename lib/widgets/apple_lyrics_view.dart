@@ -148,7 +148,6 @@ class AppleLyricsView extends StatefulWidget {
   final ValueChanged<LyricsProviderType>? onProviderChanged;
   final ValueChanged<LyricLine> onSeekToLyric;
   final VoidCallback? onTapBackground;
-  final Color? highlightColor;
 
   const AppleLyricsView({
     super.key,
@@ -163,7 +162,6 @@ class AppleLyricsView extends StatefulWidget {
     this.onProviderChanged,
     required this.onSeekToLyric,
     this.onTapBackground,
-    this.highlightColor,
   });
 
   @override
@@ -873,12 +871,11 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
                     height: 1.25,
                     shadows: [
                       Shadow(
-                        color: (widget.highlightColor ?? Colors.white)
-                            .withValues(alpha: 0.55),
-                        blurRadius: 16,
+                        color: Colors.white.withValues(alpha: 0.55),
+                        blurRadius: 14,
                       ),
                       Shadow(
-                        color: Colors.white.withValues(alpha: 0.35),
+                        color: Colors.white.withValues(alpha: 0.30),
                         blurRadius: 4,
                       ),
                     ],
@@ -914,12 +911,11 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
         shadows: isActive
             ? [
                 Shadow(
-                  color: (widget.highlightColor ?? Colors.white)
-                      .withValues(alpha: 0.55),
-                  blurRadius: 16,
+                  color: Colors.white.withValues(alpha: 0.55),
+                  blurRadius: 14,
                 ),
                 Shadow(
-                  color: Colors.white.withValues(alpha: 0.35),
+                  color: Colors.white.withValues(alpha: 0.30),
                   blurRadius: 4,
                 ),
               ]
