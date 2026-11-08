@@ -16,6 +16,7 @@ import '../constants/apple_typography.dart';
 import '../models/song_item.dart';
 import '../providers/favorites_provider.dart';
 import '../providers/player_provider.dart';
+import '../services/artwork_color_service.dart';
 import '../services/lyrics_service.dart';
 import '../services/song_metrics_cache_service.dart';
 import '../utils/playback_utils.dart';
@@ -28,6 +29,20 @@ import '../widgets/apple_pressable.dart';
 import '../widgets/apple_lyrics_view.dart';
 import '../widgets/smooth_player_loader.dart';
 import '../widgets/wavify_cached_image.dart';
+
+/// Reactive provider extracting the brightest vibrant color from current album artwork
+final currentSongBestColorProvider =
+    FutureProvider.autoDispose<Color>((ref) async {
+  final song = ref.watch(playerProvider.select((s) => s.currentSong));
+  if (song == null) return const Color(0xFFE10600);
+  final art = song.highResThumbnailUrl ??
+      song.resolvedThumbnailUrl ??
+      song.thumbnailUrl;
+  return ArtworkColorService.instance.extractBestVibrantColor(
+    art,
+    fallbackSeed: '${song.title} ${song.artist}',
+  );
+});
 
 enum PlayerViewMode { nowPlaying, lyrics, queue }
 
@@ -599,6 +614,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final topPadding = MediaQuery.paddingOf(context).top;
     final bottomPadding = MediaQuery.paddingOf(context).bottom;
 
+    final artworkUrl = song.highResThumbnailUrl ?? song.resolvedThumbnailUrl ?? song.thumbnailUrl;
+    final cachedBest = ArtworkColorService.instance.getCachedBestColor(
+      artworkUrl ?? '${song.title} ${song.artist}',
+    );
+    final asyncBest = ref.watch(currentSongBestColorProvider).valueOrNull;
+    final bestColor = asyncBest ??
+        cachedBest ??
+        ArtworkColorService.instance.getFallbackBestColor(
+          '${song.title} ${song.artist}',
+        );
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -628,8 +654,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // 1. Edge-to-edge Animated Ambient Artwork Canvas with gradual downward blur transition
-                  _buildAmbientBackdrop(song, screenHeight),
+                  // 1. Edge-to-edge Animated Ambient Artwork Canvas with radiant bottom color wash
+                  _buildAmbientBackdrop(
+                    song: song,
+                    screenHeight: screenHeight,
+                    screenWidth: screenWidth,
+                    bestColor: bestColor,
+                  ),
 
                   // 2. Continuous morphing album artwork (animates between Now Playing and Lyrics header, and Hero from miniplayer)
                   _buildMorphingArtwork(
@@ -651,13 +682,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     song: song,
                     headerTop: math.max(topPadding, 48) + 18.0,
                     bottomPadding: bottomPadding,
+                    bestColor: bestColor,
                   ),
 
                   // 5. Bottom Controls (Metadata row in Now Playing, Scrubber, Transport, Dock)
                   _buildBottomControls(
                     song: song,
+                    screenHeight: screenHeight,
                     bottomPadding: bottomPadding,
                     isFavorite: isFavorite,
+                    bestColor: bestColor,
                   ),
                 ],
               ),
@@ -694,7 +728,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     0,
   ]);
 
-  Widget _buildAmbientBackdrop(SongItem song, double screenHeight) {
+  Widget _buildAmbientBackdrop({
+    required SongItem song,
+    required double screenHeight,
+    required double screenWidth,
+    required Color bestColor,
+  }) {
     final artworkUrl = song.highResThumbnailUrl ?? song.resolvedThumbnailUrl;
     if (artworkUrl == null || artworkUrl.isEmpty) {
       return Container(color: Colors.black);
@@ -760,7 +799,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     curve: Curves.easeOut,
                   ),
 
-              // Smooth darkness dissolve in Now Playing expanded mode
+              // Radiant Apple Music ambient bloom wash in the bottom section (bright & luminous)
               Positioned.fill(
                 child: Container(
                   decoration: BoxDecoration(
@@ -769,26 +808,56 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        Colors.transparent,
-                        Colors.black.withValues(alpha: 0.18),
-                        Colors.black.withValues(alpha: 0.65),
-                        Colors.black.withValues(alpha: 0.95),
-                        Colors.black,
+                        bestColor.withValues(alpha: 0.10),
+                        bestColor.withValues(alpha: 0.35),
+                        bestColor.withValues(alpha: 0.58),
+                        bestColor.withValues(alpha: 0.45),
                       ],
-                      stops: const [0.0, 0.28, 0.38, 0.48, 0.60, 1.0],
+                      stops: const [0.0, 0.32, 0.52, 0.76, 1.0],
                     ),
                   ),
                 ),
               ),
 
-              // Dark overlay tint for Lyrics / Queue mode (fades in as modeVal -> 1.0)
+              // Luminous ambient radial glow centered behind transport controls
+              Positioned(
+                left: -screenWidth * 0.25,
+                right: -screenWidth * 0.25,
+                bottom: -screenHeight * 0.10,
+                height: screenHeight * 0.70,
+                child: IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          bestColor.withValues(alpha: 0.52),
+                          bestColor.withValues(alpha: 0.28),
+                          bestColor.withValues(alpha: 0.08),
+                          Colors.transparent,
+                        ],
+                        stops: const [0.0, 0.40, 0.70, 1.0],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // Subtle legibility contrast vignette for Lyrics / Queue mode (keeps bright artwork & colors intact!)
               if (modeVal > 0.0)
                 Positioned.fill(
                   child: Container(
-                    color: Color.lerp(
-                      Colors.transparent,
-                      const Color(0xD808080A),
-                      modeVal,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.25 * modeVal),
+                          Colors.black.withValues(alpha: 0.10 * modeVal),
+                          Colors.black.withValues(alpha: 0.30 * modeVal),
+                        ],
+                        stops: const [0.0, 0.5, 1.0],
+                      ),
                     ),
                   ),
                 ),
@@ -1177,6 +1246,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     required SongItem song,
     required double headerTop,
     required double bottomPadding,
+    required Color bestColor,
   }) {
     return AnimatedBuilder(
       animation: Listenable.merge([
@@ -1223,7 +1293,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 child: _currentMode == PlayerViewMode.lyrics
                     ? KeyedSubtree(
                         key: const ValueKey('lyrics_mode'),
-                        child: _buildLyricsContent(),
+                        child: _buildLyricsContent(bestColor),
                       )
                     : KeyedSubtree(
                         key: const ValueKey('queue_mode'),
@@ -1239,13 +1309,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Widget _buildBottomControls({
     required SongItem song,
+    required double screenHeight,
     required double bottomPadding,
     required bool isFavorite,
+    required Color bestColor,
   }) {
+    final controlsBottom = math.max(bottomPadding, 16.0);
+    final totalAvailableHeight = screenHeight * 0.60 - controlsBottom;
+    final dynamicGapLarge =
+        ((totalAvailableHeight - 240) * 0.28).clamp(20.0, 52.0);
+    final dynamicGapSmall =
+        ((totalAvailableHeight - 240) * 0.15).clamp(10.0, 24.0);
+
     return Positioned(
       left: 0,
       right: 0,
-      bottom: math.max(bottomPadding, 24) + 16,
+      bottom: controlsBottom,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 26),
         child: Column(
@@ -1305,7 +1384,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const SizedBox(height: 10),
+                          SizedBox(height: dynamicGapSmall),
 
                           // Lyrics Hook Preview Banner (visible in Now Playing and Queue modes)
                           if (_currentMode != PlayerViewMode.lyrics) ...[
@@ -1452,17 +1531,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                 );
                               },
                             ),
-                            const SizedBox(height: 2),
+                            SizedBox(height: dynamicGapSmall),
                           ] else
-                            const SizedBox(height: 4),
+                            SizedBox(height: dynamicGapSmall),
 
                           // Scrubber Slider (Apple style sleek bar)
                           _buildDurationScrubber(),
-                          const SizedBox(height: 36),
+                          SizedBox(height: dynamicGapLarge),
 
                           // Transport Controls: Skip prev, Play/Pause, Skip next
                           _buildTransportControls(),
-                          const SizedBox(height: 36),
+                          SizedBox(height: dynamicGapLarge),
 
                           // Bottom Action Dock: Lyrics, Audio Route, Queue
                           _buildActionDock(),
@@ -1606,7 +1685,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
-  Widget _buildLyricsContent() {
+  Widget _buildLyricsContent(Color bestColor) {
     return Consumer(
       builder: (context, ref, _) {
         final playerState = ref.watch(playerProvider);
@@ -1628,6 +1707,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           lyricsSource: playerState.lyricsSource,
           lyricsSongwriters: playerState.lyricsSongwriters,
           selectedProvider: playerState.selectedLyricsProvider,
+          highlightColor: bestColor,
           onProviderChanged: (provider) {
             ref.read(playerProvider.notifier).setLyricsProvider(provider);
             _resetAutoHideTimer();

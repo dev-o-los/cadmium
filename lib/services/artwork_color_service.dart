@@ -17,12 +17,16 @@ class ArtworkColorService {
 
   final Map<String, Color> _cache = {};
   final Map<String, Color> _secondaryCache = {};
+  final Map<String, Color> _bestColorCache = {};
 
   /// Retrieves the cached attractive color if already computed for [key].
   Color? getCachedColor(String key) => _cache[key];
 
   /// Retrieves the cached secondary accent color if already computed for [key].
   Color? getCachedSecondaryColor(String key) => _secondaryCache[key];
+
+  /// Retrieves the cached brightest vibrant color if already computed for [key].
+  Color? getCachedBestColor(String key) => _bestColorCache[key];
 
   /// Extracts the most attractive color from [imageUrl].
   /// [fallbackSeed] (e.g. album title + artist) is used to compute a consistent,
@@ -101,6 +105,113 @@ class ArtworkColorService {
     final tuned = _tuneForSecondaryAccent(extracted);
     _secondaryCache[cacheKey] = tuned;
     return tuned;
+  }
+
+  /// Extracts the brightest, most vivid vibrant color from [imageUrl] or [fallbackSeed].
+  /// Tuned specifically for Apple Music-style radiant background blooms and lyrics backdrop lighting.
+  Future<Color> extractBestVibrantColor(
+    String? imageUrl, {
+    String? fallbackSeed,
+  }) async {
+    final cleanUrl = imageUrl?.trim() ?? '';
+    final cacheKey = cleanUrl.isNotEmpty ? cleanUrl : (fallbackSeed ?? 'default');
+
+    if (_bestColorCache.containsKey(cacheKey)) {
+      return _bestColorCache[cacheKey]!;
+    }
+
+    Color? extracted;
+    final isTest = !kIsWeb && Platform.environment.containsKey('FLUTTER_TEST');
+
+    if (!isTest && cleanUrl.isNotEmpty && (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://'))) {
+      try {
+        final imageProvider = CachedNetworkImageProvider(cleanUrl);
+        final palette = await PaletteGenerator.fromImageProvider(
+          imageProvider,
+          maximumColorCount: 20,
+        ).timeout(const Duration(seconds: 4));
+
+        extracted = _pickBestVibrantColor(palette);
+      } catch (e) {
+        debugPrint('ArtworkColorService best vibrant extraction error for $cleanUrl: $e');
+      }
+    }
+
+    extracted ??= _generateBrightColorFromSeed(fallbackSeed ?? cleanUrl);
+
+    final tuned = _tuneForBrightAppleBloom(extracted);
+    _bestColorCache[cacheKey] = tuned;
+    return tuned;
+  }
+
+  /// Synchronously generates or returns a bright vibrant fallback tone for [seed].
+  Color getFallbackBestColor(String seed) {
+    final raw = _generateBrightColorFromSeed(seed);
+    return _tuneForBrightAppleBloom(raw);
+  }
+
+  /// Picks the brightest, richest, most eye-catching vibrant color from [palette].
+  Color _pickBestVibrantColor(PaletteGenerator palette) {
+    if (palette.vibrantColor != null && _isChromaAttractive(palette.vibrantColor!.color)) {
+      return palette.vibrantColor!.color;
+    }
+    if (palette.lightVibrantColor != null && _isChromaAttractive(palette.lightVibrantColor!.color)) {
+      return palette.lightVibrantColor!.color;
+    }
+    if (palette.dominantColor != null && _isChromaAttractive(palette.dominantColor!.color)) {
+      return palette.dominantColor!.color;
+    }
+    if (palette.darkVibrantColor != null && _isChromaAttractive(palette.darkVibrantColor!.color)) {
+      return palette.darkVibrantColor!.color;
+    }
+
+    PaletteColor? best;
+    double bestScore = -1.0;
+    for (final swatch in palette.paletteColors) {
+      final hsl = HSLColor.fromColor(swatch.color);
+      final score = hsl.saturation * 2.0 + (1.0 - (hsl.lightness - 0.50).abs() * 2.0);
+      if (score > bestScore) {
+        bestScore = score;
+        best = swatch;
+      }
+    }
+
+    if (best != null) {
+      return best.color;
+    }
+
+    return palette.dominantColor?.color ?? const Color(0xFFE10600);
+  }
+
+  /// Tunes an extracted color into a luminous, vivid Apple Music ambient wash.
+  /// Preserves high saturation and radiant lightness (0.38 - 0.58) so it shines brilliantly.
+  Color _tuneForBrightAppleBloom(Color source) {
+    final hsl = HSLColor.fromColor(source);
+    if (hsl.saturation < 0.12) {
+      return const Color(0xFF4A385C);
+    }
+    final tunedSaturation = (hsl.saturation * 1.25).clamp(0.60, 1.0);
+    final tunedLightness = hsl.lightness.clamp(0.38, 0.58);
+
+    return hsl
+        .withSaturation(tunedSaturation)
+        .withLightness(tunedLightness)
+        .toColor();
+  }
+
+  /// Generates a deterministic bright vibrant color from seed.
+  Color _generateBrightColorFromSeed(String seed) {
+    if (seed.trim().isEmpty) return const Color(0xFFE10600);
+
+    final bytes = md5.convert(utf8.encode(seed.toLowerCase())).bytes;
+    final hue = ((bytes[0] << 8) | bytes[1]) % 360;
+
+    return HSLColor.fromAHSL(
+      1.0,
+      hue.toDouble(),
+      0.82,
+      0.48,
+    ).toColor();
   }
 
   /// Synchronously generates or retrieves a tuned secondary accent color for [seed].
