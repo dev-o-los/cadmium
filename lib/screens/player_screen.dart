@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../constants/app_colors.dart';
 import '../constants/apple_typography.dart';
@@ -25,6 +26,7 @@ import '../widgets/apple_glass_bottom_sheet.dart';
 import '../widgets/apple_music_slider.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/apple_lyrics_view.dart';
+import '../widgets/smooth_player_loader.dart';
 import '../widgets/wavify_cached_image.dart';
 
 enum PlayerViewMode { nowPlaying, lyrics, queue }
@@ -769,11 +771,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         Colors.transparent,
                         Colors.transparent,
                         Colors.black.withValues(alpha: 0.18),
-                        Colors.black.withValues(alpha: 0.62),
-                        Colors.black.withValues(alpha: 0.92),
+                        Colors.black.withValues(alpha: 0.65),
+                        Colors.black.withValues(alpha: 0.95),
                         Colors.black,
                       ],
-                      stops: const [0.0, 0.46, 0.64, 0.78, 0.90, 1.0],
+                      stops: const [0.0, 0.28, 0.38, 0.48, 0.60, 1.0],
                     ),
                   ),
                 ),
@@ -854,12 +856,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final breathingScale =
             1.0 + (_ambientAnimController.value * 0.05 * (1.0 - modeVal));
 
-        // Interpolate rect geometry between Now Playing full canvas and Lyrics 48x48 header thumbnail
+        // Interpolate rect geometry between Now Playing 40% canvas and Lyrics 48x48 header thumbnail
         final left = ui.lerpDouble(0.0, 24.0, modeVal)!;
         final top = ui.lerpDouble(0.0, headerTop, modeVal)!;
         final width = ui.lerpDouble(screenWidth, targetThumbSize, modeVal)!;
         final height = ui.lerpDouble(
-          screenHeight * 0.70,
+          screenHeight * 0.40,
           targetThumbSize,
           modeVal,
         )!;
@@ -922,13 +924,47 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   Color.lerp(const Color(0x22000000), Colors.black, modeVal)!,
                   Color.lerp(const Color(0x00000000), Colors.black, modeVal)!,
                 ],
-                stops: const [0.0, 0.58, 0.72, 0.84, 0.94, 1.0],
+                stops: const [0.0, 0.60, 0.74, 0.86, 0.95, 1.0],
               ).createShader(bounds);
             },
             blendMode: BlendMode.dstIn,
             child: imageWidget,
           );
         }
+
+        // Subtle, smooth crossfade and gentle scale transition when shifting albums or tracks
+        final transitionedArtwork = AnimatedSwitcher(
+          duration: const Duration(milliseconds: 380),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          layoutBuilder: (currentChild, previousChildren) {
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                ...previousChildren,
+                ?currentChild,
+              ],
+            );
+          },
+          transitionBuilder: (child, animation) {
+            return FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.95, end: 1.0).animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutCubic,
+                  ),
+                ),
+                child: child,
+              ),
+            );
+          },
+          child: KeyedSubtree(
+            key: ValueKey('player_art_switch_${song.album ?? song.id}_${song.id}'),
+            child: imageWidget,
+          ),
+        );
 
         return Positioned(
           left: left,
@@ -972,7 +1008,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   flightShuttleBuilder: playerHeroFlightShuttleBuilder,
                   child: Container(
                     key: ValueKey('player_screen_artwork_${song.id}'),
-                    child: imageWidget,
+                    child: transitionedArtwork,
                   ),
                 ),
               ),
@@ -1101,6 +1137,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           ),
                           _buildLiquidGlassButton(
                             size: 36,
+                            color: isFavorite
+                                ? Colors.white.withValues(alpha: 0.24)
+                                : Colors.white.withValues(alpha: 0.12),
                             onTap: () => ref
                                 .read(favoritesProvider.notifier)
                                 .toggleFavorite(song),
@@ -1206,7 +1245,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     return Positioned(
       left: 0,
       right: 0,
-      bottom: math.max(bottomPadding, 24) + 68,
+      bottom: math.max(bottomPadding, 24) + 16,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 26),
         child: Column(
@@ -1441,48 +1480,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   /// Reusable circular Liquid Glass button for actions like favourite and ellipsis.
-  /// Uses a high-contrast dark frosted glass backing + crisp white border rim + backdrop blur
-  /// to ensure the button and icon are sharply visible over any album art (light or dark).
+  /// Uses authentic GlassContainer from liquid_glass_widgets with LiquidOval shape,
+  /// real-time refraction physics, and specular highlight rim.
   Widget _buildLiquidGlassButton({
     required Widget icon,
     required VoidCallback onTap,
     double size = 36,
+    Color? color,
   }) {
     return ApplePressable(
       onTap: onTap,
       borderRadius: BorderRadius.circular(size / 2),
-      child: ClipOval(
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-          child: Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.38),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.32),
-                width: 0.9,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.30),
-                  blurRadius: 6,
-                  offset: const Offset(0, 1.5),
-                ),
-              ],
-            ),
-            child: Center(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Center(child: icon),
-              ),
-            ),
-          ),
-        ),
+      child: GlassContainer(
+        useOwnLayer: true,
+        width: size,
+        height: size,
+        shape: const LiquidOval(),
+        color: color ?? Colors.white.withValues(alpha: 0.14),
+        child: Center(child: icon),
       ),
     );
   }
@@ -1558,6 +1573,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // Liquid Glass Star / Favourite Button
           _buildLiquidGlassButton(
             size: 36,
+            color: isFavorite
+                ? Colors.white.withValues(alpha: 0.24)
+                : Colors.white.withValues(alpha: 0.12),
             onTap: () {
               ref.read(favoritesProvider.notifier).toggleFavorite(song);
               _resetAutoHideTimer();
@@ -1995,12 +2013,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
         Widget playPauseWidget;
         if (isLoading && !isTestMode) {
-          playPauseWidget = const CupertinoActivityIndicator(
+          playPauseWidget = const SmoothPlayerLoader(
             radius: 18,
             color: Colors.white,
           );
         } else {
           playPauseWidget = AnimatedCupertinoIcon(
+            key: ValueKey('main_play_pause_$showPauseIcon'),
             icon: showPauseIcon
                 ? CupertinoIcons.pause_fill
                 : CupertinoIcons.play_fill,
@@ -2029,17 +2048,42 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 splashRadius: 30,
               ),
 
-              // Main Play / Pause button
-              GestureDetector(
+              // Main Play / Pause button with responsive spring physics & smooth loading indicator
+              ApplePressable(
                 onTap: () {
                   notifier.togglePlayPause();
                   _resetAutoHideTimer();
                 },
-                behavior: HitTestBehavior.opaque,
-                child: SizedBox(
+                pressedScale: 0.90,
+                child: Container(
                   width: 72,
                   height: 72,
-                  child: Center(child: playPauseWidget),
+                  alignment: Alignment.center,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 260),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    transitionBuilder: (child, animation) {
+                      return FadeTransition(
+                        opacity: animation,
+                        child: ScaleTransition(
+                          scale: Tween<double>(begin: 0.80, end: 1.0).animate(
+                            CurvedAnimation(
+                              parent: animation,
+                              curve: Curves.easeOutBack,
+                            ),
+                          ),
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: SizedBox(
+                      key: ValueKey('transport_loader_${isLoading && !isTestMode}_$showPauseIcon'),
+                      width: 72,
+                      height: 72,
+                      child: Center(child: playPauseWidget),
+                    ),
+                  ),
                 ),
               ),
 
