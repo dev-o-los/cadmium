@@ -75,37 +75,38 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
           physics: const AlwaysScrollableScrollPhysics(
             parent: BouncingScrollPhysics(),
           ),
-          padding: EdgeInsets.fromLTRB(16, topPadding + 14, 16, 160),
+          padding: EdgeInsets.fromLTRB(0, topPadding + 14, 0, 160),
           children: [
-            // Body Content Large Title Header
-            const Text(
-              'Explore',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 34,
-                fontWeight: FontWeight.bold,
-                letterSpacing: -1.2,
+            // Body Content Large Title Header (leveled identically with Library)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                'Explore',
+                style: AppleTypography.largeTitle,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 20),
 
             // 2-Column Grid of Mood & Genre Cards matching InnerTube aesthetic
-            Builder(
-              builder: (context) {
-                final screenWidth = MediaQuery.of(context).size.width - 32;
-                final crossAxisCount = screenWidth > 600 ? 3 : 2;
-                final cardWidth = (screenWidth - (crossAxisCount - 1) * 12) / crossAxisCount;
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Builder(
+                builder: (context) {
+                  final screenWidth = MediaQuery.of(context).size.width - 40;
+                  final crossAxisCount = screenWidth > 600 ? 3 : 2;
+                  final cardWidth = (screenWidth - (crossAxisCount - 1) * 12) / crossAxisCount;
 
-                return GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: categories.length,
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossAxisCount,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 1.85,
-                  ),
+                  return GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: EdgeInsets.zero,
+                    itemCount: categories.length,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: crossAxisCount,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 1.85,
+                    ),
                   itemBuilder: (context, index) {
                     final cat = categories[index];
                     final cardColor = cat.colorValue != null
@@ -216,18 +217,28 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 );
               },
             ),
-            const SizedBox(height: 28),
+          ),
+          const SizedBox(height: 28),
 
-            const Text(
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
               'Global Hits & Charts',
               style: AppleTypography.sectionTitle,
             ),
-            const SizedBox(height: 12),
-            ...trending
-                .take(15)
-                .map((track) => _buildSongRow(context, ref, track, trending)),
-          ],
-        ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              children: trending
+                  .take(15)
+                  .map((track) => _buildSongRow(context, ref, track, trending))
+                  .toList(),
+            ),
+          ),
+        ],
+      ),
         // Dynamic Apple-style status bar blur & fading dissolve on scroll
         TopStatusBarBlur(scrollController: _scrollController),
       ],
