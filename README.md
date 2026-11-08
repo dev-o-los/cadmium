@@ -18,6 +18,12 @@
     <a href="https://github.com/dev-o-los/cadmium/releases/latest">
       <img src="https://img.shields.io/badge/Releases-Changelog-black?style=for-the-badge&logo=github&logoColor=white" alt="Releases Changelog" />
     </a>
+    <a href="https://kulhad.co/dev-o-los">
+      <img src="https://img.shields.io/badge/☕_Support-Kulhad-FF813F?style=for-the-badge&logoColor=white" alt="Support on Kulhad" />
+    </a>
+    <a href="https://checkout.dodopayments.com/buy/pdt_0NrTW9aQdCEh8sKInIuN5?quantity=1">
+      <img src="https://img.shields.io/badge/💳_Donate-Dodo_Pay-6C5CE7?style=for-the-badge&logoColor=white" alt="Donate via Dodo Payments" />
+    </a>
   </p>
 
   <p align="center">
@@ -33,6 +39,7 @@
     <a href="#-quick-download--installation">Quick Download</a> •
     <a href="#-how-to-install-the-apk">How to Install</a> •
     <a href="#-key-features">Features</a> •
+    <a href="#-support-the-project">Support</a> •
     <a href="#-architecture">Architecture</a> •
     <a href="#-building-from-source">Build from Source</a>
   </p>
@@ -219,6 +226,31 @@ flutter test
   - MediaSession background notifications and controls
   - Liquid glass Cupertino components and touch responses
   - High-precision lyric clock synchronization
+
+---
+
+## 💖 Support the Project
+
+If you enjoy using **Cadmium** and would like to support its ongoing development, audio infrastructure, and new features, consider contributing! Your support helps keep the app ad-free, fast, and constantly updated:
+
+<div align="center">
+
+<a href="https://kulhad.co/dev-o-los" target="_blank">
+  <img src="https://img.shields.io/badge/☕_Support_via-Kulhad-FF813F?style=for-the-badge&logoColor=white" alt="Support on Kulhad" height="42" />
+</a>
+&nbsp;&nbsp;
+<a href="https://checkout.dodopayments.com/buy/pdt_0NrTW9aQdCEh8sKInIuN5?quantity=1" target="_blank">
+  <img src="https://img.shields.io/badge/💳_Donate_via-Dodo_Payments-6C5CE7?style=for-the-badge&logoColor=white" alt="Donate via Dodo Payments" height="42" />
+</a>
+
+<br/><br/>
+
+| Platform | Link | Supported Payment Methods |
+| :--- | :--- | :--- |
+| **Kulhad** | [**kulhad.co/dev-o-los**](https://kulhad.co/dev-o-los) | UPI, Google Pay, PhonePe, Paytm, Debit/Credit Cards |
+| **Dodo Payments** | [**checkout.dodopayments.com**](https://checkout.dodopayments.com/buy/pdt_0NrTW9aQdCEh8sKInIuN5?quantity=1) | International Cards, Apple Pay, Google Pay & Global Checkout |
+
+</div>
 
 ---
 
