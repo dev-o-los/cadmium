@@ -743,8 +743,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         alignment: Alignment.topCenter,
                         child: ImageFiltered(
                           imageFilter: ui.ImageFilter.blur(
-                            sigmaX: 20,
-                            sigmaY: 20,
+                            sigmaX: 24,
+                            sigmaY: 24,
                           ),
                           child: ColorFiltered(
                             colorFilter: _amoledVibrancyFilter,
@@ -1260,15 +1260,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     return Positioned(
       left: 0,
       right: 0,
-      bottom: math.max(bottomPadding, 20) + 12,
+      bottom: bottomPadding + 54,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 26),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Now Playing Metadata Row (Title, Artist, Star, 3-dots)
-            // Fades out as lyrics mode opens
+            // Metadata Row: Track Title & Artist on Left, Star & 3-dots on Right
             AnimatedBuilder(
               animation: _modeAnimController,
               builder: (context, _) {
@@ -1320,7 +1319,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const SizedBox(height: 16),
+                          if (_currentMode != PlayerViewMode.lyrics)
+                            const SizedBox(height: 20)
+                          else
+                            const SizedBox(height: 8),
 
                           // Lyrics Hook Preview Banner (visible in Now Playing and Queue modes)
                           if (_currentMode != PlayerViewMode.lyrics) ...[
@@ -1467,19 +1469,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                 );
                               },
                             ),
-                            const SizedBox(height: 10),
-                          ] else
                             const SizedBox(height: 4),
+                          ],
 
-                          // Scrubber Slider (Apple style sleek bar)
+                          // Slider Bar with appropriate padding top & bottom
                           _buildDurationScrubber(),
-                          const SizedBox(height: 48),
+                          const SizedBox(height: 40),
 
-                          // Transport Controls: Skip prev, Play/Pause, Skip next
+                          // Player Controls (Transport) with padding at top and bottom
                           _buildTransportControls(),
                           const SizedBox(height: 40),
 
-                          // Bottom Action Dock: Lyrics, Audio Route, Queue
+                          // Bottom Parts (Action Dock: Lyrics, Speaker, Queue) - ALWAYS at the bottom!
                           _buildActionDock(),
                         ],
                       ),
