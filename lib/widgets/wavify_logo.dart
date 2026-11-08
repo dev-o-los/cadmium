@@ -28,10 +28,11 @@ class AurumLogo extends StatelessWidget {
       filterQuality: FilterQuality.medium,
       errorBuilder: (context, error, stackTrace) {
         return Image.asset(
-          'assets/images/app_logo_transparent.png',
+          'assets/images/app_logo_cropped.png',
           width: width,
           height: height,
           fit: fit,
+          color: color,
         );
       },
     );
