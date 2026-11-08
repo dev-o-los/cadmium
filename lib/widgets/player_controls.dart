@@ -17,11 +17,13 @@ import 'smooth_player_loader.dart';
 import 'wavify_cached_image.dart';
 
 /// Reactive provider extracting the secondary ambient tone from current song artwork
-final currentSongSecondaryColorProvider =
-    FutureProvider.autoDispose<Color>((ref) async {
+final currentSongSecondaryColorProvider = FutureProvider.autoDispose<Color>((
+  ref,
+) async {
   final song = ref.watch(playerProvider.select((s) => s.currentSong));
   if (song == null) return const Color(0xFF1E1E26);
-  final art = song.highResThumbnailUrl ??
+  final art =
+      song.highResThumbnailUrl ??
       song.resolvedThumbnailUrl ??
       song.thumbnailUrl;
   return ArtworkColorService.instance.extractSecondaryColor(
@@ -60,7 +62,8 @@ class PlayerControls extends ConsumerWidget {
       effectiveArt ?? thumbArt ?? '${currentSong.title} ${currentSong.artist}',
     );
     final asyncSec = ref.watch(currentSongSecondaryColorProvider).valueOrNull;
-    final secondaryColor = asyncSec ??
+    final secondaryColor =
+        asyncSec ??
         cachedSec ??
         ArtworkColorService.instance.getFallbackSecondaryColor(
           '${currentSong.title} ${currentSong.artist}',
@@ -300,7 +303,12 @@ class PlayerControls extends ConsumerWidget {
                     children: [
                       // Album Artwork with 4-5px appropriate padding & High-Res Upgrade
                       Padding(
-                        padding: const EdgeInsets.only(left: 4, right: 4, top: 4, bottom: 4),
+                        padding: const EdgeInsets.only(
+                          left: 4,
+                          right: 4,
+                          top: 4,
+                          bottom: 4,
+                        ),
                         child: Hero(
                           tag: 'player_album_art_$songId',
                           flightShuttleBuilder: playerHeroFlightShuttleBuilder,
@@ -347,7 +355,9 @@ class PlayerControls extends ConsumerWidget {
                               overflow: TextOverflow.ellipsis,
                               style: AppleTypography.miniPlayerTitle,
                             ),
-                            const SizedBox(height: AppleSpacing.titleToSubtitle),
+                            const SizedBox(
+                              height: AppleSpacing.titleToSubtitle,
+                            ),
                             Text(
                               artist.isNotEmpty ? artist : 'Unknown Artist',
                               maxLines: 1,
@@ -398,7 +408,9 @@ class PlayerControls extends ConsumerWidget {
                             !Platform.environment.containsKey('FLUTTER_TEST'))
                         ? const SmoothPlayerLoader(radius: 12)
                         : AnimatedCupertinoIcon(
-                            key: ValueKey('mini_expanded_play_pause_$isPlaying'),
+                            key: ValueKey(
+                              'mini_expanded_play_pause_$isPlaying',
+                            ),
                             icon: isPlaying
                                 ? CupertinoIcons.pause_fill
                                 : CupertinoIcons.play_fill,
