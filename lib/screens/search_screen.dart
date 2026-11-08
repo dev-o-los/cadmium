@@ -503,7 +503,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
               AlbumItem(
                 id: item.id,
                 title: item.title,
-                artist: item.subtitle,
+                artist: AlbumItem.sanitizeArtist(item.subtitle),
                 thumbnailUrl: item.thumbnailUrl,
               ),
             );

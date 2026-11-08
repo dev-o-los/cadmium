@@ -25,9 +25,41 @@ class AlbumItem {
     this.durationMinutes,
   });
 
+  /// Sanitizes raw artist strings (e.g. "Album • SoFaygo • 2022") into the actual clean artist name.
+  static String sanitizeArtist(String raw) {
+    final clean = raw.trim();
+    if (!clean.contains('•') && !clean.contains('·')) {
+      return clean;
+    }
+    final parts = clean.split(RegExp(r'\s*[•·]\s*'));
+    final filtered = parts.where((p) {
+      final lower = p.trim().toLowerCase();
+      if (lower == 'album' ||
+          lower == 'single' ||
+          lower == 'ep' ||
+          lower == 'playlist' ||
+          lower == 'song' ||
+          lower == 'video') {
+        return false;
+      }
+      if (RegExp(r'^\d{4}$').hasMatch(p.trim())) {
+        return false;
+      }
+      return p.trim().isNotEmpty;
+    }).toList();
+
+    if (filtered.isNotEmpty) {
+      return filtered.first.trim();
+    }
+    return clean;
+  }
+
+  /// Clean, human-readable artist name with metadata removed.
+  String get cleanArtist => sanitizeArtist(artist);
+
   String get subtitle {
     final yearStr = year != null ? ' • $year' : '';
-    return '$type • $artist$yearStr';
+    return '$type • $cleanArtist$yearStr';
   }
 
   /// Clean, sanitized thumbnail URL for the album.

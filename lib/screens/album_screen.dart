@@ -201,6 +201,15 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         _allTracks = details.tracks;
         _filteredTracks = details.tracks;
         _totalDurationSeconds = details.totalDurationSeconds;
+
+        if (_allTracks.isNotEmpty &&
+            (_album.artist.isEmpty || _album.artist.contains('•') || _album.artist.contains('·'))) {
+          final trackArtist = _allTracks.first.artist.trim();
+          if (trackArtist.isNotEmpty && !trackArtist.contains('•')) {
+            _album = _album.copyWith(artist: trackArtist);
+          }
+        }
+
         if (details.album.thumbnailUrl != null &&
             details.album.thumbnailUrl!.isNotEmpty) {
           _resolvedArtwork = details.album.thumbnailUrl;
@@ -636,11 +645,12 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         ? 'Playlist · $trackCount Tracks · $totalDurationStr'
         : '${_album.type} · $yearStr · $trackCount Tracks · $totalDurationStr';
 
+    final cleanArtist = _album.cleanArtist;
     final defaultDescription =
         _album.description ??
         (isLikedMusic
             ? 'All your favorite and liked tracks in one playlist.'
-            : '${_album.title} is the debut studio album by American artist ${_album.artist}. It was released in $yearStr with a dynamic sound and cohesive track experience.');
+            : '${_album.title} is an album by $cleanArtist. Released in $yearStr with $trackCount tracks and a total runtime of $totalDurationStr.');
 
     final resolvedColor =
         _backgroundColor ??
@@ -822,17 +832,17 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                           ),
                         ),
                         if (!isLikedMusic &&
-                            _album.artist.trim().isNotEmpty) ...[
+                            cleanArtist.trim().isNotEmpty) ...[
                           const SizedBox(height: 4),
 
                           // Artist Name
                           ApplePressable(
                             onTap: () => openArtistScreen(
                               context,
-                              artistName: _album.artist,
+                              artistName: cleanArtist,
                             ),
                             child: Text(
-                              _album.artist,
+                              cleanArtist,
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                 color: Colors.white70,
