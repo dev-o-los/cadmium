@@ -321,23 +321,10 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
       return;
     }
 
-    // Immediately sync if activeLyricIndex from player provider changed
-    if (widget.activeLyricIndex != oldWidget.activeLyricIndex &&
-        widget.activeLyricIndex >= 0) {
-      if (widget.activeLyricIndex != _activeLyricIndex) {
-        setState(() {
-          _activeLyricIndex = widget.activeLyricIndex;
-        });
-        if (!_isUserScrolling) {
-          _scrollToActiveLine();
-        }
-      }
-    }
-
     // Detect announced seek, slider scrub, or large jump
     final diff = (widget.currentPositionMs - _lastReportedMs).abs();
     final bool positionJumped =
-        diff > 1500 || widget.currentPositionMs < (_lastReportedMs - 400);
+        diff > 1200 || widget.currentPositionMs < (_lastReportedMs - 400);
 
     if (positionJumped) {
       _discontinuity++;
@@ -357,6 +344,18 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
       }
     } else {
       _lastReportedMs = widget.currentPositionMs;
+      // When paused or seeking, sync activeLyricIndex if provided
+      if (!widget.isPlaying &&
+          widget.activeLyricIndex != oldWidget.activeLyricIndex &&
+          widget.activeLyricIndex >= 0 &&
+          widget.activeLyricIndex != _activeLyricIndex) {
+        setState(() {
+          _activeLyricIndex = widget.activeLyricIndex;
+        });
+        if (!_isUserScrolling) {
+          _scrollToActiveLine();
+        }
+      }
     }
   }
 
@@ -438,11 +437,14 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
         if (immediate) {
           _scrollController.jumpTo(clampedOffset);
         } else {
-          _scrollController.animateTo(
-            clampedOffset,
-            duration: const Duration(milliseconds: 420),
-            curve: Curves.easeOutCubic,
-          );
+          final current = _scrollController.offset;
+          if ((clampedOffset - current).abs() > 2.0) {
+            _scrollController.animateTo(
+              clampedOffset,
+              duration: const Duration(milliseconds: 550),
+              curve: Curves.easeOutCubic,
+            );
+          }
         }
         return;
       }
@@ -450,7 +452,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
         ctx,
         alignment: 0.0,
         alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
-        duration: immediate ? Duration.zero : const Duration(milliseconds: 420),
+        duration: immediate ? Duration.zero : const Duration(milliseconds: 550),
         curve: Curves.easeOutCubic,
       );
     }
@@ -688,41 +690,33 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
         : 0;
     final double targetScale;
     final double targetOpacity;
-    final double targetBlur;
 
     if (_isUserScrolling) {
       targetScale = isActive ? 1.0 : 0.98;
-      targetOpacity = isActive ? 1.0 : 0.70;
-      targetBlur = 0.0;
+      targetOpacity = isActive ? 1.0 : 0.65;
     } else if (isActive) {
       targetScale = 1.0;
       targetOpacity = 1.0;
-      targetBlur = 0.0;
     } else if (index < _activeLyricIndex) {
-      // Past line: fades upwards toward vignette
+      // Past line: fades upwards toward vignette with Apple-style opacity drop
       if (distance == 1) {
         targetScale = 0.96;
-        targetOpacity = 0.32;
-        targetBlur = 0.8;
+        targetOpacity = 0.35;
       } else {
         targetScale = 0.94;
-        targetOpacity = math.max(0.16, 0.28 - (distance - 1) * 0.04);
-        targetBlur = math.min(3.2, 0.8 + (distance - 1) * 0.8);
+        targetOpacity = math.max(0.18, 0.30 - (distance - 1) * 0.04);
       }
     } else {
       // Upcoming line: readable secondary tone
       if (distance == 1) {
         targetScale = 0.98;
-        targetOpacity = 0.58;
-        targetBlur = 0.5;
+        targetOpacity = 0.55;
       } else if (distance == 2) {
         targetScale = 0.96;
-        targetOpacity = 0.42;
-        targetBlur = 1.2;
+        targetOpacity = 0.40;
       } else {
         targetScale = 0.94;
-        targetOpacity = math.max(0.22, 0.38 - (distance - 2) * 0.04);
-        targetBlur = math.min(3.0, 1.2 + (distance - 2) * 0.6);
+        targetOpacity = math.max(0.20, 0.36 - (distance - 2) * 0.04);
       }
     }
 
@@ -741,56 +735,41 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
       pressedScale: 0.96,
       pressedOpacity: 0.85,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 400),
+        duration: const Duration(milliseconds: 380),
         curve: Curves.easeOutCubic,
         alignment: alignment,
         padding: const EdgeInsets.symmetric(vertical: 12),
-        child: TweenAnimationBuilder<double>(
-          tween: Tween<double>(begin: targetBlur, end: targetBlur),
-          duration: const Duration(milliseconds: 400),
+        child: AnimatedScale(
+          scale: targetScale,
+          duration: const Duration(milliseconds: 380),
           curve: Curves.easeOutCubic,
-          builder: (context, blurVal, child) {
-            if (blurVal < 0.1) return child!;
-            return ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(
-                sigmaX: blurVal,
-                sigmaY: blurVal,
-              ),
-              child: child,
-            );
-          },
-          child: AnimatedScale(
-            scale: targetScale,
-            duration: const Duration(milliseconds: 400),
+          alignment: line.isOppositeTurn
+              ? Alignment.centerRight
+              : Alignment.centerLeft,
+          child: AnimatedOpacity(
+            opacity: targetOpacity,
+            duration: const Duration(milliseconds: 380),
             curve: Curves.easeOutCubic,
-            alignment: line.isOppositeTurn
-                ? Alignment.centerRight
-                : Alignment.centerLeft,
-            child: AnimatedOpacity(
-              opacity: targetOpacity,
-              duration: const Duration(milliseconds: 400),
-              curve: Curves.easeOutCubic,
-              child: line.isWordSynced && line.syllables.isNotEmpty
-                  ? (isActive
-                        ? ValueListenableBuilder<int>(
-                            valueListenable: _smoothPositionNotifier,
-                            builder: (context, smoothMs, child) {
-                              return _buildWordSyncedLine(
-                                line,
-                                true,
-                                smoothMs,
-                                wrapAlignment,
-                              );
-                            },
-                          )
-                        : _buildWordSyncedLine(
-                            line,
-                            false,
-                            _smoothPositionNotifier.value,
-                            wrapAlignment,
-                          ))
-                  : _buildStaticOrLineSyncedText(line, isActive, textAlign),
-            ),
+            child: line.isWordSynced && line.syllables.isNotEmpty
+                ? (isActive
+                      ? ValueListenableBuilder<int>(
+                          valueListenable: _smoothPositionNotifier,
+                          builder: (context, smoothMs, child) {
+                            return _buildWordSyncedLine(
+                              line,
+                              true,
+                              smoothMs,
+                              wrapAlignment,
+                            );
+                          },
+                        )
+                      : _buildWordSyncedLine(
+                          line,
+                          false,
+                          _smoothPositionNotifier.value,
+                          wrapAlignment,
+                        ))
+                : _buildStaticOrLineSyncedText(line, isActive, textAlign),
           ),
         ),
       ),

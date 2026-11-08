@@ -39,7 +39,7 @@ Widget playerHeroFlightShuttleBuilder(
   final Hero toHero = toHeroContext.widget as Hero;
   final curved = CurvedAnimation(
     parent: animation,
-    curve: Curves.fastOutSlowIn,
+    curve: const Cubic(0.2, 0.9, 0.2, 1.0),
     reverseCurve: Curves.easeInCubic,
   );
 
@@ -88,10 +88,10 @@ class PlayerModalPageRoute<T> extends PageRoute<T> {
   bool get maintainState => true;
 
   @override
-  Duration get transitionDuration => const Duration(milliseconds: 440);
+  Duration get transitionDuration => const Duration(milliseconds: 380);
 
   @override
-  Duration get reverseTransitionDuration => const Duration(milliseconds: 360);
+  Duration get reverseTransitionDuration => const Duration(milliseconds: 300);
 
   @override
   Widget buildPage(
@@ -111,7 +111,7 @@ class PlayerModalPageRoute<T> extends PageRoute<T> {
   ) {
     final curvedAnimation = CurvedAnimation(
       parent: animation,
-      curve: Curves.fastOutSlowIn,
+      curve: const Cubic(0.2, 0.9, 0.2, 1.0),
       reverseCurve: Curves.easeInCubic,
     );
     return SlideTransition(
@@ -119,10 +119,7 @@ class PlayerModalPageRoute<T> extends PageRoute<T> {
         begin: const Offset(0.0, 1.0),
         end: Offset.zero,
       ).animate(curvedAnimation),
-      child: FadeTransition(
-        opacity: Tween<double>(begin: 0.9, end: 1.0).animate(curvedAnimation),
-        child: child,
-      ),
+      child: child,
     );
   }
 }

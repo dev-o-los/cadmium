@@ -96,7 +96,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
   }
 
   Widget _buildHomeContent(BuildContext context, WidgetRef ref, HomeData data) {
-    final playerState = ref.watch(playerProvider);
+    final recentlyPlayed = ref.watch(playerProvider.select((s) => s.recentlyPlayed));
     final topPadding = MediaQuery.of(context).padding.top;
 
     return Stack(
@@ -152,13 +152,13 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
               const SizedBox(height: AppleSpacing.sectionSpacing),
 
               // Section 6: "Listen again" (listening history from playerProvider)
-              if (playerState.recentlyPlayed.isNotEmpty) ...[
+              if (recentlyPlayed.isNotEmpty) ...[
                 _build4ItemColumnsSection(
                   context: context,
                   ref: ref,
                   title: 'Listen again',
                   subtitle: 'UTKARSH',
-                  songs: playerState.recentlyPlayed,
+                  songs: recentlyPlayed,
                 ),
                 const SizedBox(height: AppleSpacing.sectionSpacing),
               ],

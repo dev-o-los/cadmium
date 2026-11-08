@@ -76,13 +76,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (delta > 0) {
         _accumulatedScrollDelta =
             (_accumulatedScrollDelta > 0 ? _accumulatedScrollDelta : 0) + delta;
-        if (_accumulatedScrollDelta > 20 && !_isMiniPlayerCrawled) {
+        if (_accumulatedScrollDelta > 45 && !_isMiniPlayerCrawled) {
           setState(() => _isMiniPlayerCrawled = true);
         }
       } else if (delta < 0) {
         _accumulatedScrollDelta =
             (_accumulatedScrollDelta < 0 ? _accumulatedScrollDelta : 0) + delta;
-        if (_accumulatedScrollDelta < -12 && _isMiniPlayerCrawled) {
+        if (_accumulatedScrollDelta < -25 && _isMiniPlayerCrawled) {
           setState(() => _isMiniPlayerCrawled = false);
         }
       }
@@ -114,7 +114,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final playerState = ref.watch(playerProvider);
+    final hasCurrentSong = ref.watch(playerProvider.select((s) => s.currentSong != null));
     final currentTabIndex = ref.watch(currentTabProvider);
     final topPadding = MediaQuery.of(context).padding.top;
 
@@ -231,7 +231,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     _isMiniPlayerCrawled = false;
                   });
                 },
-                bottomAccessory: playerState.currentSong != null
+                bottomAccessory: hasCurrentSong
                     ? PlayerControls(onTap: _openPlayerScreen)
                     : null,
               ),

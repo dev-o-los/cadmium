@@ -27,7 +27,7 @@ void main() async {
 
   // Pre-warms fragment shaders for liquid glass widgets on Impeller/Skia
   try {
-    await LiquidGlassWidgets.initialize();
+    await LiquidGlassWidgets.initialize(enablePerformanceMonitor: false);
   } catch (e) {
     debugPrint('LiquidGlassWidgets.initialize error: $e');
   }

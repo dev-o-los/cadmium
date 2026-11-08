@@ -178,9 +178,10 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
   }
 
   bool get _isPlayingThisArtist {
-    final playerState = ref.watch(playerProvider);
-    if (!playerState.isPlaying || playerState.currentSong == null) return false;
-    final current = playerState.currentSong!.artist.toLowerCase();
+    final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
+    final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
+    if (!isPlaying || currentSong == null) return false;
+    final current = currentSong.artist.toLowerCase();
     final target = _displayName.toLowerCase();
     return current.contains(target) || target.contains(current);
   }
@@ -213,8 +214,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final playerState = ref.watch(playerProvider);
-    final currentSong = playerState.currentSong;
+    final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
     final currentTabIndex = ref.watch(currentTabProvider);
     final userAccount = ref.watch(authProvider);
 
