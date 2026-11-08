@@ -4,13 +4,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../constants/app_colors.dart';
 import '../constants/apple_typography.dart';
+import '../models/music_category.dart';
 import '../models/song_item.dart';
 import '../providers/home_data_provider.dart';
 import '../providers/player_provider.dart';
+import '../services/music_service.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_pressable.dart';
+import '../widgets/top_profile_avatar_button.dart';
 import '../widgets/top_status_bar_blur.dart';
 import '../widgets/track_options_sheet.dart';
 import '../widgets/app_shimmer.dart';
@@ -44,8 +47,27 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   @override
   Widget build(BuildContext context) {
     final homeDataAsync = ref.watch(homeDataProvider);
-    final trending = homeDataAsync.valueOrNull?.trendingSongs ?? [];
+    final homeData = homeDataAsync.valueOrNull;
+    final trending = homeData?.trendingSongs ?? [];
     final topPadding = MediaQuery.of(context).padding.top;
+
+    // Gather categories from homeData (moods & genres enriched with InnerTube image and subtitle)
+    final allCategories = <MusicCategory>[
+      ...?homeData?.moods,
+      ...?homeData?.genres,
+    ];
+
+    final categories = allCategories.isNotEmpty
+        ? allCategories
+        : MusicService.curatedMoodMetadata.entries.map((e) {
+            return MusicCategory(
+              title: e.key,
+              colorValue: e.value.color,
+              params: e.value.params,
+              imageUrl: e.value.imageUrl,
+              subtitle: e.value.subtitle,
+            );
+          }).toList();
 
     return Stack(
       children: [
@@ -54,19 +76,155 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
           physics: const AlwaysScrollableScrollPhysics(
             parent: BouncingScrollPhysics(),
           ),
-          padding: EdgeInsets.fromLTRB(20, topPadding + 14, 20, 160),
+          padding: EdgeInsets.fromLTRB(16, topPadding + 14, 16, 160),
           children: [
-            // Body Content Large Title Header (moves and fades away naturally on scroll)
-            const Text(
-              'Explore',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 34,
-                fontWeight: FontWeight.bold,
-                letterSpacing: -1.2,
-              ),
+            // Body Content Large Title Header with Profile Avatar Button
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Explore',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 34,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -1.2,
+                  ),
+                ),
+                const TopProfileAvatarButton(size: 38),
+              ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
+
+            // 2-Column Grid of Mood & Genre Cards matching InnerTube aesthetic
+            Builder(
+              builder: (context) {
+                final screenWidth = MediaQuery.of(context).size.width - 32;
+                final crossAxisCount = screenWidth > 600 ? 3 : 2;
+                final cardWidth = (screenWidth - (crossAxisCount - 1) * 12) / crossAxisCount;
+
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: categories.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 1.85,
+                  ),
+                  itemBuilder: (context, index) {
+                    final cat = categories[index];
+                    final cardColor = cat.colorValue != null
+                        ? Color(cat.colorValue!).withValues(alpha: 0.90)
+                        : const Color(0xFF2C2C2E);
+
+                    return RepaintBoundary(
+                      child: ApplePressable(
+                        onTap: () {
+                          widget.onSearch?.call(cat.title);
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            color: cardColor,
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                // InnerTube playlist artwork on the right with smooth color fade
+                                if (cat.imageUrl != null && cat.imageUrl!.isNotEmpty)
+                                  Positioned(
+                                    right: 0,
+                                    top: 0,
+                                    bottom: 0,
+                                    width: cardWidth * 0.65,
+                                    child: Stack(
+                                      fit: StackFit.expand,
+                                      children: [
+                                        WavifyCachedImage(
+                                          imageUrl: cat.imageUrl!,
+                                          fit: BoxFit.cover,
+                                          errorWidget: const SizedBox.shrink(),
+                                        ),
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              begin: Alignment.centerLeft,
+                                              end: Alignment.centerRight,
+                                              colors: [
+                                                cardColor,
+                                                cardColor.withValues(alpha: 0.85),
+                                                cardColor.withValues(alpha: 0.35),
+                                                cardColor.withValues(alpha: 0.10),
+                                              ],
+                                              stops: const [0.0, 0.25, 0.65, 1.0],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                // Category Title at top-left
+                                Positioned(
+                                  top: 12,
+                                  left: 12,
+                                  right: cardWidth * 0.35,
+                                  child: Text(
+                                    cat.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: -0.3,
+                                    ),
+                                  ),
+                                ),
+
+                                // InnerTube playlist subtitle in bottom-right
+                                if (cat.subtitle != null && cat.subtitle!.isNotEmpty)
+                                  Positioned(
+                                    right: 10,
+                                    bottom: 10,
+                                    left: cardWidth * 0.30,
+                                    child: Text(
+                                      cat.subtitle!,
+                                      maxLines: 2,
+                                      textAlign: TextAlign.right,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.88),
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: -0.1,
+                                        shadows: const [
+                                          Shadow(
+                                            color: Color(0x99000000),
+                                            offset: Offset(0, 1),
+                                            blurRadius: 3,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+            const SizedBox(height: 28),
+
             const Text(
               'Global Hits & Charts',
               style: AppleTypography.sectionTitle,

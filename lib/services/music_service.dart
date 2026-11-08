@@ -4000,6 +4000,112 @@ class MusicService {
     return searchResultSet;
   }
 
+  /// Curated InnerTube mood & genre categories with high-resolution imagery and playlist subtitles
+  static const Map<String, ({String subtitle, String imageUrl, int color, String params})> curatedMoodMetadata = {
+    'Chill': (
+      subtitle: 'Coffee Shop Blend',
+      imageUrl: 'https://yt3.googleusercontent.com/CDt4RjHDGr0YiX6WxARTBFkdb9k9VsAIm88sJXZ7B3O1yMoS53kLS_dy8ZIKRrFRHHCB6OJePWU1GbY=w544-h544-l90-rj',
+      color: 4288988671,
+      params: 'ggMPOg1uX1JOQWZFeDByc2Jm',
+    ),
+    'Commute': (
+      subtitle: 'Feel-Good Hip Hop and R&B',
+      imageUrl: 'https://yt3.googleusercontent.com/TALQkjUiJF2lNPNzYAFFAvJfJPiLHtSHF2YbtXKLA84h-ZaN7X8scDed7OTAiFgKx6CZ4K2ZAZyqUUw=w544-h544-l90-rj',
+      color: 4294951424,
+      params: 'ggMPOg1uX044Z2o5WERLckpU',
+    ),
+    'Diwali': (
+      subtitle: 'Bollywood Party',
+      imageUrl: 'https://yt3.googleusercontent.com/HFR703oTI5lyhzTdsn1Zo_Npm9QxtIMyVzz7JzzD1rxdgfESj97ckbb2cw7Ao-s5nmZ6AX56Xs3jLQ=w544-h544-l90-rj',
+      color: 4284506208,
+      params: 'ggMPOg1uX0lQVm1ablYxWml5',
+    ),
+    'Energize': (
+      subtitle: 'Pump-Up Pop',
+      imageUrl: 'https://yt3.googleusercontent.com/PiHeLTzGupMv0PkTI0dg-sstkzOx8yNkBOEfV67yP_sUkJtXLRk4JO8dwhz18rZAz9gHJSAGHeztsJ4=w544-h544-l90-rj',
+      color: 4294961024,
+      params: 'ggMPOg1uX2lRZUZiMnNrQnJW',
+    ),
+    'Feel good': (
+      subtitle: 'Sunshine Indie',
+      imageUrl: 'https://yt3.googleusercontent.com/Am3iIGzF5Dz-8e2nKJMQfn5TE_1aAT2wUOKHJJ2xzfSoS0LT4XV6pOZax_mKLc2HarHbqnm_VQ0sY9vF=w544-h544-l90-rj',
+      color: 4289003428,
+      params: 'ggMPOg1uXzZQbDB5eThLRTQ3',
+    ),
+    'Focus': (
+      subtitle: 'Lofi Loft',
+      imageUrl: 'https://yt3.googleusercontent.com/9I45SYZAfTeR17ByV9i2yDpWhQ5DTWMCrW3Lei8vMIiZzeyUnf2zRFUDBob4TGwgUkXAAR_x1Xa8VA=w544-h544-l90-rj',
+      color: 4291611852,
+      params: 'ggMPOg1uX0NvNGNhWThMYWRh',
+    ),
+    'Gaming': (
+      subtitle: 'Gaming Hits',
+      imageUrl: 'https://yt3.googleusercontent.com/QrISu_Bk4sR6MN_TUD2bbWO4ZyfdSFJVE8JPpCD4P9uCRmyQtE1e3HjxtwsiomjiR0idTKD7Wl6w9A=w544-h544-l90-rj',
+      color: 4284506208,
+      params: 'ggMPOg1uX3NmUVV4Vzl3WGQ0',
+    ),
+    'Party': (
+      subtitle: 'Bollywood Dance Essentials',
+      imageUrl: 'https://yt3.googleusercontent.com/kHXGXRuL3_9v5rKBGrGX_-TY3HMrMvuTO1cHaD_dGZS04YFp1WxF8hXXmTwjXSv-FVxNlJE201hPoKI=w544-h544-l90-rj',
+      color: 4290018303,
+      params: 'ggMPOg1uX0pmQ0s2V0JRclZs',
+    ),
+    'Romance': (
+      subtitle: 'Bollywood Romantic Moments',
+      imageUrl: 'https://yt3.googleusercontent.com/HEdSa36FoDLbUaGWynkGzG_QFFElSh2RpOF4UOXgPwWTUkbqynoWw8W5trrQAnQM76PgryWuXYTLMgw=w544-h544-l90-rj',
+      color: 4291559424,
+      params: 'ggMPOg1uX0FzQ2FhZWtUY211',
+    ),
+    'Sad': (
+      subtitle: 'Bollywood Melancholy',
+      imageUrl: 'https://yt3.googleusercontent.com/q4iCQuoHBeumL9s0LMTIiCMeYR2EdIlNp_YAKiKUjlehuF8-lRO-_PvCplt2TCvKQV3ECPQGZU_pmrQ=w544-h544-l90-rj',
+      color: 4287401100,
+      params: 'ggMPOg1uX0JLQ0gySWZKZVY1',
+    ),
+    'Sleep': (
+      subtitle: 'Classical for Sleeping',
+      imageUrl: 'https://yt3.googleusercontent.com/SwyowKe-kDLokD2wEouPllJwjfKlG73podaFDHBzaEDeR0mu3mgp0x4iy7ouTDD0JuksjzG3ObZsfQ=w544-h544-l90-rj',
+      color: 4286267099,
+      params: 'ggMPOg1uX1MxaFQ3Z0JMZkN4',
+    ),
+    'Workout': (
+      subtitle: 'HIIT Desi Pop',
+      imageUrl: 'https://yt3.googleusercontent.com/ugsYfFh0MWr_EITP7kg1K3PMeDx2HC_EkEqQzD7-ww31VEwGHJPuCXIdcxBAqJGc8z4o9Q9shyxQsA=w544-h544-l90-rj',
+      color: 4294937920,
+      params: 'ggMPOg1uX09LWkhnTjRGRUJh',
+    ),
+    'Classical': (
+      subtitle: 'Essential Classical',
+      imageUrl: 'https://yt3.googleusercontent.com/gkQ7vbmDn5Mdo2e0-dpTdiTD7uTEYXML6uPPTFLiRxe4ZVyAi5XNkzj_Of0WCwinF-Iup7YcM8O5iw=w544-h544-l90-rj',
+      color: 4291611852,
+      params: 'ggMPOg1uX1N4VmduTmdUR3dm',
+    ),
+    'Dance & electronic': (
+      subtitle: 'Luxe Life',
+      imageUrl: 'https://yt3.googleusercontent.com/HU5EiWVx-LtNAfQFoRATBZiDhSFc4JfAKCYcH2Lbi7mt8LEmsW5bsY9gLjCNU4pN47-NFxZ0Z_vLC-cI=w544-h544-l90-rj',
+      color: 4278227647,
+      params: 'ggMPOg1uX1NPTld3SDN3WGs4',
+    ),
+    'Country & Americana': (
+      subtitle: 'Kick-Back Country',
+      imageUrl: 'https://yt3.googleusercontent.com/T77OxvLBXUgKGdrRlde6oz9x4qijWMX-7TI0Iaez6btX87sZ2dCLAY3pPruIz-wCxU4QuLkMCnz4aE0=w544-h544-l90-rj',
+      color: 4281564671,
+      params: 'ggMPOg1uX1RXcFlyZEpRb1d3',
+    ),
+    'Bhojpuri': (
+      subtitle: 'Bhojpuri Hitlist',
+      imageUrl: 'https://yt3.googleusercontent.com/PbRBvk0EnWunitypEmB4gIMX-P3CK_XUZReOW8u_sshuCQDITvi8wE6_lEmmgz2A-Lw9Pgzy4TTbKdI=w544-h544-l90-rj',
+      color: 4289333674,
+      params: 'ggMPOg1uX05iYWtoenBuUkZX',
+    ),
+    'Bengali': (
+      subtitle: 'Bengali Hitlist',
+      imageUrl: 'https://yt3.googleusercontent.com/-BiMRAPPMOnnJhzj3gaBp8jBqIbJ63r6HWRJFHQVIs7EWFoSvZ8lXJpwQz9mfuk1SklqAV53-qt9yg=w544-h544-l90-rj',
+      color: 4294961024,
+      params: 'ggMPOg1uX1ZEZzBvYUp0TGNI',
+    ),
+  };
+
   Future<({List<MusicCategory> moods, List<MusicCategory> genres})>
   _fetchMoodsAndGenres() async {
     final List<MusicCategory> parsedMoods = [];
@@ -4060,9 +4166,17 @@ class MusicService {
                 ? textRuns.first['text'] as String? ?? ''
                 : '';
             final color = (btn['solid']?['leftStripeColor'] as num?)?.toInt();
+            final params = btn['clickCommand']?['browseEndpoint']?['params'] as String?;
 
             if (text.isNotEmpty) {
-              final cat = MusicCategory(title: text, colorValue: color);
+              final curated = curatedMoodMetadata[text];
+              final cat = MusicCategory(
+                title: text,
+                colorValue: color ?? curated?.color,
+                params: params ?? curated?.params,
+                imageUrl: curated?.imageUrl,
+                subtitle: curated?.subtitle,
+              );
               if (title.toLowerCase().contains('mood') ||
                   title.toLowerCase().contains('moment')) {
                 parsedMoods.add(cat);
@@ -4083,8 +4197,16 @@ class MusicService {
             final btn = buttons[i];
             final text = _extractNodeText(btn['buttonText']).trim();
             final color = (btn['solid']?['leftStripeColor'] as num?)?.toInt();
+            final params = btn['clickCommand']?['browseEndpoint']?['params'] as String?;
             if (text.isNotEmpty) {
-              final cat = MusicCategory(title: text, colorValue: color);
+              final curated = curatedMoodMetadata[text];
+              final cat = MusicCategory(
+                title: text,
+                colorValue: color ?? curated?.color,
+                params: params ?? curated?.params,
+                imageUrl: curated?.imageUrl,
+                subtitle: curated?.subtitle,
+              );
               if (i < 8) {
                 parsedMoods.add(cat);
               } else {
@@ -4096,6 +4218,18 @@ class MusicService {
       }
     } catch (e) {
       debugPrint('_fetchMoodsAndGenres error: $e');
+    }
+
+    if (parsedMoods.isEmpty && parsedGenres.isEmpty) {
+      curatedMoodMetadata.forEach((name, data) {
+        parsedMoods.add(MusicCategory(
+          title: name,
+          colorValue: data.color,
+          params: data.params,
+          imageUrl: data.imageUrl,
+          subtitle: data.subtitle,
+        ));
+      });
     }
 
     return (moods: parsedMoods, genres: parsedGenres);
