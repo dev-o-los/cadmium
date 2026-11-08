@@ -41,7 +41,7 @@ void main() {
       expect(extractedSecondary, isA<Color>());
     });
 
-    testWidgets('PlayerScreen renders album art at 40% ratio and occupies rest for controls', (tester) async {
+    testWidgets('PlayerScreen renders album art at 50% ratio and occupies rest for controls', (tester) async {
       const screenH = 1000.0;
       const screenW = 400.0;
       tester.view.physicalSize = const Size(screenW, screenH);
@@ -72,12 +72,12 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      // In expanded Now Playing mode, artwork height is 40% of screen height (400px)
+      // In expanded Now Playing mode, artwork height is 50% of screen height (500px)
       final heroFinder = find.byKey(const ValueKey('player_screen_artwork_song_a_1'));
       expect(heroFinder, findsOneWidget);
 
       final heroSize = tester.getSize(heroFinder);
-      expect(heroSize.height, closeTo(screenH * 0.40, 2.0));
+      expect(heroSize.height, closeTo(screenH * 0.50, 2.0));
 
       // Controls (title, artist, favorite, scrubber, play/pause) are rendered below
       expect(find.text('Starboy'), findsOneWidget);
