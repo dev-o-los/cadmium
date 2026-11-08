@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -247,38 +245,51 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
     final cardWidth = (screenWidth * 0.58).clamp(215.0, 245.0);
     const cardHeight = 305.0;
 
-    return ApplePressable(
-      onTap: () {
-        if (hero.playTrack != null) {
-          playSong(context, ref, hero.playTrack!, forceReload: true);
-        } else {
-          playHero(context, ref, hero);
-        }
-      },
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        width: cardWidth,
-        height: cardHeight,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: const Color(0xFF141414),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.08),
-            width: 0.6,
+    return RepaintBoundary(
+      child: ApplePressable(
+        onTap: () {
+          if (hero.playTrack != null) {
+            playSong(context, ref, hero.playTrack!, forceReload: true);
+          } else {
+            playHero(context, ref, hero);
+          }
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: cardWidth,
+          height: cardHeight,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            color: const Color(0xFF141414),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.08),
+              width: 0.6,
+            ),
           ),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // 1. Sharp Full-Bleed Cover Artwork
-              if (hero.imageUrl != null)
-                WavifyCachedImage(
-                  imageUrl: hero.imageUrl!,
-                  songId: hero.playTrack?.id,
-                  fit: BoxFit.cover,
-                  errorWidget: Container(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // 1. Sharp Full-Bleed Cover Artwork
+                if (hero.imageUrl != null)
+                  WavifyCachedImage(
+                    imageUrl: hero.imageUrl!,
+                    songId: hero.playTrack?.id,
+                    fit: BoxFit.cover,
+                    errorWidget: Container(
+                      color: const Color(0xFF141414),
+                      child: const Center(
+                        child: Icon(
+                          CupertinoIcons.music_note,
+                          color: Colors.white24,
+                          size: 48,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Container(
                     color: const Color(0xFF141414),
                     child: const Center(
                       child: Icon(
@@ -288,75 +299,35 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                       ),
                     ),
                   ),
-                )
-              else
-                Container(
-                  color: const Color(0xFF141414),
-                  child: const Center(
-                    child: Icon(
-                      CupertinoIcons.music_note,
-                      color: Colors.white24,
-                      size: 48,
-                    ),
-                  ),
-                ),
 
-              // 2. Continuous Organic Blur Layer
-              if (hero.imageUrl != null)
+                // 2. High-contrast OLED gradient scrim for crystal clear typography
                 Positioned.fill(
-                  child: ShaderMask(
-                    shaderCallback: (bounds) {
-                      return const LinearGradient(
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
                           Colors.transparent,
                           Colors.transparent,
-                          Colors.black,
+                          Color(0x66000000),
+                          Color(0xF0000000),
                         ],
-                        stops: [0.0, 0.40, 0.82],
-                      ).createShader(bounds);
-                    },
-                    blendMode: BlendMode.dstIn,
-                    child: ImageFiltered(
-                      imageFilter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                      child: WavifyCachedImage(
-                        imageUrl: hero.imageUrl!,
-                        songId: hero.playTrack?.id,
-                        fit: BoxFit.cover,
+                        stops: [0.0, 0.38, 0.68, 1.0],
                       ),
                     ),
                   ),
                 ),
 
-              // 3. Smooth Deep Charcoal/OLED Gradient Scrim
-              Positioned.fill(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        Colors.transparent,
-                        Color(0x66000000),
-                        Color(0xE6000000),
-                      ],
-                      stops: [0.0, 0.42, 0.72, 1.0],
-                    ),
-                  ),
-                ),
-              ),
-
-              // 4. White Typography naturally floating on the organic blur
-              Positioned(
-                left: 14,
-                right: 14,
-                bottom: 14,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+                // 3. White Typography floating over the scrim
+                Positioned(
+                  left: 14,
+                  right: 14,
+                  bottom: 14,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                     Text(
                       hero.subtitle.toUpperCase(),
                       maxLines: 1,
@@ -388,8 +359,9 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   /// 4-Item Vertical Column with Horizontal Swiping (Recents / Quick picks / Listen again)
   Widget _build4ItemColumnsSection({
@@ -619,42 +591,44 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             separatorBuilder: (context, index) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               final mood = moodDefs[index];
-              return ApplePressable(
-                onTap: () {
-                  widget.onSearch?.call(mood.title);
-                },
-                borderRadius: BorderRadius.circular(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 136,
-                      height: 136,
-                      decoration: BoxDecoration(
-                        color: mood.color,
-                        borderRadius: BorderRadius.circular(18),
+              return RepaintBoundary(
+                child: ApplePressable(
+                  onTap: () {
+                    widget.onSearch?.call(mood.title);
+                  },
+                  borderRadius: BorderRadius.circular(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 136,
+                        height: 136,
+                        decoration: BoxDecoration(
+                          color: mood.color,
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Stack(
+                          children: [
+                            const Positioned(
+                              top: 10,
+                              right: 10,
+                              child: WavifyLogo(size: 16),
+                            ),
+                            Center(child: _buildMoodIcon(mood.icon)),
+                          ],
+                        ),
                       ),
-                      child: Stack(
-                        children: [
-                          const Positioned(
-                            top: 10,
-                            right: 10,
-                            child: WavifyLogo(size: 16),
-                          ),
-                          Center(child: _buildMoodIcon(mood.icon)),
-                        ],
+                      const SizedBox(height: 8),
+                      Text(
+                        mood.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      mood.title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               );
             },
@@ -731,83 +705,81 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             separatorBuilder: (context, index) => const SizedBox(width: 14),
             itemBuilder: (context, index) {
               final album = albums[index];
-              return ApplePressable(
-                onTap: () => openAlbumScreen(context, album),
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  width: cardWidth,
-                  height: cardHeight,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.10),
-                      width: 0.8,
+              return RepaintBoundary(
+                child: ApplePressable(
+                  onTap: () => openAlbumScreen(context, album),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    width: cardWidth,
+                    height: cardHeight,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.10),
+                        width: 0.8,
+                      ),
                     ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Positioned.fill(
-                          child: DynamicAlbumArtwork(
-                            album: album,
-                            size: cardWidth,
-                          ),
-                        ),
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          child: ClipRRect(
-                            borderRadius: const BorderRadius.vertical(
-                              bottom: Radius.circular(16),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Positioned.fill(
+                            child: DynamicAlbumArtwork(
+                              album: album,
+                              size: cardWidth,
                             ),
-                            child: BackdropFilter(
-                              filter: ui.ImageFilter.blur(
-                                sigmaX: 18,
-                                sigmaY: 18,
+                          ),
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 8,
                               ),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.38),
-                                  border: Border(
-                                    top: BorderSide(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.08,
-                                      ),
-                                      width: 0.8,
-                                    ),
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      album.title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: AppleTypography.cardTitle,
-                                    ),
-                                    const SizedBox(height: AppleSpacing.titleToSubtitle),
-                                    Text(
-                                      album.subtitle,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: AppleTypography.cardSubtitle,
-                                    ),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Color(0x66000000),
+                                    Color(0xEE000000),
                                   ],
                                 ),
+                                border: Border(
+                                  top: BorderSide(
+                                    color: Colors.white.withValues(
+                                      alpha: 0.12,
+                                    ),
+                                    width: 0.8,
+                                  ),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    album.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppleTypography.cardTitle,
+                                  ),
+                                  const SizedBox(height: AppleSpacing.titleToSubtitle),
+                                  Text(
+                                    album.subtitle,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppleTypography.cardSubtitle,
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -852,40 +824,52 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             separatorBuilder: (context, index) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               final video = videos[index];
-              return ApplePressable(
-                onTap: () {
-                  playSong(
-                    context,
-                    ref,
-                    SongItem(
-                      id: video.id,
-                      title: video.title,
-                      artist: video.artist,
-                      thumbnailUrl: video.thumbnailUrl,
-                      durationSeconds: video.durationSeconds,
-                    ),
-                    forceReload: true,
-                  );
-                },
-                borderRadius: BorderRadius.circular(14),
-                child: SizedBox(
-                  width: videoWidth,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: Stack(
-                          children: [
-                            video.thumbnailUrl != null
-                                ? WavifyCachedImage(
-                                    imageUrl: video.thumbnailUrl!,
-                                    songId: video.id,
-                                    width: videoWidth,
-                                    height: videoThumbnailHeight,
-                                    fit: BoxFit.cover,
-                                    errorWidget: Container(
+              return RepaintBoundary(
+                child: ApplePressable(
+                  onTap: () {
+                    playSong(
+                      context,
+                      ref,
+                      SongItem(
+                        id: video.id,
+                        title: video.title,
+                        artist: video.artist,
+                        thumbnailUrl: video.thumbnailUrl,
+                        durationSeconds: video.durationSeconds,
+                      ),
+                      forceReload: true,
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(14),
+                  child: SizedBox(
+                    width: videoWidth,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: Stack(
+                            children: [
+                              video.thumbnailUrl != null
+                                  ? WavifyCachedImage(
+                                      imageUrl: video.thumbnailUrl!,
+                                      songId: video.id,
+                                      width: videoWidth,
+                                      height: videoThumbnailHeight,
+                                      fit: BoxFit.cover,
+                                      errorWidget: Container(
+                                        width: videoWidth,
+                                        height: videoThumbnailHeight,
+                                        color: AppColors.appleDarkSurfaceHigh,
+                                        child: const Icon(
+                                          CupertinoIcons.play_rectangle_fill,
+                                          color: Colors.white24,
+                                          size: 40,
+                                        ),
+                                      ),
+                                    )
+                                  : Container(
                                       width: videoWidth,
                                       height: videoThumbnailHeight,
                                       color: AppColors.appleDarkSurfaceHigh,
@@ -895,51 +879,41 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                                         size: 40,
                                       ),
                                     ),
-                                  )
-                                : Container(
-                                    width: videoWidth,
-                                    height: videoThumbnailHeight,
-                                    color: AppColors.appleDarkSurfaceHigh,
-                                    child: const Icon(
-                                      CupertinoIcons.play_rectangle_fill,
-                                      color: Colors.white24,
-                                      size: 40,
-                                    ),
+                              Positioned(
+                                right: 8,
+                                bottom: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.65),
+                                    shape: BoxShape.circle,
                                   ),
-                            Positioned(
-                              right: 8,
-                              bottom: 8,
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.65),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  CupertinoIcons.play_fill,
-                                  color: Colors.white,
-                                  size: 16,
+                                  child: const Icon(
+                                    CupertinoIcons.play_fill,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        video.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppleTypography.cardTitle,
-                      ),
-                      const SizedBox(height: AppleSpacing.titleToSubtitle),
-                      Text(
-                        video.subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppleTypography.cardSubtitle,
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        Text(
+                          video.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppleTypography.cardTitle,
+                        ),
+                        const SizedBox(height: AppleSpacing.titleToSubtitle),
+                        Text(
+                          video.subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppleTypography.cardSubtitle,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -987,80 +961,82 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
               final song = songs[index];
               final isCurrent = currentSong?.id == song.id;
 
-              return ApplePressable(
-                onTap: () => playSong(
-                  context,
-                  ref,
-                  song,
-                  contextQueue: songs,
-                  forceReload: true,
-                ),
-                borderRadius: BorderRadius.circular(12),
-                child: SizedBox(
-                  width: cardWidth,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Stack(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: song.thumbnailUrl != null
-                                ? WavifyCachedImage(
-                                    imageUrl: song.thumbnailUrl!,
-                                    songId: song.id,
-                                    width: cardWidth,
-                                    height: cardWidth,
-                                    fit: BoxFit.cover,
-                                    errorWidget: _fallbackSquareArt(
-                                      size: cardWidth,
+              return RepaintBoundary(
+                child: ApplePressable(
+                  onTap: () => playSong(
+                    context,
+                    ref,
+                    song,
+                    contextQueue: songs,
+                    forceReload: true,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(
+                    width: cardWidth,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: song.thumbnailUrl != null
+                                  ? WavifyCachedImage(
+                                      imageUrl: song.thumbnailUrl!,
+                                      songId: song.id,
+                                      width: cardWidth,
+                                      height: cardWidth,
+                                      fit: BoxFit.cover,
+                                      errorWidget: _fallbackSquareArt(
+                                        size: cardWidth,
+                                      ),
+                                    )
+                                  : _fallbackSquareArt(size: cardWidth),
+                            ),
+                            if (isCurrent && isPlaying)
+                              Positioned(
+                                right: 8,
+                                bottom: 8,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.75),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.2),
+                                      width: 0.8,
                                     ),
-                                  )
-                                : _fallbackSquareArt(size: cardWidth),
-                          ),
-                          if (isCurrent && isPlaying)
-                            Positioned(
-                              right: 8,
-                              bottom: 8,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.75),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.2),
-                                    width: 0.8,
+                                  ),
+                                  padding: const EdgeInsets.all(6),
+                                  child: const AnimatedEqualizerBars(
+                                    size: 14,
+                                    color: Colors.white,
+                                    isPlaying: true,
                                   ),
                                 ),
-                                padding: const EdgeInsets.all(6),
-                                child: const AnimatedEqualizerBars(
-                                  size: 14,
-                                  color: Colors.white,
-                                  isPlaying: true,
-                                ),
                               ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppleTypography.cardTitle,
-                      ),
-                      const SizedBox(height: AppleSpacing.titleToSubtitle),
-                      ApplePressable(
-                        onTap: () =>
-                            openArtistScreen(context, artistName: song.artist),
-                        child: Text(
-                          song.artist,
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          song.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: AppleTypography.cardSubtitle,
+                          style: AppleTypography.cardTitle,
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: AppleSpacing.titleToSubtitle),
+                        ApplePressable(
+                          onTap: () =>
+                              openArtistScreen(context, artistName: song.artist),
+                          child: Text(
+                            song.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppleTypography.cardSubtitle,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );

@@ -24,21 +24,14 @@ class PlayerControls extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final playerState = ref.watch(playerProvider);
-    final currentSong = playerState.currentSong;
+    final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
 
     if (currentSong == null) {
       return const SizedBox.shrink();
     }
 
-    final isPlaying = playerState.isPlaying;
+    final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
     final isLoading = ref.watch(playerIsLoadingProvider);
-
-    final progress = playerState.duration.inMilliseconds > 0
-        ? (playerState.position.inMilliseconds /
-                  playerState.duration.inMilliseconds)
-              .clamp(0.0, 1.0)
-        : 0.0;
 
     final effectiveArt =
         currentSong.highResThumbnailUrl ?? currentSong.resolvedThumbnailUrl;
@@ -73,7 +66,6 @@ class PlayerControls extends ConsumerWidget {
       songId: currentSong.id,
       isPlaying: isPlaying,
       isLoading: isLoading,
-      progress: progress,
     );
   }
 
@@ -234,7 +226,6 @@ class PlayerControls extends ConsumerWidget {
     required String? songId,
     required bool isPlaying,
     required bool isLoading,
-    required double progress,
   }) {
     return GlassContainer(
       useOwnLayer: true,
@@ -377,25 +368,12 @@ class PlayerControls extends ConsumerWidget {
             ),
           ),
 
-          // Subtle hairline progress bar at bottom of the pill
-          Positioned(
+          // Subtle hairline progress bar at bottom of the pill (isolated consumer rebuild)
+          const Positioned(
             left: 14,
             right: 14,
             bottom: 0,
-            child: ClipRRect(
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(26),
-                bottomRight: Radius.circular(26),
-              ),
-              child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 2.0,
-                backgroundColor: Colors.transparent,
-                valueColor: const AlwaysStoppedAnimation<Color>(
-                  Color(0x99FFFFFF),
-                ),
-              ),
-            ),
+            child: _MiniPlayerProgressBar(),
           ),
         ],
       ),
@@ -412,6 +390,39 @@ class PlayerControls extends ConsumerWidget {
           CupertinoIcons.music_note,
           color: Colors.white38,
           size: size * 0.5,
+        ),
+      ),
+    );
+  }
+}
+
+/// Dedicated, micro-scoped consumer widget for the hairline progress bar.
+/// Prevents the entire [PlayerControls] widget, liquid glass container,
+/// artwork, and labels from rebuilding on 250ms audio position ticks.
+class _MiniPlayerProgressBar extends ConsumerWidget {
+  const _MiniPlayerProgressBar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final progress = ref.watch(
+      playerProvider.select((s) {
+        final total = s.duration.inMilliseconds;
+        if (total <= 0) return 0.0;
+        return (s.position.inMilliseconds / total).clamp(0.0, 1.0);
+      }),
+    );
+
+    return ClipRRect(
+      borderRadius: const BorderRadius.only(
+        bottomLeft: Radius.circular(26),
+        bottomRight: Radius.circular(26),
+      ),
+      child: LinearProgressIndicator(
+        value: progress,
+        minHeight: 2.0,
+        backgroundColor: Colors.transparent,
+        valueColor: const AlwaysStoppedAnimation<Color>(
+          Color(0x99FFFFFF),
         ),
       ),
     );

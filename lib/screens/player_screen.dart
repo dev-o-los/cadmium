@@ -228,11 +228,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
       builder: (context) {
         return Consumer(
           builder: (context, ref, _) {
-            final playerState = ref.watch(playerProvider);
-            double localVolume = playerState.volume;
-            final devices = playerState.availableAudioDevices.isNotEmpty
-                ? playerState.availableAudioDevices
-                : [playerState.connectedDevice];
+            final volume = ref.watch(playerProvider.select((s) => s.volume));
+            final devices = ref.watch(playerProvider.select((s) => s.availableAudioDevices));
+            final connectedDevice = ref.watch(playerProvider.select((s) => s.connectedDevice));
+            double localVolume = volume;
+            final effectiveDevices = devices.isNotEmpty ? devices : [connectedDevice];
 
             return StatefulBuilder(
               builder: (context, setModalState) {
@@ -255,12 +255,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                     ),
                     AppleSheetGroup(
                       children: [
-                        for (int i = 0; i < devices.length; i++) ...[
+                        for (int i = 0; i < effectiveDevices.length; i++) ...[
                           if (i > 0) const AppleSheetDivider(),
                           Builder(
                             builder: (context) {
-                              final device = devices[i];
-                              final isCurrent = device.id == playerState.connectedDevice.id;
+                              final device = effectiveDevices[i];
+                              final isCurrent = device.id == connectedDevice.id;
                               return AppleSheetActionTile(
                                 icon: device.icon,
                                 title: device.name,
@@ -507,8 +507,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
 
   @override
   Widget build(BuildContext context) {
-    final playerState = ref.watch(playerProvider);
-    final song = playerState.currentSong;
+    final song = ref.watch(playerProvider.select((s) => s.currentSong));
 
     if (song == null) {
       return const Scaffold(
@@ -568,12 +567,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                 fit: StackFit.expand,
                 children: [
                   // 1. Edge-to-edge Animated Ambient Artwork Canvas with gradual downward blur transition
-                  _buildAmbientBackdrop(song, playerState, screenHeight),
+                  _buildAmbientBackdrop(song, screenHeight),
 
                   // 2. Continuous morphing album artwork (animates between Now Playing and Lyrics header, and Hero from miniplayer)
                   _buildMorphingArtwork(
                     song: song,
-                    playerState: playerState,
                     screenWidth: screenWidth,
                     screenHeight: screenHeight,
                     headerTop: math.max(topPadding, 48) + 18.0,
@@ -589,7 +587,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                   // 4. Center Alternate Mode Content (Lyrics or Queue)
                   _buildCenterContent(
                     song: song,
-                    playerState: playerState,
                     headerTop: math.max(topPadding, 48) + 18.0,
                     bottomPadding: bottomPadding,
                   ),
@@ -597,7 +594,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                   // 5. Bottom Controls (Metadata row in Now Playing, Scrubber, Transport, Dock)
                   _buildBottomControls(
                     song: song,
-                    playerState: playerState,
                     bottomPadding: bottomPadding,
                     isFavorite: isFavorite,
                   ),
@@ -622,7 +618,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
 
   Widget _buildAmbientBackdrop(
     SongItem song,
-    PlayerStateModel playerState,
     double screenHeight,
   ) {
     final artworkUrl = song.highResThumbnailUrl ?? song.resolvedThumbnailUrl;
@@ -630,7 +625,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
       return Container(color: Colors.black);
     }
 
-    final animatedArtworkUrl = playerState.animatedArtworkUrl ?? song.animatedArtworkUrl;
+    final animatedArtworkUrl = ref.watch(playerProvider.select((s) => s.animatedArtworkUrl)) ?? song.animatedArtworkUrl;
 
     return Positioned.fill(
       child: AnimatedBuilder(
@@ -735,7 +730,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
 
   Widget _buildMorphingArtwork({
     required SongItem song,
-    required PlayerStateModel playerState,
     required double screenWidth,
     required double screenHeight,
     required double headerTop,
@@ -745,9 +739,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
       return Container(color: Colors.black);
     }
 
-    final animatedArtworkUrl = playerState.animatedArtworkUrl ?? song.animatedArtworkUrl;
-    final animatedArtworkHeaders = playerState.animatedArtworkHeaders;
-    final isPlaying = playerState.isPlaying;
+    final animatedArtworkUrl = ref.watch(playerProvider.select((s) => s.animatedArtworkUrl)) ?? song.animatedArtworkUrl;
+    final animatedArtworkHeaders = ref.watch(playerProvider.select((s) => s.animatedArtworkHeaders));
+    final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
 
     const double targetThumbSize = 48.0;
 
@@ -1024,7 +1018,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
 
   Widget _buildCenterContent({
     required SongItem song,
-    required PlayerStateModel playerState,
     required double headerTop,
     required double bottomPadding,
   }) {
@@ -1070,11 +1063,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
                 child: _currentMode == PlayerViewMode.lyrics
                     ? KeyedSubtree(
                         key: const ValueKey('lyrics_mode'),
-                        child: _buildLyricsContent(playerState),
+                        child: _buildLyricsContent(),
                       )
                     : KeyedSubtree(
                         key: const ValueKey('queue_mode'),
-                        child: _buildQueueContent(playerState, song),
+                        child: _buildQueueContent(song),
                       ),
               ),
             ),
@@ -1086,23 +1079,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
 
   Widget _buildBottomControls({
     required SongItem song,
-    required PlayerStateModel playerState,
     required double bottomPadding,
     required bool isFavorite,
   }) {
-    String activeLyric = 'The hook is on the way';
-    if (playerState.lyrics.isNotEmpty) {
-      if (playerState.activeLyricIndex >= 0 &&
-          playerState.activeLyricIndex < playerState.lyrics.length) {
-        final lyricText = playerState.lyrics[playerState.activeLyricIndex].text.trim();
-        if (lyricText.isNotEmpty) {
-          activeLyric = lyricText;
-        }
-      } else if (playerState.lyrics.first.text.trim().isNotEmpty) {
-        activeLyric = playerState.lyrics.first.text.trim();
-      }
-    }
-
     return Positioned(
       left: 0,
       right: 0,
@@ -1169,99 +1148,118 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
 
                           // Lyrics Hook Preview Banner (visible in Now Playing and Queue modes)
                           if (_currentMode != PlayerViewMode.lyrics) ...[
-                            ApplePressable(
-                              onTap: () => _switchMode(PlayerViewMode.lyrics),
-                              pressedScale: 0.98,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 2),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    const Icon(
-                                      CupertinoIcons.music_note_2,
-                                      color: Colors.white,
-                                      size: 15,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Flexible(
-                                      child: AnimatedSwitcher(
-                                        duration: const Duration(milliseconds: 320),
-                                        layoutBuilder: (currentChild, previousChildren) {
-                                          return Stack(
-                                            alignment: Alignment.centerLeft,
-                                            children: [
-                                              ...previousChildren,
-                                              ?currentChild,
-                                            ],
-                                          );
-                                        },
-                                        transitionBuilder: (child, animation) {
-                                          final isEntering = (child.key as ValueKey<String>?)?.value == activeLyric;
-                                          final offsetAnimation = isEntering
-                                              ? Tween<Offset>(
-                                                  begin: const Offset(0.0, 0.9),
-                                                  end: Offset.zero,
-                                                ).animate(CurvedAnimation(
-                                                  parent: animation,
-                                                  curve: Curves.easeOutCubic,
-                                                ))
-                                              : Tween<Offset>(
-                                                  begin: const Offset(0.0, -0.9),
-                                                  end: Offset.zero,
-                                                ).animate(CurvedAnimation(
-                                                  parent: animation,
-                                                  curve: Curves.easeInCubic,
-                                                ));
+                            Consumer(
+                              builder: (context, ref, _) {
+                                final activeLyric = ref.watch(playerProvider.select((s) {
+                                  if (s.lyrics.isNotEmpty) {
+                                    if (s.activeLyricIndex >= 0 &&
+                                        s.activeLyricIndex < s.lyrics.length) {
+                                      final lyricText = s.lyrics[s.activeLyricIndex].text.trim();
+                                      if (lyricText.isNotEmpty) {
+                                        return lyricText;
+                                      }
+                                    } else if (s.lyrics.first.text.trim().isNotEmpty) {
+                                      return s.lyrics.first.text.trim();
+                                    }
+                                  }
+                                  return 'The hook is on the way';
+                                }));
 
-                                          return ClipRect(
-                                            child: SlideTransition(
-                                              position: offsetAnimation,
-                                              child: FadeTransition(
-                                                opacity: animation,
-                                                child: child,
+                                return ApplePressable(
+                                  onTap: () => _switchMode(PlayerViewMode.lyrics),
+                                  pressedScale: 0.98,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 2),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      children: [
+                                        const Icon(
+                                          CupertinoIcons.music_note_2,
+                                          color: Colors.white,
+                                          size: 15,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Flexible(
+                                          child: AnimatedSwitcher(
+                                            duration: const Duration(milliseconds: 320),
+                                            layoutBuilder: (currentChild, previousChildren) {
+                                              return Stack(
+                                                alignment: Alignment.centerLeft,
+                                                children: [
+                                                  ...previousChildren,
+                                                  ?currentChild,
+                                                ],
+                                              );
+                                            },
+                                            transitionBuilder: (child, animation) {
+                                              final isEntering = (child.key as ValueKey<String>?)?.value == activeLyric;
+                                              final offsetAnimation = isEntering
+                                                  ? Tween<Offset>(
+                                                      begin: const Offset(0.0, 0.9),
+                                                      end: Offset.zero,
+                                                    ).animate(CurvedAnimation(
+                                                      parent: animation,
+                                                      curve: Curves.easeOutCubic,
+                                                    ))
+                                                  : Tween<Offset>(
+                                                      begin: const Offset(0.0, -0.9),
+                                                      end: Offset.zero,
+                                                    ).animate(CurvedAnimation(
+                                                      parent: animation,
+                                                      curve: Curves.easeInCubic,
+                                                    ));
+
+                                              return ClipRect(
+                                                child: SlideTransition(
+                                                  position: offsetAnimation,
+                                                  child: FadeTransition(
+                                                    opacity: animation,
+                                                    child: child,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                            child: Text(
+                                              activeLyric,
+                                              key: ValueKey<String>(activeLyric),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: Colors.white.withValues(alpha: 0.85),
+                                                fontSize: 13.5,
+                                                fontWeight: FontWeight.w500,
+                                                letterSpacing: -0.2,
                                               ),
                                             ),
-                                          );
-                                        },
-                                        child: Text(
-                                          activeLyric,
-                                          key: ValueKey<String>(activeLyric),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            color: Colors.white.withValues(alpha: 0.85),
-                                            fontSize: 13.5,
-                                            fontWeight: FontWeight.w500,
-                                            letterSpacing: -0.2,
                                           ),
                                         ),
-                                      ),
+                                        const SizedBox(width: 5),
+                                        Icon(
+                                          CupertinoIcons.chevron_right,
+                                          color: Colors.white.withValues(alpha: 0.45),
+                                          size: 12.5,
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(width: 5),
-                                    Icon(
-                                      CupertinoIcons.chevron_right,
-                                      color: Colors.white.withValues(alpha: 0.45),
-                                      size: 12.5,
-                                    ),
-                                  ],
-                                ),
-                              ),
+                                  ),
+                                );
+                              },
                             ),
                             const SizedBox(height: 2),
                           ] else
                             const SizedBox(height: 4),
 
                           // Scrubber Slider (Apple style sleek bar)
-                          _buildDurationScrubber(playerState),
+                          _buildDurationScrubber(),
                           const SizedBox(height: 36),
 
                           // Transport Controls: Skip prev, Play/Pause, Skip next
-                          _buildTransportControls(playerState),
+                          _buildTransportControls(),
                           const SizedBox(height: 36),
 
                           // Bottom Action Dock: Lyrics, Audio Route, Queue
-                          _buildActionDock(playerState),
+                          _buildActionDock(),
                         ],
                       ),
                     ),
@@ -1424,90 +1422,96 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     );
   }
 
+  Widget _buildLyricsContent() {
+    return Consumer(
+      builder: (context, ref, _) {
+        final playerState = ref.watch(playerProvider);
+        final effectivePositionMs = _isDraggingSlider
+            ? _dragSliderValue.toInt()
+            : playerState.position.inMilliseconds;
+        final isActuallyPlaying = playerState.isPlaying &&
+            !playerState.isBuffering &&
+            !playerState.isResolvingStream &&
+            !_isDraggingSlider;
 
-
-  Widget _buildLyricsContent(PlayerStateModel playerState) {
-    final effectivePositionMs = _isDraggingSlider
-        ? _dragSliderValue.toInt()
-        : playerState.position.inMilliseconds;
-    final isActuallyPlaying = playerState.isPlaying &&
-        !playerState.isBuffering &&
-        !playerState.isResolvingStream &&
-        !_isDraggingSlider;
-
-    return AppleLyricsView(
-      lyrics: playerState.lyrics,
-      activeLyricIndex: playerState.activeLyricIndex,
-      currentPositionMs: effectivePositionMs,
-      isPlaying: isActuallyPlaying,
-      isLoading: playerState.isLoadingLyrics,
-      lyricsSource: playerState.lyricsSource,
-      lyricsSongwriters: playerState.lyricsSongwriters,
-      selectedProvider: playerState.selectedLyricsProvider,
-      onProviderChanged: (provider) {
-        ref.read(playerProvider.notifier).setLyricsProvider(provider);
-        _resetAutoHideTimer();
+        return AppleLyricsView(
+          lyrics: playerState.lyrics,
+          activeLyricIndex: playerState.activeLyricIndex,
+          currentPositionMs: effectivePositionMs,
+          isPlaying: isActuallyPlaying,
+          isLoading: playerState.isLoadingLyrics,
+          lyricsSource: playerState.lyricsSource,
+          lyricsSongwriters: playerState.lyricsSongwriters,
+          selectedProvider: playerState.selectedLyricsProvider,
+          onProviderChanged: (provider) {
+            ref.read(playerProvider.notifier).setLyricsProvider(provider);
+            _resetAutoHideTimer();
+          },
+          onSeekToLyric: (line) {
+            ref.read(playerProvider.notifier).seekToLyric(line);
+            _resetAutoHideTimer();
+          },
+          onTapBackground: _toggleControls,
+        );
       },
-      onSeekToLyric: (line) {
-        ref.read(playerProvider.notifier).seekToLyric(line);
-        _resetAutoHideTimer();
-      },
-      onTapBackground: _toggleControls,
     );
   }
 
-  Widget _buildQueueContent(PlayerStateModel playerState, SongItem song) {
-    final queue = playerState.queue;
+  Widget _buildQueueContent(SongItem song) {
+    return Consumer(
+      builder: (context, ref, _) {
+        final queue = ref.watch(playerProvider.select((s) => s.queue));
+        final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
 
-    final nextFromTitle = (song.album != null && song.album!.trim().isNotEmpty)
-        ? 'Next from: ${song.album!.trim()}'
-        : 'Next from: ${song.artist.trim()}';
+        final nextFromTitle = (song.album != null && song.album!.trim().isNotEmpty)
+            ? 'Next from: ${song.album!.trim()}'
+            : 'Next from: ${song.artist.trim()}';
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Queue',
-            style: AppleTypography.sectionTitle,
-          ),
-          const SizedBox(height: AppleSpacing.sectionHeaderToContent),
-
-          // Now Playing Item
-          const Text(
-            'NOW PLAYING',
-            style: AppleTypography.eyebrow,
-          ),
-          const SizedBox(height: 8),
-          Row(
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    WavifyCachedImage(
-                      imageUrl: song.highResThumbnailUrl ?? song.resolvedThumbnailUrl,
-                      placeholderImageUrl: song.resolvedThumbnailUrl ?? song.thumbnailUrl,
-                      songId: song.id,
-                      width: 48,
-                      height: 48,
-                      fit: BoxFit.cover,
-                      filterQuality: FilterQuality.medium,
-                      errorWidget: _fallbackMiniArt(size: 48, borderRadius: 8),
-                    ),
-                    if (playerState.isPlaying)
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.55),
-                          borderRadius: BorderRadius.circular(8),
+              const Text(
+                'Queue',
+                style: AppleTypography.sectionTitle,
+              ),
+              const SizedBox(height: AppleSpacing.sectionHeaderToContent),
+
+              // Now Playing Item
+              const Text(
+                'NOW PLAYING',
+                style: AppleTypography.eyebrow,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        WavifyCachedImage(
+                          imageUrl: song.highResThumbnailUrl ?? song.resolvedThumbnailUrl,
+                          placeholderImageUrl: song.resolvedThumbnailUrl ?? song.thumbnailUrl,
+                          songId: song.id,
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          filterQuality: FilterQuality.medium,
+                          errorWidget: _fallbackMiniArt(size: 48, borderRadius: 8),
                         ),
-                        child: const Center(
-                          child: AnimatedEqualizerBars(
-                            isPlaying: true,
+                        if (isPlaying)
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.55),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Center(
+                              child: AnimatedEqualizerBars(
+                                isPlaying: true,
                             size: 16,
                             color: Colors.white,
                           ),
@@ -1707,118 +1711,131 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
         ],
       ),
     );
+      },
+    );
   }
 
   // =========================================================================
   // SHARED SCRUBBER, CONTROLS & APPLE DOCK
   // =========================================================================
-  Widget _buildDurationScrubber(PlayerStateModel playerState) {
-    int durationMs = playerState.duration.inMilliseconds;
-    if (durationMs <= 0 && playerState.currentSong != null) {
-      final song = playerState.currentSong!;
-      if (song.durationSeconds != null && song.durationSeconds! > 0) {
-        durationMs = song.durationSeconds! * 1000;
-      } else {
-        final cached = SongMetricsCacheService.instance.getDuration(song.id);
-        if (cached != null && cached.inMilliseconds > 0) {
-          durationMs = cached.inMilliseconds;
+  Widget _buildDurationScrubber() {
+    return Consumer(
+      builder: (context, ref, _) {
+        final duration = ref.watch(playerProvider.select((s) => s.duration));
+        final position = ref.watch(playerProvider.select((s) => s.position));
+        final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
+
+        int durationMs = duration.inMilliseconds;
+        if (durationMs <= 0 && currentSong != null) {
+          if (currentSong.durationSeconds != null && currentSong.durationSeconds! > 0) {
+            durationMs = currentSong.durationSeconds! * 1000;
+          } else {
+            final cached = SongMetricsCacheService.instance.getDuration(currentSong.id);
+            if (cached != null && cached.inMilliseconds > 0) {
+              durationMs = cached.inMilliseconds;
+            }
+          }
         }
-      }
-    }
 
-    final hasValidDuration = durationMs > 0;
-    final totalMs = hasValidDuration ? durationMs.toDouble() : 1.0;
+        final hasValidDuration = durationMs > 0;
+        final totalMs = hasValidDuration ? durationMs.toDouble() : 1.0;
 
-    final currentMs = _isDraggingSlider
-        ? _dragSliderValue
-        : playerState.position.inMilliseconds.toDouble().clamp(0.0, totalMs);
+        final currentMs = _isDraggingSlider
+            ? _dragSliderValue
+            : position.inMilliseconds.toDouble().clamp(0.0, totalMs);
 
-    final elapsedStr = _formatDuration(Duration(milliseconds: currentMs.toInt()));
-    final remainingStr = hasValidDuration
-        ? '-${_formatDuration(Duration(milliseconds: (totalMs - currentMs).toInt()))}'
-        : '--:--';
+        final elapsedStr = _formatDuration(Duration(milliseconds: currentMs.toInt()));
+        final remainingStr = hasValidDuration
+            ? '-${_formatDuration(Duration(milliseconds: (totalMs - currentMs).toInt()))}'
+            : '--:--';
 
-    return AppleMusicSlider(
-      value: currentMs,
-      max: totalMs,
-      elapsedText: elapsedStr,
-      remainingText: remainingStr,
-      onChangeStart: (_) {
-        setState(() => _isDraggingSlider = true);
-        _cancelAutoHideTimer();
-      },
-      onChanged: (val) => setState(() => _dragSliderValue = val),
-      onChangeEnd: (val) {
-        setState(() => _isDraggingSlider = false);
-        ref.read(playerProvider.notifier).seek(Duration(milliseconds: val.toInt()));
-        _startAutoHideTimer();
+        return AppleMusicSlider(
+          value: currentMs,
+          max: totalMs,
+          elapsedText: elapsedStr,
+          remainingText: remainingStr,
+          onChangeStart: (_) {
+            setState(() => _isDraggingSlider = true);
+            _cancelAutoHideTimer();
+          },
+          onChanged: (val) => setState(() => _dragSliderValue = val),
+          onChangeEnd: (val) {
+            setState(() => _isDraggingSlider = false);
+            ref.read(playerProvider.notifier).seek(Duration(milliseconds: val.toInt()));
+            _startAutoHideTimer();
+          },
+        );
       },
     );
   }
 
-  Widget _buildTransportControls(PlayerStateModel playerState) {
-    final notifier = ref.read(playerProvider.notifier);
-    final showPauseIcon = playerState.isPlaying;
-    final isLoading = ref.watch(playerIsLoadingProvider);
-    final isTestMode = Platform.environment.containsKey('FLUTTER_TEST');
+  Widget _buildTransportControls() {
+    return Consumer(
+      builder: (context, ref, _) {
+        final notifier = ref.read(playerProvider.notifier);
+        final showPauseIcon = ref.watch(playerProvider.select((s) => s.isPlaying));
+        final isLoading = ref.watch(playerIsLoadingProvider);
+        final isTestMode = Platform.environment.containsKey('FLUTTER_TEST');
 
-    Widget playPauseWidget;
-    if (isLoading && !isTestMode) {
-      playPauseWidget = const CupertinoActivityIndicator(
-        radius: 18,
-        color: Colors.white,
-      );
-    } else {
-      playPauseWidget = AnimatedCupertinoIcon(
-        icon: showPauseIcon ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
-        color: Colors.white,
-        size: 52,
-      );
-    }
+        Widget playPauseWidget;
+        if (isLoading && !isTestMode) {
+          playPauseWidget = const CupertinoActivityIndicator(
+            radius: 18,
+            color: Colors.white,
+          );
+        } else {
+          playPauseWidget = AnimatedCupertinoIcon(
+            icon: showPauseIcon ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
+            color: Colors.white,
+            size: 52,
+          );
+        }
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Previous Track
-          IconButton(
-            icon: const AnimatedCupertinoIcon(icon: CupertinoIcons.backward_fill, color: Colors.white, size: 40),
-            onPressed: () {
-              notifier.skipPrevious();
-              _resetAutoHideTimer();
-            },
-            splashRadius: 30,
-          ),
-
-          // Main Play / Pause button
-          GestureDetector(
-            onTap: () {
-              notifier.togglePlayPause();
-              _resetAutoHideTimer();
-            },
-            behavior: HitTestBehavior.opaque,
-            child: SizedBox(
-              width: 72,
-              height: 72,
-              child: Center(
-                child: playPauseWidget,
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Previous Track
+              IconButton(
+                icon: const AnimatedCupertinoIcon(icon: CupertinoIcons.backward_fill, color: Colors.white, size: 40),
+                onPressed: () {
+                  notifier.skipPrevious();
+                  _resetAutoHideTimer();
+                },
+                splashRadius: 30,
               ),
-            ),
-          ),
 
-          // Next Track
-          IconButton(
-            icon: const AnimatedCupertinoIcon(icon: CupertinoIcons.forward_fill, color: Colors.white, size: 40),
-            onPressed: () {
-              notifier.skipNext();
-              _resetAutoHideTimer();
-            },
-            splashRadius: 30,
+              // Main Play / Pause button
+              GestureDetector(
+                onTap: () {
+                  notifier.togglePlayPause();
+                  _resetAutoHideTimer();
+                },
+                behavior: HitTestBehavior.opaque,
+                child: SizedBox(
+                  width: 72,
+                  height: 72,
+                  child: Center(
+                    child: playPauseWidget,
+                  ),
+                ),
+              ),
+
+              // Next Track
+              IconButton(
+                icon: const AnimatedCupertinoIcon(icon: CupertinoIcons.forward_fill, color: Colors.white, size: 40),
+                onPressed: () {
+                  notifier.skipNext();
+                  _resetAutoHideTimer();
+                },
+                splashRadius: 30,
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1844,94 +1861,100 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with TickerProvider
     );
   }
 
-  Widget _buildActionDock(PlayerStateModel playerState) {
-    final notifier = ref.read(playerProvider.notifier);
-
+  Widget _buildActionDock() {
     if (_currentMode == PlayerViewMode.queue) {
       // In Queue mode, display: [Lyrics, Pill(Shuffle, Loop, Infinity), Queue Active Pill]
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          ApplePressable(
-            onTap: () => _switchMode(PlayerViewMode.lyrics),
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: AnimatedCupertinoIcon(
-                icon: CupertinoIcons.quote_bubble,
-                color: Colors.white.withValues(alpha: 0.65),
-                size: 22,
+      return Consumer(
+        builder: (context, ref, _) {
+          final notifier = ref.read(playerProvider.notifier);
+          final isShuffle = ref.watch(playerProvider.select((s) => s.isShuffle));
+          final loopMode = ref.watch(playerProvider.select((s) => s.loopMode));
+
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              ApplePressable(
+                onTap: () => _switchMode(PlayerViewMode.lyrics),
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: AnimatedCupertinoIcon(
+                    icon: CupertinoIcons.quote_bubble,
+                    color: Colors.white.withValues(alpha: 0.65),
+                    size: 22,
+                  ),
+                ),
               ),
-            ),
-          ),
 
-          // Center Pill Dock for Shuffle, Repeat, Infinity
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildQueueDockSegment(
-                  icon: AnimatedCupertinoIcon(
-                    icon: CupertinoIcons.shuffle,
-                    color: playerState.isShuffle ? Colors.white : Colors.white.withValues(alpha: 0.50),
-                    size: 20,
-                  ),
-                  isSelected: playerState.isShuffle,
-                  onTap: () {
-                    notifier.toggleShuffle();
-                    _resetAutoHideTimer();
-                  },
+              // Center Pill Dock for Shuffle, Repeat, Infinity
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                _buildQueueDockSegment(
-                  icon: AnimatedCupertinoIcon(
-                    icon: playerState.loopMode == LoopMode.one
-                        ? CupertinoIcons.repeat_1
-                        : CupertinoIcons.repeat,
-                    color: playerState.loopMode != LoopMode.off ? Colors.white : Colors.white.withValues(alpha: 0.50),
-                    size: 20,
-                  ),
-                  isSelected: playerState.loopMode != LoopMode.off,
-                  onTap: () {
-                    notifier.cycleLoopMode();
-                    _resetAutoHideTimer();
-                  },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildQueueDockSegment(
+                      icon: AnimatedCupertinoIcon(
+                        icon: CupertinoIcons.shuffle,
+                        color: isShuffle ? Colors.white : Colors.white.withValues(alpha: 0.50),
+                        size: 20,
+                      ),
+                      isSelected: isShuffle,
+                      onTap: () {
+                        notifier.toggleShuffle();
+                        _resetAutoHideTimer();
+                      },
+                    ),
+                    _buildQueueDockSegment(
+                      icon: AnimatedCupertinoIcon(
+                        icon: loopMode == LoopMode.one
+                            ? CupertinoIcons.repeat_1
+                            : CupertinoIcons.repeat,
+                        color: loopMode != LoopMode.off ? Colors.white : Colors.white.withValues(alpha: 0.50),
+                        size: 20,
+                      ),
+                      isSelected: loopMode != LoopMode.off,
+                      onTap: () {
+                        notifier.cycleLoopMode();
+                        _resetAutoHideTimer();
+                      },
+                    ),
+                    _buildQueueDockSegment(
+                      icon: AnimatedCupertinoIcon(
+                        icon: CupertinoIcons.infinite,
+                        color: Colors.white.withValues(alpha: 0.70),
+                        size: 20,
+                      ),
+                      isSelected: false,
+                      onTap: () {},
+                    ),
+                  ],
                 ),
-                _buildQueueDockSegment(
-                  icon: AnimatedCupertinoIcon(
-                    icon: CupertinoIcons.infinite,
-                    color: Colors.white.withValues(alpha: 0.70),
-                    size: 20,
-                  ),
-                  isSelected: false,
-                  onTap: () {},
-                ),
-              ],
-            ),
-          ),
+              ),
 
-          // Queue Active Card (taps to return to Now Playing)
-          ApplePressable(
-            onTap: () => _switchMode(PlayerViewMode.nowPlaying),
-            borderRadius: BorderRadius.circular(14),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.22),
+              // Queue Active Card (taps to return to Now Playing)
+              ApplePressable(
+                onTap: () => _switchMode(PlayerViewMode.nowPlaying),
                 borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.22),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const AnimatedCupertinoIcon(
+                    icon: CupertinoIcons.list_bullet,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
               ),
-              child: const AnimatedCupertinoIcon(
-                icon: CupertinoIcons.list_bullet,
-                color: Colors.white,
-                size: 22,
-              ),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       );
     }
 
