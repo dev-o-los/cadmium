@@ -120,22 +120,44 @@ class PlayerControls extends ConsumerWidget {
       useOwnLayer: true,
       height: 52,
       shape: const LiquidRoundedSuperellipse(borderRadius: 26),
-      color: const Color(0x33FFFFFF),
+      color: const Color(0x66121212),
+      settings: const LiquidGlassSettings(
+        glassColor: Color(0x66121212),
+        thickness: 24,
+        blur: 16,
+        refractiveIndex: 1.25,
+        lightIntensity: 0.70,
+        specularSharpness: GlassSpecularSharpness.sharp,
+        fresnelStrength: 1.25,
+        rimLight: 0.40,
+        ambientStrength: 0.10,
+        chromaticAberration: 0.012,
+      ),
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(26),
           border: Border.all(
-            color: Colors.white.withValues(alpha: 0.12),
-            width: 0.8,
+            color: Colors.white.withValues(alpha: 0.10),
+            width: 0.5,
+          ),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.white.withValues(alpha: 0.15),
+              Colors.white.withValues(alpha: 0.02),
+              Colors.black.withValues(alpha: 0.12),
+            ],
+            stops: const [0.0, 0.45, 1.0],
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.only(left: 12, right: 8, top: 4, bottom: 4),
           child: Row(
             children: [
-              // Album Artwork (Compact with 4-5px padding and rounded corners)
+              // Album Artwork (BitChord spec: 31x31 with 6px rounded corners)
               Padding(
-                padding: const EdgeInsets.only(left: 4, right: 4),
+                padding: const EdgeInsets.only(right: 8),
                 child: GestureDetector(
                   onTap: onTap,
                   behavior: HitTestBehavior.opaque,
@@ -144,16 +166,16 @@ class PlayerControls extends ConsumerWidget {
                     flightShuttleBuilder: playerHeroFlightShuttleBuilder,
                     child:
                         ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(6),
                               child: WavifyCachedImage(
                                 imageUrl: highResArt ?? thumbArt,
                                 placeholderImageUrl: thumbArt,
                                 songId: songId,
-                                width: 34,
-                                height: 34,
+                                width: 31,
+                                height: 31,
                                 fit: BoxFit.cover,
                                 filterQuality: FilterQuality.medium,
-                                errorWidget: _fallbackArtwork(size: 34),
+                                errorWidget: _fallbackArtwork(size: 31),
                               ),
                             )
                             .animate(key: ValueKey('mini_art_inline_$songId'))
@@ -170,7 +192,6 @@ class PlayerControls extends ConsumerWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
 
               // Tappable Title & Artist metadata
               Expanded(
@@ -209,8 +230,8 @@ class PlayerControls extends ConsumerWidget {
                 },
                 pressedScale: 0.88,
                 child: Container(
-                  width: 36,
-                  height: 36,
+                  width: 32,
+                  height: 32,
                   alignment: Alignment.center,
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 240),
@@ -252,7 +273,7 @@ class PlayerControls extends ConsumerWidget {
     );
   }
 
-  /// Full-width floating mini player resting above the bottom tab bar
+  /// Full-width floating mini player resting above the bottom tab bar (BitChord GlassNowPlaying spec)
   Widget _buildExpandedPlayer({
     required BuildContext context,
     required WidgetRef ref,
@@ -269,17 +290,39 @@ class PlayerControls extends ConsumerWidget {
       useOwnLayer: true,
       height: 52,
       shape: const LiquidRoundedSuperellipse(borderRadius: 26),
-      color: const Color(0x33FFFFFF),
+      color: const Color(0x66121212),
+      settings: const LiquidGlassSettings(
+        glassColor: Color(0x66121212),
+        thickness: 24,
+        blur: 16,
+        refractiveIndex: 1.25,
+        lightIntensity: 0.70,
+        specularSharpness: GlassSpecularSharpness.sharp,
+        fresnelStrength: 1.25,
+        rimLight: 0.40,
+        ambientStrength: 0.10,
+        chromaticAberration: 0.012,
+      ),
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(26),
           border: Border.all(
-            color: Colors.white.withValues(alpha: 0.12),
-            width: 0.8,
+            color: Colors.white.withValues(alpha: 0.10),
+            width: 0.5,
+          ),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.white.withValues(alpha: 0.15),
+              Colors.white.withValues(alpha: 0.02),
+              Colors.black.withValues(alpha: 0.12),
+            ],
+            stops: const [0.0, 0.45, 1.0],
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.only(left: 16, right: 12, top: 4, bottom: 4),
           child: Row(
             children: [
               // Tappable song info (Artwork + Title + Artist) to open full player screen
@@ -289,29 +332,24 @@ class PlayerControls extends ConsumerWidget {
                   behavior: HitTestBehavior.opaque,
                   child: Row(
                     children: [
-                      // Album Artwork with 4-5px appropriate padding & High-Res Upgrade
+                      // Album Artwork (BitChord spec: 31x31 with 6px rounded corners)
                       Padding(
-                        padding: const EdgeInsets.only(
-                          left: 4,
-                          right: 4,
-                          top: 4,
-                          bottom: 4,
-                        ),
+                        padding: const EdgeInsets.only(right: 9),
                         child: Hero(
                           tag: 'player_album_art_$songId',
                           flightShuttleBuilder: playerHeroFlightShuttleBuilder,
                           child:
                               ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
+                                    borderRadius: BorderRadius.circular(6),
                                     child: WavifyCachedImage(
                                       imageUrl: highResArt ?? thumbArt,
                                       placeholderImageUrl: thumbArt,
                                       songId: songId,
-                                      width: 38,
-                                      height: 38,
+                                      width: 31,
+                                      height: 31,
                                       fit: BoxFit.cover,
                                       filterQuality: FilterQuality.medium,
-                                      errorWidget: _fallbackArtwork(size: 38),
+                                      errorWidget: _fallbackArtwork(size: 31),
                                     ),
                                   )
                                   .animate(
@@ -329,7 +367,6 @@ class PlayerControls extends ConsumerWidget {
                                   ),
                         ),
                       ),
-                      const SizedBox(width: 8),
 
                       // Song Title & Artist
                       Expanded(
@@ -360,7 +397,7 @@ class PlayerControls extends ConsumerWidget {
                 ),
               ),
 
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
 
               // Play / Pause Button with responsive spring physics & smooth loading indicator
               ApplePressable(
@@ -371,7 +408,7 @@ class PlayerControls extends ConsumerWidget {
                 pressedScale: 0.88,
                 child: Container(
                   width: 40,
-                  height: 44,
+                  height: 40,
                   alignment: Alignment.center,
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 240),
@@ -394,7 +431,7 @@ class PlayerControls extends ConsumerWidget {
                     child:
                         (isLoading &&
                             !Platform.environment.containsKey('FLUTTER_TEST'))
-                        ? const SmoothPlayerLoader(radius: 12)
+                        ? const SmoothPlayerLoader(radius: 11)
                         : AnimatedCupertinoIcon(
                             key: ValueKey(
                               'mini_expanded_play_pause_$isPlaying',
@@ -403,14 +440,14 @@ class PlayerControls extends ConsumerWidget {
                                 ? CupertinoIcons.pause_fill
                                 : CupertinoIcons.play_fill,
                             color: Colors.white,
-                            size: 26,
+                            size: 29,
                           ),
                   ),
                 ),
               ),
               const SizedBox(width: 4),
 
-              // Skip Next Button (Fast Forward)
+              // Skip Next Button (Fast Forward - BitChord spec: 40x40 touch target, 22pt glyph, 70% white)
               GestureDetector(
                 onTap: () {
                   HapticFeedback.lightImpact();
@@ -418,17 +455,16 @@ class PlayerControls extends ConsumerWidget {
                 },
                 behavior: HitTestBehavior.opaque,
                 child: Container(
-                  width: 36,
-                  height: 44,
+                  width: 40,
+                  height: 40,
                   alignment: Alignment.center,
                   child: const AnimatedCupertinoIcon(
                     icon: CupertinoIcons.forward_fill,
-                    color: Colors.white,
+                    color: Color(0xB3FFFFFF),
                     size: 22,
                   ),
                 ),
               ),
-              const SizedBox(width: 4),
             ],
           ),
         ),

@@ -1548,8 +1548,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         width: size,
         height: size,
         shape: const LiquidOval(),
-        color: color ?? Colors.white.withValues(alpha: 0.14),
-        child: Center(child: icon),
+        color: color ?? Colors.white.withValues(alpha: 0.10),
+        settings: const LiquidGlassSettings(
+          thickness: 24,
+          blur: 20,
+          refractiveIndex: 1.25,
+          lightIntensity: 0.75,
+          specularSharpness: GlassSpecularSharpness.sharp,
+          fresnelStrength: 1.30,
+          rimLight: 0.45,
+        ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.22),
+              width: 0.8,
+            ),
+          ),
+          child: Center(child: icon),
+        ),
       ),
     );
   }
@@ -2178,20 +2196,45 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           playerProvider.select((s) => s.isAutoplay),
         );
 
-        return Container(
+        return GlassContainer(
+          useOwnLayer: true,
           height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.16),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.12),
-              width: 0.8,
-            ),
+          shape: const LiquidRoundedSuperellipse(borderRadius: 22),
+          color: Colors.white.withValues(alpha: 0.08),
+          settings: const LiquidGlassSettings(
+            thickness: 26,
+            blur: 24,
+            refractiveIndex: 1.25,
+            lightIntensity: 0.75,
+            specularSharpness: GlassSpecularSharpness.sharp,
+            fresnelStrength: 1.30,
+            rimLight: 0.45,
+            ambientStrength: 0.12,
+            chromaticAberration: 0.015,
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.24),
+                width: 0.9,
+              ),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withValues(alpha: 0.20),
+                  Colors.white.withValues(alpha: 0.03),
+                  Colors.black.withValues(alpha: 0.14),
+                ],
+                stops: const [0.0, 0.42, 1.0],
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
               _buildQueueDockSegment(
                 icon: AnimatedCupertinoIcon(
                   icon: CupertinoIcons.shuffle,
@@ -2240,9 +2283,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
+  },
+);
   }
 
   Widget _buildQueueDockSegment({

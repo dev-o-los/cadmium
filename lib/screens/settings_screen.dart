@@ -5,7 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../constants/app_colors.dart';
 import '../constants/apple_typography.dart';
 import '../providers/auth_provider.dart';
+import '../providers/navigation_provider.dart';
+import '../providers/player_provider.dart';
+import '../utils/playback_utils.dart';
 import '../widgets/apple_pressable.dart';
+import '../widgets/liquid_glass_bottom_bar.dart';
+import '../widgets/player_controls.dart';
 import '../widgets/top_status_bar_blur.dart';
 import '../widgets/wavify_cached_image.dart';
 import 'google_signin_screen.dart';
@@ -26,6 +31,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final account = ref.watch(authProvider);
+    final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
+    final currentTabIndex = ref.watch(currentTabProvider);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -219,7 +226,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           ],
                         ],
                       ),
-                      const SizedBox(height: 80),
+                      const SizedBox(height: 140),
                     ],
                   ),
                 ),
@@ -227,6 +234,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
           const TopStatusBarBlur(),
+
+          // Floating Liquid Glass Bottom Navigation Dock / Mini Player
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: SafeArea(
+              top: false,
+              child: LiquidGlassBottomBar(
+                currentIndex: currentTabIndex,
+                isCrawled: false,
+                onTabSelected: (index) {
+                  ref.read(currentTabProvider.notifier).state = index;
+                  Navigator.popUntil(context, (route) => route.isFirst);
+                },
+                onExpand: () {},
+                bottomAccessory: currentSong != null
+                    ? PlayerControls(
+                        onTap: () => openPlayerScreen(context),
+                      )
+                    : null,
+              ),
+            ),
+          ),
         ],
       ),
     );

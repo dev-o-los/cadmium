@@ -85,40 +85,40 @@ abstract final class AppleTypography {
     height: 1.2,
   );
 
-  /// Mini-Player Song Title (14pt, Semibold, -0.25 tracking)
+  /// Mini-Player Song Title (BitChord Apple Music spec: 13pt, Semibold/W700, 0.15 tracking)
   /// Used in the floating mini player above the bottom navigation bar
   static const TextStyle miniPlayerTitle = TextStyle(
     color: Colors.white,
-    fontSize: 14,
-    fontWeight: FontWeight.w600,
-    letterSpacing: -0.25,
+    fontSize: 13,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 0.15,
     height: 1.2,
   );
 
-  /// Mini-Player Compact Inline Title (13pt, Semibold, -0.25 tracking)
+  /// Mini-Player Compact Inline Title (BitChord Apple Music spec: 13pt, W700, 0.15 tracking)
   static const TextStyle miniPlayerInlineTitle = TextStyle(
     color: Colors.white,
     fontSize: 13,
-    fontWeight: FontWeight.w600,
-    letterSpacing: -0.25,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 0.15,
     height: 1.2,
   );
 
-  /// Mini-Player Artist (12.5pt, Medium, -0.1 tracking, high-visibility white)
+  /// Mini-Player Artist (BitChord Apple Music spec: 12pt, Regular/W400, 0.35 tracking, 70% white)
   static const TextStyle miniPlayerArtist = TextStyle(
-    color: Color(0xE6FFFFFF),
-    fontSize: 12.5,
-    fontWeight: FontWeight.w500,
-    letterSpacing: -0.1,
+    color: Color(0xB3FFFFFF),
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0.35,
     height: 1.2,
   );
 
-  /// Mini-Player Compact Inline Artist (11.5pt, Medium, -0.1 tracking, high-visibility white)
+  /// Mini-Player Compact Inline Artist (BitChord Apple Music spec: 11.5pt, Regular, 0.35 tracking, 70% white)
   static const TextStyle miniPlayerInlineArtist = TextStyle(
-    color: Color(0xE6FFFFFF),
+    color: Color(0xB3FFFFFF),
     fontSize: 11.5,
-    fontWeight: FontWeight.w500,
-    letterSpacing: -0.1,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0.35,
     height: 1.2,
   );
 
