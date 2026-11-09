@@ -37,7 +37,7 @@ void showTrackOptionsModal(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'TrackMenu',
-    barrierColor: Colors.black.withValues(alpha: 0.35),
+    barrierColor: Colors.black.withValues(alpha: 0.30),
     transitionDuration: const Duration(milliseconds: 200),
     pageBuilder: (dialogContext, animation, secondaryAnimation) {
       return SafeArea(
@@ -74,20 +74,20 @@ void showTrackOptionsModal(
   );
 }
 
-/// Authentic Liquid Glass preset matching the bottom navigation dock.
+/// Authentic ultra-glossy Liquid Glass preset matching the bottom navigation dock.
 const kTrackMenuGlassSettings = LiquidGlassSettings(
-  thickness: 28,
+  thickness: 36,
   blur: 16,
-  chromaticAberration: 0.25,
-  lightIntensity: 0.85,
-  refractiveIndex: 1.45,
-  saturation: 1.05,
-  ambientStrength: 0.8,
+  chromaticAberration: 0.40,
+  lightIntensity: 1.25,
+  refractiveIndex: 1.62,
+  saturation: 1.12,
+  ambientStrength: 1.0,
   specularSharpness: GlassSpecularSharpness.sharp,
-  fresnelStrength: 1.35,
-  rimLight: 0.50,
+  fresnelStrength: 1.85,
+  rimLight: 0.75,
   lightAngle: 0.75 * math.pi,
-  glassColor: Color(0x30FFFFFF),
+  glassColor: Color(0x38FFFFFF),
 );
 
 class _TrackMenuCard extends ConsumerWidget {
@@ -113,39 +113,59 @@ class _TrackMenuCard extends ConsumerWidget {
       ),
       child: GlassContainer(
         useOwnLayer: true,
-        shape: const LiquidRoundedRectangle(borderRadius: 24),
-        color: const Color(0x22181822),
+        shape: const LiquidRoundedSuperellipse(borderRadius: 24),
+        color: Colors.transparent,
         settings: kTrackMenuGlassSettings,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.25),
-              width: 0.9,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.40),
-                blurRadius: 36,
-                spreadRadius: 2,
-                offset: const Offset(0, 10),
+        child: AdaptiveLiquidGlassLayer(
+          settings: kTrackMenuGlassSettings,
+          quality: GlassQuality.standard,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: LinearGradient(
+                begin: const Alignment(-0.7, -1.0),
+                end: const Alignment(0.7, 1.0),
+                colors: [
+                  Colors.white.withValues(alpha: 0.22),
+                  Colors.white.withValues(alpha: 0.05),
+                  const Color(0x1210121A),
+                  const Color(0x22141620),
+                ],
+                stops: const [0.0, 0.25, 0.65, 1.0],
               ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 10),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.12),
+                width: 0.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  blurRadius: 36,
+                  spreadRadius: 1,
+                  offset: const Offset(0, 10),
+                ),
+                BoxShadow(
+                  color: Colors.white.withValues(alpha: 0.10),
+                  blurRadius: 16,
+                  spreadRadius: -2,
+                  offset: const Offset(-2, -2),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 10),
 
-                  // 1. Top Row: Like, Dislike, Share
-                  _buildTopActionRow(context, ref),
+                    // 1. Top Row: Like, Dislike, Share
+                    _buildTopActionRow(context, ref),
 
-                  _buildMenuDivider(),
+                    _buildMenuDivider(),
 
                   // Lyrics Provider Selector
                   Padding(
@@ -293,8 +313,9 @@ class _TrackMenuCard extends ConsumerWidget {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildTopActionRow(BuildContext context, WidgetRef ref) {
     return Padding(
@@ -493,8 +514,8 @@ class _TrackMenuCard extends ConsumerWidget {
   Widget _buildMenuDivider() {
     return Divider(
       height: 1.0,
-      thickness: 0.7,
-      color: Colors.white.withValues(alpha: 0.10),
+      thickness: 0.5,
+      color: Colors.white.withValues(alpha: 0.07),
       indent: 14,
       endIndent: 14,
     );
@@ -572,96 +593,104 @@ class _TrackMenuCard extends ConsumerWidget {
 
   void _showCreatePlaylistDialog(BuildContext context, WidgetRef ref) {
     final textController = TextEditingController();
-    showDialog(
+    GlassDialog.show(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('New Playlist', style: TextStyle(color: Colors.white)),
-        content: TextField(
+      barrierDismissible: true,
+      settings: LiquidGlassSettings.ios27Dark,
+      title: 'New Playlist',
+      message: 'Enter a title for this playlist.',
+      maxWidth: 300,
+      content: Padding(
+        padding: const EdgeInsets.only(top: 8, bottom: 4),
+        child: CupertinoTextField(
           controller: textController,
           autofocus: true,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: 'Playlist title',
-            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
-            enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
-            ),
-            focusedBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: Colors.white),
+          placeholder: 'Playlist title',
+          placeholderStyle: TextStyle(
+            color: Colors.white.withValues(alpha: 0.35),
+            fontSize: 14.5,
+          ),
+          style: const TextStyle(color: Colors.white, fontSize: 14.5),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.14),
+              width: 0.5,
             ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
-          ),
-          TextButton(
-            onPressed: () async {
-              final title = textController.text.trim();
-              if (title.isNotEmpty) {
-                Navigator.pop(ctx);
-                final playlistId = await ref.read(musicServiceProvider).createPlaylist(
-                  title,
-                  firstVideoId: song.id,
-                ) ?? 'local_${DateTime.now().millisecondsSinceEpoch}';
-                await ref.read(savedPlaylistsProvider.notifier).addPlaylist(
-                  PlaylistItem(
-                    id: playlistId,
-                    title: title,
-                    author: 'You',
-                    thumbnailUrl: song.thumbnailUrl,
-                    trackCount: 1,
-                  ),
-                );
-                if (context.mounted) {
-                  showWavifySnackBar(context, 'Created playlist "$title"');
-                }
-              }
-            },
-            child: const Text('Create', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
       ),
+      actions: [
+        GlassDialogAction(
+          label: 'Cancel',
+          onPressed: () => Navigator.pop(context),
+        ),
+        GlassDialogAction(
+          label: 'Create',
+          isPrimary: true,
+          onPressed: () async {
+            final title = textController.text.trim();
+            if (title.isNotEmpty) {
+              Navigator.pop(context);
+              final playlistId = await ref.read(musicServiceProvider).createPlaylist(
+                title,
+                firstVideoId: song.id,
+              ) ?? 'local_${DateTime.now().millisecondsSinceEpoch}';
+              await ref.read(savedPlaylistsProvider.notifier).addPlaylist(
+                PlaylistItem(
+                  id: playlistId,
+                  title: title,
+                  author: 'You',
+                  thumbnailUrl: song.thumbnailUrl,
+                  trackCount: 1,
+                ),
+              );
+              if (context.mounted) {
+                showWavifySnackBar(context, 'Created playlist "$title"');
+              }
+            }
+          },
+        ),
+      ],
     );
   }
 
   void _showSongInfoDialog(BuildContext context) {
-    showDialog(
+    GlassDialog.show(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: const [
-            Icon(Icons.info_outline_rounded, color: Colors.white),
-            SizedBox(width: 10),
-            Text('Song Info', style: TextStyle(color: Colors.white, fontSize: 18)),
-          ],
-        ),
-        content: Column(
+      barrierDismissible: true,
+      settings: LiquidGlassSettings.ios27Dark,
+      title: 'Song Info',
+      maxWidth: 320,
+      content: Padding(
+        padding: const EdgeInsets.only(top: 8, bottom: 4),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _buildInfoRow('Title', song.title),
             _buildInfoRow('Artist', song.artist),
             _buildInfoRow('Album', song.album ?? 'Single'),
-            _buildInfoRow('Duration', song.durationSeconds != null ? '${song.durationSeconds}s' : 'N/A'),
+            _buildInfoRow(
+              'Duration',
+              song.durationSeconds != null ? '${song.durationSeconds}s' : 'N/A',
+            ),
             _buildInfoRow('Video ID', song.id),
             _buildInfoRow('Format', 'Opus Audio (bit-perfect)'),
             _buildInfoRow('Sample Rate', '48 kHz / 32-bit float'),
             _buildInfoRow('Bitrate', 'Up to 320 kbps High-Fidelity'),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close', style: TextStyle(color: Colors.white)),
-          ),
-        ],
       ),
+      actions: [
+        GlassDialogAction(
+          label: 'Done',
+          isPrimary: true,
+          onPressed: () => Navigator.pop(context),
+        ),
+      ],
     );
   }
 

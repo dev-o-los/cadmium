@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../constants/apple_typography.dart';
 import '../models/audio_device_item.dart';
@@ -397,32 +398,19 @@ Widget _buildOutputCard({
 }
 
 void _showCastDialog(BuildContext context) {
-  showDialog(
+  GlassDialog.show(
     context: context,
-    builder: (ctx) => AlertDialog(
-      backgroundColor: const Color(0xFF1E1E24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Row(
-        children: const [
-          Icon(Icons.cast_rounded, color: Colors.white),
-          SizedBox(width: 10),
-          Text(
-            'Google Cast',
-            style: TextStyle(color: Colors.white, fontSize: 18),
-          ),
-        ],
-      ),
-      content: const Text(
+    settings: LiquidGlassSettings.ios27Dark,
+    barrierDismissible: true,
+    title: 'Google Cast',
+    message:
         'Searching for nearby Chromecast, Google Nest, and Cast-enabled speakers on your Wi-Fi network...',
-        style: TextStyle(color: Colors.white70, fontSize: 14),
+    actions: [
+      GlassDialogAction(
+        label: 'Cancel',
+        onPressed: () => Navigator.pop(context),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx),
-          child: const Text('Cancel', style: TextStyle(color: Colors.white)),
-        ),
-      ],
-    ),
+    ],
   );
 }
 
