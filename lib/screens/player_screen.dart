@@ -122,11 +122,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           });
         });
 
-    // Auto-collapse check after initial screen load if a song is already playing
+    // Auto-collapse check after initial screen load only if in lyrics mode
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final isPlaying = ref.read(playerProvider).isPlaying;
-        if (isPlaying) {
+        if (isPlaying && _currentMode == PlayerViewMode.lyrics) {
           _startAutoHideTimer();
         }
       }
@@ -167,12 +167,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _startAutoHideTimer() {
     _autoHideTimer?.cancel();
     if (!mounted) return;
+    // Auto-hide controls only when in lyrics mode
+    if (_currentMode != PlayerViewMode.lyrics) {
+      if (_controlsAnimController.value < 1.0) {
+        _controlsAnimController.forward();
+      }
+      return;
+    }
     final isPlaying = ref.read(playerProvider).isPlaying;
     if (isPlaying && !_isDraggingSlider) {
       _autoHideTimer = Timer(const Duration(seconds: 7), () {
         if (mounted &&
             ref.read(playerProvider).isPlaying &&
-            !_isDraggingSlider) {
+            !_isDraggingSlider &&
+            _currentMode == PlayerViewMode.lyrics) {
           _controlsAnimController.reverse();
         }
       });
@@ -189,10 +197,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_controlsAnimController.value < 1.0) {
       _controlsAnimController.forward();
     }
-    _startAutoHideTimer();
+    if (_currentMode == PlayerViewMode.lyrics) {
+      _startAutoHideTimer();
+    }
   }
 
   void _toggleControls() {
+    // Only allow collapsing controls when in lyrics mode
+    if (_currentMode != PlayerViewMode.lyrics) {
+      if (_controlsAnimController.value < 1.0) {
+        _controlsAnimController.forward();
+      }
+      return;
+    }
     if (_controlsAnimController.isAnimating) return;
     if (_controlsAnimController.value > 0.5) {
       _cancelAutoHideTimer();
@@ -216,18 +233,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         duration: const Duration(milliseconds: 440),
         curve: Curves.easeInOutCubic,
       );
-    } else if (oldMode == PlayerViewMode.nowPlaying) {
-      _modeAnimController.animateTo(
-        1.0,
-        duration: const Duration(milliseconds: 440),
-        curve: Curves.easeInOutCubic,
-      );
+      _cancelAutoHideTimer();
+      _controlsAnimController.forward();
+    } else {
+      if (oldMode == PlayerViewMode.nowPlaying) {
+        _modeAnimController.animateTo(
+          1.0,
+          duration: const Duration(milliseconds: 440),
+          curve: Curves.easeInOutCubic,
+        );
+      }
+      _controlsAnimController.forward();
+      if (newMode == PlayerViewMode.lyrics) {
+        _startAutoHideTimer();
+      } else {
+        _cancelAutoHideTimer();
+      }
     }
-
-    // Bring controls into view smoothly when switching modes,
-    // and start the auto-hide timer to animate downside gradually
-    _controlsAnimController.forward();
-    _startAutoHideTimer();
   }
 
   String _formatDuration(Duration duration) {
@@ -596,13 +618,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       favoritesProvider.select((list) => list.any((s) => s.id == song.id)),
     );
 
-    // Auto-hide controls when song starts playing; reveal when paused
+    // Auto-hide controls when song starts playing ONLY in lyrics mode; keep visible in nowPlaying
     ref.listen<bool>(playerProvider.select((s) => s.isPlaying), (
       previous,
       isPlaying,
     ) {
       if (isPlaying) {
-        _startAutoHideTimer();
+        if (_currentMode == PlayerViewMode.lyrics) {
+          _startAutoHideTimer();
+        } else {
+          _cancelAutoHideTimer();
+          _controlsAnimController.forward();
+        }
       } else {
         _cancelAutoHideTimer();
         _controlsAnimController.forward();
@@ -631,11 +658,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             offset: Offset(0, _dragOffsetY),
             child: GestureDetector(
               onTap: () {
-                // Tapping anywhere reveals controls if collapsed, or resets inactivity timer
+                // Tapping anywhere reveals controls if collapsed, or resets inactivity timer in lyrics mode
                 if (_controlsAnimController.value < 0.5) {
                   _controlsAnimController.forward();
-                  _startAutoHideTimer();
-                } else {
+                  if (_currentMode == PlayerViewMode.lyrics) {
+                    _startAutoHideTimer();
+                  }
+                } else if (_currentMode == PlayerViewMode.lyrics) {
                   _startAutoHideTimer();
                 }
               },
@@ -743,8 +772,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         alignment: Alignment.topCenter,
                         child: ImageFiltered(
                           imageFilter: ui.ImageFilter.blur(
-                            sigmaX: 24,
-                            sigmaY: 24,
+                            sigmaX: 15,
+                            sigmaY: 15,
                           ),
                           child: ColorFiltered(
                             colorFilter: _amoledVibrancyFilter,
