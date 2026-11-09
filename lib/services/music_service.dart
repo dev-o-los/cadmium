@@ -2653,6 +2653,57 @@ class MusicService {
     }
   }
 
+  /// Creates a playlist on YouTube Music via InnerTube.
+  Future<String?> createPlaylist(String title, {String? description, String? firstVideoId}) async {
+    final trimmedTitle = title.trim();
+    if (trimmedTitle.isEmpty) return null;
+    if (_currentAccount == null) return null;
+    try {
+      final res = await postInnerTube(
+        'playlist/create',
+        bodyExtras: {
+          'title': trimmedTitle,
+          if (description != null && description.isNotEmpty) 'description': description,
+          if (firstVideoId != null && firstVideoId.isNotEmpty) 'videoIds': [firstVideoId],
+        },
+      );
+      final playlistId = res?['playlistId']?.toString();
+      debugPrint('[MusicService] Created playlist "$trimmedTitle" with ID: $playlistId');
+      return playlistId;
+    } catch (e) {
+      debugPrint('[MusicService] createPlaylist error: $e');
+      return null;
+    }
+  }
+
+  /// Adds a song to a YouTube Music playlist via InnerTube.
+  Future<bool> addSongToPlaylist(String playlistId, String videoId) async {
+    final cleanPlaylistId = playlistId.trim();
+    final cleanVideoId = videoId.trim();
+    if (cleanPlaylistId.isEmpty || cleanVideoId.isEmpty) return false;
+    if (_currentAccount == null) return false;
+    try {
+      final res = await postInnerTube(
+        'browse/edit_playlist',
+        bodyExtras: {
+          'playlistId': cleanPlaylistId,
+          'actions': [
+            {
+              'action': 'ACTION_ADD_VIDEO',
+              'addedVideoId': cleanVideoId,
+            }
+          ],
+        },
+      );
+      final success = res != null;
+      debugPrint('[MusicService] addSongToPlaylist ($cleanVideoId -> $cleanPlaylistId): $success');
+      return success;
+    } catch (e) {
+      debugPrint('[MusicService] addSongToPlaylist error: $e');
+      return false;
+    }
+  }
+
   /// Fetches YouTube Music Radio / Up Next tracks for a song ("Similar music, selected to play next").
   /// Directly powers YouTube Music AutoPlay and Radio mode.
   Future<List<SongItem>> getSongRadio(

@@ -309,25 +309,6 @@ void showAudioOutputModal(BuildContext context, WidgetRef ref) {
                       ],
                     ),
                   ),
-
-                  // Card 5: Audio Pipeline
-                  _buildOutputCard(
-                    leadingIcon: const Icon(
-                      Icons.graphic_eq_rounded,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                    title: 'Audio Pipeline',
-                    subtitle: '32-bit float · 48 kHz',
-                    trailing: const Icon(
-                      CupertinoIcons.chevron_right,
-                      color: Colors.white38,
-                      size: 18,
-                    ),
-                    onTap: () {
-                      _showPipelineInfoDialog(context);
-                    },
-                  ),
                 ],
               );
             },
@@ -439,57 +420,6 @@ void _showCastDialog(BuildContext context) {
         TextButton(
           onPressed: () => Navigator.pop(ctx),
           child: const Text('Cancel', style: TextStyle(color: Colors.white)),
-        ),
-      ],
-    ),
-  );
-}
-
-void _showPipelineInfoDialog(BuildContext context) {
-  showDialog(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      backgroundColor: const Color(0xFF1E1E24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Row(
-        children: const [
-          Icon(Icons.graphic_eq_rounded, color: Colors.white),
-          SizedBox(width: 10),
-          Text(
-            'Audio Pipeline',
-            style: TextStyle(color: Colors.white, fontSize: 18),
-          ),
-        ],
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Text(
-            'Format: 32-bit float PCM',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-          SizedBox(height: 6),
-          Text(
-            'Sample Rate: 48.0 kHz',
-            style: TextStyle(color: Colors.white70),
-          ),
-          SizedBox(height: 4),
-          Text(
-            'Engine: JustAudio + AudioSession Bit-Perfect Output',
-            style: TextStyle(color: Colors.white70),
-          ),
-          SizedBox(height: 4),
-          Text(
-            'Hardware Buffer: Zero latency floating-point mixing',
-            style: TextStyle(color: Colors.white70),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx),
-          child: const Text('Done', style: TextStyle(color: Colors.white)),
         ),
       ],
     ),

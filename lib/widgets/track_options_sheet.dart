@@ -1,29 +1,30 @@
-import 'dart:ui' as ui;
+import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../models/album_item.dart';
+import '../models/playlist_item.dart';
 import '../models/song_item.dart';
 import '../providers/favorites_provider.dart';
+import '../providers/library_provider.dart';
 import '../providers/music_service_provider.dart';
 import '../providers/player_provider.dart';
-import '../services/audio_cache_service.dart';
 import '../services/lyrics_service.dart';
 import '../utils/playback_utils.dart';
 import 'apple_glass_bottom_sheet.dart';
 import 'apple_pressable.dart';
 
-/// Shows the authentic 3-dots popup menu exactly matching Image 3:
+/// Shows the authentic 3-dots popup menu:
 /// - Floating frosted glass card with blur and subtle highlight border
 /// - Smooth and lagless opening animation anchored towards top-right
 /// - Top row: Like, Dislike, Share
-/// - Quality upgrade, Video conversion
-/// - Add to playlist, Start radio, Play next, Add to queue, Download, Remove from cache
-/// - Open album, Song Info
-/// - Sleep timer, Lyrics offset, Copy log
+/// - Lyrics Provider selector
+/// - Add to playlist, Start radio, Play next
+/// - Open album, View Artist, Song Info
 void showTrackOptionsModal(
   BuildContext context,
   WidgetRef ref,
@@ -36,7 +37,7 @@ void showTrackOptionsModal(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'TrackMenu',
-    barrierColor: Colors.black.withValues(alpha: 0.50),
+    barrierColor: Colors.black.withValues(alpha: 0.35),
     transitionDuration: const Duration(milliseconds: 200),
     pageBuilder: (dialogContext, animation, secondaryAnimation) {
       return SafeArea(
@@ -73,6 +74,22 @@ void showTrackOptionsModal(
   );
 }
 
+/// Authentic Liquid Glass preset matching the bottom navigation dock.
+const kTrackMenuGlassSettings = LiquidGlassSettings(
+  thickness: 28,
+  blur: 16,
+  chromaticAberration: 0.25,
+  lightIntensity: 0.85,
+  refractiveIndex: 1.45,
+  saturation: 1.05,
+  ambientStrength: 0.8,
+  specularSharpness: GlassSpecularSharpness.sharp,
+  fresnelStrength: 1.35,
+  rimLight: 0.50,
+  lightAngle: 0.75 * math.pi,
+  glassColor: Color(0x30FFFFFF),
+);
+
 class _TrackMenuCard extends ConsumerWidget {
   final SongItem song;
   final bool isFavorite;
@@ -94,27 +111,29 @@ class _TrackMenuCard extends ConsumerWidget {
         maxWidth: 320,
         maxHeight: maxCardHeight,
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xEB1E1E26),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.14),
-                width: 0.8,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.65),
-                  blurRadius: 40,
-                  spreadRadius: 4,
-                  offset: const Offset(0, 10),
-                ),
-              ],
+      child: GlassContainer(
+        useOwnLayer: true,
+        shape: const LiquidRoundedRectangle(borderRadius: 24),
+        color: const Color(0x22181822),
+        settings: kTrackMenuGlassSettings,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.25),
+              width: 0.9,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.40),
+                blurRadius: 36,
+                spreadRadius: 2,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
               child: Column(
@@ -127,53 +146,6 @@ class _TrackMenuCard extends ConsumerWidget {
                   _buildTopActionRow(context, ref),
 
                   _buildMenuDivider(),
-
-                  // 2. Upgrade Quality
-                  _buildMenuItem(
-                    icon: Icons.auto_awesome_rounded,
-                    title: 'Upgrade quality',
-                    onTap: () {
-                      onDismiss();
-                      showWavifySnackBar(
-                        context,
-                        'Upgraded audio stream to Master Fidelity (320 kbps Opus)',
-                      );
-                    },
-                  ),
-
-                  // 3. Convert to Video
-                  _buildMenuItem(
-                    icon: Icons.videocam_rounded,
-                    title: 'Convert to video',
-                    onTap: () async {
-                      onDismiss();
-                      showWavifySnackBar(
-                        context,
-                        'Converting "${song.title}" to video...',
-                      );
-                      try {
-                        final musicService = ref.read(musicServiceProvider);
-                        final videoStream = await musicService.resolveVideoStream(song.id);
-                        if (context.mounted) {
-                          if (videoStream != null) {
-                            showWavifySnackBar(
-                              context,
-                              'Video stream resolved: ${videoStream.qualityLabel}',
-                            );
-                          } else {
-                            showWavifySnackBar(
-                              context,
-                              'No music video stream available for this track',
-                            );
-                          }
-                        }
-                      } catch (e) {
-                        if (context.mounted) {
-                          showWavifySnackBar(context, 'Video playback error: $e');
-                        }
-                      }
-                    },
-                  ),
 
                   // Lyrics Provider Selector
                   Padding(
@@ -230,7 +202,7 @@ class _TrackMenuCard extends ConsumerWidget {
 
                   _buildMenuDivider(),
 
-                  // 4. Add to Playlist
+                  // 2. Add to Playlist
                   _buildMenuItem(
                     icon: Icons.playlist_add_rounded,
                     title: 'Add to playlist',
@@ -240,7 +212,7 @@ class _TrackMenuCard extends ConsumerWidget {
                     },
                   ),
 
-                  // 5. Start Radio
+                  // 3. Start Radio
                   _buildMenuItem(
                     icon: Icons.podcasts_rounded,
                     title: 'Start radio',
@@ -254,7 +226,7 @@ class _TrackMenuCard extends ConsumerWidget {
                     },
                   ),
 
-                  // 6. Play Next
+                  // 4. Play Next
                   _buildMenuItem(
                     icon: Icons.playlist_play_rounded,
                     title: 'Play next',
@@ -268,69 +240,9 @@ class _TrackMenuCard extends ConsumerWidget {
                     },
                   ),
 
-                  // 7. Add to Queue
-                  _buildMenuItem(
-                    icon: Icons.add_to_queue_rounded,
-                    title: 'Add to queue',
-                    onTap: () {
-                      onDismiss();
-                      ref.read(playerProvider.notifier).addToQueue(song);
-                      showWavifySnackBar(
-                        context,
-                        'Added "${song.title}" to queue',
-                      );
-                    },
-                  ),
-
-                  // 8. Download
-                  _buildMenuItem(
-                    icon: Icons.arrow_circle_down_rounded,
-                    title: 'Download',
-                    onTap: () async {
-                      onDismiss();
-                      showWavifySnackBar(
-                        context,
-                        'Downloading "${song.title}" for offline playback...',
-                      );
-                      try {
-                        final musicService = ref.read(musicServiceProvider);
-                        final streamInfo = await musicService.resolveAudioStream(song.id);
-                        await AudioCacheService.instance.cacheAudioInBackground(
-                          song.id,
-                          streamInfo.url,
-                          streamInfo.headers,
-                        );
-                        if (context.mounted) {
-                          showWavifySnackBar(
-                            context,
-                            'Saved "${song.title}" to offline storage',
-                          );
-                        }
-                      } catch (e) {
-                        if (context.mounted) {
-                          showWavifySnackBar(context, 'Download error: $e');
-                        }
-                      }
-                    },
-                  ),
-
-                  // 9. Remove from Cache
-                  _buildMenuItem(
-                    icon: Icons.delete_outline_rounded,
-                    title: 'Remove from cache',
-                    onTap: () {
-                      onDismiss();
-                      AudioCacheService.instance.removeCachedAudio(song.id);
-                      showWavifySnackBar(
-                        context,
-                        'Removed "${song.title}" from local cache',
-                      );
-                    },
-                  ),
-
                   _buildMenuDivider(),
 
-                  // 10. Open Album
+                  // 5. Open Album
                   _buildMenuItem(
                     icon: Icons.album_rounded,
                     title: 'Open album',
@@ -354,7 +266,7 @@ class _TrackMenuCard extends ConsumerWidget {
                     },
                   ),
 
-                  // View Artist
+                  // 6. View Artist
                   _buildMenuItem(
                     icon: Icons.person_rounded,
                     title: 'View Artist: ${song.artist}',
@@ -364,57 +276,13 @@ class _TrackMenuCard extends ConsumerWidget {
                     },
                   ),
 
-                  // 11. Song Info
+                  // 7. Song Info
                   _buildMenuItem(
                     icon: Icons.info_outline_rounded,
                     title: 'Song Info',
                     onTap: () {
                       onDismiss();
                       _showSongInfoDialog(context);
-                    },
-                  ),
-
-                  _buildMenuDivider(),
-
-                  // 12. Sleep Timer
-                  _buildMenuItem(
-                    icon: Icons.bedtime_outlined,
-                    title: 'Sleep timer',
-                    onTap: () {
-                      onDismiss();
-                      _showSleepTimerSheet(context, ref);
-                    },
-                  ),
-
-                  // 13. Lyrics Offset
-                  _buildMenuItem(
-                    icon: Icons.tune_rounded,
-                    title: 'Lyrics offset',
-                    onTap: () {
-                      onDismiss();
-                      _showLyricsOffsetSheet(context, ref);
-                    },
-                  ),
-
-                  // 14. Copy Log
-                  _buildMenuItem(
-                    icon: Icons.bug_report_outlined,
-                    title: 'Copy log',
-                    onTap: () {
-                      onDismiss();
-                      final logText = 'Wavify Track Log:\n'
-                          'ID: ${song.id}\n'
-                          'Title: ${song.title}\n'
-                          'Artist: ${song.artist}\n'
-                          'Album: ${song.album ?? "Single"}\n'
-                          'Duration: ${song.durationSeconds ?? 0}s\n'
-                          'Audio Pipeline: 32-bit float · 48 kHz\n'
-                          'Format: Opus Bit-Perfect Stream';
-                      Clipboard.setData(ClipboardData(text: logText));
-                      showWavifySnackBar(
-                        context,
-                        'Copied playback log to clipboard',
-                      );
                     },
                   ),
 
@@ -635,38 +503,125 @@ class _TrackMenuCard extends ConsumerWidget {
   void _showAddToPlaylistSheet(BuildContext context, WidgetRef ref) {
     showAppleGlassBottomSheet(
       context: context,
-      builder: (ctx) => Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(left: 4, bottom: 14),
-            child: Text(
-              'Add to playlist',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+      builder: (ctx) => Consumer(
+        builder: (ctx, ref, _) {
+          final savedPlaylists = ref.watch(savedPlaylistsProvider);
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(left: 4, bottom: 14),
+                child: Text(
+                  'Add to playlist',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
+              AppleSheetActionTile(
+                icon: CupertinoIcons.add,
+                title: 'New Playlist',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showCreatePlaylistDialog(context, ref);
+                },
+              ),
+              const AppleSheetDivider(),
+              AppleSheetActionTile(
+                icon: CupertinoIcons.star_fill,
+                title: 'Favorites',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  ref.read(favoritesProvider.notifier).toggleFavorite(song);
+                  ref.read(musicServiceProvider).likeSong(song.id);
+                  showWavifySnackBar(context, 'Added "${song.title}" to Favorites');
+                },
+              ),
+              for (final pl in savedPlaylists) ...[
+                const AppleSheetDivider(),
+                AppleSheetActionTile(
+                  icon: CupertinoIcons.music_albums,
+                  title: pl.title,
+                  subtitle: pl.author,
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    final success = await ref
+                        .read(musicServiceProvider)
+                        .addSongToPlaylist(pl.id, song.id);
+                    if (context.mounted) {
+                      showWavifySnackBar(
+                        context,
+                        success
+                            ? 'Added "${song.title}" to ${pl.title}'
+                            : 'Added "${song.title}" to ${pl.title} (Saved locally)',
+                      );
+                    }
+                  },
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showCreatePlaylistDialog(BuildContext context, WidgetRef ref) {
+    final textController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('New Playlist', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: textController,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: 'Playlist title',
+            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+            ),
+            focusedBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.white),
             ),
           ),
-          AppleSheetActionTile(
-            icon: CupertinoIcons.add,
-            title: 'New Playlist',
-            onTap: () {
-              Navigator.pop(ctx);
-              showWavifySnackBar(context, 'Created new playlist with "${song.title}"');
-            },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
           ),
-          const AppleSheetDivider(),
-          AppleSheetActionTile(
-            icon: CupertinoIcons.music_albums,
-            title: 'Favorites',
-            onTap: () {
-              Navigator.pop(ctx);
-              ref.read(favoritesProvider.notifier).toggleFavorite(song);
-              showWavifySnackBar(context, 'Added "${song.title}" to Favorites');
+          TextButton(
+            onPressed: () async {
+              final title = textController.text.trim();
+              if (title.isNotEmpty) {
+                Navigator.pop(ctx);
+                final playlistId = await ref.read(musicServiceProvider).createPlaylist(
+                  title,
+                  firstVideoId: song.id,
+                ) ?? 'local_${DateTime.now().millisecondsSinceEpoch}';
+                await ref.read(savedPlaylistsProvider.notifier).addPlaylist(
+                  PlaylistItem(
+                    id: playlistId,
+                    title: title,
+                    author: 'You',
+                    thumbnailUrl: song.thumbnailUrl,
+                    trackCount: 1,
+                  ),
+                );
+                if (context.mounted) {
+                  showWavifySnackBar(context, 'Created playlist "$title"');
+                }
+              }
             },
+            child: const Text('Create', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -738,161 +693,6 @@ class _TrackMenuCard extends ConsumerWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  void _showSleepTimerSheet(BuildContext context, WidgetRef ref) {
-    final notifier = ref.read(playerProvider.notifier);
-
-    showAppleGlassBottomSheet(
-      context: context,
-      builder: (ctx) => Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(left: 4, bottom: 14),
-            child: Text(
-              'Sleep Timer',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          AppleSheetActionTile(
-            icon: Icons.timer_outlined,
-            title: '15 Minutes',
-            onTap: () {
-              notifier.setSleepTimer(const Duration(minutes: 15));
-              Navigator.pop(ctx);
-              showWavifySnackBar(context, 'Sleep timer set for 15 minutes');
-            },
-          ),
-          const AppleSheetDivider(),
-          AppleSheetActionTile(
-            icon: Icons.timer_outlined,
-            title: '30 Minutes',
-            onTap: () {
-              notifier.setSleepTimer(const Duration(minutes: 30));
-              Navigator.pop(ctx);
-              showWavifySnackBar(context, 'Sleep timer set for 30 minutes');
-            },
-          ),
-          const AppleSheetDivider(),
-          AppleSheetActionTile(
-            icon: Icons.timer_outlined,
-            title: '45 Minutes',
-            onTap: () {
-              notifier.setSleepTimer(const Duration(minutes: 45));
-              Navigator.pop(ctx);
-              showWavifySnackBar(context, 'Sleep timer set for 45 minutes');
-            },
-          ),
-          const AppleSheetDivider(),
-          AppleSheetActionTile(
-            icon: Icons.timer_outlined,
-            title: '1 Hour',
-            onTap: () {
-              notifier.setSleepTimer(const Duration(hours: 1));
-              Navigator.pop(ctx);
-              showWavifySnackBar(context, 'Sleep timer set for 1 hour');
-            },
-          ),
-          const AppleSheetDivider(),
-          AppleSheetActionTile(
-            icon: Icons.stop_circle_outlined,
-            title: 'Turn Off Timer',
-            onTap: () {
-              notifier.cancelSleepTimer();
-              Navigator.pop(ctx);
-              showWavifySnackBar(context, 'Sleep timer turned off');
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showLyricsOffsetSheet(BuildContext context, WidgetRef ref) {
-    double offsetSeconds = 0.0;
-
-    showAppleGlassBottomSheet(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) {
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Padding(
-                padding: EdgeInsets.only(left: 4, bottom: 14),
-                child: Text(
-                  'Lyrics Timing Offset',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              Center(
-                child: Text(
-                  '${offsetSeconds >= 0 ? "+" : ""}${offsetSeconds.toStringAsFixed(1)}s',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    icon: const Icon(CupertinoIcons.minus_circle, color: Colors.white, size: 32),
-                    onPressed: () {
-                      setSheetState(() => offsetSeconds -= 0.1);
-                    },
-                  ),
-                  const SizedBox(width: 24),
-                  IconButton(
-                    icon: const Icon(CupertinoIcons.plus_circle, color: Colors.white, size: 32),
-                    onPressed: () {
-                      setSheetState(() => offsetSeconds += 0.1);
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              ApplePressable(
-                onTap: () {
-                  Navigator.pop(ctx);
-                  showWavifySnackBar(
-                    context,
-                    'Lyrics sync offset adjusted by ${offsetSeconds.toStringAsFixed(1)}s',
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Center(
-                    child: Text(
-                      'Apply Offset',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
       ),
     );
   }
