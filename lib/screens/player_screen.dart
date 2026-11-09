@@ -437,6 +437,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 ],
               ),
             ),
+            // Playback modes capsule dock (Shuffle, Repeat, Infinity)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: _buildPlaybackCapsuleDock(),
+              ),
+            ),
             // Sleek Apple-style Lyrics Provider switcher
             AppleSheetGroup(
               children: [
@@ -831,7 +838,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   child: Container(
                     color: Color.lerp(
                       Colors.transparent,
-                      const Color(0xD808080A),
+                      const Color(0x7508080A),
                       modeVal,
                     ),
                   ),
@@ -2076,7 +2083,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               // Previous Track
@@ -2092,6 +2099,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 },
                 splashRadius: 30,
               ),
+
+              const SizedBox(width: 44),
 
               // Main Play / Pause button with responsive spring physics & smooth loading indicator
               ApplePressable(
@@ -2132,6 +2141,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 ),
               ),
 
+              const SizedBox(width: 44),
+
               // Next Track
               IconButton(
                 icon: const AnimatedCupertinoIcon(
@@ -2152,6 +2163,88 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
+  Widget _buildPlaybackCapsuleDock({WidgetRef? explicitRef}) {
+    return Consumer(
+      builder: (context, ref, _) {
+        final actualRef = explicitRef ?? ref;
+        final notifier = actualRef.read(playerProvider.notifier);
+        final isShuffle = actualRef.watch(
+          playerProvider.select((s) => s.isShuffle),
+        );
+        final loopMode = actualRef.watch(
+          playerProvider.select((s) => s.loopMode),
+        );
+        final isAutoplay = actualRef.watch(
+          playerProvider.select((s) => s.isAutoplay),
+        );
+
+        return Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.12),
+              width: 0.8,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildQueueDockSegment(
+                icon: AnimatedCupertinoIcon(
+                  icon: CupertinoIcons.shuffle,
+                  color: isShuffle
+                      ? Colors.white
+                      : Colors.white.withValues(alpha: 0.50),
+                  size: 20,
+                ),
+                isSelected: isShuffle,
+                onTap: () {
+                  notifier.toggleShuffle();
+                  _resetAutoHideTimer();
+                },
+              ),
+              const SizedBox(width: 4),
+              _buildQueueDockSegment(
+                icon: AnimatedCupertinoIcon(
+                  icon: loopMode == LoopMode.one
+                      ? CupertinoIcons.repeat_1
+                      : CupertinoIcons.repeat,
+                  color: loopMode != LoopMode.off
+                      ? Colors.white
+                      : Colors.white.withValues(alpha: 0.50),
+                  size: 20,
+                ),
+                isSelected: loopMode != LoopMode.off,
+                onTap: () {
+                  notifier.cycleLoopMode();
+                  _resetAutoHideTimer();
+                },
+              ),
+              const SizedBox(width: 4),
+              _buildQueueDockSegment(
+                icon: AnimatedCupertinoIcon(
+                  icon: CupertinoIcons.infinite,
+                  color: isAutoplay
+                      ? Colors.white
+                      : Colors.white.withValues(alpha: 0.50),
+                  size: 20,
+                ),
+                isSelected: isAutoplay,
+                onTap: () {
+                  notifier.toggleAutoplay();
+                  _resetAutoHideTimer();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildQueueDockSegment({
     required Widget icon,
     required bool isSelected,
@@ -2159,17 +2252,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }) {
     return ApplePressable(
       onTap: onTap,
-      pressedScale: 0.92,
-      borderRadius: BorderRadius.circular(16),
+      pressedScale: 0.90,
+      borderRadius: BorderRadius.circular(18),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
         decoration: BoxDecoration(
           color: isSelected
-              ? Colors.white.withValues(alpha: 0.22)
+              ? Colors.white.withValues(alpha: 0.28)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
         ),
         child: icon,
       ),
@@ -2178,107 +2271,47 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Widget _buildActionDock() {
     if (_currentMode == PlayerViewMode.queue) {
-      // In Queue mode, display: [Lyrics, Pill(Shuffle, Loop, Infinity), Queue Active Pill]
-      return Consumer(
-        builder: (context, ref, _) {
-          final notifier = ref.read(playerProvider.notifier);
-          final isShuffle = ref.watch(
-            playerProvider.select((s) => s.isShuffle),
-          );
-          final loopMode = ref.watch(playerProvider.select((s) => s.loopMode));
-
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              ApplePressable(
-                onTap: () => _switchMode(PlayerViewMode.lyrics),
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: AnimatedCupertinoIcon(
-                    icon: CupertinoIcons.quote_bubble,
-                    color: Colors.white.withValues(alpha: 0.65),
-                    size: 22,
-                  ),
-                ),
+      // In Queue mode, display: [Lyrics, Capsule(Shuffle, Repeat, Infinity), Queue Active Card]
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          ApplePressable(
+            onTap: () => _switchMode(PlayerViewMode.lyrics),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: AnimatedCupertinoIcon(
+                icon: CupertinoIcons.quote_bubble,
+                color: Colors.white.withValues(alpha: 0.65),
+                size: 22,
               ),
+            ),
+          ),
 
-              // Center Pill Dock for Shuffle, Repeat, Infinity
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildQueueDockSegment(
-                      icon: AnimatedCupertinoIcon(
-                        icon: CupertinoIcons.shuffle,
-                        color: isShuffle
-                            ? Colors.white
-                            : Colors.white.withValues(alpha: 0.50),
-                        size: 20,
-                      ),
-                      isSelected: isShuffle,
-                      onTap: () {
-                        notifier.toggleShuffle();
-                        _resetAutoHideTimer();
-                      },
-                    ),
-                    _buildQueueDockSegment(
-                      icon: AnimatedCupertinoIcon(
-                        icon: loopMode == LoopMode.one
-                            ? CupertinoIcons.repeat_1
-                            : CupertinoIcons.repeat,
-                        color: loopMode != LoopMode.off
-                            ? Colors.white
-                            : Colors.white.withValues(alpha: 0.50),
-                        size: 20,
-                      ),
-                      isSelected: loopMode != LoopMode.off,
-                      onTap: () {
-                        notifier.cycleLoopMode();
-                        _resetAutoHideTimer();
-                      },
-                    ),
-                    _buildQueueDockSegment(
-                      icon: AnimatedCupertinoIcon(
-                        icon: CupertinoIcons.infinite,
-                        color: Colors.white.withValues(alpha: 0.70),
-                        size: 20,
-                      ),
-                      isSelected: false,
-                      onTap: () {},
-                    ),
-                  ],
-                ),
+          // Center Pill Dock for Shuffle, Repeat, Infinity
+          _buildPlaybackCapsuleDock(),
+
+          // Queue Active Card (taps to return to Now Playing)
+          ApplePressable(
+            onTap: () => _switchMode(PlayerViewMode.nowPlaying),
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 8,
               ),
-
-              // Queue Active Card (taps to return to Now Playing)
-              ApplePressable(
-                onTap: () => _switchMode(PlayerViewMode.nowPlaying),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.22),
                 borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.22),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const AnimatedCupertinoIcon(
-                    icon: CupertinoIcons.list_bullet,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                ),
               ),
-            ],
-          );
-        },
+              child: const AnimatedCupertinoIcon(
+                icon: CupertinoIcons.list_bullet,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+          ),
+        ],
       );
     }
 

@@ -75,7 +75,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
           physics: const AlwaysScrollableScrollPhysics(
             parent: BouncingScrollPhysics(),
           ),
-          padding: EdgeInsets.fromLTRB(0, topPadding + 14, 0, 160),
+          padding: EdgeInsets.fromLTRB(0, topPadding + 34, 0, 160),
           children: [
             // Body Content Large Title Header (leveled identically with Library)
             const Padding(

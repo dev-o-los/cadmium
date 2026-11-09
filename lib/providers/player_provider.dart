@@ -29,6 +29,7 @@ class PlayerStateModel {
   final List<SongItem> recentlyPlayed;
   final LoopMode loopMode;
   final bool isShuffle;
+  final bool isAutoplay;
   final double volume;
   final String? errorMessage;
   final List<LyricLine> lyrics;
@@ -55,6 +56,7 @@ class PlayerStateModel {
     this.recentlyPlayed = const [],
     this.loopMode = LoopMode.off,
     this.isShuffle = false,
+    this.isAutoplay = true,
     this.volume = 0.8,
     this.errorMessage,
     this.lyrics = const [],
@@ -97,6 +99,7 @@ class PlayerStateModel {
     List<SongItem>? recentlyPlayed,
     LoopMode? loopMode,
     bool? isShuffle,
+    bool? isAutoplay,
     double? volume,
     String? errorMessage,
     bool clearErrorMessage = false,
@@ -127,6 +130,7 @@ class PlayerStateModel {
       recentlyPlayed: recentlyPlayed ?? this.recentlyPlayed,
       loopMode: loopMode ?? this.loopMode,
       isShuffle: isShuffle ?? this.isShuffle,
+      isAutoplay: isAutoplay ?? this.isAutoplay,
       volume: volume ?? this.volume,
       errorMessage: clearErrorMessage ? null : (errorMessage ?? this.errorMessage),
       lyrics: lyrics ?? this.lyrics,
@@ -857,6 +861,8 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       final nextSong = state.queue.first;
       final remainingQueue = state.queue.sublist(1);
       playSong(nextSong, contextQueue: remainingQueue, forceReload: true);
+    } else if (state.isAutoplay && state.currentSong != null) {
+      _fetchAutoplayNext();
     } else if (state.recentlyPlayed.length > 1) {
       final currentIdx = state.recentlyPlayed.indexWhere((s) => s.id == state.currentSong?.id);
       final nextIdx = (currentIdx + 1) % state.recentlyPlayed.length;
@@ -864,6 +870,27 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     } else if (state.currentSong != null) {
       seek(Duration.zero);
       play();
+    }
+  }
+
+  Future<void> _fetchAutoplayNext() async {
+    final current = state.currentSong;
+    if (current == null) return;
+    try {
+      final musicService = _ref.read(musicServiceProvider);
+      final results = await musicService.searchSongs('${current.artist} ${current.title}');
+      final candidateTracks = results.where((s) => s.id != current.id).toList();
+      if (candidateTracks.isNotEmpty) {
+        final nextSong = candidateTracks.first;
+        final nextQueue = candidateTracks.sublist(1);
+        playSong(nextSong, contextQueue: nextQueue, forceReload: true);
+        return;
+      }
+    } catch (_) {}
+    if (state.recentlyPlayed.length > 1) {
+      final currentIdx = state.recentlyPlayed.indexWhere((s) => s.id == current.id);
+      final nextIdx = (currentIdx + 1) % state.recentlyPlayed.length;
+      playSong(state.recentlyPlayed[nextIdx], forceReload: true);
     }
   }
 
@@ -900,6 +927,10 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     final nextShuffle = !state.isShuffle;
     _audioPlayer.setShuffleModeEnabled(nextShuffle);
     state = state.copyWith(isShuffle: nextShuffle);
+  }
+
+  void toggleAutoplay() {
+    state = state.copyWith(isAutoplay: !state.isAutoplay);
   }
 
   void setVolume(double val) {

@@ -120,19 +120,13 @@ class PlayerControls extends ConsumerWidget {
       useOwnLayer: true,
       height: 52,
       shape: const LiquidRoundedSuperellipse(borderRadius: 26),
-      color: secondaryColor.withValues(alpha: 0.18),
+      color: const Color(0x33FFFFFF),
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(26),
-          gradient: LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            colors: [
-              secondaryColor.withValues(alpha: 0.22),
-              secondaryColor.withValues(alpha: 0.08),
-              Colors.transparent,
-            ],
-            stops: const [0.0, 0.55, 1.0],
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.12),
+            width: 0.8,
           ),
         ),
         child: Padding(
@@ -275,19 +269,13 @@ class PlayerControls extends ConsumerWidget {
       useOwnLayer: true,
       height: 52,
       shape: const LiquidRoundedSuperellipse(borderRadius: 26),
-      color: secondaryColor.withValues(alpha: 0.18),
+      color: const Color(0x33FFFFFF),
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(26),
-          gradient: LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            colors: [
-              secondaryColor.withValues(alpha: 0.22),
-              secondaryColor.withValues(alpha: 0.08),
-              Colors.transparent,
-            ],
-            stops: const [0.0, 0.55, 1.0],
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.12),
+            width: 0.8,
           ),
         ),
         child: Padding(

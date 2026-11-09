@@ -97,19 +97,6 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
     }
     _debounceTimer?.cancel();
 
-    // Save query to recent searches
-    ref
-        .read(recentSearchProvider.notifier)
-        .addRecent(
-          RecentSearchItem(
-            id: 'query_${q.toLowerCase()}',
-            title: q,
-            subtitle: 'Search query',
-            type: RecentSearchType.query,
-            timestamp: DateTime.now().millisecondsSinceEpoch,
-          ),
-        );
-
     await ref.read(searchProvider.notifier).search(q, force: true);
   }
 
@@ -418,7 +405,10 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
 
   /// Recent Searches view matching Screenshot 2 or Empty Placeholder.
   Widget _buildRecentSearchesSection() {
-    final recentSearches = ref.watch(recentSearchProvider);
+    final recentSearches = ref
+        .watch(recentSearchProvider)
+        .where((item) => item.type != RecentSearchType.query)
+        .toList();
 
     if (recentSearches.isEmpty) {
       return _buildEmptySearchState();

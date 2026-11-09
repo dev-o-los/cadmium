@@ -11,6 +11,7 @@ import '../constants/app_colors.dart';
 import '../models/lyric_line.dart';
 import '../services/lyric_clock.dart';
 import '../services/lyrics_service.dart';
+import 'app_shimmer.dart';
 import 'apple_pressable.dart';
 
 /// Hardware-accelerated scissor clipper for progressive syllable wipes.
@@ -519,16 +520,27 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
 
   Widget _buildBody() {
     if (widget.isLoading && widget.lyrics.isEmpty) {
-      return Center(
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const CupertinoActivityIndicator(radius: 14, color: Colors.white70),
-            const SizedBox(height: 16),
-            Text(
-              'Connecting ${widget.selectedProvider.displayName} lyrics...',
-              style: const TextStyle(color: AppColors.appleSecondaryText, fontSize: 14),
+            const SizedBox(height: 24),
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CupertinoActivityIndicator(radius: 14, color: Colors.white70),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Connecting ${widget.selectedProvider.displayName} lyrics...',
+                    style: const TextStyle(color: AppColors.appleSecondaryText, fontSize: 14),
+                  ),
+                ],
+              ),
             ),
+            const SizedBox(height: 32),
+            Expanded(child: _buildLyricsShimmer()),
           ],
         ),
       );
@@ -676,6 +688,31 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     );
   }
 
+  Widget _buildLyricsShimmer() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final totalWidth = constraints.maxWidth;
+        final lineRatios = [0.72, 0.88, 0.58, 0.82, 0.65, 0.90, 0.45];
+        return AppShimmer(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: List.generate(lineRatios.length, (index) {
+              final w = totalWidth * lineRatios[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 24),
+                child: ShimmerBox(
+                  width: w,
+                  height: 28,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              );
+            }),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildLyricLineItem(List<LyricLine> displayLines, int index) {
     final line = displayLines[index];
     final isActive = index == _activeLyricIndex;
@@ -818,12 +855,9 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
               height: 1.25,
               shadows: [
                 Shadow(
-                  color: Colors.white.withValues(alpha: 0.55),
-                  blurRadius: 14,
-                ),
-                Shadow(
-                  color: Colors.white.withValues(alpha: 0.30),
+                  color: Colors.black.withValues(alpha: 0.25),
                   blurRadius: 4,
+                  offset: const Offset(0, 1),
                 ),
               ],
             ),
@@ -871,12 +905,9 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
                     height: 1.25,
                     shadows: [
                       Shadow(
-                        color: Colors.white.withValues(alpha: 0.55),
-                        blurRadius: 14,
-                      ),
-                      Shadow(
-                        color: Colors.white.withValues(alpha: 0.30),
+                        color: Colors.black.withValues(alpha: 0.25),
                         blurRadius: 4,
+                        offset: const Offset(0, 1),
                       ),
                     ],
                   ),
@@ -911,12 +942,9 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
         shadows: isActive
             ? [
                 Shadow(
-                  color: Colors.white.withValues(alpha: 0.55),
-                  blurRadius: 14,
-                ),
-                Shadow(
-                  color: Colors.white.withValues(alpha: 0.30),
+                  color: Colors.black.withValues(alpha: 0.25),
                   blurRadius: 4,
+                  offset: const Offset(0, 1),
                 ),
               ]
             : null,

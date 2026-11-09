@@ -118,23 +118,6 @@ class _TopProfileAvatarButtonState
               ),
             ),
           ),
-          if (account != null)
-            Positioned(
-              right: -1,
-              bottom: -1,
-              child: Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: Colors.greenAccent,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.black,
-                    width: 2,
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
     );

@@ -23,6 +23,7 @@ import '../providers/navigation_provider.dart';
 import '../providers/player_provider.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/account_modal_sheet.dart';
+import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_glass_bottom_sheet.dart';
 import '../widgets/apple_pressable.dart';
@@ -230,11 +231,17 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
           _displayName.toLowerCase().contains(a.artist.toLowerCase());
     }).toList();
 
+    final topPadding = MediaQuery.of(context).padding.top;
+    final bannerHeight = 360.0 + topPadding;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Background ambient artwork and scrollable content
+          // Pinned Hero Artwork fixed at top: never leaves blank gap when scrolling
+          _buildFixedHeroHeader(bannerHeight),
+
+          // Scrollable content starting from artist name downward
           NotificationListener<ScrollNotification>(
             onNotification: _handleScrollNotification,
             child: CustomScrollView(
@@ -243,18 +250,22 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                 parent: BouncingScrollPhysics(),
               ),
               slivers: [
-                // Top Ambient Banner / Hero Artwork with smooth dissolve
-                _buildSliverHeroHeader(),
-
-                // Main Artist Content Sections
+                // Spacing to align start of content with the hero gradient
                 SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 120),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Artist Metadata & Action Buttons Row
-                        _buildHeroMetadata(isSaved),
+                  child: SizedBox(height: bannerHeight - 70),
+                ),
+
+                // Main Artist Content Sections (or Rich Shimmer while loading)
+                SliverToBoxAdapter(
+                  child: _isLoading && _artistDetails == null
+                      ? _buildArtistLoadingContent()
+                      : Padding(
+                          padding: const EdgeInsets.only(bottom: 120),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Artist Metadata & Action Buttons Row
+                              _buildHeroMetadata(isSaved),
 
                         const SizedBox(height: 16),
 
@@ -365,50 +376,49 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
     );
   }
 
-  /// Sliver Hero Banner with ambient progressive blur dissolve into deep dark background
-  Widget _buildSliverHeroHeader() {
+  /// Fixed Hero Banner pinned at the top behind the scrollable content
+  Widget _buildFixedHeroHeader(double bannerHeight) {
     final banner = _heroBannerUrl;
-    final topPadding = MediaQuery.of(context).padding.top;
-    final bannerHeight = 380.0 + topPadding;
 
-    return SliverToBoxAdapter(
-      child: SizedBox(
-        height: bannerHeight,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Background Artwork Image with Bicubic Filtering
-            if (banner != null)
-              Image.network(
-                banner,
-                fit: BoxFit.cover,
-                alignment: Alignment.topCenter,
-                filterQuality: FilterQuality.medium,
-                errorBuilder: (context, error, stackTrace) => _fallbackBanner(),
-              )
-            else
-              _fallbackBanner(),
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      height: bannerHeight,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Background Artwork Image with Bicubic Filtering
+          if (banner != null)
+            Image.network(
+              banner,
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+              filterQuality: FilterQuality.medium,
+              errorBuilder: (context, error, stackTrace) => _fallbackBanner(),
+            )
+          else
+            _fallbackBanner(),
 
-            // Multi-stop progressive gradient mask dissolving cleanly into OLED black
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    stops: const [0.0, 0.40, 0.75, 1.0],
-                    colors: [
-                      Colors.black.withValues(alpha: 0.25),
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.65),
-                      Colors.black,
-                    ],
-                  ),
+          // Multi-stop progressive gradient mask dissolving cleanly into OLED black
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: const [0.0, 0.40, 0.75, 1.0],
+                  colors: [
+                    Colors.black.withValues(alpha: 0.25),
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.65),
+                    Colors.black,
+                  ],
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -883,26 +893,16 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                                 ),
                               ),
 
-                              // Liquid Glass 3-dots action button
-                              GlassIconButton(
-                                icon: const Icon(
-                                  CupertinoIcons.ellipsis_vertical,
+                              // 3-dots action button matching HomeScreen recent
+                              IconButton(
+                                icon: const AnimatedCupertinoIcon(
+                                  icon: CupertinoIcons.ellipsis_vertical,
                                   color: AppColors.appleSecondaryText,
                                   size: 18,
                                 ),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(minWidth: 24, minHeight: 40),
                                 onPressed: () => showTrackOptionsModal(context, ref, song),
-                                size: 36,
-                                iconSize: 18,
-                                shape: GlassIconButtonShape.circle,
-                                useOwnLayer: true,
-                                settings: const LiquidGlassSettings(
-                                  glassColor: Color(0x22FFFFFF),
-                                  thickness: 16,
-                                  blur: 16,
-                                  refractiveIndex: 1.12,
-                                  lightIntensity: 0.35,
-                                  specularSharpness: GlassSpecularSharpness.sharp,
-                                ),
                               ),
                             ],
                           ),
@@ -1517,6 +1517,129 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
           fontSize: 9,
           fontWeight: FontWeight.bold,
           height: 1.0,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildArtistLoadingContent() {
+    return AppShimmer(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 120),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Center Artist Title & Action row placeholder
+            Center(
+              child: Column(
+                children: [
+                  const ShimmerBox(
+                    width: 190,
+                    height: 34,
+                    borderRadius: BorderRadius.all(Radius.circular(8)),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      ShimmerBox(
+                        width: 56,
+                        height: 56,
+                        borderRadius: BorderRadius.all(Radius.circular(28)),
+                      ),
+                      SizedBox(width: 22),
+                      ShimmerBox(
+                        width: 74,
+                        height: 74,
+                        borderRadius: BorderRadius.all(Radius.circular(37)),
+                      ),
+                      SizedBox(width: 22),
+                      ShimmerBox(
+                        width: 56,
+                        height: 56,
+                        borderRadius: BorderRadius.all(Radius.circular(28)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 36),
+
+            // Top Songs Section header + skeleton
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Text('Top songs', style: AppleTypography.sectionTitle),
+            ),
+            const SizedBox(height: AppleSpacing.sectionHeaderToContent),
+            _buildTopSongsSkeleton(),
+            const SizedBox(height: 32),
+
+            // Albums Section header + skeleton
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Text('Albums', style: AppleTypography.sectionTitle),
+            ),
+            const SizedBox(height: AppleSpacing.sectionHeaderToContent),
+            SizedBox(
+              height: 180,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: 4,
+                separatorBuilder: (context, index) => const SizedBox(width: 14),
+                itemBuilder: (context, index) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    ShimmerBox(
+                      width: 140,
+                      height: 140,
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                    ),
+                    SizedBox(height: 8),
+                    ShimmerBox(
+                      width: 100,
+                      height: 12,
+                      borderRadius: BorderRadius.all(Radius.circular(4)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
+
+            // Singles Section header + skeleton
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Text('Singles & EPs', style: AppleTypography.sectionTitle),
+            ),
+            const SizedBox(height: AppleSpacing.sectionHeaderToContent),
+            SizedBox(
+              height: 180,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: 4,
+                separatorBuilder: (context, index) => const SizedBox(width: 14),
+                itemBuilder: (context, index) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    ShimmerBox(
+                      width: 140,
+                      height: 140,
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                    ),
+                    SizedBox(height: 8),
+                    ShimmerBox(
+                      width: 90,
+                      height: 12,
+                      borderRadius: BorderRadius.all(Radius.circular(4)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

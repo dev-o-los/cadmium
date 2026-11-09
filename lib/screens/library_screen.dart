@@ -89,7 +89,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           physics: const AlwaysScrollableScrollPhysics(
             parent: BouncingScrollPhysics(),
           ),
-          padding: EdgeInsets.fromLTRB(0, topPadding + 14, 0, 160),
+          padding: EdgeInsets.fromLTRB(0, topPadding + 34, 0, 160),
           children: [
             // 1. Library Title (in body content, fades smoothly under top bezel on scroll)
             const Padding(
@@ -397,21 +397,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(14),
-                  child: WavifyCachedImage(
-                    imageUrl: firstThumb,
-                    width: cardWidth,
-                    height: cardWidth,
-                    fit: BoxFit.cover,
-                    borderRadius: BorderRadius.circular(14),
-                    placeholder: AppShimmer(
-                      child: ShimmerBox(
-                        width: cardWidth,
-                        height: cardWidth,
-                        borderRadius: BorderRadius.all(Radius.circular(14)),
-                      ),
-                    ),
-                    errorWidget: _buildLikedAlbumCover(cardWidth),
-                  ),
+                  child: _buildLikedAlbumCoverGrid(cardWidth, songs),
                 ),
                 Positioned(
                   top: 8,
@@ -449,6 +435,79 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildLikedAlbumCoverGrid(double size, List<SongItem> songs) {
+    final thumbs = songs
+        .map((s) => s.thumbnailUrl)
+        .where((t) => t != null && t.isNotEmpty)
+        .cast<String>()
+        .take(4)
+        .toList();
+
+    if (thumbs.length >= 4) {
+      final half = size / 2;
+      return SizedBox(
+        width: size,
+        height: size,
+        child: Column(
+          children: [
+            Row(
+              children: [
+                WavifyCachedImage(
+                  imageUrl: thumbs[0],
+                  width: half,
+                  height: half,
+                  fit: BoxFit.cover,
+                ),
+                WavifyCachedImage(
+                  imageUrl: thumbs[1],
+                  width: half,
+                  height: half,
+                  fit: BoxFit.cover,
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                WavifyCachedImage(
+                  imageUrl: thumbs[2],
+                  width: half,
+                  height: half,
+                  fit: BoxFit.cover,
+                ),
+                WavifyCachedImage(
+                  imageUrl: thumbs[3],
+                  width: half,
+                  height: half,
+                  fit: BoxFit.cover,
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    final firstThumb = thumbs.isNotEmpty ? thumbs.first : null;
+    if (firstThumb != null) {
+      return WavifyCachedImage(
+        imageUrl: firstThumb,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        borderRadius: BorderRadius.circular(14),
+        placeholder: AppShimmer(
+          child: ShimmerBox(
+            width: size,
+            height: size,
+            borderRadius: const BorderRadius.all(Radius.circular(14)),
+          ),
+        ),
+        errorWidget: _buildLikedAlbumCover(size),
+      );
+    }
+    return _buildLikedAlbumCover(size);
   }
 
   Widget _buildLikedAlbumCover(double size) {

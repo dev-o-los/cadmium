@@ -190,6 +190,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 ? totalSec
                 : details.totalDurationSeconds,
           );
+
+          // Ensure all liked album track metrics and album artworks are cached
+          SongMetricsCacheService.instance.precacheTracks(mergedTracks, musicService);
         }
       }
 
@@ -620,7 +623,10 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final artworkSize = (screenWidth * 0.64).clamp(210.0, 270.0);
+    final screenHeight = MediaQuery.of(context).size.height;
+    final artworkSize = screenHeight > 820
+        ? (screenWidth * 0.72).clamp(240.0, 300.0)
+        : (screenWidth * 0.64).clamp(210.0, 270.0);
     final isSaved = ref.watch(
       savedAlbumsProvider.select((list) => list.any((a) => a.id == _album.id)),
     );
@@ -784,21 +790,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                               child: Stack(
                                 fit: StackFit.expand,
                                 children: [
-                                  WavifyCachedImage(
-                                    imageUrl: _resolvedArtwork,
-                                    width: artworkSize,
-                                    height: artworkSize,
-                                    fit: BoxFit.cover,
-                                    borderRadius: BorderRadius.circular(20),
-                                    placeholder: AppShimmer(
-                                      child: ShimmerBox(
-                                        width: artworkSize,
-                                        height: artworkSize,
-                                        borderRadius:
-                                            BorderRadius.circular(20),
-                                      ),
-                                    ),
-                                    errorWidget: _fallbackCover(artworkSize),
+                                  _buildAlbumArtwork(
+                                    artworkSize,
+                                    isLikedMusic,
                                   ),
                                   if (isAnyTrackPlaying)
                                     Container(
@@ -893,10 +887,19 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                             ),
                             const SizedBox(width: 14),
 
-                            // 2. Center Prominent [▶ Play] Pill Button
+                            // 2. Center Prominent [▶ Play] Pill Button (Animated)
                             Expanded(
                               child: ApplePressable(
-                                onTap: () => _playAll(shuffle: false),
+                                onTap: () {
+                                  if (isAnyTrackPlaying) {
+                                    ref
+                                        .read(playerProvider.notifier)
+                                        .togglePlayPause();
+                                  } else {
+                                    _playAll(shuffle: false);
+                                  }
+                                },
+                                pressedScale: 0.94,
                                 borderRadius: BorderRadius.circular(26),
                                 child: Container(
                                   height: 52,
@@ -904,24 +907,50 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                     color: Colors.white,
                                     borderRadius: BorderRadius.circular(26),
                                   ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: const [
-                                      Icon(
-                                        CupertinoIcons.play_fill,
-                                        color: Colors.black,
-                                        size: 20,
-                                      ),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        'Play',
-                                        style: TextStyle(
-                                          color: Colors.black,
-                                          fontSize: 17,
-                                          fontWeight: FontWeight.bold,
+                                  child: AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 250),
+                                    transitionBuilder: (child, animation) {
+                                      return FadeTransition(
+                                        opacity: animation,
+                                        child: ScaleTransition(
+                                          scale: Tween<double>(
+                                            begin: 0.88,
+                                            end: 1.0,
+                                          ).animate(
+                                            CurvedAnimation(
+                                              parent: animation,
+                                              curve: Curves.easeOutBack,
+                                            ),
+                                          ),
+                                          child: child,
                                         ),
+                                      );
+                                    },
+                                    child: Row(
+                                      key: ValueKey(
+                                        'album_play_btn_$isAnyTrackPlaying',
                                       ),
-                                    ],
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          isAnyTrackPlaying
+                                              ? CupertinoIcons.pause_fill
+                                              : CupertinoIcons.play_fill,
+                                          color: Colors.black,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          isAnyTrackPlaying ? 'Pause' : 'Play',
+                                          style: const TextStyle(
+                                            color: Colors.black,
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
@@ -998,8 +1027,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                 },
                                 child: Text(
                                   _isDescriptionExpanded ? 'Less' : 'More',
-                                  style: const TextStyle(
-                                    color: Color(0xFFFF4081),
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.90),
                                     fontWeight: FontWeight.w600,
                                     fontSize: 14,
                                   ),
@@ -1034,7 +1063,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 else
                   // Track List Items (matching screenshots with 1..N indices)
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 140),
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate((context, index) {
                         final track = _filteredTracks[index];
@@ -1046,22 +1075,45 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                           borderRadius: BorderRadius.circular(10),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
-                              vertical: 10,
-                              horizontal: 4,
+                              vertical: 8,
                             ),
                             child: Row(
                               children: [
-                                // Track Number (1, 2, 3...)
-                                SizedBox(
-                                  width: 28,
-                                  child: Text(
-                                    '${index + 1}',
-                                    style: AppleTypography.trackNumber(
-                                      isCurrent: isCurrentTrack,
+                                // In Liked Music: show individual track artwork!
+                                // In regular album: show track number index
+                                if (isLikedMusic) ...[
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: WavifyCachedImage(
+                                      imageUrl: track.thumbnailUrl,
+                                      width: 44,
+                                      height: 44,
+                                      fit: BoxFit.cover,
+                                      borderRadius: BorderRadius.circular(8),
+                                      placeholder: const AppShimmer(
+                                        child: ShimmerBox(
+                                          width: 44,
+                                          height: 44,
+                                          borderRadius: BorderRadius.all(
+                                            Radius.circular(8),
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 8),
+                                  const SizedBox(width: 12),
+                                ] else ...[
+                                  SizedBox(
+                                    width: 28,
+                                    child: Text(
+                                      '${index + 1}',
+                                      style: AppleTypography.trackNumber(
+                                        isCurrent: isCurrentTrack,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                ],
 
                                 // Title, Artist & [E] Explicit Badge
                                 Expanded(
@@ -1121,14 +1173,19 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                   track.formattedDuration,
                                   style: AppleTypography.timestamp,
                                 ),
-                                const SizedBox(width: 4),
+                                const SizedBox(width: 8),
 
-                                // 3-dots Menu
+                                // 3-dots Menu with zero internal padding to perfectly align with right edge
                                 IconButton(
                                   icon: const AnimatedCupertinoIcon(
                                     icon: CupertinoIcons.ellipsis_vertical,
                                     color: AppColors.appleSecondaryText,
                                     size: 18,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 20,
+                                    minHeight: 36,
                                   ),
                                   onPressed: () => showTrackOptionsModal(
                                     context,
@@ -1278,6 +1335,77 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAlbumArtwork(double artworkSize, bool isLikedMusic) {
+    if (isLikedMusic) {
+      final thumbs = _allTracks
+          .map((s) => s.thumbnailUrl)
+          .where((t) => t != null && t.isNotEmpty)
+          .cast<String>()
+          .take(4)
+          .toList();
+
+      if (thumbs.length >= 4) {
+        final half = artworkSize / 2;
+        return SizedBox(
+          width: artworkSize,
+          height: artworkSize,
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  WavifyCachedImage(
+                    imageUrl: thumbs[0],
+                    width: half,
+                    height: half,
+                    fit: BoxFit.cover,
+                  ),
+                  WavifyCachedImage(
+                    imageUrl: thumbs[1],
+                    width: half,
+                    height: half,
+                    fit: BoxFit.cover,
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  WavifyCachedImage(
+                    imageUrl: thumbs[2],
+                    width: half,
+                    height: half,
+                    fit: BoxFit.cover,
+                  ),
+                  WavifyCachedImage(
+                    imageUrl: thumbs[3],
+                    width: half,
+                    height: half,
+                    fit: BoxFit.cover,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      }
+    }
+
+    return WavifyCachedImage(
+      imageUrl: _resolvedArtwork,
+      width: artworkSize,
+      height: artworkSize,
+      fit: BoxFit.cover,
+      borderRadius: BorderRadius.circular(20),
+      placeholder: AppShimmer(
+        child: ShimmerBox(
+          width: artworkSize,
+          height: artworkSize,
+          borderRadius: BorderRadius.circular(20),
+        ),
+      ),
+      errorWidget: _fallbackCover(artworkSize),
     );
   }
 
