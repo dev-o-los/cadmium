@@ -149,7 +149,7 @@ void showAudioOutputModal(BuildContext context, WidgetRef ref) {
             (d) => d.isSpeaker || d.id == 'speaker',
             orElse: () => const AudioDeviceItem(
               id: 'speaker',
-              name: "Utkarsh's Phone",
+              name: 'Phone Speaker',
               category: OutputDeviceCategory.speaker,
             ),
           );
@@ -160,10 +160,10 @@ void showAudioOutputModal(BuildContext context, WidgetRef ref) {
             orElse: () => connectedDevice.id != phoneDevice.id
                 ? connectedDevice
                 : const AudioDeviceItem(
-                    id: 'iball_musiwave',
-                    name: 'iBall Musiwave',
+                    id: 'external_device',
+                    name: 'Bluetooth Audio',
                     category: OutputDeviceCategory.bluetooth,
-                    isSelected: true,
+                    isSelected: false,
                   ),
           );
 
@@ -198,10 +198,8 @@ void showAudioOutputModal(BuildContext context, WidgetRef ref) {
                       size: 22,
                     ),
                     title: phoneDevice.name.isNotEmpty
-                        ? (phoneDevice.name == 'Phone Speaker'
-                            ? "Utkarsh's Phone"
-                            : phoneDevice.name)
-                        : "Utkarsh's Phone",
+                        ? phoneDevice.name
+                        : 'Phone Speaker',
                     subtitle: isPhoneSelected ? 'Playing here' : null,
                     trailing: isPhoneSelected
                         ? const Icon(
@@ -215,7 +213,7 @@ void showAudioOutputModal(BuildContext context, WidgetRef ref) {
                     },
                   ),
 
-                  // Card 2: Connected Audio Device Card (e.g. iBall Musiwave)
+                  // Card 2: Connected Audio Device Card
                   _buildOutputCard(
                     leadingIcon: const Icon(
                       CupertinoIcons.waveform_path,
@@ -224,8 +222,8 @@ void showAudioOutputModal(BuildContext context, WidgetRef ref) {
                     ),
                     title: externalDevice.name.isNotEmpty
                         ? externalDevice.name
-                        : 'iBall Musiwave',
-                    subtitle: 'Playing here',
+                        : 'Bluetooth Audio',
+                    subtitle: isExternalSelected ? 'Playing here' : null,
                     trailing: isExternalSelected
                         ? const Icon(
                             Icons.check_rounded,

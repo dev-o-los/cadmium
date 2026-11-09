@@ -220,11 +220,11 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    // Verify the action dock displays the Android cast icon for audio outputs
-    expect(find.byIcon(Icons.cast_rounded), findsOneWidget);
+    // Verify the action dock displays the speaker icon for audio outputs
+    expect(find.byIcon(CupertinoIcons.speaker_2_fill), findsOneWidget);
 
-    // Tapping the cast icon opens the Audio Output modal
-    await tester.tap(find.byIcon(Icons.cast_rounded));
+    // Tapping the speaker icon opens the Audio Output modal
+    await tester.tap(find.byIcon(CupertinoIcons.speaker_2_fill));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Audio Output'), findsOneWidget);
@@ -240,8 +240,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    // Verify the cast icon remains accessible
-    expect(find.byIcon(Icons.cast_rounded), findsOneWidget);
+    // Verify the speaker icon remains accessible
+    expect(find.byIcon(CupertinoIcons.speaker_2_fill), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     container.dispose();

@@ -122,11 +122,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           });
         });
 
-    // Auto-collapse check after initial screen load if a song is already playing
+    // Auto-collapse check after initial screen load only if in lyrics mode
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final isPlaying = ref.read(playerProvider).isPlaying;
-        if (isPlaying && _currentMode != PlayerViewMode.queue) {
+        if (isPlaying && _currentMode == PlayerViewMode.lyrics) {
           _startAutoHideTimer();
         }
       }
@@ -167,8 +167,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _startAutoHideTimer() {
     _autoHideTimer?.cancel();
     if (!mounted) return;
-    // Auto-hide controls when playing in nowPlaying or lyrics mode (keep fixed in queue mode)
-    if (_currentMode == PlayerViewMode.queue) {
+    // Auto-hide controls only when in lyrics mode
+    if (_currentMode != PlayerViewMode.lyrics) {
       if (_controlsAnimController.value < 1.0) {
         _controlsAnimController.forward();
       }
@@ -180,7 +180,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         if (mounted &&
             ref.read(playerProvider).isPlaying &&
             !_isDraggingSlider &&
-            _currentMode != PlayerViewMode.queue) {
+            _currentMode == PlayerViewMode.lyrics) {
           _controlsAnimController.reverse();
         }
       });
@@ -197,13 +197,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_controlsAnimController.value < 1.0) {
       _controlsAnimController.forward();
     }
-    if (_currentMode != PlayerViewMode.queue) {
+    if (_currentMode == PlayerViewMode.lyrics) {
       _startAutoHideTimer();
     }
   }
 
   void _toggleControls() {
-    if (_currentMode == PlayerViewMode.queue) return;
+    // Only allow collapsing controls when in lyrics mode
+    if (_currentMode != PlayerViewMode.lyrics) {
+      if (_controlsAnimController.value < 1.0) {
+        _controlsAnimController.forward();
+      }
+      return;
+    }
     if (_controlsAnimController.isAnimating) return;
     if (_controlsAnimController.value > 0.5) {
       _cancelAutoHideTimer();
@@ -227,8 +233,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         duration: const Duration(milliseconds: 440),
         curve: Curves.easeInOutCubic,
       );
+      _cancelAutoHideTimer();
       _controlsAnimController.forward();
-      _startAutoHideTimer();
     } else {
       if (oldMode == PlayerViewMode.nowPlaying) {
         _modeAnimController.animateTo(
@@ -290,13 +296,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       favoritesProvider.select((list) => list.any((s) => s.id == song.id)),
     );
 
-    // Auto-hide controls when song starts playing; reveal when paused
+    // Auto-hide controls when song starts playing ONLY in lyrics mode; keep visible in nowPlaying and queue
     ref.listen<bool>(playerProvider.select((s) => s.isPlaying), (
       previous,
       isPlaying,
     ) {
       if (isPlaying) {
-        if (_currentMode != PlayerViewMode.queue) {
+        if (_currentMode == PlayerViewMode.lyrics) {
           _startAutoHideTimer();
         } else {
           _cancelAutoHideTimer();
@@ -330,13 +336,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             offset: Offset(0, _dragOffsetY),
             child: GestureDetector(
               onTap: () {
-                // Tapping anywhere reveals controls if collapsed, or resets inactivity timer
+                // Tapping anywhere reveals controls if collapsed, or resets inactivity timer in lyrics mode
                 if (_controlsAnimController.value < 0.5) {
                   _controlsAnimController.forward();
-                  if (_currentMode != PlayerViewMode.queue) {
+                  if (_currentMode == PlayerViewMode.lyrics) {
                     _startAutoHideTimer();
                   }
-                } else if (_currentMode != PlayerViewMode.queue) {
+                } else if (_currentMode == PlayerViewMode.lyrics) {
                   _startAutoHideTimer();
                 }
               },
@@ -1076,43 +1082,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           else
                             const SizedBox(height: 8),
 
-                          // Lyrics Link in Queue Mode matching Image 2 ("♪ Lyrics >")
-                          if (_currentMode == PlayerViewMode.queue) ...[
-                            ApplePressable(
-                              onTap: () => _switchMode(PlayerViewMode.lyrics),
-                              pressedScale: 0.96,
-                              child: Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      CupertinoIcons.music_note,
-                                      color: Colors.white,
-                                      size: 16,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    const Text(
-                                      'Lyrics',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w600,
-                                        letterSpacing: -0.2,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Icon(
-                                      CupertinoIcons.chevron_right,
-                                      color: Colors.white.withValues(alpha: 0.60),
-                                      size: 13,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ] else if (_currentMode == PlayerViewMode.nowPlaying) ...[
-                            // Lyrics Hook Preview Banner in Now Playing mode
+                          // Lyrics Hook Preview Banner (visible in Now Playing and Queue modes)
+                          if (_currentMode != PlayerViewMode.lyrics) ...[
                             Consumer(
                               builder: (context, ref, _) {
                                 final activeLyric = ref.watch(
@@ -1490,15 +1461,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           playerProvider.select((s) => s.isAutoplay),
         );
         final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
-
-        // Trigger autoplay fetch if autoplay is enabled but queue is empty
-        if (isAutoplay && autoplayQueue.isEmpty) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            ref
-                .read(playerProvider.notifier)
-                .fetchAutoplayQueueForCurrentSong();
-          });
-        }
 
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -2162,128 +2124,104 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Widget _buildActionDock() {
+    if (_currentMode == PlayerViewMode.queue) {
+      // In Queue mode, display: [Lyrics, Capsule(Shuffle, Repeat, Infinity), Queue Active Card]
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          ApplePressable(
+            onTap: () => _switchMode(PlayerViewMode.lyrics),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: AnimatedCupertinoIcon(
+                icon: CupertinoIcons.quote_bubble,
+                color: Colors.white.withValues(alpha: 0.65),
+                size: 22,
+              ),
+            ),
+          ),
+
+          // Center Pill Dock for Shuffle, Repeat, Infinity
+          _buildPlaybackCapsuleDock(),
+
+          // Queue Active Card (taps to return to Now Playing)
+          ApplePressable(
+            onTap: () => _switchMode(PlayerViewMode.nowPlaying),
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 8,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.22),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const AnimatedCupertinoIcon(
+                icon: CupertinoIcons.list_bullet,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Default Action Dock: [Lyrics, Speaker, Queue]
     final isLyricsActive = _currentMode == PlayerViewMode.lyrics;
-    final isQueueActive = _currentMode == PlayerViewMode.queue;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // Left: Lyrics Toggle Button
-            ApplePressable(
-              onTap: () {
-                _switchMode(
-                  isLyricsActive
-                      ? PlayerViewMode.nowPlaying
-                      : PlayerViewMode.lyrics,
-                );
-              },
-              borderRadius: BorderRadius.circular(14),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: isLyricsActive
-                      ? Colors.white.withValues(alpha: 0.22)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: AnimatedCupertinoIcon(
-                  icon: isLyricsActive
-                      ? CupertinoIcons.quote_bubble_fill
-                      : CupertinoIcons.quote_bubble,
-                  color: isLyricsActive
-                      ? Colors.white
-                      : Colors.white.withValues(alpha: 0.65),
-                  size: 22,
-                ),
-              ),
+        // Lyrics Toggle Button
+        Container(
+          decoration: BoxDecoration(
+            color: isLyricsActive
+                ? Colors.white.withValues(alpha: 0.22)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: IconButton(
+            icon: AnimatedCupertinoIcon(
+              icon: isLyricsActive
+                  ? CupertinoIcons.quote_bubble_fill
+                  : CupertinoIcons.quote_bubble,
+              color: isLyricsActive ? Colors.white : Colors.white60,
+              size: 24,
             ),
-
-            // Center: 3-Button Capsule Dock [Shuffle, Repeat, Infinity]
-            _buildPlaybackCapsuleDock(),
-
-            // Right: Queue Toggle Button (highlighted when on Queue screen)
-            ApplePressable(
-              onTap: () {
-                _switchMode(
-                  isQueueActive
-                      ? PlayerViewMode.nowPlaying
-                      : PlayerViewMode.queue,
-                );
-              },
-              borderRadius: BorderRadius.circular(14),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: isQueueActive
-                      ? Colors.white.withValues(alpha: 0.22)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: AnimatedCupertinoIcon(
-                  icon: CupertinoIcons.list_bullet,
-                  color: isQueueActive
-                      ? Colors.white
-                      : Colors.white.withValues(alpha: 0.65),
-                  size: 22,
-                ),
-              ),
-            ),
-          ],
+            onPressed: () {
+              _switchMode(
+                isLyricsActive
+                    ? PlayerViewMode.nowPlaying
+                    : PlayerViewMode.lyrics,
+              );
+            },
+          ),
         ),
-        const SizedBox(height: 8),
 
-        // Device output route indicator below dock matching Image 2 ("iBall Musiwave")
-        Consumer(
-          builder: (context, ref, _) {
-            final connectedDevice = ref.watch(
-              playerProvider.select((s) => s.connectedDevice),
-            );
-            final deviceName = connectedDevice.name.isNotEmpty
-                ? connectedDevice.name
-                : 'iBall Musiwave';
-
-            return ApplePressable(
-              onTap: () {
-                _showAudioRouteModal();
-                _cancelAutoHideTimer();
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.cast_rounded,
-                      color: Colors.white54,
-                      size: 15,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      deviceName,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.55),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
+        // Speaker Button (Audio Output Route)
+        IconButton(
+          icon: const AnimatedCupertinoIcon(
+            icon: CupertinoIcons.speaker_2_fill,
+            color: Colors.white60,
+            size: 24,
+          ),
+          onPressed: () {
+            _showAudioRouteModal();
+            _cancelAutoHideTimer();
           },
+        ),
+
+        // Queue Toggle Button
+        IconButton(
+          icon: const AnimatedCupertinoIcon(
+            icon: CupertinoIcons.list_bullet,
+            color: Colors.white60,
+            size: 24,
+          ),
+          onPressed: () => _switchMode(PlayerViewMode.queue),
         ),
       ],
     );
