@@ -66,10 +66,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
     // Liked Music:
     // When logged in: Show ONLY user's YouTube Music account liked tracks merged with local favorites.
-    // When logged out: Show local favorites.
+    // When logged out: Show local favorites (or YouTube likes if present).
     final List<SongItem> allLikedMusic;
+    final ytLikes = ytLikesAsync.asData?.value ?? ytLikesAsync.value ?? [];
     if (isLoggedIn) {
-      final ytLikes = ytLikesAsync.asData?.value ?? [];
       final Map<String, SongItem> likedMap = {};
       for (final s in ytLikes) {
         likedMap[s.id] = s;
@@ -79,7 +79,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       }
       allLikedMusic = likedMap.values.toList();
     } else {
-      allLikedMusic = localFavorites;
+      allLikedMusic = localFavorites.isNotEmpty ? localFavorites : ytLikes;
     }
 
     return Stack(
@@ -119,6 +119,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       ref,
                       cardWidth,
                       allLikedMusic,
+                      ytLikesAsync.isLoading,
                     );
                   }
                   // 1..playlists.length: User playlists
@@ -372,8 +373,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     BuildContext context,
     WidgetRef ref,
     double cardWidth,
-    List<SongItem> songs,
-  ) {
+    List<SongItem> songs, [
+    bool isLoading = false,
+  ]) {
     final firstThumb = songs.isNotEmpty ? songs.first.thumbnailUrl : null;
     final likedAlbum = AlbumItem(
       id: 'LM',
@@ -382,6 +384,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       thumbnailUrl: firstThumb,
       type: 'Playlist',
       year: DateTime.now().year,
+      trackCount: songs.length,
     );
 
     return ApplePressable(
@@ -426,7 +429,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             ),
             const SizedBox(height: AppleSpacing.titleToSubtitle),
             Text(
-              'Playlist • ${songs.length} tracks',
+              (songs.isEmpty && isLoading)
+                  ? 'Playlist • Loading...'
+                  : 'Playlist • ${songs.length} ${songs.length == 1 ? 'track' : 'tracks'}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppleTypography.cardSubtitle,

@@ -56,6 +56,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   int _totalDurationSeconds = 0;
   String? _resolvedArtwork;
   Color? _backgroundColor;
+  Color? _secondaryColor;
 
   bool _isDescriptionExpanded = false;
   bool _isSearching = false;
@@ -122,8 +123,15 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       _resolvedArtwork,
       fallbackSeed: seed,
     );
+    final secondary = await ArtworkColorService.instance.extractSecondaryColor(
+      _resolvedArtwork,
+      fallbackSeed: seed,
+    );
     if (mounted) {
-      setState(() => _backgroundColor = color);
+      setState(() {
+        _backgroundColor = color;
+        _secondaryColor = secondary;
+      });
     }
   }
 
@@ -135,36 +143,78 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   }
 
   Future<void> _loadAlbumDetails() async {
+    final isLikedMusic = widget.album.id == 'LM' ||
+        widget.album.id == 'VLLM' ||
+        widget.album.id == 'liked_music' ||
+        widget.album.title.toLowerCase() == 'liked music' ||
+        widget.album.artist.toLowerCase() == 'youtube music';
+
+    // 1. Immediately load available liked songs without waiting for network
+    if (isLikedMusic) {
+      final localFavs = ref.read(favoritesProvider);
+      final ytLikes = ref.read(youtubeLikedSongsProvider).asData?.value ??
+          ref.read(youtubeLikedSongsProvider).value ??
+          [];
+      final Map<String, SongItem> immediateMap = {};
+      for (final t in ytLikes) {
+        immediateMap[t.id] = t;
+      }
+      for (final t in localFavs) {
+        immediateMap[t.id] = t;
+      }
+      if (immediateMap.isNotEmpty && mounted) {
+        final immediateTracks = immediateMap.values.toList();
+        final totalSec = immediateTracks.fold<int>(
+          0,
+          (acc, s) => acc + (s.durationSeconds ?? 0),
+        );
+        setState(() {
+          _allTracks = immediateTracks;
+          _filteredTracks = immediateTracks;
+          _totalDurationSeconds = totalSec;
+          _isLoading = false;
+          _album = _album.copyWith(trackCount: immediateTracks.length);
+          if (_resolvedArtwork == null && immediateTracks.first.thumbnailUrl != null) {
+            _resolvedArtwork = immediateTracks.first.thumbnailUrl;
+          }
+        });
+        _updateBackgroundColor();
+      }
+    }
+
     try {
       final musicService = ref.read(musicServiceProvider);
 
-      // 1. Resolve high-resolution artwork if missing or needs upgrade
-      if (_resolvedArtwork == null || _resolvedArtwork!.isEmpty) {
-        final art = await musicService.getAlbumArtwork(
-          widget.album.id,
-          title: widget.album.title,
-          artist: widget.album.artist,
-        );
-        if (mounted && art != null && art.isNotEmpty) {
-          setState(() {
-            _resolvedArtwork = art;
-          });
-          _updateBackgroundColor();
+      // 2. Resolve high-resolution artwork if missing or needs upgrade (skip searching "Liked Music" albums)
+      if (!isLikedMusic && (_resolvedArtwork == null || _resolvedArtwork!.isEmpty)) {
+        try {
+          final art = await musicService.getAlbumArtwork(
+            widget.album.id,
+            title: widget.album.title,
+            artist: widget.album.artist,
+          );
+          if (mounted && art != null && art.isNotEmpty) {
+            setState(() {
+              _resolvedArtwork = art;
+            });
+            _updateBackgroundColor();
+          }
+        } catch (e) {
+          debugPrint('Album artwork lookup error: $e');
         }
       }
 
-      // 2. Fetch all tracks and album details
+      // 3. Fetch all tracks and album details
       var details = await musicService.getAlbumDetails(
         widget.album.copyWith(thumbnailUrl: _resolvedArtwork),
         queryFallback: '${widget.album.title} ${widget.album.artist}',
       );
 
-      if (widget.album.id == 'LM' ||
-          widget.album.id == 'VLLM' ||
-          widget.album.id == 'liked_music' ||
-          widget.album.title.toLowerCase() == 'liked music') {
+      if (isLikedMusic) {
         final localFavs = ref.read(favoritesProvider);
-        final ytLikes = ref.read(youtubeLikedSongsProvider).asData?.value ?? [];
+        final ytLikes = ref.read(youtubeLikedSongsProvider).asData?.value ??
+            ref.read(youtubeLikedSongsProvider).value ??
+            [];
         final Map<String, SongItem> map = {};
         for (final t in details.tracks) {
           map[t.id] = t;
@@ -184,6 +234,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
           details = AlbumDetails(
             album: details.album.copyWith(
               thumbnailUrl: _resolvedArtwork ?? mergedTracks.first.thumbnailUrl,
+              trackCount: mergedTracks.length,
             ),
             tracks: mergedTracks,
             totalDurationSeconds: totalSec > 0
@@ -201,9 +252,14 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       final previousArtwork = _resolvedArtwork;
       setState(() {
         _album = details.album;
-        _allTracks = details.tracks;
-        _filteredTracks = details.tracks;
-        _totalDurationSeconds = details.totalDurationSeconds;
+        if (details.tracks.isNotEmpty || _allTracks.isEmpty) {
+          _allTracks = details.tracks;
+          _filteredTracks = details.tracks;
+          _totalDurationSeconds = details.totalDurationSeconds;
+        }
+        if (_allTracks.isNotEmpty) {
+          _album = _album.copyWith(trackCount: _allTracks.length);
+        }
 
         if (_allTracks.isNotEmpty &&
             (_album.artist.isEmpty || _album.artist.contains('•') || _album.artist.contains('·'))) {
@@ -646,31 +702,41 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
 
     final totalDurationStr = _formatTotalDuration();
     final yearStr = _album.year ?? 2022;
-    final trackCount = _allTracks.length;
+    final trackCount = _allTracks.isNotEmpty
+        ? _allTracks.length
+        : (_album.trackCount ?? widget.album.trackCount ?? 0);
+    final tracksLabel = trackCount == 1 ? 'Track' : 'Tracks';
     final metadataString = isLikedMusic
-        ? 'Playlist · $trackCount Tracks · $totalDurationStr'
-        : '${_album.type} · $yearStr · $trackCount Tracks · $totalDurationStr';
+        ? 'Playlist · $trackCount $tracksLabel · $totalDurationStr'
+        : '${_album.type} · $yearStr · $trackCount $tracksLabel · $totalDurationStr';
 
     final cleanArtist = _album.cleanArtist;
     final defaultDescription =
         _album.description ??
         (isLikedMusic
-            ? 'All your favorite and liked tracks in one playlist.'
+            ? 'All your favorite and liked tracks in one playlist ($trackCount $tracksLabel).'
             : '${_album.title} is an album by $cleanArtist. Released in $yearStr with $trackCount tracks and a total runtime of $totalDurationStr.');
 
     final resolvedColor =
         _backgroundColor ??
         ArtworkColorService.instance.getCachedColor(_resolvedArtwork ?? '') ??
         const Color(0xFF16161A);
+    final resolvedSecondary =
+        _secondaryColor ??
+        ArtworkColorService.instance.getCachedSecondaryColor(_resolvedArtwork ?? '') ??
+        ArtworkColorService.instance.getFallbackSecondaryColor(widget.album.title);
     final deeperTone = ArtworkColorService.instance.computeDeeperTone(
       resolvedColor,
+    );
+    final deeperSecondary = ArtworkColorService.instance.computeDeeperTone(
+      resolvedSecondary,
     );
 
     return Scaffold(
       backgroundColor: resolvedColor,
       body: Stack(
         children: [
-          // 1. Dynamic attractive album color atmosphere background
+          // 1. Dynamic attractive album color atmosphere background with secondary accent depth
           Positioned.fill(
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 400),
@@ -679,8 +745,13 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [resolvedColor, deeperTone],
-                  stops: const [0.0, 0.75],
+                  colors: [
+                    resolvedColor,
+                    Color.lerp(resolvedColor, resolvedSecondary, 0.45)!,
+                    deeperSecondary,
+                    deeperTone,
+                  ],
+                  stops: const [0.0, 0.35, 0.70, 1.0],
                 ),
               ),
             ),

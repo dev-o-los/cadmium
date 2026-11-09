@@ -952,10 +952,13 @@ class MusicService {
       thumb = SongItem.upgradeThumbnail(itemThumbs.last['url'].toString());
     }
 
+    final sanitizedArtist = SongItem.sanitizeArtist(artist);
+    final sanitizedTitle = SongItem.sanitizeTitle(title, sanitizedArtist);
+
     return SongItem(
       id: videoId,
-      title: title,
-      artist: artist.isNotEmpty ? artist : 'Unknown Artist',
+      title: sanitizedTitle,
+      artist: sanitizedArtist,
       thumbnailUrl: thumb,
       album: album,
       durationSeconds: duration,
@@ -1282,12 +1285,12 @@ class MusicService {
                     if (songTitle.isNotEmpty &&
                         songTitle.toLowerCase() != 'untitled' &&
                         songTitle.toLowerCase() != 'track') {
+                      final cleanArt = SongItem.sanitizeArtist(subtitle);
+                      final cleanTit = SongItem.sanitizeTitle(songTitle, cleanArt);
                       final song = SongItem(
                         id: videoId,
-                        title: songTitle,
-                        artist: subtitle.isNotEmpty
-                            ? subtitle
-                            : 'YouTube Music',
+                        title: cleanTit,
+                        artist: cleanArt.isNotEmpty ? cleanArt : 'YouTube Music',
                         thumbnailUrl: thumb,
                       );
                       songs.add(song);
@@ -1648,12 +1651,12 @@ class MusicService {
                     if (songTitle.isNotEmpty &&
                         songTitle.toLowerCase() != 'untitled' &&
                         songTitle.toLowerCase() != 'track') {
+                      final cleanArt = SongItem.sanitizeArtist(subtitle);
+                      final cleanTit = SongItem.sanitizeTitle(songTitle, cleanArt);
                       final song = SongItem(
                         id: videoId,
-                        title: songTitle,
-                        artist: subtitle.isNotEmpty
-                            ? subtitle
-                            : 'YouTube Music',
+                        title: cleanTit,
+                        artist: cleanArt.isNotEmpty ? cleanArt : 'YouTube Music',
                         thumbnailUrl: thumb,
                       );
                       songs.add(song);
@@ -2254,6 +2257,17 @@ class MusicService {
       return getLikedSongs();
     }
 
+    if (cleanId.startsWith('PL') || cleanId.startsWith('VL')) {
+      try {
+        final playlistTracks = await getPlaylistTracks(cleanId);
+        if (playlistTracks.isNotEmpty) {
+          return playlistTracks;
+        }
+      } catch (e) {
+        debugPrint('getAlbumSongs playlist error for $cleanId: $e');
+      }
+    }
+
     if (!_isInitialized) {
       await initialize();
     }
@@ -2279,8 +2293,8 @@ class MusicService {
             final thumb = SongItem.upgradeThumbnail(rawThumb);
             return SongItem(
               id: s.videoId,
-              title: s.name.isNotEmpty ? s.name : 'Untitled',
-              artist: artistName,
+              title: SongItem.sanitizeTitle(s.name.isNotEmpty ? s.name : 'Untitled'),
+              artist: SongItem.sanitizeArtist(artistName),
               thumbnailUrl: thumb,
               durationSeconds: s.duration,
               album: albumFull.name.isNotEmpty ? albumFull.name : null,

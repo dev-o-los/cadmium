@@ -23,8 +23,8 @@ class AuthNotifier extends StateNotifier<UserAccount?> {
       final jsonString = prefs.getString(_kGoogleAccountKey);
       if (jsonString != null && jsonString.isNotEmpty) {
         final account = UserAccount.fromJsonString(jsonString);
-        state = account;
         _ref.read(musicServiceProvider).setAuthAccount(account);
+        state = account;
 
         // If avatarUrl or verified details are missing, attempt to fetch in background to heal profile
         if (account.avatarUrl == null ||

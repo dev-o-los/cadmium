@@ -33,6 +33,7 @@ import '../widgets/track_options_sheet.dart';
 import '../widgets/top_status_bar_blur.dart';
 import '../widgets/app_shimmer.dart';
 import '../widgets/wavify_cached_image.dart';
+import '../services/artwork_color_service.dart';
 
 /// Full-Page Artist View matching the Apple Music aesthetic and YouTube Music data:
 /// - Sticky ambient top bar with floating back button, share, and account avatar
@@ -65,6 +66,8 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
   bool _isLoading = true;
   ArtistDetails? _artistDetails;
   bool _isDescriptionExpanded = false;
+  Color? _primaryColor;
+  Color? _secondaryColor;
 
   // Mini player dock crawl / minimization state
   bool _isMiniPlayerCrawled = false;
@@ -73,7 +76,26 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
   @override
   void initState() {
     super.initState();
+    _updateArtistColors();
     _loadArtistDetails();
+  }
+
+  Future<void> _updateArtistColors() async {
+    final banner = _heroBannerUrl;
+    final primary = await ArtworkColorService.instance.extractAttractiveColor(
+      banner,
+      fallbackSeed: _displayName,
+    );
+    final secondary = await ArtworkColorService.instance.extractSecondaryColor(
+      banner,
+      fallbackSeed: _displayName,
+    );
+    if (mounted) {
+      setState(() {
+        _primaryColor = primary;
+        _secondaryColor = secondary;
+      });
+    }
   }
 
   @override
@@ -97,9 +119,11 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
     }
 
     if (notification is UserScrollNotification) {
-      if (notification.direction == ScrollDirection.reverse && !_isMiniPlayerCrawled) {
+      if (notification.direction == ScrollDirection.reverse &&
+          !_isMiniPlayerCrawled) {
         setState(() => _isMiniPlayerCrawled = true);
-      } else if (notification.direction == ScrollDirection.forward && _isMiniPlayerCrawled) {
+      } else if (notification.direction == ScrollDirection.forward &&
+          _isMiniPlayerCrawled) {
         setState(() => _isMiniPlayerCrawled = false);
       }
     } else if (notification is ScrollUpdateNotification) {
@@ -136,6 +160,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
           _artistDetails = details;
           _isLoading = false;
         });
+        _updateArtistColors();
       }
     } catch (e) {
       debugPrint('Error loading artist details: $e');
@@ -220,9 +245,15 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
     final userAccount = ref.watch(authProvider);
 
     final artistId = _artistDetails?.id ?? widget.artistId ?? '';
-    final isSaved = ref.watch(savedArtistsProvider.select((list) {
-      return list.any((a) => a.id == artistId || (a.name.toLowerCase() == _displayName.toLowerCase()));
-    }));
+    final isSaved = ref.watch(
+      savedArtistsProvider.select((list) {
+        return list.any(
+          (a) =>
+              a.id == artistId ||
+              (a.name.toLowerCase() == _displayName.toLowerCase()),
+        );
+      }),
+    );
 
     // Find any albums from library matching this artist
     final savedAlbums = ref.watch(savedAlbumsProvider);
@@ -234,12 +265,52 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
     final topPadding = MediaQuery.of(context).padding.top;
     final bannerHeight = 360.0 + topPadding;
 
+    final resolvedPrimary =
+        _primaryColor ??
+        ArtworkColorService.instance.getCachedColor(_heroBannerUrl ?? '') ??
+        ArtworkColorService.instance.getFallbackBestColor(_displayName);
+    final resolvedSecondary =
+        _secondaryColor ??
+        ArtworkColorService.instance.getCachedSecondaryColor(
+          _heroBannerUrl ?? '',
+        ) ??
+        ArtworkColorService.instance.getFallbackSecondaryColor(_displayName);
+    final deeperSecondary = ArtworkColorService.instance.computeDeeperTone(
+      resolvedSecondary,
+    );
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Pinned Hero Artwork fixed at top: never leaves blank gap when scrolling
-          _buildFixedHeroHeader(bannerHeight),
+          // Dynamic atmosphere background:
+          // Top ~50% is framed by the hero banner, bottom ~50% layout dissolves into a rich,
+          // deep secondary color tone rather than flat black!
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black,
+                    Colors.black.withValues(alpha: 0.85),
+                    Color.lerp(
+                      resolvedPrimary,
+                      deeperSecondary,
+                      0.65,
+                    )!.withValues(alpha: 0.40),
+                    deeperSecondary.withValues(alpha: 0.70),
+                    Colors.black,
+                  ],
+                  stops: const [0.0, 0.38, 0.65, 0.88, 1.0],
+                ),
+              ),
+            ),
+          ),
+
+          // Scrollable Hero Artwork: scrolls with the body when scrolling up, stretches when pulling down
+          _buildScrollableHeroHeader(bannerHeight, deeperSecondary),
 
           // Scrollable content starting from artist name downward
           NotificationListener<ScrollNotification>(
@@ -251,9 +322,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
               ),
               slivers: [
                 // Spacing to align start of content with the hero gradient
-                SliverToBoxAdapter(
-                  child: SizedBox(height: bannerHeight - 70),
-                ),
+                SliverToBoxAdapter(child: SizedBox(height: bannerHeight - 70)),
 
                 // Main Artist Content Sections (or Rich Shimmer while loading)
                 SliverToBoxAdapter(
@@ -267,68 +336,84 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                               // Artist Metadata & Action Buttons Row
                               _buildHeroMetadata(isSaved),
 
-                        const SizedBox(height: 16),
+                              const SizedBox(height: 16),
 
-                        // Spotlight Recent Single / Release Card (Screenshot 4)
-                        if (_artistDetails?.recentRelease != null) ...[
-                          _buildRecentReleaseCard(_artistDetails!.recentRelease!),
-                          const SizedBox(height: 24),
-                        ],
+                              // Spotlight Recent Single / Release Card (Screenshot 4)
+                              if (_artistDetails?.recentRelease != null) ...[
+                                _buildRecentReleaseCard(
+                                  _artistDetails!.recentRelease!,
+                                ),
+                                const SizedBox(height: 24),
+                              ],
 
-                        // Top Songs Section (Screenshot 4)
-                        _buildTopSongsSection(),
+                              // Top Songs Section (Screenshot 4)
+                              _buildTopSongsSection(),
 
-                        const SizedBox(height: 28),
+                              const SizedBox(height: 28),
 
-                        // Albums Carousel (Screenshot 3 & 4)
-                        if (_artistDetails?.albums.isNotEmpty == true) ...[
-                          _buildAlbumsSection(_artistDetails!.albums),
-                          const SizedBox(height: 28),
-                        ],
+                              // Albums Carousel (Screenshot 3 & 4)
+                              if (_artistDetails?.albums.isNotEmpty ==
+                                  true) ...[
+                                _buildAlbumsSection(_artistDetails!.albums),
+                                const SizedBox(height: 28),
+                              ],
 
-                        // Singles & EPs Carousel (Screenshot 3 & 4)
-                        if (_artistDetails?.singles.isNotEmpty == true) ...[
-                          _buildSinglesSection(_artistDetails!.singles),
-                          const SizedBox(height: 28),
-                        ],
+                              // Singles & EPs Carousel (Screenshot 3 & 4)
+                              if (_artistDetails?.singles.isNotEmpty ==
+                                  true) ...[
+                                _buildSinglesSection(_artistDetails!.singles),
+                                const SizedBox(height: 28),
+                              ],
 
-                        // Music Videos Carousel (Screenshot 3 & 5)
-                        if (_artistDetails?.videos.isNotEmpty == true) ...[
-                          _buildVideosSection(_artistDetails!.videos),
-                          const SizedBox(height: 28),
-                        ],
+                              // Music Videos Carousel (Screenshot 3 & 5)
+                              if (_artistDetails?.videos.isNotEmpty ==
+                                  true) ...[
+                                _buildVideosSection(_artistDetails!.videos),
+                                const SizedBox(height: 28),
+                              ],
 
-                        // From Your Library Section (Screenshot 3 & 5)
-                        if (matchingLibraryAlbums.isNotEmpty) ...[
-                          _buildLibrarySection(matchingLibraryAlbums),
-                          const SizedBox(height: 28),
-                        ],
+                              // From Your Library Section (Screenshot 3 & 5)
+                              if (matchingLibraryAlbums.isNotEmpty) ...[
+                                _buildLibrarySection(matchingLibraryAlbums),
+                                const SizedBox(height: 28),
+                              ],
 
-                        // Featured On Carousel (Screenshot 5 & 1)
-                        if (_artistDetails?.featuredOn.isNotEmpty == true) ...[
-                          _buildFeaturedOnSection(_artistDetails!.featuredOn),
-                          const SizedBox(height: 28),
-                        ],
+                              // Featured On Carousel (Screenshot 5 & 1)
+                              if (_artistDetails?.featuredOn.isNotEmpty ==
+                                  true) ...[
+                                _buildFeaturedOnSection(
+                                  _artistDetails!.featuredOn,
+                                ),
+                                const SizedBox(height: 28),
+                              ],
 
-                        // Playlists by Artist Carousel (Screenshot 1 & 5)
-                        if (_artistDetails?.playlistsByArtist.isNotEmpty == true) ...[
-                          _buildPlaylistsByArtistSection(_artistDetails!.playlistsByArtist),
-                          const SizedBox(height: 28),
-                        ],
+                              // Playlists by Artist Carousel (Screenshot 1 & 5)
+                              if (_artistDetails
+                                      ?.playlistsByArtist
+                                      .isNotEmpty ==
+                                  true) ...[
+                                _buildPlaylistsByArtistSection(
+                                  _artistDetails!.playlistsByArtist,
+                                ),
+                                const SizedBox(height: 28),
+                              ],
 
-                        // Fans Might Also Like Carousel (Screenshot 1 & 2)
-                        if (_artistDetails?.similarArtists.isNotEmpty == true) ...[
-                          _buildFansMightLikeSection(_artistDetails!.similarArtists),
-                          const SizedBox(height: 28),
-                        ],
+                              // Fans Might Also Like Carousel (Screenshot 1 & 2)
+                              if (_artistDetails?.similarArtists.isNotEmpty ==
+                                  true) ...[
+                                _buildFansMightLikeSection(
+                                  _artistDetails!.similarArtists,
+                                ),
+                                const SizedBox(height: 28),
+                              ],
 
-                        // About the Artist Description & Stat Pills (Screenshot 1 & 2)
-                        _buildAboutArtistSection(),
+                              // About the Artist Description & Stat Pills (Screenshot 1 & 2)
+                              _buildAboutArtistSection(),
 
-                        const SizedBox(height: 48),
-                      ],
-                    ),
-                  ),
+                              const SizedBox(height: 48),
+                            ],
+                          ),
+                        ),
                 ),
               ],
             ),
@@ -364,9 +449,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                   setState(() => _isMiniPlayerCrawled = false);
                 },
                 bottomAccessory: currentSong != null
-                    ? PlayerControls(
-                        onTap: () => openPlayerScreen(context),
-                      )
+                    ? PlayerControls(onTap: () => openPlayerScreen(context))
                     : null,
               ),
             ),
@@ -376,50 +459,63 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
     );
   }
 
-  /// Fixed Hero Banner pinned at the top behind the scrollable content
-  Widget _buildFixedHeroHeader(double bannerHeight) {
+  /// Scrollable Hero Banner: moves 1:1 with the scroll offset when scrolling up so it gets away,
+  /// and anchors to top: 0 with bounce stretch when pulling down.
+  Widget _buildScrollableHeroHeader(double bannerHeight, Color secondaryTone) {
     final banner = _heroBannerUrl;
 
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      height: bannerHeight,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Background Artwork Image with Bicubic Filtering
-          if (banner != null)
-            Image.network(
-              banner,
-              fit: BoxFit.cover,
-              alignment: Alignment.topCenter,
-              filterQuality: FilterQuality.medium,
-              errorBuilder: (context, error, stackTrace) => _fallbackBanner(),
-            )
-          else
-            _fallbackBanner(),
+    return AnimatedBuilder(
+      animation: _scrollController,
+      builder: (context, _) {
+        final scrollOffset = _scrollController.hasClients
+            ? _scrollController.offset
+            : 0.0;
+        final topOffset = -math.max(0.0, scrollOffset);
+        final pullDown = math.max(0.0, -scrollOffset);
 
-          // Multi-stop progressive gradient mask dissolving cleanly into OLED black
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  stops: const [0.0, 0.40, 0.75, 1.0],
-                  colors: [
-                    Colors.black.withValues(alpha: 0.25),
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.65),
-                    Colors.black,
-                  ],
+        return Positioned(
+          top: topOffset,
+          left: 0,
+          right: 0,
+          height: bannerHeight + pullDown,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Background Artwork Image with Bicubic Filtering
+              if (banner != null)
+                Image.network(
+                  banner,
+                  fit: BoxFit.cover,
+                  alignment: Alignment.topCenter,
+                  filterQuality: FilterQuality.medium,
+                  errorBuilder: (context, error, stackTrace) =>
+                      _fallbackBanner(),
+                )
+              else
+                _fallbackBanner(),
+
+              // Multi-stop progressive gradient mask dissolving cleanly into deep secondary tone & OLED black
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      stops: const [0.0, 0.40, 0.75, 1.0],
+                      colors: [
+                        Colors.black.withValues(alpha: 0.25),
+                        Colors.transparent,
+                        secondaryTone.withValues(alpha: 0.45),
+                        Colors.black,
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -478,7 +574,10 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                 rimLight: 0.45,
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -489,7 +588,10 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                         showWavifySnackBar(context, 'Sharing $_displayName');
                       },
                       child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 4,
+                        ),
                         child: Icon(
                           CupertinoIcons.share,
                           color: Colors.white,
@@ -521,9 +623,17 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                                   height: 30,
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(CupertinoIcons.person_crop_circle, color: Colors.white, size: 20),
+                                      const Icon(
+                                        CupertinoIcons.person_crop_circle,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
                                 )
-                              : const Icon(CupertinoIcons.person_crop_circle, color: Colors.white, size: 20),
+                              : const Icon(
+                                  CupertinoIcons.person_crop_circle,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
                         ),
                       ),
                     ),
@@ -610,7 +720,9 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                   ),
                   child: Center(
                     child: Icon(
-                      _isPlayingThisArtist ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
+                      _isPlayingThisArtist
+                          ? CupertinoIcons.pause_fill
+                          : CupertinoIcons.play_fill,
                       color: Colors.black,
                       size: 32,
                     ),
@@ -624,23 +736,32 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
               GlassIconButton(
                 icon: Icon(
                   CupertinoIcons.star_fill,
-                  color: isSaved ? Colors.white : Colors.white.withValues(alpha: 0.6),
+                  color: isSaved
+                      ? Colors.white
+                      : Colors.white.withValues(alpha: 0.6),
                   size: 22,
                 ),
                 onPressed: () async {
                   HapticFeedback.lightImpact();
                   final item = ArtistItem(
-                    id: _artistDetails?.id ?? widget.artistId ?? 'artist_${_displayName.hashCode}',
+                    id:
+                        _artistDetails?.id ??
+                        widget.artistId ??
+                        'artist_${_displayName.hashCode}',
                     name: _displayName,
                     thumbnailUrl: _heroBannerUrl,
                     subscribers: _artistDetails?.subscribers,
                     isCustom: true,
                   );
-                  final added = await ref.read(savedArtistsProvider.notifier).toggleArtist(item);
+                  final added = await ref
+                      .read(savedArtistsProvider.notifier)
+                      .toggleArtist(item);
                   if (mounted) {
                     showWavifySnackBar(
                       context,
-                      added ? 'Added $_displayName to your Library' : 'Removed $_displayName from Library',
+                      added
+                          ? 'Added $_displayName to your Library'
+                          : 'Removed $_displayName from Library',
                     );
                   }
                 },
@@ -668,9 +789,11 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
 
   /// Spotlight Card for Recent Single / Latest Release (matching screenshot)
   Widget _buildRecentReleaseCard(AlbumItem recent) {
-    final isRecentSaved = ref.watch(savedAlbumsProvider.select((list) {
-      return list.any((a) => a.id == recent.id);
-    }));
+    final isRecentSaved = ref.watch(
+      savedAlbumsProvider.select((list) {
+        return list.any((a) => a.id == recent.id);
+      }),
+    );
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -682,7 +805,10 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(22),
             color: const Color(0xFF1E1E26),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.08),
+              width: 0.5,
+            ),
           ),
           child: Row(
             children: [
@@ -711,7 +837,9 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      recent.year != null ? 'Single • ${recent.year}' : 'Single',
+                      recent.year != null
+                          ? 'Single • ${recent.year}'
+                          : 'Single',
                       style: const TextStyle(
                         color: AppColors.appleSecondaryText,
                         fontSize: 13,
@@ -745,17 +873,23 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
               // Liquid Glass Circular [+] button
               GlassIconButton(
                 icon: Icon(
-                  isRecentSaved ? CupertinoIcons.checkmark_alt : CupertinoIcons.plus,
+                  isRecentSaved
+                      ? CupertinoIcons.checkmark_alt
+                      : CupertinoIcons.plus,
                   color: Colors.white,
                   size: 20,
                 ),
                 onPressed: () async {
                   HapticFeedback.lightImpact();
-                  final added = await ref.read(savedAlbumsProvider.notifier).toggleAlbum(recent);
+                  final added = await ref
+                      .read(savedAlbumsProvider.notifier)
+                      .toggleAlbum(recent);
                   if (mounted) {
                     showWavifySnackBar(
                       context,
-                      added ? 'Saved "${recent.title}" to Library' : 'Removed "${recent.title}" from Library',
+                      added
+                          ? 'Saved "${recent.title}" to Library'
+                          : 'Removed "${recent.title}" from Library',
                     );
                   }
                 },
@@ -797,132 +931,126 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
       columns.add(songs.sublist(i, math.min(i + 4, songs.length)));
     }
 
-    final screenWidth = MediaQuery.of(context).size.width;
-    final columnWidth = screenWidth > 60 ? screenWidth - 48 : 320.0;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
-            'Top songs',
-            style: AppleTypography.sectionTitle,
-          ),
+          child: Text('Top songs', style: AppleTypography.sectionTitle),
         ),
         const SizedBox(height: AppleSpacing.sectionHeaderToContent),
         if (_isLoading && songs.isEmpty)
           _buildTopSongsSkeleton()
         else
-          SizedBox(
-            height: 248,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: columns.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 14),
-              itemBuilder: (context, columnIndex) {
-                final columnSongs = columns[columnIndex];
-                return SizedBox(
-                  width: columns.length > 1 ? columnWidth : (screenWidth > 60 ? screenWidth - 40 : 340.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: columnSongs.map((song) {
-                      final isCurrent = currentSong?.id == song.id;
+          _ArtistSnappingTopSongsColumns(
+            columns: columns,
+            songRowBuilder: (context, song) {
+              final isCurrent = currentSong?.id == song.id;
 
-                      return ApplePressable(
-                        onTap: () => playSong(context, ref, song, contextQueue: songs, forceReload: true),
-                        borderRadius: BorderRadius.circular(10),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Row(
-                            children: [
-                              // Artwork thumbnail
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Stack(
-                                  children: [
-                                    song.thumbnailUrl != null
-                                        ? Image.network(
-                                            song.thumbnailUrl!,
-                                            width: 48,
-                                            height: 48,
-                                            fit: BoxFit.cover,
-                                            filterQuality: FilterQuality.medium,
-                                            errorBuilder: (context, error, stackTrace) =>
-                                                _fallbackSquareArt(48),
-                                          )
-                                        : _fallbackSquareArt(48),
-                                    if (isCurrent && isPlaying)
-                                      Positioned.fill(
-                                        child: Container(
-                                          color: Colors.black.withValues(alpha: 0.65),
-                                          child: const Center(
-                                            child: AnimatedEqualizerBars(
-                                              size: 16,
-                                              color: Colors.white,
-                                              isPlaying: true,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-
-                              // Title & Artist metadata
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        // Explicit Badge [E]
-                                        _buildExplicitBadge(),
-                                        const SizedBox(width: 6),
-                                        Expanded(
-                                          child: Text(
-                                            song.title,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: AppleTypography.songTitle,
-                                          ),
-                                        ),
-                                      ],
+              return ApplePressable(
+                onTap: () => playSong(
+                  context,
+                  ref,
+                  song,
+                  contextQueue: songs,
+                  forceReload: true,
+                ),
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      // Artwork thumbnail
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Stack(
+                          children: [
+                            song.thumbnailUrl != null
+                                ? Image.network(
+                                    song.thumbnailUrl!,
+                                    width: 48,
+                                    height: 48,
+                                    fit: BoxFit.cover,
+                                    filterQuality: FilterQuality.medium,
+                                    errorBuilder: (
+                                      context,
+                                      error,
+                                      stackTrace,
+                                    ) => _fallbackSquareArt(48),
+                                  )
+                                : _fallbackSquareArt(48),
+                            if (isCurrent && isPlaying)
+                              Positioned.fill(
+                                child: Container(
+                                  color: Colors.black.withValues(alpha: 0.65),
+                                  child: const Center(
+                                    child: AnimatedEqualizerBars(
+                                      size: 16,
+                                      color: Colors.white,
+                                      isPlaying: true,
                                     ),
-                                    const SizedBox(height: AppleSpacing.titleToSubtitle),
-                                    Text(
-                                      song.artist,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: AppleTypography.songArtist,
-                                    ),
-                                  ],
+                                  ),
                                 ),
                               ),
-
-                              // 3-dots action button matching HomeScreen recent
-                              IconButton(
-                                icon: const AnimatedCupertinoIcon(
-                                  icon: CupertinoIcons.ellipsis_vertical,
-                                  color: AppColors.appleSecondaryText,
-                                  size: 18,
-                                ),
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(minWidth: 24, minHeight: 40),
-                                onPressed: () => showTrackOptionsModal(context, ref, song),
-                              ),
-                            ],
-                          ),
+                          ],
                         ),
-                      );
-                    }).toList(),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Title & Artist metadata
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              children: [
+                                // Explicit Badge [E]
+                                _buildExplicitBadge(),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    song.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppleTypography.songTitle,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(
+                              height: AppleSpacing.titleToSubtitle,
+                            ),
+                            Text(
+                              song.artist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppleTypography.songArtist,
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // 3-dots action button matching HomeScreen recent
+                      IconButton(
+                        icon: const AnimatedCupertinoIcon(
+                          icon: CupertinoIcons.ellipsis_vertical,
+                          color: AppColors.appleSecondaryText,
+                          size: 18,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 24,
+                          minHeight: 40,
+                        ),
+                        onPressed: () =>
+                            showTrackOptionsModal(context, ref, song),
+                      ),
+                    ],
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
       ],
     );
@@ -933,7 +1061,10 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader('Albums', onShowAll: () => _openAlbumListModal('Albums', albums)),
+        _buildSectionHeader(
+          'Albums',
+          onShowAll: () => _openAlbumListModal('Albums', albums),
+        ),
         const SizedBox(height: 12),
         SizedBox(
           height: 196,
@@ -957,7 +1088,10 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader('Singles & EPs', onShowAll: () => _openAlbumListModal('Singles & EPs', singles)),
+        _buildSectionHeader(
+          'Singles & EPs',
+          onShowAll: () => _openAlbumListModal('Singles & EPs', singles),
+        ),
         const SizedBox(height: 12),
         SizedBox(
           height: 196,
@@ -1031,8 +1165,9 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                                 child: ShimmerBox(
                                   width: cardWidth,
                                   height: cardHeight,
-                                  borderRadius:
-                                      BorderRadius.all(Radius.circular(12)),
+                                  borderRadius: BorderRadius.all(
+                                    Radius.circular(12),
+                                  ),
                                 ),
                               ),
                               errorWidget: _fallbackWidescreenArt(
@@ -1073,7 +1208,9 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        video.views != null ? '${video.artist} • ${video.views}' : video.artist,
+                        video.views != null
+                            ? '${video.artist} • ${video.views}'
+                            : video.artist,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -1100,10 +1237,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
       children: [
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
-            'From your library',
-            style: AppleTypography.sectionTitle,
-          ),
+          child: Text('From your library', style: AppleTypography.sectionTitle),
         ),
         const SizedBox(height: AppleSpacing.sectionHeaderToContent),
         SizedBox(
@@ -1113,7 +1247,8 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             itemCount: libraryAlbums.length,
             separatorBuilder: (context, index) => const SizedBox(width: 14),
-            itemBuilder: (context, index) => _buildAlbumCard(libraryAlbums[index]),
+            itemBuilder: (context, index) =>
+                _buildAlbumCard(libraryAlbums[index]),
           ),
         ),
       ],
@@ -1257,7 +1392,10 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
     final subscribers = _artistDetails?.subscribers;
     final listeners = _artistDetails?.monthlyListeners;
 
-    if (description == null && subscribers == null && listeners == null && !_isLoading) {
+    if (description == null &&
+        subscribers == null &&
+        listeners == null &&
+        !_isLoading) {
       return const SizedBox.shrink();
     }
 
@@ -1266,10 +1404,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'About the artist',
-            style: AppleTypography.sectionTitle,
-          ),
+          const Text('About the artist', style: AppleTypography.sectionTitle),
           const SizedBox(height: AppleSpacing.sectionHeaderToContent),
 
           // Multi-line bio description with expandable More / Less toggle
@@ -1277,7 +1412,9 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
             Text(
               description,
               maxLines: _isDescriptionExpanded ? null : 3,
-              overflow: _isDescriptionExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
+              overflow: _isDescriptionExpanded
+                  ? TextOverflow.visible
+                  : TextOverflow.ellipsis,
               style: const TextStyle(
                 color: Color(0xFFD1D1D6),
                 fontSize: 14,
@@ -1288,7 +1425,9 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
             const SizedBox(height: 4),
             GestureDetector(
               onTap: () {
-                setState(() => _isDescriptionExpanded = !_isDescriptionExpanded);
+                setState(
+                  () => _isDescriptionExpanded = !_isDescriptionExpanded,
+                );
               },
               behavior: HitTestBehavior.opaque,
               child: Text(
@@ -1305,17 +1444,11 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
 
           // Pill Stat Badges (Subscribers & Monthly Listeners)
           if (subscribers != null) ...[
-            _buildStatPill(
-              icon: CupertinoIcons.person_fill,
-              text: subscribers,
-            ),
+            _buildStatPill(icon: CupertinoIcons.person_fill, text: subscribers),
             const SizedBox(height: 8),
           ],
           if (listeners != null) ...[
-            _buildStatPill(
-              icon: CupertinoIcons.waveform,
-              text: listeners,
-            ),
+            _buildStatPill(icon: CupertinoIcons.waveform, text: listeners),
           ],
         ],
       ),
@@ -1330,10 +1463,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            title,
-            style: AppleTypography.sectionTitle,
-          ),
+          Text(title, style: AppleTypography.sectionTitle),
           if (onShowAll != null)
             ApplePressable(
               onTap: onShowAll,
@@ -1411,7 +1541,9 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
             const SizedBox(height: 2),
             Text(
               album.year != null
-                  ? (album.type == 'Single' ? 'Single • ${album.year}' : '${album.year}')
+                  ? (album.type == 'Single'
+                        ? 'Single • ${album.year}'
+                        : '${album.year}')
                   : (album.type.isNotEmpty ? album.type : 'Album'),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -1775,7 +1907,11 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                           color: Colors.white.withValues(alpha: 0.15),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(CupertinoIcons.xmark, color: Colors.white, size: 16),
+                        child: const Icon(
+                          CupertinoIcons.xmark,
+                          color: Colors.white,
+                          size: 16,
+                        ),
                       ),
                     ),
                   ],
@@ -1786,7 +1922,8 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                   child: ListView.separated(
                     padding: EdgeInsets.zero,
                     itemCount: items.length,
-                    separatorBuilder: (context, index) => const AppleSheetDivider(),
+                    separatorBuilder: (context, index) =>
+                        const AppleSheetDivider(),
                     itemBuilder: (context, index) {
                       final item = items[index];
                       return AppleSheetActionTile(
@@ -1802,8 +1939,9 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                               child: ShimmerBox(
                                 width: 44,
                                 height: 44,
-                                borderRadius:
-                                    BorderRadius.all(Radius.circular(6)),
+                                borderRadius: BorderRadius.all(
+                                  Radius.circular(6),
+                                ),
                               ),
                             ),
                             errorWidget: _fallbackSquareArt(44),
@@ -1813,7 +1951,11 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                         subtitle: item.year != null
                             ? '${item.type.isNotEmpty ? item.type : 'Release'} • ${item.year}'
                             : item.type,
-                        trailing: const Icon(CupertinoIcons.chevron_right, color: Colors.white38, size: 16),
+                        trailing: const Icon(
+                          CupertinoIcons.chevron_right,
+                          color: Colors.white38,
+                          size: 16,
+                        ),
                         onTap: () {
                           Navigator.pop(modalCtx);
                           openAlbumScreen(context, item);
@@ -1867,6 +2009,66 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
           color: Colors.white30,
           size: 32,
         ),
+      ),
+    );
+  }
+}
+
+/// Horizontal snapping carousel for 4-song vertical stacks (matches homepage PageScrollPhysics)
+class _ArtistSnappingTopSongsColumns extends StatefulWidget {
+  final List<List<SongItem>> columns;
+  final Widget Function(BuildContext, SongItem) songRowBuilder;
+
+  const _ArtistSnappingTopSongsColumns({
+    required this.columns,
+    required this.songRowBuilder,
+  });
+
+  @override
+  State<_ArtistSnappingTopSongsColumns> createState() =>
+      _ArtistSnappingTopSongsColumnsState();
+}
+
+class _ArtistSnappingTopSongsColumnsState
+    extends State<_ArtistSnappingTopSongsColumns> {
+  late final PageController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = PageController(viewportFraction: 0.92);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 248,
+      child: PageView.builder(
+        controller: _controller,
+        padEnds: false,
+        physics: const PageScrollPhysics(),
+        itemCount: widget.columns.length,
+        itemBuilder: (context, columnIndex) {
+          final columnSongs = widget.columns[columnIndex];
+          return Padding(
+            padding: EdgeInsets.only(
+              left: columnIndex == 0 ? 20 : 10,
+              right: columnIndex == widget.columns.length - 1 ? 20 : 6,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: columnSongs
+                  .map((song) => widget.songRowBuilder(context, song))
+                  .toList(),
+            ),
+          );
+        },
       ),
     );
   }

@@ -58,8 +58,25 @@ class AlbumItem {
   String get cleanArtist => sanitizeArtist(artist);
 
   String get subtitle {
+    final isLiked = id == 'LM' ||
+        id == 'VLLM' ||
+        id == 'liked_music' ||
+        title.toLowerCase() == 'liked music';
+    final count = trackCount ?? 0;
+    final countLabel = count == 1 ? 'track' : 'tracks';
+    if (isLiked) {
+      return 'Playlist • $count $countLabel';
+    }
+
+    final clean = cleanArtist;
     final yearStr = year != null ? ' • $year' : '';
-    return '$type • $cleanArtist$yearStr';
+    if (clean.isEmpty) {
+      if (trackCount != null && trackCount! > 0) {
+        return '$type • $trackCount $countLabel$yearStr';
+      }
+      return '$type$yearStr';
+    }
+    return '$type • $clean$yearStr';
   }
 
   /// Clean, sanitized thumbnail URL for the album.

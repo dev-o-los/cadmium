@@ -1,7 +1,9 @@
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/album_item.dart';
 import '../models/artist_item.dart';
 import '../models/playlist_item.dart';
@@ -15,8 +17,7 @@ const _defaultCuratedPlaylists = [
     id: 'RDCLAK5uy_kmPRjFGNQStVPkuDY27sopV4JyQuqJEe0',
     title: "Today's Hits",
     author: 'YouTube Music',
-    thumbnailUrl:
-        'https://yt3.googleusercontent.com/CxEICEsjmiUDkCuUGmI0RKJ9mvuGDfSqi2rpNwokFXLBj4AcjoAByJu4nZr-I5BrL160Rw-kOxE=s800',
+    thumbnailUrl: 'https://yt3.googleusercontent.com/CxEICEsjmiUDkCuUGmI0RKJ9mvuGDfSqi2rpNwokFXLBj4AcjoAByJu4nZr-I5BrL160Rw-kOxE=s800',
     trackCount: 50,
   ),
   PlaylistItem(
@@ -36,8 +37,7 @@ const _defaultCuratedAlbums = [
     artist: 'The Weeknd',
     type: 'Album',
     year: 2016,
-    thumbnailUrl:
-        'https://yt3.googleusercontent.com/dcxXIIlest09vnvKznWM9VWQXu1EL7lKxBzXGzwgmVjmMNBm1dEWT_0qn1xrEZYyKF_qRE1TLq8P_JY_mQ=w800-h800-l90-rj',
+    thumbnailUrl: 'https://yt3.googleusercontent.com/dcxXIIlest09vnvKznWM9VWQXu1EL7lKxBzXGzwgmVjmMNBm1dEWT_0qn1xrEZYyKF_qRE1TLq8P_JY_mQ=w800-h800-l90-rj',
   ),
   AlbumItem(
     id: 'MPREb_V75Wk7DqM2a',
@@ -45,8 +45,7 @@ const _defaultCuratedAlbums = [
     artist: 'The Weeknd',
     type: 'Album',
     year: 2020,
-    thumbnailUrl:
-        'https://yt3.googleusercontent.com/JDKz3Anlyo49xBhFcFx13QD_Tk4-kqdiYTo15gtkL93nE8biWyZ7o0BPyW6RnXVxcXaJ5DgU5nJ_0NjJ=w800-h800-l90-rj',
+    thumbnailUrl: 'https://yt3.googleusercontent.com/JDKz3Anlyo49xBhFcFx13QD_Tk4-kqdiYTo15gtkL93nE8biWyZ7o0BPyW6RnXVxcXaJ5DgU5nJ_0NjJ=w800-h800-l90-rj',
   ),
 ];
 
@@ -55,15 +54,13 @@ const _defaultCuratedArtists = [
     id: 'UC0WP5P-ufpRfjbNrmOWwLBQ',
     name: 'The Weeknd',
     subscribers: '34M subscribers',
-    thumbnailUrl:
-        'https://lh3.googleusercontent.com/U-SAmNOu4TynE818gLCfKsuHZ0U5YNEtO9mrjSI9WCCKERs98LzrCal5kajBBTQNwdcisoB2Bn-pHp4=w800-h800-p-l90-rj',
+    thumbnailUrl: 'https://lh3.googleusercontent.com/U-SAmNOu4TynE818gLCfKsuHZ0U5YNEtO9mrjSI9WCCKERs98LzrCal5kajBBTQNwdcisoB2Bn-pHp4=w800-h800-p-l90-rj',
   ),
   ArtistItem(
     id: 'UCqECaJ8Gagnn7YCbPEzWH6g',
     name: 'Taylor Swift',
     subscribers: '58M subscribers',
-    thumbnailUrl:
-        'https://yt3.googleusercontent.com/DU6Kpr5TYKcW6QHvMnsJau5_8QSuix8LCLtf5UEaziZZdXw8SxvcxJ9YWmVIQuzhg2R-MVHYgjdGCQ=w800-h800-p-l90-rj',
+    thumbnailUrl: 'https://yt3.googleusercontent.com/DU6Kpr5TYKcW6QHvMnsJau5_8QSuix8LCLtf5UEaziZZdXw8SxvcxJ9YWmVIQuzhg2R-MVHYgjdGCQ=w800-h800-p-l90-rj',
   ),
 ];
 
@@ -87,7 +84,8 @@ class SavedPlaylistsNotifier extends StateNotifier<List<PlaylistItem>> {
             .map((item) {
               try {
                 return PlaylistItem.fromJson(
-                    jsonDecode(item) as Map<String, dynamic>);
+                  jsonDecode(item) as Map<String, dynamic>,
+                );
               } catch (_) {
                 return null;
               }
@@ -149,8 +147,8 @@ class SavedPlaylistsNotifier extends StateNotifier<List<PlaylistItem>> {
 
 final savedPlaylistsProvider =
     StateNotifierProvider<SavedPlaylistsNotifier, List<PlaylistItem>>((ref) {
-  return SavedPlaylistsNotifier();
-});
+      return SavedPlaylistsNotifier();
+    });
 
 // ============================================================================
 // SAVED ALBUMS NOTIFIER (Local persistence)
@@ -172,7 +170,8 @@ class SavedAlbumsNotifier extends StateNotifier<List<AlbumItem>> {
             .map((item) {
               try {
                 return AlbumItem.fromJson(
-                    jsonDecode(item) as Map<String, dynamic>);
+                  jsonDecode(item) as Map<String, dynamic>,
+                );
               } catch (_) {
                 return null;
               }
@@ -233,8 +232,8 @@ class SavedAlbumsNotifier extends StateNotifier<List<AlbumItem>> {
 
 final savedAlbumsProvider =
     StateNotifierProvider<SavedAlbumsNotifier, List<AlbumItem>>((ref) {
-  return SavedAlbumsNotifier();
-});
+      return SavedAlbumsNotifier();
+    });
 
 // ============================================================================
 // SAVED ARTISTS NOTIFIER (Local persistence)
@@ -256,7 +255,8 @@ class SavedArtistsNotifier extends StateNotifier<List<ArtistItem>> {
             .map((item) {
               try {
                 return ArtistItem.fromJson(
-                    jsonDecode(item) as Map<String, dynamic>);
+                  jsonDecode(item) as Map<String, dynamic>,
+                );
               } catch (_) {
                 return null;
               }
@@ -296,10 +296,7 @@ class SavedArtistsNotifier extends StateNotifier<List<ArtistItem>> {
   void updateArtistThumbnail(String artistId, String thumbnailUrl) {
     state = [
       for (final a in state)
-        if (a.id == artistId)
-          a.copyWith(thumbnailUrl: thumbnailUrl)
-        else
-          a,
+        if (a.id == artistId) a.copyWith(thumbnailUrl: thumbnailUrl) else a,
     ];
     _persist(state);
   }
@@ -317,19 +314,20 @@ class SavedArtistsNotifier extends StateNotifier<List<ArtistItem>> {
 
 final savedArtistsProvider =
     StateNotifierProvider<SavedArtistsNotifier, List<ArtistItem>>((ref) {
-  return SavedArtistsNotifier();
-});
+      return SavedArtistsNotifier();
+    });
 
 // ============================================================================
 // YOUTUBE MUSIC LIKED SONGS NOTIFIER
 // ============================================================================
 
-class YouTubeLikedSongsNotifier extends StateNotifier<AsyncValue<List<SongItem>>> {
+class YouTubeLikedSongsNotifier
+    extends StateNotifier<AsyncValue<List<SongItem>>> {
   final MusicService _musicService;
   final Ref _ref;
 
   YouTubeLikedSongsNotifier(this._musicService, this._ref)
-      : super(const AsyncValue.data([])) {
+    : super(const AsyncValue.data([])) {
     _init();
   }
 
@@ -375,11 +373,14 @@ class YouTubeLikedSongsNotifier extends StateNotifier<AsyncValue<List<SongItem>>
   }
 }
 
-final youtubeLikedSongsProvider = StateNotifierProvider<
-    YouTubeLikedSongsNotifier, AsyncValue<List<SongItem>>>((ref) {
-  final musicService = ref.watch(musicServiceProvider);
-  return YouTubeLikedSongsNotifier(musicService, ref);
-});
+final youtubeLikedSongsProvider =
+    StateNotifierProvider<
+      YouTubeLikedSongsNotifier,
+      AsyncValue<List<SongItem>>
+    >((ref) {
+      final musicService = ref.watch(musicServiceProvider);
+      return YouTubeLikedSongsNotifier(musicService, ref);
+    });
 
 // ============================================================================
 // USER-SPECIFIC LIBRARY PROVIDERS
@@ -407,7 +408,9 @@ final userPlaylistsProvider = FutureProvider<List<PlaylistItem>>((ref) async {
 
   // Saved and shared playlists from YouTube and custom local playlists
   for (final p in [...customUserPlaylists, ...ytPlaylists]) {
-    if (p.id == 'LM' || p.id == 'VLLM' || p.title.toLowerCase() == 'liked music') {
+    if (p.id == 'LM' ||
+        p.id == 'VLLM' ||
+        p.title.toLowerCase() == 'liked music') {
       continue;
     }
     if (!seen.contains(p.id)) {
@@ -433,10 +436,13 @@ final userAlbumsProvider = FutureProvider<List<AlbumItem>>((ref) async {
 
   final musicService = ref.watch(musicServiceProvider);
   final ytAlbums = await musicService.getUserAlbums();
-  final customUserAlbums = localSaved.where((a) => a.isCustom).toList();
-  final ytLikes = ref.watch(youtubeLikedSongsProvider).value ?? [];
+  final ytLikes = ref.watch(youtubeLikedSongsProvider).asData?.value ??
+      ref.watch(youtubeLikedSongsProvider).value ??
+      [];
 
-  const defaultLikedArt = 'https://www.gstatic.com/youtube/media/ytm/images/pbg/liked-songs-delhi-576.png';
+  final totalLikedCount = ytLikes.length;
+  const defaultLikedArt =
+      'https://www.gstatic.com/youtube/media/ytm/images/pbg/liked-songs-delhi-576.png';
   final likedArt = (ytLikes.isNotEmpty && ytLikes.first.thumbnailUrl != null)
       ? ytLikes.first.thumbnailUrl
       : defaultLikedArt;
@@ -453,12 +459,12 @@ final userAlbumsProvider = FutureProvider<List<AlbumItem>>((ref) async {
       thumbnailUrl: likedArt,
       type: 'Playlist',
       year: DateTime.now().year,
-      trackCount: ytLikes.isNotEmpty ? ytLikes.length : 0,
+      trackCount: totalLikedCount,
       isCustom: false,
     ),
   );
 
-  for (final a in [...customUserAlbums, ...ytAlbums]) {
+  for (final a in [...localSaved, ...ytAlbums]) {
     if (a.id != 'LM' && a.id != 'VLLM' && !seen.contains(a.id)) {
       seen.add(a.id);
       result.add(a);

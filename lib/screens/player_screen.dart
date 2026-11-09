@@ -122,11 +122,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           });
         });
 
-    // Auto-collapse check after initial screen load only if in lyrics mode
+    // Auto-collapse check after initial screen load if a song is already playing
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final isPlaying = ref.read(playerProvider).isPlaying;
-        if (isPlaying && _currentMode == PlayerViewMode.lyrics) {
+        if (isPlaying && _currentMode != PlayerViewMode.queue) {
           _startAutoHideTimer();
         }
       }
@@ -167,8 +167,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _startAutoHideTimer() {
     _autoHideTimer?.cancel();
     if (!mounted) return;
-    // Auto-hide controls only when in lyrics mode
-    if (_currentMode != PlayerViewMode.lyrics) {
+    // Auto-hide controls when playing in nowPlaying or lyrics mode (keep fixed in queue mode)
+    if (_currentMode == PlayerViewMode.queue) {
       if (_controlsAnimController.value < 1.0) {
         _controlsAnimController.forward();
       }
@@ -180,7 +180,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         if (mounted &&
             ref.read(playerProvider).isPlaying &&
             !_isDraggingSlider &&
-            _currentMode == PlayerViewMode.lyrics) {
+            _currentMode != PlayerViewMode.queue) {
           _controlsAnimController.reverse();
         }
       });
@@ -197,19 +197,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_controlsAnimController.value < 1.0) {
       _controlsAnimController.forward();
     }
-    if (_currentMode == PlayerViewMode.lyrics) {
+    if (_currentMode != PlayerViewMode.queue) {
       _startAutoHideTimer();
     }
   }
 
   void _toggleControls() {
-    // Only allow collapsing controls when in lyrics mode
-    if (_currentMode != PlayerViewMode.lyrics) {
-      if (_controlsAnimController.value < 1.0) {
-        _controlsAnimController.forward();
-      }
-      return;
-    }
+    if (_currentMode == PlayerViewMode.queue) return;
     if (_controlsAnimController.isAnimating) return;
     if (_controlsAnimController.value > 0.5) {
       _cancelAutoHideTimer();
@@ -233,8 +227,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         duration: const Duration(milliseconds: 440),
         curve: Curves.easeInOutCubic,
       );
-      _cancelAutoHideTimer();
       _controlsAnimController.forward();
+      _startAutoHideTimer();
     } else {
       if (oldMode == PlayerViewMode.nowPlaying) {
         _modeAnimController.animateTo(
@@ -625,13 +619,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       favoritesProvider.select((list) => list.any((s) => s.id == song.id)),
     );
 
-    // Auto-hide controls when song starts playing ONLY in lyrics mode; keep visible in nowPlaying
+    // Auto-hide controls when song starts playing; reveal when paused
     ref.listen<bool>(playerProvider.select((s) => s.isPlaying), (
       previous,
       isPlaying,
     ) {
       if (isPlaying) {
-        if (_currentMode == PlayerViewMode.lyrics) {
+        if (_currentMode != PlayerViewMode.queue) {
           _startAutoHideTimer();
         } else {
           _cancelAutoHideTimer();
@@ -665,13 +659,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             offset: Offset(0, _dragOffsetY),
             child: GestureDetector(
               onTap: () {
-                // Tapping anywhere reveals controls if collapsed, or resets inactivity timer in lyrics mode
+                // Tapping anywhere reveals controls if collapsed, or resets inactivity timer
                 if (_controlsAnimController.value < 0.5) {
                   _controlsAnimController.forward();
-                  if (_currentMode == PlayerViewMode.lyrics) {
+                  if (_currentMode != PlayerViewMode.queue) {
                     _startAutoHideTimer();
                   }
-                } else if (_currentMode == PlayerViewMode.lyrics) {
+                } else if (_currentMode != PlayerViewMode.queue) {
                   _startAutoHideTimer();
                 }
               },
@@ -760,10 +754,55 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         animation: Listenable.merge([
           _ambientAnimController,
           _modeAnimController,
+          _controlsAnimController,
         ]),
         builder: (context, _) {
           final scale = 1.0 + (_ambientAnimController.value * 0.05);
           final modeVal = _modeAnimController.value;
+          final controlsVal = CurvedAnimation(
+            parent: _controlsAnimController,
+            curve: Curves.easeInOutCubic,
+          ).value;
+
+          // In nowPlaying mode, blur smoothly transitions from 15.0 down to 0.0 when controls collapse.
+          // In lyrics/queue mode, keep ambient blur (15.0) for readability of text.
+          final effectiveSigma = ui.lerpDouble(
+            15.0 * modeVal,
+            15.0,
+            controlsVal,
+          )!.clamp(0.0, 15.0);
+
+          Widget backdropImage = WavifyCachedImage(
+            imageUrl:
+                AmbientVideoCanvas.isVideoUrl(
+                  animatedArtworkUrl,
+                )
+                ? artworkUrl
+                : (animatedArtworkUrl ?? artworkUrl),
+            placeholderImageUrl:
+                song.resolvedThumbnailUrl ??
+                song.thumbnailUrl,
+            songId: song.id,
+            fit: BoxFit.cover,
+            alignment: Alignment.topCenter,
+            filterQuality: FilterQuality.medium,
+            errorWidget: const SizedBox(),
+          );
+
+          backdropImage = ColorFiltered(
+            colorFilter: _amoledVibrancyFilter,
+            child: backdropImage,
+          );
+
+          if (effectiveSigma > 0.1) {
+            backdropImage = ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(
+                sigmaX: effectiveSigma,
+                sigmaY: effectiveSigma,
+              ),
+              child: backdropImage,
+            );
+          }
 
           return Stack(
             fit: StackFit.expand,
@@ -771,37 +810,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               // Pitch black AMOLED base
               Container(color: Colors.black),
 
-              // Full-bleed blurred artwork backdrop
+              // Full-bleed artwork backdrop (blurred when controls are up, crisp when controls collapse)
               Positioned.fill(
                     child: ClipRect(
                       child: Transform.scale(
-                        scale: scale * 1.15,
+                        scale: scale * (1.0 + (0.15 * controlsVal)),
                         alignment: Alignment.topCenter,
-                        child: ImageFiltered(
-                          imageFilter: ui.ImageFilter.blur(
-                            sigmaX: 15,
-                            sigmaY: 15,
-                          ),
-                          child: ColorFiltered(
-                            colorFilter: _amoledVibrancyFilter,
-                            child: WavifyCachedImage(
-                              imageUrl:
-                                  AmbientVideoCanvas.isVideoUrl(
-                                    animatedArtworkUrl,
-                                  )
-                                  ? artworkUrl
-                                  : (animatedArtworkUrl ?? artworkUrl),
-                              placeholderImageUrl:
-                                  song.resolvedThumbnailUrl ??
-                                  song.thumbnailUrl,
-                              songId: song.id,
-                              fit: BoxFit.cover,
-                              alignment: Alignment.topCenter,
-                              filterQuality: FilterQuality.medium,
-                              errorWidget: const SizedBox(),
-                            ),
-                          ),
-                        ),
+                        child: backdropImage,
                       ),
                     ),
                   )
@@ -811,7 +826,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     curve: Curves.easeOut,
                   ),
 
-              // Smooth darkness dissolve in Now Playing: reduced blur allows artwork to gracefully fade in the downside
+              // Smooth darkness dissolve in Now Playing: fades out as controls collapse
               Positioned.fill(
                 child: Container(
                   decoration: BoxDecoration(
@@ -821,10 +836,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       colors: [
                         Colors.transparent,
                         Colors.transparent,
-                        Colors.black.withValues(alpha: 0.15),
-                        Colors.black.withValues(alpha: 0.45),
-                        Colors.black.withValues(alpha: 0.72),
-                        Colors.black.withValues(alpha: 0.86),
+                        Colors.black.withValues(alpha: 0.15 * controlsVal),
+                        Colors.black.withValues(alpha: 0.45 * controlsVal),
+                        Colors.black.withValues(alpha: 0.72 * controlsVal),
+                        Colors.black.withValues(alpha: 0.86 * controlsVal),
                       ],
                       stops: const [0.0, 0.38, 0.52, 0.68, 0.84, 1.0],
                     ),
@@ -844,22 +859,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ),
                 ),
 
-              // Top Status Bar Vignette (preserves status icons readability)
+              // Top Status Bar Vignette (preserves status icons readability, fades when controls collapse)
               Positioned(
                 top: 0,
                 left: 0,
                 right: 0,
                 height: 120,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withValues(alpha: 0.50),
-                        Colors.transparent,
-                      ],
-                      stops: const [0.0, 1.0],
+                child: Opacity(
+                  opacity: controlsVal,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.50),
+                          Colors.transparent,
+                        ],
+                        stops: const [0.0, 1.0],
+                      ),
                     ),
                   ),
                 ),
@@ -896,26 +914,41 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       animation: Listenable.merge([
         _modeAnimController,
         _ambientAnimController,
+        _controlsAnimController,
       ]),
       builder: (context, _) {
         final modeVal = CurvedAnimation(
           parent: _modeAnimController,
           curve: Curves.easeInOutCubic,
         ).value;
+        final controlsVal = CurvedAnimation(
+          parent: _controlsAnimController,
+          curve: Curves.easeInOutCubic,
+        ).value;
 
-        // Subtle breathing zoom scale (1.0 to 1.05) when in expanded nowPlaying mode
+        // Subtle breathing zoom scale (1.0 to 1.05) when in expanded nowPlaying mode with controls visible
         final breathingScale =
-            1.0 + (_ambientAnimController.value * 0.05 * (1.0 - modeVal));
+            1.0 + (_ambientAnimController.value * 0.05 * (1.0 - modeVal) * controlsVal);
 
-        // Interpolate rect geometry between Now Playing 50% canvas and Lyrics 48x48 header thumbnail
-        final left = ui.lerpDouble(0.0, 24.0, modeVal)!;
-        final top = ui.lerpDouble(0.0, headerTop, modeVal)!;
-        final width = ui.lerpDouble(screenWidth, targetThumbSize, modeVal)!;
-        final height = ui.lerpDouble(
+        // When in Now Playing mode:
+        // - if controlsVal == 1.0 (controls visible), height is 50% screen height
+        // - if controlsVal == 0.0 (controls collapsed), height is 100% screen height (full screen video/artwork!)
+        // When transitioning to lyrics/queue mode (modeVal -> 1.0), height smoothly transitions to targetThumbSize (48.0)
+        final expandedHeight = ui.lerpDouble(
+          screenHeight,
           screenHeight * 0.50,
+          controlsVal,
+        )!;
+        final height = ui.lerpDouble(
+          expandedHeight,
           targetThumbSize,
           modeVal,
         )!;
+
+        // Interpolate rect geometry between Now Playing full/50% canvas and Lyrics 48x48 header thumbnail
+        final left = ui.lerpDouble(0.0, 24.0, modeVal)!;
+        final top = ui.lerpDouble(0.0, headerTop, modeVal)!;
+        final width = ui.lerpDouble(screenWidth, targetThumbSize, modeVal)!;
         final borderRadius = ui.lerpDouble(0.0, 12.0, modeVal)!;
 
         // Base image content
@@ -950,7 +983,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           );
         }
 
-        // Apply breathing zoom only in Now Playing expanded mode
+        // Apply breathing zoom only in Now Playing mode with controls visible
         imageWidget = Transform.scale(
           scale: breathingScale,
           alignment: Alignment.topCenter,
@@ -960,8 +993,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ),
         );
 
-        // Downward blur dissolve shader mask: feathered in expanded mode, crisp in thumbnail mode
-        if (modeVal < 0.96) {
+        // Downward blur dissolve shader mask: feathered in expanded mode when controls are visible,
+        // completely eliminated when controls collapse so the video is full-screen edge-to-edge
+        final dissolveFactor = (controlsVal * (1.0 - modeVal)).clamp(0.0, 1.0);
+        if (modeVal < 0.96 && dissolveFactor > 0.02) {
           imageWidget = ShaderMask(
             shaderCallback: (bounds) {
               return LinearGradient(
@@ -970,10 +1005,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 colors: [
                   Colors.black,
                   Colors.black,
-                  Color.lerp(const Color(0xEE000000), Colors.black, modeVal)!,
-                  Color.lerp(const Color(0x88000000), Colors.black, modeVal)!,
-                  Color.lerp(const Color(0x22000000), Colors.black, modeVal)!,
-                  Color.lerp(const Color(0x00000000), Colors.black, modeVal)!,
+                  Color.lerp(Colors.black, const Color(0xEE000000), dissolveFactor)!,
+                  Color.lerp(Colors.black, const Color(0x88000000), dissolveFactor)!,
+                  Color.lerp(Colors.black, const Color(0x22000000), dissolveFactor)!,
+                  Color.lerp(Colors.black, const Color(0x00000000), dissolveFactor)!,
                 ],
                 stops: const [0.0, 0.60, 0.74, 0.86, 0.95, 1.0],
               ).createShader(bounds);
@@ -1091,48 +1126,58 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         onVerticalDragEnd: _onVerticalDragEnd,
         behavior: HitTestBehavior.translucent,
         child: AnimatedBuilder(
-          animation: _modeAnimController,
+          animation: Listenable.merge([
+            _modeAnimController,
+            _controlsAnimController,
+          ]),
           builder: (context, _) {
             final modeVal = _modeAnimController.value;
+            final controlsVal = CurvedAnimation(
+              parent: _controlsAnimController,
+              curve: Curves.easeInOutCubic,
+            ).value;
 
             return Stack(
               children: [
-                // 1. Now Playing Top Header: Grab Bar + "Playing from <Album/Artist>"
+                // 1. Now Playing Top Header: Grab Bar + "Playing from <Album/Artist>" (fades out smoothly with controls)
                 if (modeVal < 0.95)
                   Positioned(
                     top: headerTop - 14,
                     left: 36,
                     right: 36,
-                    child: Opacity(
-                      opacity: (1.0 - (modeVal * 2.5)).clamp(0.0, 1.0),
-                      child: GestureDetector(
-                        onTap: () => Navigator.of(context).pop(),
-                        behavior: HitTestBehavior.opaque,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 36,
-                              height: 4.5,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.38),
-                                borderRadius: BorderRadius.circular(2.25),
+                    child: IgnorePointer(
+                      ignoring: controlsVal < 0.1,
+                      child: Opacity(
+                        opacity: ((1.0 - (modeVal * 2.5)) * controlsVal).clamp(0.0, 1.0),
+                        child: GestureDetector(
+                          onTap: () => Navigator.of(context).pop(),
+                          behavior: HitTestBehavior.opaque,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 36,
+                                height: 4.5,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.38),
+                                  borderRadius: BorderRadius.circular(2.25),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              playingFromText,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.70),
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w500,
-                                letterSpacing: -0.2,
+                              const SizedBox(height: 8),
+                              Text(
+                                playingFromText,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.70),
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w500,
+                                  letterSpacing: -0.2,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -1619,7 +1664,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         song.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppleTypography.playerTitle,
+                        style: AppleTypography.playerTitle.copyWith(
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withValues(alpha: 0.70),
+                              blurRadius: 10,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -1632,7 +1685,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     song.artist,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppleTypography.playerArtist,
+                    style: AppleTypography.playerArtist.copyWith(
+                      shadows: [
+                        Shadow(
+                          color: Colors.black.withValues(alpha: 0.70),
+                          blurRadius: 8,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
