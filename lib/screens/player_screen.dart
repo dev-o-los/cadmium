@@ -30,6 +30,34 @@ import '../widgets/smooth_player_loader.dart';
 import '../widgets/track_options_sheet.dart';
 import '../widgets/wavify_cached_image.dart';
 
+/// Reactive provider extracting the solid primary color from current album artwork via PaletteGenerator
+final currentSongPrimaryColorProvider =
+    FutureProvider.autoDispose<Color>((ref) async {
+  final song = ref.watch(playerProvider.select((s) => s.currentSong));
+  if (song == null) return const Color(0xFF181822);
+  final art = song.highResThumbnailUrl ??
+      song.resolvedThumbnailUrl ??
+      song.thumbnailUrl;
+  return ArtworkColorService.instance.extractAttractiveColor(
+    art,
+    fallbackSeed: '${song.title} ${song.artist}',
+  );
+});
+
+/// Reactive provider extracting the secondary most important color from current album artwork via PaletteGenerator
+final currentSongSecondaryColorProvider =
+    FutureProvider.autoDispose<Color>((ref) async {
+  final song = ref.watch(playerProvider.select((s) => s.currentSong));
+  if (song == null) return const Color(0xFF282034);
+  final art = song.highResThumbnailUrl ??
+      song.resolvedThumbnailUrl ??
+      song.thumbnailUrl;
+  return ArtworkColorService.instance.extractSecondaryColor(
+    art,
+    fallbackSeed: '${song.title} ${song.artist}',
+  );
+});
+
 /// Reactive provider extracting the brightest vibrant color from current album artwork
 final currentSongBestColorProvider =
     FutureProvider.autoDispose<Color>((ref) async {
@@ -481,19 +509,47 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             );
           }
 
+          final primaryColor = ref.watch(currentSongPrimaryColorProvider).asData?.value ??
+              ArtworkColorService.instance.getCachedColor(artworkUrl) ??
+              ArtworkColorService.instance.getFallbackBestColor('${song.title} ${song.artist}');
+          final secondaryColor = ref.watch(currentSongSecondaryColorProvider).asData?.value ??
+              ArtworkColorService.instance.getCachedSecondaryColor(artworkUrl) ??
+              ArtworkColorService.instance.getFallbackSecondaryColor('${song.title} ${song.artist}');
+          final deeperPrimary = ArtworkColorService.instance.computeDeeperTone(primaryColor);
+          final deeperSecondary = ArtworkColorService.instance.computeDeeperTone(secondaryColor);
+
           return Stack(
             fit: StackFit.expand,
             children: [
-              // Pitch black AMOLED base
-              Container(color: Colors.black),
-
-              // Full-bleed artwork backdrop (blurred when controls are up, crisp when controls collapse)
+              // 1. Solid harmonized color foundation from PaletteGenerator (Player Screen solid backdrop)
               Positioned.fill(
-                    child: ClipRect(
-                      child: Transform.scale(
-                        scale: scale * (1.0 + (0.15 * controlsVal)),
-                        alignment: Alignment.topCenter,
-                        child: backdropImage,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        primaryColor,
+                        Color.lerp(primaryColor, secondaryColor, 0.45)!,
+                        deeperSecondary,
+                        Colors.black,
+                      ],
+                      stops: const [0.0, 0.35, 0.70, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+
+              // 2. Full-bleed artwork backdrop (blurred when controls are up, crisp when controls collapse)
+              Positioned.fill(
+                    child: Opacity(
+                      opacity: ui.lerpDouble(1.0, 0.35, modeVal)!,
+                      child: ClipRect(
+                        child: Transform.scale(
+                          scale: scale * (1.0 + (0.15 * controlsVal)),
+                          alignment: Alignment.topCenter,
+                          child: backdropImage,
+                        ),
                       ),
                     ),
                   )
@@ -503,22 +559,57 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     curve: Curves.easeOut,
                   ),
 
-              // Smooth darkness dissolve in Now Playing: fades out as controls collapse
+              // 3. Apple Music-style Animated Solid Color Canvas for Lyrics Screen
+              if (modeVal > 0.001)
+                Positioned.fill(
+                  child: Opacity(
+                    opacity: modeVal,
+                    child: Transform.rotate(
+                      angle: _ambientAnimController.value * 0.12,
+                      child: Transform.scale(
+                        scale: 1.20 + (_ambientAnimController.value * 0.08),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(
+                              center: Alignment(
+                                math.sin(_ambientAnimController.value * 2 * math.pi) * 0.40,
+                                math.cos(_ambientAnimController.value * 2 * math.pi) * 0.35 - 0.20,
+                              ),
+                              radius: 1.25,
+                              colors: [
+                                secondaryColor.withValues(alpha: 0.90),
+                                primaryColor.withValues(alpha: 0.92),
+                                deeperPrimary.withValues(alpha: 0.96),
+                                const Color(0xF20A0A10),
+                              ],
+                              stops: const [0.0, 0.42, 0.78, 1.0],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // Smooth darkness dissolve in Now Playing: fades out as controls collapse or mode shifts
               Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        Colors.transparent,
-                        Colors.black.withValues(alpha: 0.15 * controlsVal),
-                        Colors.black.withValues(alpha: 0.45 * controlsVal),
-                        Colors.black.withValues(alpha: 0.72 * controlsVal),
-                        Colors.black.withValues(alpha: 0.86 * controlsVal),
-                      ],
-                      stops: const [0.0, 0.38, 0.52, 0.68, 0.84, 1.0],
+                child: Opacity(
+                  opacity: (1.0 - modeVal).clamp(0.0, 1.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.15 * controlsVal),
+                          Colors.black.withValues(alpha: 0.45 * controlsVal),
+                          Colors.black.withValues(alpha: 0.72 * controlsVal),
+                          Colors.black.withValues(alpha: 0.86 * controlsVal),
+                        ],
+                        stops: const [0.0, 0.38, 0.52, 0.68, 0.84, 1.0],
+                      ),
                     ),
                   ),
                 ),
@@ -530,7 +621,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   child: Container(
                     color: Color.lerp(
                       Colors.transparent,
-                      const Color(0x7508080A),
+                      Colors.black.withValues(alpha: 0.25),
                       modeVal,
                     ),
                   ),

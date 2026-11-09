@@ -74,20 +74,17 @@ void showTrackOptionsModal(
   );
 }
 
-/// Authentic ultra-glossy Liquid Glass preset matching the bottom navigation dock.
+/// Authentic Liquid Glass preset matching the bottom navigation dock exactly.
 const kTrackMenuGlassSettings = LiquidGlassSettings(
-  thickness: 36,
-  blur: 16,
-  chromaticAberration: 0.40,
-  lightIntensity: 1.25,
-  refractiveIndex: 1.62,
-  saturation: 1.12,
-  ambientStrength: 1.0,
-  specularSharpness: GlassSpecularSharpness.sharp,
-  fresnelStrength: 1.85,
-  rimLight: 0.75,
+  thickness: 30,
+  blur: 3,
+  chromaticAberration: 0.3,
+  lightIntensity: 0.6,
+  refractiveIndex: 1.59,
+  saturation: 0.7,
+  ambientStrength: 1,
   lightAngle: 0.75 * math.pi,
-  glassColor: Color(0x38FFFFFF),
+  glassColor: Color(0x3DFFFFFF),
 );
 
 class _TrackMenuCard extends ConsumerWidget {
@@ -122,19 +119,8 @@ class _TrackMenuCard extends ConsumerWidget {
           child: DecoratedBox(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
-              gradient: LinearGradient(
-                begin: const Alignment(-0.7, -1.0),
-                end: const Alignment(0.7, 1.0),
-                colors: [
-                  Colors.white.withValues(alpha: 0.22),
-                  Colors.white.withValues(alpha: 0.05),
-                  const Color(0x1210121A),
-                  const Color(0x22141620),
-                ],
-                stops: const [0.0, 0.25, 0.65, 1.0],
-              ),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.12),
+                color: Colors.white.withValues(alpha: 0.14),
                 width: 0.5,
               ),
               boxShadow: [
@@ -143,12 +129,6 @@ class _TrackMenuCard extends ConsumerWidget {
                   blurRadius: 36,
                   spreadRadius: 1,
                   offset: const Offset(0, 10),
-                ),
-                BoxShadow(
-                  color: Colors.white.withValues(alpha: 0.10),
-                  blurRadius: 16,
-                  spreadRadius: -2,
-                  offset: const Offset(-2, -2),
                 ),
               ],
             ),
@@ -596,7 +576,7 @@ class _TrackMenuCard extends ConsumerWidget {
     GlassDialog.show(
       context: context,
       barrierDismissible: true,
-      settings: LiquidGlassSettings.ios27Dark,
+      settings: kTrackMenuGlassSettings,
       title: 'New Playlist',
       message: 'Enter a title for this playlist.',
       maxWidth: 300,
@@ -661,7 +641,7 @@ class _TrackMenuCard extends ConsumerWidget {
     GlassDialog.show(
       context: context,
       barrierDismissible: true,
-      settings: LiquidGlassSettings.ios27Dark,
+      settings: kTrackMenuGlassSettings,
       title: 'Song Info',
       maxWidth: 320,
       content: Padding(

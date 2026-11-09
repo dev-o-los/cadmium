@@ -10,6 +10,7 @@ import '../constants/apple_typography.dart';
 import '../models/audio_device_item.dart';
 import '../providers/player_provider.dart';
 import 'apple_pressable.dart';
+import 'liquid_glass_bottom_bar.dart';
 
 /// Shows an authentic bottom sheet with frosted glass blur,
 /// translucent dark background, subtle highlight border, and rounded corners.
@@ -400,7 +401,7 @@ Widget _buildOutputCard({
 void _showCastDialog(BuildContext context) {
   GlassDialog.show(
     context: context,
-    settings: LiquidGlassSettings.ios27Dark,
+    settings: kLiquidBottomDockGlassSettings,
     barrierDismissible: true,
     title: 'Google Cast',
     message:
