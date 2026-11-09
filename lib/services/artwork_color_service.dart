@@ -343,9 +343,9 @@ class ArtworkColorService {
       return const Color(0xFF16161A);
     }
 
-    // Ensure rich saturation and velvety deep background lightness (20% - 28%)
-    final tunedSaturation = (hsl.saturation * 1.15).clamp(0.40, 0.95);
-    final tunedLightness = hsl.lightness.clamp(0.18, 0.28);
+    // Ensure rich saturation and clear primary color lightness (24% - 38%)
+    final tunedSaturation = (hsl.saturation * 1.15).clamp(0.45, 0.95);
+    final tunedLightness = hsl.lightness.clamp(0.24, 0.38);
 
     return hsl
         .withSaturation(tunedSaturation)
