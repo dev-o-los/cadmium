@@ -237,6 +237,16 @@ class AudioCacheService {
     return name.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
   }
 
+  /// Removes a cached audio file for a song.
+  void removeCachedAudio(String songId) {
+    final file = _getTargetCacheFile(songId);
+    if (file != null && file.existsSync()) {
+      try {
+        file.deleteSync();
+      } catch (_) {}
+    }
+  }
+
   /// Clears entire audio cache.
   Future<void> clearCache() async {
     try {

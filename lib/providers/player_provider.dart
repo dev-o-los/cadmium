@@ -26,6 +26,7 @@ class PlayerStateModel {
   final Duration position;
   final Duration duration;
   final List<SongItem> queue;
+  final List<SongItem> autoplayQueue;
   final List<SongItem> recentlyPlayed;
   final LoopMode loopMode;
   final bool isShuffle;
@@ -44,6 +45,8 @@ class PlayerStateModel {
   final AudioDeviceItem connectedDevice;
   final String? selectedDeviceId;
   final List<AudioDeviceItem> availableAudioDevices;
+  final Duration? sleepTimerDuration;
+  final DateTime? sleepTimerEndTime;
 
   const PlayerStateModel({
     this.currentSong,
@@ -53,6 +56,7 @@ class PlayerStateModel {
     this.position = Duration.zero,
     this.duration = Duration.zero,
     this.queue = const [],
+    this.autoplayQueue = const [],
     this.recentlyPlayed = const [],
     this.loopMode = LoopMode.off,
     this.isShuffle = false,
@@ -83,6 +87,8 @@ class PlayerStateModel {
         isSelected: true,
       ),
     ],
+    this.sleepTimerDuration,
+    this.sleepTimerEndTime,
   });
 
   /// Whether the player is actively resolving stream or buffering before audio starts.
@@ -96,6 +102,7 @@ class PlayerStateModel {
     Duration? position,
     Duration? duration,
     List<SongItem>? queue,
+    List<SongItem>? autoplayQueue,
     List<SongItem>? recentlyPlayed,
     LoopMode? loopMode,
     bool? isShuffle,
@@ -118,6 +125,9 @@ class PlayerStateModel {
     AudioDeviceItem? connectedDevice,
     String? selectedDeviceId,
     List<AudioDeviceItem>? availableAudioDevices,
+    Duration? sleepTimerDuration,
+    DateTime? sleepTimerEndTime,
+    bool clearSleepTimer = false,
   }) {
     return PlayerStateModel(
       currentSong: currentSong ?? this.currentSong,
@@ -127,6 +137,7 @@ class PlayerStateModel {
       position: position ?? this.position,
       duration: duration ?? this.duration,
       queue: queue ?? this.queue,
+      autoplayQueue: autoplayQueue ?? this.autoplayQueue,
       recentlyPlayed: recentlyPlayed ?? this.recentlyPlayed,
       loopMode: loopMode ?? this.loopMode,
       isShuffle: isShuffle ?? this.isShuffle,
@@ -145,6 +156,8 @@ class PlayerStateModel {
       connectedDevice: connectedDevice ?? this.connectedDevice,
       selectedDeviceId: selectedDeviceId ?? this.selectedDeviceId,
       availableAudioDevices: availableAudioDevices ?? this.availableAudioDevices,
+      sleepTimerDuration: clearSleepTimer ? null : (sleepTimerDuration ?? this.sleepTimerDuration),
+      sleepTimerEndTime: clearSleepTimer ? null : (sleepTimerEndTime ?? this.sleepTimerEndTime),
     );
   }
 }
@@ -548,6 +561,11 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     // Fetch animated looping artwork ("GIF video") asynchronously in background
     _fetchAnimatedArtwork(song);
 
+    // Fetch YouTube Music AutoPlay recommendations asynchronously in background
+    if (state.isAutoplay) {
+      _fetchAutoplayQueue(song);
+    }
+
     // Resolve studio-master album artwork asynchronously if needed
     _resolveMasterArtwork(song);
 
@@ -856,11 +874,21 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     }
   }
 
+  Timer? _sleepTimer;
+
   void skipNext() {
     if (state.queue.isNotEmpty) {
       final nextSong = state.queue.first;
       final remainingQueue = state.queue.sublist(1);
       playSong(nextSong, contextQueue: remainingQueue, forceReload: true);
+    } else if (state.isAutoplay && state.autoplayQueue.isNotEmpty) {
+      final nextSong = state.autoplayQueue.first;
+      final remainingAutoplay = state.autoplayQueue.sublist(1);
+      state = state.copyWith(autoplayQueue: remainingAutoplay);
+      playSong(nextSong, forceReload: true);
+      if (remainingAutoplay.length <= 2) {
+        _fetchAutoplayQueue(nextSong);
+      }
     } else if (state.isAutoplay && state.currentSong != null) {
       _fetchAutoplayNext();
     } else if (state.recentlyPlayed.length > 1) {
@@ -873,17 +901,46 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     }
   }
 
+  Future<void> _fetchAutoplayQueue(SongItem song) async {
+    try {
+      final musicService = _ref.read(musicServiceProvider);
+      final tracks = await musicService.getSongRadio(
+        song.id,
+        artist: song.artist,
+        title: song.title,
+      );
+      final candidateTracks = tracks.where((s) => s.id != song.id).toList();
+      if (candidateTracks.isNotEmpty) {
+        state = state.copyWith(autoplayQueue: candidateTracks);
+      }
+    } catch (e) {
+      debugPrint('[PlayerNotifier] Error fetching autoplay queue: $e');
+    }
+  }
+
+  Future<void> fetchAutoplayQueueForCurrentSong() async {
+    final current = state.currentSong;
+    if (current != null) {
+      await _fetchAutoplayQueue(current);
+    }
+  }
+
   Future<void> _fetchAutoplayNext() async {
     final current = state.currentSong;
     if (current == null) return;
     try {
       final musicService = _ref.read(musicServiceProvider);
-      final results = await musicService.searchSongs('${current.artist} ${current.title}');
-      final candidateTracks = results.where((s) => s.id != current.id).toList();
+      final tracks = await musicService.getSongRadio(
+        current.id,
+        artist: current.artist,
+        title: current.title,
+      );
+      final candidateTracks = tracks.where((s) => s.id != current.id).toList();
       if (candidateTracks.isNotEmpty) {
         final nextSong = candidateTracks.first;
         final nextQueue = candidateTracks.sublist(1);
-        playSong(nextSong, contextQueue: nextQueue, forceReload: true);
+        state = state.copyWith(autoplayQueue: nextQueue);
+        playSong(nextSong, forceReload: true);
         return;
       }
     } catch (_) {}
@@ -892,6 +949,12 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       final nextIdx = (currentIdx + 1) % state.recentlyPlayed.length;
       playSong(state.recentlyPlayed[nextIdx], forceReload: true);
     }
+  }
+
+  Future<void> startRadio(SongItem song) async {
+    state = state.copyWith(isAutoplay: true, queue: []);
+    playSong(song, forceReload: true);
+    await _fetchAutoplayQueue(song);
   }
 
   void skipPrevious() {
@@ -930,7 +993,11 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   }
 
   void toggleAutoplay() {
-    state = state.copyWith(isAutoplay: !state.isAutoplay);
+    final nextAutoplay = !state.isAutoplay;
+    state = state.copyWith(isAutoplay: nextAutoplay);
+    if (nextAutoplay && state.currentSong != null && state.autoplayQueue.isEmpty) {
+      _fetchAutoplayQueue(state.currentSong!);
+    }
   }
 
   void setVolume(double val) {
@@ -955,6 +1022,22 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     }
   }
 
+  void removeFromAutoplayQueue(int index) {
+    if (index >= 0 && index < state.autoplayQueue.length) {
+      final updated = List<SongItem>.from(state.autoplayQueue)..removeAt(index);
+      state = state.copyWith(autoplayQueue: updated);
+    }
+  }
+
+  void removeCurrentSong() {
+    if (state.queue.isNotEmpty || state.autoplayQueue.isNotEmpty) {
+      skipNext();
+    } else {
+      pause();
+      seek(Duration.zero);
+    }
+  }
+
   void reorderQueue(int oldIndex, int newIndex) {
     if (oldIndex < 0 || oldIndex >= state.queue.length) return;
     final updated = List<SongItem>.from(state.queue);
@@ -965,6 +1048,44 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     final item = updated.removeAt(oldIndex);
     updated.insert(newIndex, item);
     state = state.copyWith(queue: updated);
+  }
+
+  void reorderAutoplayQueue(int oldIndex, int newIndex) {
+    if (oldIndex < 0 || oldIndex >= state.autoplayQueue.length) return;
+    final updated = List<SongItem>.from(state.autoplayQueue);
+    if (newIndex > oldIndex) {
+      newIndex -= 1;
+    }
+    if (newIndex < 0 || newIndex >= updated.length) return;
+    final item = updated.removeAt(oldIndex);
+    updated.insert(newIndex, item);
+    state = state.copyWith(autoplayQueue: updated);
+  }
+
+  void setSleepTimer(Duration? duration) {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+    if (duration == null || duration == Duration.zero) {
+      state = state.copyWith(clearSleepTimer: true);
+      return;
+    }
+
+    final endTime = DateTime.now().add(duration);
+    state = state.copyWith(
+      sleepTimerDuration: duration,
+      sleepTimerEndTime: endTime,
+    );
+
+    _sleepTimer = Timer(duration, () {
+      pause();
+      cancelSleepTimer();
+    });
+  }
+
+  void cancelSleepTimer() {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+    state = state.copyWith(clearSleepTimer: true);
   }
 
   void clearErrorMessage() {
@@ -1154,6 +1275,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
 
   @override
   void dispose() {
+    _sleepTimer?.cancel();
     _playerStateSub?.cancel();
     _positionSub?.cancel();
     _durationSub?.cancel();

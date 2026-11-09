@@ -2632,6 +2632,130 @@ class MusicService {
     }
   }
 
+  /// Dislikes a track on YouTube Music via InnerTube.
+  Future<bool> dislikeSong(String videoId) async {
+    final cleanId = videoId.trim();
+    if (cleanId.isEmpty) return false;
+    try {
+      if (_currentAccount != null) {
+        final res = await postInnerTube(
+          'like/dislike',
+          bodyExtras: {
+            'target': {'videoId': cleanId},
+          },
+        );
+        return res != null;
+      }
+      return true;
+    } catch (e) {
+      debugPrint('dislikeSong error ($cleanId): $e');
+      return false;
+    }
+  }
+
+  /// Fetches YouTube Music Radio / Up Next tracks for a song ("Similar music, selected to play next").
+  /// Directly powers YouTube Music AutoPlay and Radio mode.
+  Future<List<SongItem>> getSongRadio(
+    String videoId, {
+    String? artist,
+    String? title,
+  }) async {
+    final cleanId = videoId.trim();
+    if (cleanId.isEmpty) return [];
+
+    // 1. Primary: dart_ytmusic_api getUpNexts(videoId)
+    try {
+      if (RegExp(r'^[a-zA-Z0-9-_]{11}$').hasMatch(cleanId)) {
+        if (!_isInitialized) await initialize();
+        final upNexts = await _ytMusic.getUpNexts(cleanId);
+        if (upNexts.isNotEmpty) {
+          final results = upNexts
+              .where((item) => item.videoId.isNotEmpty && item.videoId != cleanId)
+              .map((item) {
+                final thumb = item.thumbnails.isNotEmpty
+                    ? SongItem.upgradeThumbnail(item.thumbnails.last.url)
+                    : null;
+                return SongItem(
+                  id: item.videoId,
+                  title: item.title.isNotEmpty ? item.title : 'Unknown Title',
+                  artist: SongItem.sanitizeArtist(item.artists.name),
+                  album: item.album?.name,
+                  durationSeconds: item.duration > 0 ? item.duration : null,
+                  thumbnailUrl: thumb,
+                );
+              })
+              .toList();
+          if (results.isNotEmpty) return results;
+        }
+      }
+    } catch (e) {
+      debugPrint('[MusicService] getSongRadio _ytMusic.getUpNexts error: $e');
+    }
+
+    // 2. Secondary: InnerTube "next" request with radio playlist "RDAMVM$cleanId"
+    try {
+      final data = await _ytMusic.constructRequest('next', body: {
+        'videoId': cleanId,
+        'playlistId': 'RDAMVM$cleanId',
+        'isAudioOnly': true,
+      });
+
+      final tabs = data?['contents']?['singleColumnMusicWatchNextResultsRenderer']
+                  ?['tabbedRenderer']?['watchNextTabbedResultsRenderer']?['tabs']
+              ?[0]?['tabRenderer']?['content']?['musicQueueRenderer']?['content']
+          ?['playlistPanelRenderer']?['contents'];
+
+      if (tabs is List && tabs.isNotEmpty) {
+        final List<SongItem> songs = [];
+        for (final item in tabs.skip(1)) {
+          final renderer = item['playlistPanelVideoRenderer'];
+          if (renderer == null) continue;
+          final vidId = renderer['videoId']?.toString() ?? '';
+          if (vidId.isEmpty || vidId == cleanId) continue;
+          final songTitle = renderer['title']?['runs']?[0]?['text']?.toString() ?? '';
+          final longBylineRuns = renderer['longBylineText']?['runs'];
+          final artistName = longBylineRuns?[0]?['text']?.toString() ?? '';
+          final albumName = (longBylineRuns is List && longBylineRuns.length > 2)
+              ? longBylineRuns[2]['text']?.toString()
+              : null;
+          final thumbs = renderer['thumbnail']?['thumbnails'];
+          final thumbUrl = (thumbs is List && thumbs.isNotEmpty)
+              ? SongItem.upgradeThumbnail(thumbs.last['url']?.toString())
+              : null;
+          final durationSec = parseDurationString(
+            renderer['lengthText']?['runs']?[0]?['text']?.toString(),
+          );
+
+          songs.add(
+            SongItem(
+              id: vidId,
+              title: songTitle.isNotEmpty ? songTitle : 'Unknown Title',
+              artist: SongItem.sanitizeArtist(artistName),
+              album: albumName,
+              thumbnailUrl: thumbUrl,
+              durationSeconds: durationSec,
+            ),
+          );
+        }
+        if (songs.isNotEmpty) return songs;
+      }
+    } catch (e) {
+      debugPrint('[MusicService] getSongRadio InnerTube next error: $e');
+    }
+
+    // 3. Fallback: Search similar tracks by artist and title
+    try {
+      final query = '${artist ?? ''} ${title ?? ''}'.trim();
+      if (query.isNotEmpty) {
+        final searchResults = await searchSongs(query);
+        final filtered = searchResults.where((s) => s.id != cleanId).toList();
+        if (filtered.isNotEmpty) return filtered;
+      }
+    } catch (_) {}
+
+    return [];
+  }
+
   /// Searches artists on YouTube Music.
   Future<List<ArtistItem>> searchArtists(String query) async {
     final trimmed = query.trim();

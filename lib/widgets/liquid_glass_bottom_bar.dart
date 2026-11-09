@@ -1,8 +1,23 @@
+import 'dart:math' as math;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import 'animated_cupertino_icon.dart';
+
+/// Standard Apple iOS Liquid Glass preset matching the bottom navigation dock.
+const kLiquidBottomDockGlassSettings = LiquidGlassSettings(
+  thickness: 30,
+  blur: 3,
+  chromaticAberration: 0.3,
+  lightIntensity: 0.6,
+  refractiveIndex: 1.59,
+  saturation: 0.7,
+  ambientStrength: 1,
+  lightAngle: 0.75 * math.pi,
+  glassColor: Color(0x3DFFFFFF),
+);
 
 /// Floating Liquid Glass Bottom Navigation Dock using official [GlassTabBar.minimizable]
 /// matching the exact Apple layout from the liquid_glass_widgets package:
@@ -33,6 +48,7 @@ class LiquidGlassBottomBar extends StatelessWidget {
     final effectiveIndex = currentIndex > 2 ? 0 : currentIndex;
 
     return GlassTabBar.minimizable(
+      settings: kLiquidBottomDockGlassSettings,
       tabs: const [
         GlassTab(
           icon: Icon(CupertinoIcons.house_fill),

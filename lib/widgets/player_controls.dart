@@ -13,6 +13,7 @@ import '../services/artwork_color_service.dart';
 import '../utils/playback_utils.dart';
 import 'animated_cupertino_icon.dart';
 import 'apple_pressable.dart';
+import 'liquid_glass_bottom_bar.dart';
 import 'smooth_player_loader.dart';
 import 'wavify_cached_image.dart';
 
@@ -102,6 +103,18 @@ class PlayerControls extends ConsumerWidget {
     );
   }
 
+  /// Resolves liquid glass settings matching the bottom navigation dock,
+  /// subtly blended with the artwork secondary tone for Apple-style ambient harmony and high visibility.
+  LiquidGlassSettings _resolveGlassSettings(Color secondaryColor) {
+    final glassColor = Color.alphaBlend(
+      secondaryColor.withValues(alpha: 0.08),
+      kLiquidBottomDockGlassSettings.glassColor,
+    );
+    return kLiquidBottomDockGlassSettings.copyWith(
+      glassColor: glassColor,
+    );
+  }
+
   /// Compact inline music player capsule fitting between collapsed tab circle and search pill
   /// matching the exact reference layout in the liquid_glass_widgets specifications.
   Widget _buildInlinePlayer({
@@ -119,7 +132,8 @@ class PlayerControls extends ConsumerWidget {
     return GlassContainer(
       useOwnLayer: true,
       height: 52,
-      shape: const LiquidRoundedSuperellipse(borderRadius: 26),
+      shape: const LiquidRoundedRectangle(borderRadius: 26),
+      settings: _resolveGlassSettings(secondaryColor),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Row(
@@ -257,7 +271,8 @@ class PlayerControls extends ConsumerWidget {
     return GlassContainer(
       useOwnLayer: true,
       height: 52,
-      shape: const LiquidRoundedSuperellipse(borderRadius: 26),
+      shape: const LiquidRoundedRectangle(borderRadius: 26),
+      settings: _resolveGlassSettings(secondaryColor),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10),
         child: Row(

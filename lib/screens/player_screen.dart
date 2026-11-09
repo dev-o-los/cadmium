@@ -17,7 +17,6 @@ import '../models/song_item.dart';
 import '../providers/favorites_provider.dart';
 import '../providers/player_provider.dart';
 import '../services/artwork_color_service.dart';
-import '../services/lyrics_service.dart';
 import '../services/song_metrics_cache_service.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/ambient_video_canvas.dart';
@@ -28,6 +27,7 @@ import '../widgets/apple_music_slider.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/apple_lyrics_view.dart';
 import '../widgets/smooth_player_loader.dart';
+import '../widgets/track_options_sheet.dart';
 import '../widgets/wavify_cached_image.dart';
 
 /// Reactive provider extracting the brightest vibrant color from current album artwork
@@ -253,340 +253,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _showAudioRouteModal() {
-    final notifier = ref.read(playerProvider.notifier);
-    notifier.refreshAudioDevices();
-
-    showAppleGlassBottomSheet(
-      context: context,
-      builder: (context) {
-        return Consumer(
-          builder: (context, ref, _) {
-            final volume = ref.watch(playerProvider.select((s) => s.volume));
-            final devices = ref.watch(
-              playerProvider.select((s) => s.availableAudioDevices),
-            );
-            final connectedDevice = ref.watch(
-              playerProvider.select((s) => s.connectedDevice),
-            );
-            double localVolume = volume;
-            final effectiveDevices = devices.isNotEmpty
-                ? devices
-                : [connectedDevice];
-
-            return StatefulBuilder(
-              builder: (context, setModalState) {
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 14),
-                      child: Text(
-                        'Audio Output',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: -0.3,
-                        ),
-                      ),
-                    ),
-                    AppleSheetGroup(
-                      children: [
-                        for (int i = 0; i < effectiveDevices.length; i++) ...[
-                          if (i > 0) const AppleSheetDivider(),
-                          Builder(
-                            builder: (context) {
-                              final device = effectiveDevices[i];
-                              final isCurrent = device.id == connectedDevice.id;
-                              return AppleSheetActionTile(
-                                icon: device.icon,
-                                title: device.name,
-                                subtitle: device.subtitle,
-                                trailing: isCurrent
-                                    ? const Icon(
-                                        CupertinoIcons.checkmark_circle_fill,
-                                        color: Colors.white,
-                                        size: 22,
-                                      )
-                                    : null,
-                                onTap: () {
-                                  notifier.selectAudioDevice(device);
-                                },
-                              );
-                            },
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    const AppleSheetDivider(indent: 0, endIndent: 0),
-                    const SizedBox(height: 6),
-                    AppleSheetGroup(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                CupertinoIcons.volume_mute,
-                                color: Colors.white70,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: AppleMusicSlider(
-                                  value: localVolume,
-                                  min: 0.0,
-                                  max: 1.0,
-                                  showTimestamps: false,
-                                  onChanged: (v) {
-                                    setModalState(() => localVolume = v);
-                                    notifier.setVolume(v);
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              const Icon(
-                                CupertinoIcons.volume_up,
-                                color: Colors.white70,
-                                size: 20,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                );
-              },
-            );
-          },
-        );
-      },
-    );
+    showAudioOutputModal(context, ref);
   }
 
   void _showSongOptionsSheet(SongItem song) {
-    final isFav = ref.read(favoritesProvider.notifier).isFavorite(song.id);
-
-    showAppleGlassBottomSheet(
-      context: context,
-      builder: (context) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Track Header
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14, left: 2, right: 2),
-              child: Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: WavifyCachedImage(
-                      imageUrl:
-                          song.highResThumbnailUrl ?? song.resolvedThumbnailUrl,
-                      placeholderImageUrl:
-                          song.resolvedThumbnailUrl ?? song.thumbnailUrl,
-                      songId: song.id,
-                      width: 50,
-                      height: 50,
-                      fit: BoxFit.cover,
-                      filterQuality: FilterQuality.medium,
-                      errorWidget: _fallbackMiniArt(),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          song.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppleTypography.songTitle,
-                        ),
-                        const SizedBox(height: AppleSpacing.titleToSubtitle),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.pop(context);
-                            openArtistScreen(context, artistName: song.artist);
-                          },
-                          child: Text(
-                            song.artist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppleTypography.songArtist,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Playback modes capsule dock (Shuffle, Repeat, Infinity)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 14),
-                child: _buildPlaybackCapsuleDock(),
-              ),
-            ),
-            // Sleek Apple-style Lyrics Provider switcher
-            AppleSheetGroup(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  child: Consumer(
-                    builder: (context, ref, _) {
-                      final selectedProvider = ref.watch(
-                        playerProvider.select((s) => s.selectedLyricsProvider),
-                      );
-                      final isLoadingLyrics = ref.watch(
-                        playerProvider.select((s) => s.isLoadingLyrics),
-                      );
-
-                      return Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: const [
-                              Icon(
-                                CupertinoIcons.quote_bubble,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                              SizedBox(width: 12),
-                              Text(
-                                'Lyrics Provider',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Container(
-                            padding: const EdgeInsets.all(3),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.22),
-                                width: 0.8,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _buildOptionsProviderSegment(
-                                  type: LyricsProviderType.lrcRed,
-                                  label: 'lrc.red',
-                                  icon: CupertinoIcons.sparkles,
-                                  isSelected:
-                                      selectedProvider ==
-                                      LyricsProviderType.lrcRed,
-                                  isLoading:
-                                      isLoadingLyrics &&
-                                      selectedProvider ==
-                                          LyricsProviderType.lrcRed,
-                                  onTap: () {
-                                    ref
-                                        .read(playerProvider.notifier)
-                                        .setLyricsProvider(
-                                          LyricsProviderType.lrcRed,
-                                        );
-                                  },
-                                ),
-                                const SizedBox(width: 3),
-                                _buildOptionsProviderSegment(
-                                  type: LyricsProviderType.youTube,
-                                  label: 'YouTube',
-                                  icon: CupertinoIcons.play_rectangle,
-                                  isSelected:
-                                      selectedProvider ==
-                                      LyricsProviderType.youTube,
-                                  isLoading:
-                                      isLoadingLyrics &&
-                                      selectedProvider ==
-                                          LyricsProviderType.youTube,
-                                  onTap: () {
-                                    ref
-                                        .read(playerProvider.notifier)
-                                        .setLyricsProvider(
-                                          LyricsProviderType.youTube,
-                                        );
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            const AppleSheetDivider(indent: 0, endIndent: 0),
-            const SizedBox(height: 6),
-            // Actions
-            AppleSheetGroup(
-              children: [
-                AppleSheetActionTile(
-                  icon: isFav ? CupertinoIcons.star_fill : CupertinoIcons.star,
-                  title: isFav ? 'Remove from Favorites' : 'Add to Favorites',
-                  onTap: () {
-                    Navigator.pop(context);
-                    ref.read(favoritesProvider.notifier).toggleFavorite(song);
-                  },
-                ),
-                const AppleSheetDivider(),
-                AppleSheetActionTile(
-                  icon: CupertinoIcons.text_badge_plus,
-                  title: 'Add to a Playlist...',
-                  onTap: () => Navigator.pop(context),
-                ),
-                const AppleSheetDivider(),
-                AppleSheetActionTile(
-                  icon: CupertinoIcons.music_albums,
-                  title: (song.album != null && song.album!.isNotEmpty)
-                      ? 'View Album (${song.album})'
-                      : 'View Album',
-                  onTap: () => Navigator.pop(context),
-                ),
-                const AppleSheetDivider(),
-                AppleSheetActionTile(
-                  icon: CupertinoIcons.person_fill,
-                  title: 'Go to Artist (${song.artist})',
-                  onTap: () {
-                    Navigator.pop(context);
-                    openArtistScreen(context, artistName: song.artist);
-                  },
-                ),
-                const AppleSheetDivider(),
-                AppleSheetActionTile(
-                  icon: CupertinoIcons.share,
-                  title: 'Share Song...',
-                  onTap: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
-    );
+    showTrackOptionsModal(context, ref, song);
   }
 
   @override
@@ -1405,8 +1076,43 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           else
                             const SizedBox(height: 8),
 
-                          // Lyrics Hook Preview Banner (visible in Now Playing and Queue modes)
-                          if (_currentMode != PlayerViewMode.lyrics) ...[
+                          // Lyrics Link in Queue Mode matching Image 2 ("♪ Lyrics >")
+                          if (_currentMode == PlayerViewMode.queue) ...[
+                            ApplePressable(
+                              onTap: () => _switchMode(PlayerViewMode.lyrics),
+                              pressedScale: 0.96,
+                              child: Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      CupertinoIcons.music_note,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Text(
+                                      'Lyrics',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Icon(
+                                      CupertinoIcons.chevron_right,
+                                      color: Colors.white.withValues(alpha: 0.60),
+                                      size: 13,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ] else if (_currentMode == PlayerViewMode.nowPlaying) ...[
+                            // Lyrics Hook Preview Banner in Now Playing mode
                             Consumer(
                               builder: (context, ref, _) {
                                 final activeLyric = ref.watch(
@@ -1777,12 +1483,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     return Consumer(
       builder: (context, ref, _) {
         final queue = ref.watch(playerProvider.select((s) => s.queue));
+        final autoplayQueue = ref.watch(
+          playerProvider.select((s) => s.autoplayQueue),
+        );
+        final isAutoplay = ref.watch(
+          playerProvider.select((s) => s.isAutoplay),
+        );
         final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
 
-        final nextFromTitle =
-            (song.album != null && song.album!.trim().isNotEmpty)
-            ? 'Next from: ${song.album!.trim()}'
-            : 'Next from: ${song.artist.trim()}';
+        // Trigger autoplay fetch if autoplay is enabled but queue is empty
+        if (isAutoplay && autoplayQueue.isEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ref
+                .read(playerProvider.notifier)
+                .fetchAutoplayQueueForCurrentSong();
+          });
+        }
 
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -1876,7 +1592,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   const SizedBox(width: 8),
                   ApplePressable(
                     onTap: () {
-                      ref.read(playerProvider.notifier).skipNext();
+                      ref.read(playerProvider.notifier).removeCurrentSong();
                     },
                     child: Padding(
                       padding: const EdgeInsets.all(4),
@@ -1889,49 +1605,45 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-              // Next From Queue List Header
-              Text(nextFromTitle.toUpperCase(), style: AppleTypography.eyebrow),
-              const SizedBox(height: 8),
-
-              // Reorderable Queue Tracklist
+              // Scrollable Queue & AutoPlay tracklist
               Expanded(
-                child: queue.isEmpty
-                    ? Center(
-                        child: Text(
-                          'No more songs in queue',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.50),
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
+                child: ShaderMask(
+                  shaderCallback: (Rect bounds) {
+                    return const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.white,
+                        Colors.white,
+                        Colors.white,
+                        Colors.transparent,
+                      ],
+                      stops: [0.0, 0.85, 0.94, 1.0],
+                    ).createShader(bounds);
+                  },
+                  blendMode: BlendMode.dstIn,
+                  child: ListView(
+                    padding: const EdgeInsets.only(bottom: 24),
+                    physics: const BouncingScrollPhysics(),
+                    children: [
+                      // Manual Queue items (if any)
+                      if (queue.isNotEmpty) ...[
+                        const Text(
+                          'NEXT IN QUEUE',
+                          style: AppleTypography.eyebrow,
                         ),
-                      )
-                    : ShaderMask(
-                        shaderCallback: (Rect bounds) {
-                          return const LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.white,
-                              Colors.white,
-                              Colors.white,
-                              Colors.transparent,
-                            ],
-                            stops: [0.0, 0.85, 0.94, 1.0],
-                          ).createShader(bounds);
-                        },
-                        blendMode: BlendMode.dstIn,
-                        child: Theme(
+                        const SizedBox(height: 8),
+                        Theme(
                           data: Theme.of(context).copyWith(
                             canvasColor: Colors.transparent,
                             shadowColor: Colors.transparent,
                           ),
                           child: ReorderableListView.builder(
-                            padding: const EdgeInsets.only(bottom: 24),
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
                             itemCount: queue.length,
-                            physics: const BouncingScrollPhysics(),
                             buildDefaultDragHandles: false,
                             // ignore: deprecated_member_use
                             onReorder: (oldIndex, newIndex) {
@@ -1941,131 +1653,232 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             },
                             itemBuilder: (context, index) {
                               final item = queue[index];
-                              return Container(
-                                key: ValueKey('queue_item_${item.id}_$index'),
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 6,
-                                ),
-                                child: Row(
-                                  children: [
-                                    ReorderableDragStartListener(
-                                      index: index,
-                                      child: Container(
-                                        padding: const EdgeInsets.only(
-                                          right: 12,
-                                          top: 10,
-                                          bottom: 10,
-                                        ),
-                                        color: Colors.transparent,
-                                        child: Icon(
-                                          Icons.drag_handle_rounded,
-                                          color: Colors.white.withValues(
-                                            alpha: 0.40,
-                                          ),
-                                          size: 20,
-                                        ),
-                                      ),
-                                    ),
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: WavifyCachedImage(
-                                        imageUrl:
-                                            item.highResThumbnailUrl ??
-                                            item.resolvedThumbnailUrl,
-                                        placeholderImageUrl:
-                                            item.resolvedThumbnailUrl ??
-                                            item.thumbnailUrl,
-                                        songId: item.id,
-                                        width: 44,
-                                        height: 44,
-                                        fit: BoxFit.cover,
-                                        filterQuality: FilterQuality.medium,
-                                        errorWidget: _fallbackMiniArt(
-                                          size: 44,
-                                          borderRadius: 8,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: GestureDetector(
-                                        onTap: () {
-                                          ref
-                                              .read(playerProvider.notifier)
-                                              .playSong(
-                                                item,
-                                                forceReload: true,
-                                              );
-                                        },
-                                        behavior: HitTestBehavior.opaque,
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                if (_isExplicit(
-                                                  item.title,
-                                                  item.album,
-                                                ))
-                                                  _buildExplicitBadge(),
-                                                Expanded(
-                                                  child: Text(
-                                                    item.title,
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: AppleTypography
-                                                        .songTitle,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(
-                                              height:
-                                                  AppleSpacing.titleToSubtitle,
-                                            ),
-                                            Text(
-                                              item.artist,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: AppleTypography.songArtist,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    ApplePressable(
-                                      onTap: () {
-                                        ref
-                                            .read(playerProvider.notifier)
-                                            .removeFromQueue(index);
-                                      },
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(8),
-                                        child: Icon(
-                                          CupertinoIcons.xmark,
-                                          color: Colors.white.withValues(
-                                            alpha: 0.45,
-                                          ),
-                                          size: 16,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                              return _buildQueueItemRow(
+                                key: ValueKey('manual_q_${item.id}_$index'),
+                                index: index,
+                                item: item,
+                                onRemove: () {
+                                  ref
+                                      .read(playerProvider.notifier)
+                                      .removeFromQueue(index);
+                                },
                               );
                             },
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      // AutoPlay Section matching Image 2
+                      if (isAutoplay) ...[
+                        Row(
+                          children: const [
+                            Icon(
+                              CupertinoIcons.infinite,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'AutoPlay',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Similar music, selected to play next',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.60),
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+
+                        if (autoplayQueue.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            child: Center(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  CupertinoActivityIndicator(
+                                    color: Colors.white,
+                                    radius: 7,
+                                  ),
+                                  SizedBox(width: 10),
+                                  Flexible(
+                                    child: Text(
+                                      'Discovering similar music from YouTube Music...',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.white60,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        else
+                          Theme(
+                            data: Theme.of(context).copyWith(
+                              canvasColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                            ),
+                            child: ReorderableListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: autoplayQueue.length,
+                              buildDefaultDragHandles: false,
+                              // ignore: deprecated_member_use
+                              onReorder: (oldIndex, newIndex) {
+                                ref
+                                    .read(playerProvider.notifier)
+                                    .reorderAutoplayQueue(oldIndex, newIndex);
+                              },
+                              itemBuilder: (context, index) {
+                                final item = autoplayQueue[index];
+                                return _buildQueueItemRow(
+                                  key: ValueKey('autoplay_q_${item.id}_$index'),
+                                  index: index,
+                                  item: item,
+                                  onRemove: () {
+                                    ref
+                                        .read(playerProvider.notifier)
+                                        .removeFromAutoplayQueue(index);
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                      ] else if (queue.isEmpty)
+                        Center(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 36),
+                            child: Text(
+                              'Queue is empty. Turn on AutoPlay for similar tracks.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.50),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildQueueItemRow({
+    required Key key,
+    required int index,
+    required SongItem item,
+    required VoidCallback onRemove,
+  }) {
+    return Container(
+      key: key,
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          ReorderableDragStartListener(
+            index: index,
+            child: Container(
+              padding: const EdgeInsets.only(
+                right: 12,
+                top: 8,
+                bottom: 8,
+              ),
+              color: Colors.transparent,
+              child: Icon(
+                Icons.drag_handle_rounded,
+                color: Colors.white.withValues(alpha: 0.40),
+                size: 20,
+              ),
+            ),
+          ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: WavifyCachedImage(
+              imageUrl:
+                  item.highResThumbnailUrl ?? item.resolvedThumbnailUrl,
+              placeholderImageUrl:
+                  item.resolvedThumbnailUrl ?? item.thumbnailUrl,
+              songId: item.id,
+              width: 44,
+              height: 44,
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.medium,
+              errorWidget: _fallbackMiniArt(size: 44, borderRadius: 8),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                ref
+                    .read(playerProvider.notifier)
+                    .playSong(item, forceReload: true);
+              },
+              behavior: HitTestBehavior.opaque,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      if (_isExplicit(item.title, item.album))
+                        _buildExplicitBadge(),
+                      Expanded(
+                        child: Text(
+                          item.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppleTypography.songTitle,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppleSpacing.titleToSubtitle),
+                  Text(
+                    item.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppleTypography.songArtist,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          ApplePressable(
+            onTap: onRemove,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Icon(
+                CupertinoIcons.xmark,
+                color: Colors.white.withValues(alpha: 0.45),
+                size: 16,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -2257,51 +2070,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           playerProvider.select((s) => s.isAutoplay),
         );
 
-        return GlassContainer(
-          useOwnLayer: true,
-          height: 44,
-          shape: const LiquidRoundedSuperellipse(borderRadius: 22),
-          color: Colors.white.withValues(alpha: 0.08),
-          settings: const LiquidGlassSettings(
-            thickness: 26,
-            blur: 24,
-            refractiveIndex: 1.25,
-            lightIntensity: 0.75,
-            specularSharpness: GlassSpecularSharpness.sharp,
-            fresnelStrength: 1.30,
-            rimLight: 0.45,
-            ambientStrength: 0.12,
-            chromaticAberration: 0.015,
-          ),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.24),
-                width: 0.9,
-              ),
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.white.withValues(alpha: 0.20),
-                  Colors.white.withValues(alpha: 0.03),
-                  Colors.black.withValues(alpha: 0.14),
-                ],
-                stops: const [0.0, 0.42, 1.0],
-              ),
+        return Container(
+          height: 42,
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(21),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.14),
+              width: 0.8,
             ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               _buildQueueDockSegment(
                 icon: AnimatedCupertinoIcon(
                   icon: CupertinoIcons.shuffle,
                   color: isShuffle
                       ? Colors.white
-                      : Colors.white.withValues(alpha: 0.50),
+                      : Colors.white.withValues(alpha: 0.55),
                   size: 20,
                 ),
                 isSelected: isShuffle,
@@ -2310,7 +2098,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   _resetAutoHideTimer();
                 },
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 3),
               _buildQueueDockSegment(
                 icon: AnimatedCupertinoIcon(
                   icon: loopMode == LoopMode.one
@@ -2318,7 +2106,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       : CupertinoIcons.repeat,
                   color: loopMode != LoopMode.off
                       ? Colors.white
-                      : Colors.white.withValues(alpha: 0.50),
+                      : Colors.white.withValues(alpha: 0.55),
                   size: 20,
                 ),
                 isSelected: loopMode != LoopMode.off,
@@ -2327,13 +2115,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   _resetAutoHideTimer();
                 },
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 3),
               _buildQueueDockSegment(
                 icon: AnimatedCupertinoIcon(
                   icon: CupertinoIcons.infinite,
                   color: isAutoplay
                       ? Colors.white
-                      : Colors.white.withValues(alpha: 0.50),
+                      : Colors.white.withValues(alpha: 0.55),
                   size: 20,
                 ),
                 isSelected: isAutoplay,
@@ -2344,11 +2132,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ),
             ],
           ),
-        ),
-      ),
+        );
+      },
     );
-  },
-);
   }
 
   Widget _buildQueueDockSegment({
@@ -2359,16 +2145,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     return ApplePressable(
       onTap: onTap,
       pressedScale: 0.90,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(16),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected
-              ? Colors.white.withValues(alpha: 0.28)
+              ? Colors.white.withValues(alpha: 0.26)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: icon,
       ),
@@ -2376,100 +2162,128 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Widget _buildActionDock() {
-    if (_currentMode == PlayerViewMode.queue) {
-      // In Queue mode, display: [Lyrics, Capsule(Shuffle, Repeat, Infinity), Queue Active Card]
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          ApplePressable(
-            onTap: () => _switchMode(PlayerViewMode.lyrics),
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: AnimatedCupertinoIcon(
-                icon: CupertinoIcons.quote_bubble,
-                color: Colors.white.withValues(alpha: 0.65),
-                size: 22,
-              ),
-            ),
-          ),
-
-          // Center Pill Dock for Shuffle, Repeat, Infinity
-          _buildPlaybackCapsuleDock(),
-
-          // Queue Active Card (taps to return to Now Playing)
-          ApplePressable(
-            onTap: () => _switchMode(PlayerViewMode.nowPlaying),
-            borderRadius: BorderRadius.circular(14),
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 8,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.22),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const AnimatedCupertinoIcon(
-                icon: CupertinoIcons.list_bullet,
-                color: Colors.white,
-                size: 22,
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    // Default Action Dock: [Lyrics, Output Route, Queue]
     final isLyricsActive = _currentMode == PlayerViewMode.lyrics;
+    final isQueueActive = _currentMode == PlayerViewMode.queue;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        // Lyrics Toggle Button
-        Container(
-          decoration: BoxDecoration(
-            color: isLyricsActive
-                ? Colors.white.withValues(alpha: 0.22)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: IconButton(
-            icon: AnimatedCupertinoIcon(
-              icon: isLyricsActive
-                  ? CupertinoIcons.quote_bubble_fill
-                  : CupertinoIcons.quote_bubble,
-              color: isLyricsActive ? Colors.white : Colors.white60,
-              size: 24,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Left: Lyrics Toggle Button
+            ApplePressable(
+              onTap: () {
+                _switchMode(
+                  isLyricsActive
+                      ? PlayerViewMode.nowPlaying
+                      : PlayerViewMode.lyrics,
+                );
+              },
+              borderRadius: BorderRadius.circular(14),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: isLyricsActive
+                      ? Colors.white.withValues(alpha: 0.22)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: AnimatedCupertinoIcon(
+                  icon: isLyricsActive
+                      ? CupertinoIcons.quote_bubble_fill
+                      : CupertinoIcons.quote_bubble,
+                  color: isLyricsActive
+                      ? Colors.white
+                      : Colors.white.withValues(alpha: 0.65),
+                  size: 22,
+                ),
+              ),
             ),
-            onPressed: () {
-              _switchMode(
-                isLyricsActive
-                    ? PlayerViewMode.nowPlaying
-                    : PlayerViewMode.lyrics,
-              );
-            },
-          ),
-        ),
 
-        // Audio Output Route Button (Android Cast Icon for audio outputs)
-        IconButton(
-          icon: const Icon(Icons.cast_rounded, color: Colors.white60, size: 24),
-          onPressed: () {
-            _showAudioRouteModal();
-            _cancelAutoHideTimer();
+            // Center: 3-Button Capsule Dock [Shuffle, Repeat, Infinity]
+            _buildPlaybackCapsuleDock(),
+
+            // Right: Queue Toggle Button (highlighted when on Queue screen)
+            ApplePressable(
+              onTap: () {
+                _switchMode(
+                  isQueueActive
+                      ? PlayerViewMode.nowPlaying
+                      : PlayerViewMode.queue,
+                );
+              },
+              borderRadius: BorderRadius.circular(14),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: isQueueActive
+                      ? Colors.white.withValues(alpha: 0.22)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: AnimatedCupertinoIcon(
+                  icon: CupertinoIcons.list_bullet,
+                  color: isQueueActive
+                      ? Colors.white
+                      : Colors.white.withValues(alpha: 0.65),
+                  size: 22,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        // Device output route indicator below dock matching Image 2 ("iBall Musiwave")
+        Consumer(
+          builder: (context, ref, _) {
+            final connectedDevice = ref.watch(
+              playerProvider.select((s) => s.connectedDevice),
+            );
+            final deviceName = connectedDevice.name.isNotEmpty
+                ? connectedDevice.name
+                : 'iBall Musiwave';
+
+            return ApplePressable(
+              onTap: () {
+                _showAudioRouteModal();
+                _cancelAutoHideTimer();
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.cast_rounded,
+                      color: Colors.white54,
+                      size: 15,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      deviceName,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.55),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
           },
-        ),
-
-        // Queue Toggle Button
-        IconButton(
-          icon: const AnimatedCupertinoIcon(
-            icon: CupertinoIcons.list_bullet,
-            color: Colors.white60,
-            size: 24,
-          ),
-          onPressed: () => _switchMode(PlayerViewMode.queue),
         ),
       ],
     );
@@ -2487,64 +2301,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         CupertinoIcons.music_note,
         color: Colors.white38,
         size: size > 48 ? 26 : 22,
-      ),
-    );
-  }
-
-  Widget _buildOptionsProviderSegment({
-    required LyricsProviderType type,
-    required String label,
-    required IconData icon,
-    required bool isSelected,
-    bool isLoading = false,
-    required VoidCallback onTap,
-  }) {
-    return ApplePressable(
-      onTap: onTap,
-      pressedScale: 0.95,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Colors.white.withValues(alpha: 0.22)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 4,
-                    offset: const Offset(0, 1),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 13,
-              color: isSelected ? Colors.white : Colors.white60,
-            ),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? Colors.white : Colors.white60,
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                letterSpacing: -0.2,
-              ),
-            ),
-            if (isSelected && isLoading) ...[
-              const SizedBox(width: 5),
-              const CupertinoActivityIndicator(radius: 5, color: Colors.white),
-            ],
-          ],
-        ),
       ),
     );
   }
