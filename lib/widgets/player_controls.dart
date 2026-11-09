@@ -120,40 +120,9 @@ class PlayerControls extends ConsumerWidget {
       useOwnLayer: true,
       height: 52,
       shape: const LiquidRoundedSuperellipse(borderRadius: 26),
-      color: const Color(0x66121212),
-      settings: const LiquidGlassSettings(
-        glassColor: Color(0x66121212),
-        thickness: 24,
-        blur: 16,
-        refractiveIndex: 1.25,
-        lightIntensity: 0.70,
-        specularSharpness: GlassSpecularSharpness.sharp,
-        fresnelStrength: 1.25,
-        rimLight: 0.40,
-        ambientStrength: 0.10,
-        chromaticAberration: 0.012,
-      ),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.10),
-            width: 0.5,
-          ),
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.white.withValues(alpha: 0.15),
-              Colors.white.withValues(alpha: 0.02),
-              Colors.black.withValues(alpha: 0.12),
-            ],
-            stops: const [0.0, 0.45, 1.0],
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.only(left: 12, right: 8, top: 4, bottom: 4),
-          child: Row(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
             children: [
               // Album Artwork (BitChord spec: 31x31 with 6px rounded corners)
               Padding(
@@ -269,11 +238,10 @@ class PlayerControls extends ConsumerWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
+      );
+    }
 
-  /// Full-width floating mini player resting above the bottom tab bar (BitChord GlassNowPlaying spec)
+  /// Full-width floating mini player resting above the bottom tab bar (default liquid glass)
   Widget _buildExpandedPlayer({
     required BuildContext context,
     required WidgetRef ref,
@@ -290,40 +258,9 @@ class PlayerControls extends ConsumerWidget {
       useOwnLayer: true,
       height: 52,
       shape: const LiquidRoundedSuperellipse(borderRadius: 26),
-      color: const Color(0x66121212),
-      settings: const LiquidGlassSettings(
-        glassColor: Color(0x66121212),
-        thickness: 24,
-        blur: 16,
-        refractiveIndex: 1.25,
-        lightIntensity: 0.70,
-        specularSharpness: GlassSpecularSharpness.sharp,
-        fresnelStrength: 1.25,
-        rimLight: 0.40,
-        ambientStrength: 0.10,
-        chromaticAberration: 0.012,
-      ),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.10),
-            width: 0.5,
-          ),
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.white.withValues(alpha: 0.15),
-              Colors.white.withValues(alpha: 0.02),
-              Colors.black.withValues(alpha: 0.12),
-            ],
-            stops: const [0.0, 0.45, 1.0],
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.only(left: 16, right: 12, top: 4, bottom: 4),
-          child: Row(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Row(
             children: [
               // Tappable song info (Artwork + Title + Artist) to open full player screen
               Expanded(
@@ -468,9 +405,8 @@ class PlayerControls extends ConsumerWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
+      );
+    }
 
   Widget _fallbackArtwork({double size = 40}) {
     return Container(
