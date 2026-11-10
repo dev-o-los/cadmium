@@ -68,18 +68,23 @@ except:
 
 if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "None" ]; then
   echo "Creating new GitHub release for $TAG..."
+  JSON_PAYLOAD=$(python3 -c "import json, sys
+tag, title, body = sys.argv[1], sys.argv[2], sys.argv[3]
+print(json.dumps({
+    'tag_name': tag,
+    'target_commitish': 'main',
+    'name': title,
+    'body': body,
+    'draft': False,
+    'prerelease': False
+}))" "$TAG" "$TITLE" "$BODY")
+
   CREATE_RES=$(curl -s -X POST \
     -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
     -H "Accept: application/vnd.github.v3+json" \
     "https://api.github.com/repos/$REPO/releases" \
-    -d "{
-      \"tag_name\": \"$TAG\",
-      \"target_commitish\": \"main\",
-      \"name\": \"$TITLE\",
-      \"body\": \"$BODY\",
-      \"draft\": false,
-      \"prerelease\": false
-    }")
+    -d "$JSON_PAYLOAD")
   RELEASE_ID=$(echo "$CREATE_RES" | python3 -c "import sys, json
 try:
     d = json.load(sys.stdin)
@@ -94,14 +99,19 @@ except:
   fi
 else
   echo "Release $TAG already exists (ID: $RELEASE_ID). Updating release details..."
+  PATCH_PAYLOAD=$(python3 -c "import json, sys
+title, body = sys.argv[1], sys.argv[2]
+print(json.dumps({
+    'name': title,
+    'body': body
+}))" "$TITLE" "$BODY")
+
   curl -s -X PATCH \
     -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
     -H "Accept: application/vnd.github.v3+json" \
     "https://api.github.com/repos/$REPO/releases/$RELEASE_ID" \
-    -d "{
-      \"name\": \"$TITLE\",
-      \"body\": \"$BODY\"
-    }" > /dev/null
+    -d "$PATCH_PAYLOAD" > /dev/null
 fi
 
 # 5. Delete existing assets with same name if any
