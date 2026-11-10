@@ -1029,7 +1029,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
 
     final screenWidth = MediaQuery.of(context).size.width;
     final cardWidth = (screenWidth * 0.40).clamp(148.0, 190.0);
-    final cardHeight = cardWidth + 50.0;
+    final cardHeight = cardWidth + 54.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1051,6 +1051,12 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             separatorBuilder: (context, index) => const SizedBox(width: 14),
             itemBuilder: (context, index) {
               final album = displayAlbums[index];
+              final displaySubtitle = (album.description != null &&
+                      album.description!.trim().isNotEmpty)
+                  ? album.description!.trim()
+                  : (album.subtitle.isNotEmpty
+                      ? album.subtitle
+                      : album.artist);
               return RepaintBoundary(
                 child: ApplePressable(
                   onTap: () => openAlbumScreen(context, album),
@@ -1090,10 +1096,10 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                           style: AppleTypography.cardTitle,
                         ),
                         // Subtitle below the title (natural case, no uppercase)
-                        if (album.subtitle.isNotEmpty) ...[
+                        if (displaySubtitle.isNotEmpty) ...[
                           const SizedBox(height: AppleSpacing.titleToSubtitle),
                           Text(
-                            album.subtitle,
+                            displaySubtitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppleTypography.cardSubtitle,
@@ -1124,7 +1130,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
 
     final screenWidth = MediaQuery.of(context).size.width;
     final cardWidth = (screenWidth * 0.40).clamp(148.0, 190.0);
-    final cardHeight = cardWidth + 50.0;
+    final cardHeight = cardWidth + 54.0;
 
     final items = <_SquareItem>[
       ...albums.map((a) => _SquareItem.album(a)),
@@ -1547,7 +1553,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
 
     final screenWidth = MediaQuery.of(context).size.width;
     final cardWidth = (screenWidth * 0.40).clamp(148.0, 190.0);
-    final cardHeight = cardWidth + 50.0;
+    final cardHeight = cardWidth + 54.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1568,6 +1574,13 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             separatorBuilder: (context, index) => const SizedBox(width: 14),
             itemBuilder: (context, index) {
               final playlist = playlists[index];
+              final displaySubtitle = (playlist.author.isNotEmpty &&
+                      playlist.author.toLowerCase() !=
+                          'youtube music')
+                  ? playlist.author
+                  : (playlist.subtitle.isNotEmpty
+                      ? playlist.subtitle
+                      : 'Playlist');
               return RepaintBoundary(
                 child: ApplePressable(
                   onTap: () => openPlaylistScreen(context, ref, playlist),
@@ -1616,12 +1629,10 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                           style: AppleTypography.cardTitle,
                         ),
                         // Subtitle below the title (natural case, no uppercase!)
-                        if (playlist.author.isNotEmpty &&
-                            playlist.author.toLowerCase() !=
-                                'youtube music') ...[
+                        if (displaySubtitle.isNotEmpty) ...[
                           const SizedBox(height: AppleSpacing.titleToSubtitle),
                           Text(
-                            playlist.author,
+                            displaySubtitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppleTypography.cardSubtitle,
@@ -1827,9 +1838,13 @@ class _SquareItem {
   });
 
   factory _SquareItem.album(AlbumItem album) {
+    final desc = album.description?.trim();
+    final eyebrow = (desc != null && desc.isNotEmpty)
+        ? desc
+        : (album.subtitle.isNotEmpty ? album.subtitle : album.artist);
     return _SquareItem._(
       title: album.title,
-      eyebrow: album.subtitle.isNotEmpty ? album.subtitle : album.artist,
+      eyebrow: eyebrow,
       imageUrl: album.thumbnailUrl,
       album: album,
     );
@@ -1839,13 +1854,15 @@ class _SquareItem {
     final isLiked = playlist.id == 'LM' ||
         playlist.title.trim().toLowerCase() == 'liked music' ||
         playlist.title.trim().toLowerCase() == 'your likes';
-    final author = (playlist.author.isNotEmpty &&
-            playlist.author.toLowerCase() != 'youtube music')
-        ? playlist.author
-        : (isLiked ? 'Auto playlist' : '');
+    String subtitle = playlist.author.trim();
+    if (isLiked) {
+      subtitle = 'Auto playlist';
+    } else if (subtitle.isEmpty || subtitle.toLowerCase() == 'youtube music') {
+      subtitle = playlist.subtitle.isNotEmpty ? playlist.subtitle : 'Playlist';
+    }
     return _SquareItem._(
       title: playlist.title,
-      eyebrow: author,
+      eyebrow: subtitle,
       imageUrl: playlist.thumbnailUrl,
       playlist: playlist,
       isLikedMusic: isLiked,

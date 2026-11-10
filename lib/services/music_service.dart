@@ -395,6 +395,93 @@ class MusicService {
     return '';
   }
 
+  /// Extracts the full metadata subtitle from a music renderer (e.g. musicTwoRowItemRenderer),
+  /// including runs, straplines (episode count, like count, track count), badges, and a11y labels.
+  static String _extractFullSubtitle(Map<String, dynamic> node) {
+    final parts = <String>[];
+
+    void addText(dynamic item) {
+      final text = _extractNodeText(item).trim();
+      if (text.isEmpty) return;
+      // Split on bullet separators if present
+      final segments = text.contains('•') || text.contains('·')
+          ? text.split(RegExp(r'\s*[•·]\s*'))
+          : [text];
+      for (final s in segments) {
+        final clean = s.trim();
+        if (clean.isEmpty) continue;
+        if (!parts.any((p) => p.toLowerCase() == clean.toLowerCase())) {
+          parts.add(clean);
+        }
+      }
+    }
+
+    addText(node['subtitle']);
+    addText(node['straplineTextOne']);
+    addText(node['straplineTextTwo']);
+    addText(node['subtitleCustomText']);
+
+    // Check subtitleBadges
+    final badges = node['subtitleBadges'];
+    if (badges is List) {
+      for (final b in badges) {
+        if (b is Map) {
+          final label = traverseString(b, [
+            'musicInlineBadgeRenderer',
+            'accessibilityData',
+            'accessibilityData',
+            'label',
+          ]) ??
+          traverseString(b, [
+            'accessibilityData',
+            'accessibilityData',
+            'label',
+          ]);
+          if (label != null && label.trim().isNotEmpty) {
+            addText(label);
+          }
+        }
+      }
+    }
+
+    // Inspect accessibility label for extra metadata like episodes or likes
+    final a11yLabel = traverseString(node, [
+      'accessibility',
+      'accessibilityData',
+      'label',
+    ]) ??
+    traverseString(node, [
+      'accessibilityData',
+      'accessibilityData',
+      'label',
+    ]);
+    if (a11yLabel != null && a11yLabel.trim().isNotEmpty) {
+      final episodeMatch = RegExp(
+        r'\b\d[\d,\.]*\s*(?:episodes?|eps?)\b',
+        caseSensitive: false,
+      ).firstMatch(a11yLabel);
+      if (episodeMatch != null) {
+        addText(episodeMatch.group(0)!);
+      }
+      final likesMatch = RegExp(
+        r'\b\d[\d,\.]*\s*[KMBkmb]?\s*likes?\b',
+        caseSensitive: false,
+      ).firstMatch(a11yLabel);
+      if (likesMatch != null) {
+        addText(likesMatch.group(0)!);
+      }
+      final songsMatch = RegExp(
+        r'\b\d[\d,\.]*\s*(?:songs?|tracks?)\b',
+        caseSensitive: false,
+      ).firstMatch(a11yLabel);
+      if (songsMatch != null) {
+        addText(songsMatch.group(0)!);
+      }
+    }
+
+    return parts.join(' • ');
+  }
+
   /// Extracts the highest resolution photo from an account renderer
   static String? _extractNodePhoto(Map<String, dynamic> item) {
     var photoObj = item['accountPhoto'] ?? item['thumbnail'];
@@ -1182,7 +1269,7 @@ class MusicService {
   static PlaylistItem? _parseTwoRowPlaylist(Map<String, dynamic> twoRow) {
     final title = _extractNodeText(twoRow['title']).trim();
     if (title.isEmpty) return null;
-    final subtitle = _extractNodeText(twoRow['subtitle']).trim();
+    final fullSubtitle = _extractFullSubtitle(twoRow);
     final thumb = _extractNodePhoto(twoRow);
     final browseId = traverseString(twoRow, [
       'navigationEndpoint',
@@ -1191,11 +1278,19 @@ class MusicService {
     ]);
     if (browseId == null || browseId.isEmpty) return null;
 
+    int? trackCount;
+    final trackMatch = RegExp(r'\b(\d+)\s*(?:songs?|tracks?)\b', caseSensitive: false)
+        .firstMatch(fullSubtitle);
+    if (trackMatch != null) {
+      trackCount = int.tryParse(trackMatch.group(1)!);
+    }
+
     return PlaylistItem(
       id: browseId,
       title: title,
-      author: subtitle.isNotEmpty ? subtitle : 'YouTube Music',
+      author: fullSubtitle.isNotEmpty ? fullSubtitle : 'Playlist',
       thumbnailUrl: thumb,
+      trackCount: trackCount,
     );
   }
 
@@ -1206,7 +1301,7 @@ class MusicService {
   }) {
     final title = _extractNodeText(twoRow['title']).trim();
     if (title.isEmpty) return null;
-    final subtitle = _extractNodeText(twoRow['subtitle']).trim();
+    final fullSubtitle = _extractFullSubtitle(twoRow);
     final thumb = _extractNodePhoto(twoRow);
     final browseId = traverseString(twoRow, [
       'navigationEndpoint',
@@ -1215,26 +1310,54 @@ class MusicService {
     ]);
     if (browseId == null || browseId.isEmpty) return null;
 
-    // Extract year from subtitle (e.g. "2024 • Single")
+    // Extract year from fullSubtitle (e.g. "2024 • Single")
     int? year;
-    final yearMatch = RegExp(r'\b(19|20)\d{2}\b').firstMatch(subtitle);
+    final yearMatch = RegExp(r'\b(19|20)\d{2}\b').firstMatch(fullSubtitle);
     if (yearMatch != null) {
       year = int.tryParse(yearMatch.group(0)!);
     }
 
-    // Determine album type from subtitle
+    // Determine album type from fullSubtitle
     String resolvedType = type;
-    final subtitleLower = subtitle.toLowerCase();
+    final subtitleLower = fullSubtitle.toLowerCase();
     if (subtitleLower.contains('single')) {
       resolvedType = 'Single';
     } else if (subtitleLower.contains('ep')) {
       resolvedType = 'EP';
     } else if (subtitleLower.contains('album')) {
       resolvedType = 'Album';
+    } else if (subtitleLower.contains('podcast')) {
+      resolvedType = 'Podcast';
     }
 
-    // Artist name is usually in the first run of the subtitle before the dot
-    final artistName = subtitle.split('•').first.trim();
+    // Extract track count if present (e.g. "12 tracks" or "48 episodes")
+    int? trackCount;
+    final trackMatch = RegExp(r'\b(\d+)\s*(?:songs?|tracks?|episodes?|eps?)\b', caseSensitive: false)
+        .firstMatch(fullSubtitle);
+    if (trackMatch != null) {
+      trackCount = int.tryParse(trackMatch.group(1)!);
+    }
+
+    // Artist name is usually in the first non-type part of the subtitle
+    final parts = fullSubtitle.split('•').map((s) => s.trim()).toList();
+    String artistName = '';
+    for (final p in parts) {
+      final pLower = p.toLowerCase();
+      if (pLower == 'album' ||
+          pLower == 'single' ||
+          pLower == 'ep' ||
+          pLower == 'podcast' ||
+          pLower == 'playlist') {
+        continue;
+      }
+      if (RegExp(r'^\d{4}$').hasMatch(p)) continue;
+      if (RegExp(r'^\d+\s*(?:episodes?|songs?|tracks?|likes?)', caseSensitive: false).hasMatch(p)) continue;
+      artistName = p;
+      break;
+    }
+    if (artistName.isEmpty && parts.isNotEmpty) {
+      artistName = parts.first;
+    }
 
     return AlbumItem(
       id: browseId,
@@ -1243,6 +1366,8 @@ class MusicService {
       thumbnailUrl: thumb,
       type: resolvedType,
       year: year,
+      description: fullSubtitle.isNotEmpty ? fullSubtitle : null,
+      trackCount: trackCount,
       isCustom: false,
     );
   }
@@ -1251,7 +1376,7 @@ class MusicService {
   static ArtistItem? _parseTwoRowArtist(Map<String, dynamic> twoRow) {
     final title = _extractNodeText(twoRow['title']).trim();
     if (title.isEmpty) return null;
-    final subtitle = _extractNodeText(twoRow['subtitle']).trim();
+    final fullSubtitle = _extractFullSubtitle(twoRow);
     final thumb = _extractNodePhoto(twoRow);
     final browseId = traverseString(twoRow, [
       'navigationEndpoint',
@@ -1264,7 +1389,7 @@ class MusicService {
       id: id,
       name: title,
       thumbnailUrl: thumb,
-      subscribers: subtitle.isNotEmpty ? subtitle : null,
+      subscribers: fullSubtitle.isNotEmpty ? fullSubtitle : null,
     );
   }
 
@@ -2062,18 +2187,20 @@ class MusicService {
                       }
                     }
                   } else if (browseId != null && browseId.isNotEmpty) {
-                    shelfAlbums.add(
-                      AlbumItem(
-                        id: browseId,
-                        title: title.isNotEmpty ? title : 'Album',
-                        artist: subtitle.isNotEmpty ? subtitle : 'Artist',
-                        thumbnailUrl: thumb,
-                        type: titleLower.contains('single')
-                            ? 'Single'
-                            : 'Album',
-                        isCustom: false,
-                      ),
-                    );
+                    final alb = _parseTwoRowAlbum(
+                          twoRow,
+                          type: titleLower.contains('single') ? 'Single' : 'Album',
+                        ) ??
+                        AlbumItem(
+                          id: browseId,
+                          title: title.isNotEmpty ? title : 'Album',
+                          artist: subtitle.isNotEmpty ? subtitle : 'Artist',
+                          thumbnailUrl: thumb,
+                          type: titleLower.contains('single') ? 'Single' : 'Album',
+                          description: _extractFullSubtitle(twoRow),
+                          isCustom: false,
+                        );
+                    shelfAlbums.add(alb);
                   }
                 }
               }

@@ -68,6 +68,10 @@ class AlbumItem {
       return 'Playlist • $count $countLabel';
     }
 
+    if (description != null && description!.trim().isNotEmpty) {
+      return description!.trim();
+    }
+
     final clean = cleanArtist;
     final yearStr = year != null ? ' • $year' : '';
     if (clean.isEmpty) {

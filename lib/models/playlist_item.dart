@@ -16,19 +16,26 @@ class PlaylistItem {
   });
 
   String get subtitle {
-    if (author.toLowerCase() == 'youtube music' ||
-        id == 'LM' ||
-        id == 'VLLM' ||
-        title.toLowerCase() == 'liked music') {
+    if (id == 'LM' || id == 'VLLM' || title.toLowerCase() == 'liked music') {
       if (trackCount != null) {
         return '$trackCount songs';
       }
       return 'Playlist';
     }
-    if (trackCount != null) {
-      return author.isNotEmpty ? '$trackCount songs • $author' : '$trackCount songs';
+    final cleanAuthor = author.trim();
+    if (cleanAuthor.toLowerCase() == 'youtube music' || cleanAuthor.isEmpty) {
+      if (trackCount != null) {
+        return '$trackCount songs';
+      }
+      return 'Playlist';
     }
-    return author.isNotEmpty ? author : 'Playlist';
+    if (trackCount != null &&
+        !cleanAuthor.toLowerCase().contains('song') &&
+        !cleanAuthor.toLowerCase().contains('track') &&
+        !cleanAuthor.toLowerCase().contains('episode')) {
+      return '$trackCount songs • $cleanAuthor';
+    }
+    return cleanAuthor;
   }
 
   Map<String, dynamic> toJson() => {
