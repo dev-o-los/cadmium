@@ -20,8 +20,7 @@ import '../models/user_account.dart';
 import '../models/playlist_item.dart';
 import '../models/artist_details.dart';
 import '../models/artist_item.dart';
-import '../models/search_result_set.dart';
-import 'artwork_cache_service.dart';
+import '../models/search_result_set.dart';import 'artwork_cache_service.dart';
 import 'home_cache_service.dart';
 import 'lyrics_service.dart';
 import 'song_metrics_cache_service.dart';
@@ -1175,319 +1174,673 @@ class MusicService {
     return homeData;
   }
 
-  /// Fetches personalized home recommendations from YouTube Music using account authorization.
-  /// Follows BitChord architecture: queries FEmusic_history for genuine playback history,
-  /// FEmusic_home for personalized algorithmic shelves and Supermixes, and integrates
-  /// two-row and responsive item renderers.
-  Future<HomeData?> _fetchPersonalizedHomeData() async {
-    try {
-      final personalizedRecents = <SongItem>[];
-      final personalizedQuickPicks = <SongItem>[];
-      final personalizedAlbums = <AlbumItem>[];
-      final personalizedVideos = <VideoItem>[];
-      final personalizedHeroCards = <HeroCardItem>[];
-      final seenSongIds = <String>{};
+  // ─────────────────────────────────────────────────────────────────────────
+  // ITEM EXTRACTORS  (musicTwoRowItemRenderer → PlaylistItem / AlbumItem / ArtistItem)
+  // ─────────────────────────────────────────────────────────────────────────
 
-      // 1. Authenticated InnerTube browse for FEmusic_history (User's authentic recent listens)
+  /// Parses a PlaylistItem from a musicTwoRowItemRenderer node.
+  static PlaylistItem? _parseTwoRowPlaylist(Map<String, dynamic> twoRow) {
+    final title = _extractNodeText(twoRow['title']).trim();
+    if (title.isEmpty) return null;
+    final subtitle = _extractNodeText(twoRow['subtitle']).trim();
+    final thumb = _extractNodePhoto(twoRow);
+    final browseId = traverseString(twoRow, [
+      'navigationEndpoint',
+      'browseEndpoint',
+      'browseId',
+    ]);
+    if (browseId == null || browseId.isEmpty) return null;
+
+    return PlaylistItem(
+      id: browseId,
+      title: title,
+      author: subtitle.isNotEmpty ? subtitle : 'YouTube Music',
+      thumbnailUrl: thumb,
+    );
+  }
+
+  /// Parses an AlbumItem from a musicTwoRowItemRenderer node.
+  static AlbumItem? _parseTwoRowAlbum(
+    Map<String, dynamic> twoRow, {
+    String type = 'Album',
+  }) {
+    final title = _extractNodeText(twoRow['title']).trim();
+    if (title.isEmpty) return null;
+    final subtitle = _extractNodeText(twoRow['subtitle']).trim();
+    final thumb = _extractNodePhoto(twoRow);
+    final browseId = traverseString(twoRow, [
+      'navigationEndpoint',
+      'browseEndpoint',
+      'browseId',
+    ]);
+    if (browseId == null || browseId.isEmpty) return null;
+
+    // Extract year from subtitle (e.g. "2024 • Single")
+    int? year;
+    final yearMatch = RegExp(r'\b(19|20)\d{2}\b').firstMatch(subtitle);
+    if (yearMatch != null) {
+      year = int.tryParse(yearMatch.group(0)!);
+    }
+
+    // Determine album type from subtitle
+    String resolvedType = type;
+    final subtitleLower = subtitle.toLowerCase();
+    if (subtitleLower.contains('single')) {
+      resolvedType = 'Single';
+    } else if (subtitleLower.contains('ep')) {
+      resolvedType = 'EP';
+    } else if (subtitleLower.contains('album')) {
+      resolvedType = 'Album';
+    }
+
+    // Artist name is usually in the first run of the subtitle before the dot
+    final artistName = subtitle.split('•').first.trim();
+
+    return AlbumItem(
+      id: browseId,
+      title: title,
+      artist: artistName.isNotEmpty ? artistName : 'Unknown Artist',
+      thumbnailUrl: thumb,
+      type: resolvedType,
+      year: year,
+      isCustom: false,
+    );
+  }
+
+  /// Parses an ArtistItem from a musicTwoRowItemRenderer node.
+  static ArtistItem? _parseTwoRowArtist(Map<String, dynamic> twoRow) {
+    final title = _extractNodeText(twoRow['title']).trim();
+    if (title.isEmpty) return null;
+    final subtitle = _extractNodeText(twoRow['subtitle']).trim();
+    final thumb = _extractNodePhoto(twoRow);
+    final browseId = traverseString(twoRow, [
+      'navigationEndpoint',
+      'browseEndpoint',
+      'browseId',
+    ]);
+    final id = browseId ?? 'artist_${title.hashCode}';
+
+    return ArtistItem(
+      id: id,
+      name: title,
+      thumbnailUrl: thumb,
+      subscribers: subtitle.isNotEmpty ? subtitle : null,
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PERSONALIZED HOME DATA FETCHER
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// Fetches a fully personalized home feed using the authenticated user's
+  /// YouTube Music account.
+  ///
+  /// Preserves every single real shelf from `FEmusic_home` in authentic order
+  /// inside [HomeData.dynamicSections], with their exact titles, subtitles, and
+  /// appropriate layout (4-item song columns, square cards, 16:9 widescreen videos),
+  /// matching the BitChord experience.
+  ///
+  /// Top Picks Hero Cards are assembled in the exact 8-slot canonical order:
+  ///   1. New from followed artist (Single / Album)
+  ///   2. Featuring [Artist]
+  ///   3. Discovery Station (radial pattern + 3-wave logo)
+  ///   4. Featuring [Artist] & Similar Artists (3 circular avatars on magenta background)
+  ///   5. A Mood for You (neon green with lightning bolt)
+  ///   6. Another Featuring [Artist] & Similar Artists (orange background)
+  ///   7. New Release Mix
+  ///   8. [User]'s Station
+  Future<HomeData?> _fetchPersonalizedHomeData() async {
+    final userName = _currentAccount?.displayName ?? 'You';
+
+    // Buckets ─────────────────────────────────────────────────────────────
+    final dynamicSections = <HomeSectionData>[];
+    final recents = <SongItem>[];
+    final quickPicks = <SongItem>[];
+    final albumsAndSingles = <AlbumItem>[];
+    final musicVideos = <VideoItem>[];
+    final trendingSongs = <SongItem>[];
+    final dailyDiscover = <SongItem>[];
+    final followedArtistNewReleases = <AlbumItem>[];
+    final featuredArtists = <ArtistItem>[];
+    final featuredPlaylists = <PlaylistItem>[];
+    final mixedForYou = <PlaylistItem>[];
+    final myMixes = <PlaylistItem>[];
+    final seenSongIds = <String>{};
+    PlaylistItem? userStation;
+    PlaylistItem? newReleaseMix;
+    SongItem? discoveryStation;
+
+    // ─── Helper: deduplicated song add ───────────────────────────────────
+    void addSong(List<SongItem> bucket, SongItem song) {
+      if (seenSongIds.add(song.id)) {
+        bucket.add(song);
+      }
+    }
+
+    try {
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 1 — FEmusic_history: authentic recent listens
+      // ═══════════════════════════════════════════════════════════════════
       try {
         final historyJson = await postInnerTube(
           'browse',
           bodyExtras: {'browseId': 'FEmusic_history'},
         );
         if (historyJson != null) {
-          final renderers = _collectRenderers(
+          for (final r in _collectRenderers(
             historyJson,
             'musicResponsiveListItemRenderer',
-          );
-          for (final it in renderers) {
-            final song = parseSongFromRenderer(it);
-            if (song != null && !seenSongIds.contains(song.id)) {
-              seenSongIds.add(song.id);
-              personalizedRecents.add(song);
+          )) {
+            final s = parseSongFromRenderer(r);
+            if (s != null) {
+              addSong(recents, s);
             }
           }
         }
       } catch (e) {
-        debugPrint('FEmusic_history InnerTube error: $e');
+        debugPrint('_fetchPersonalized: FEmusic_history error: $e');
       }
 
-      // 2. Authenticated InnerTube browse for FEmusic_home
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 2 — FEmusic_home: parse ALL live shelves dynamically (with continuations)
+      // ═══════════════════════════════════════════════════════════════════
       try {
+        final allHomeResponses = <dynamic>[];
         final homeJson = await postInnerTube(
           'browse',
           bodyExtras: {'browseId': 'FEmusic_home'},
         );
         if (homeJson != null) {
-          final shelves = _collectRenderers(
-            homeJson,
-            'musicCarouselShelfRenderer',
-          );
-          for (final shelf in shelves) {
+          allHomeResponses.add(homeJson);
+          var continuationToken = extractContinuationToken(homeJson) ??
+              traverseString(homeJson, ['continuation']);
+          int continuationCount = 0;
+          while (continuationToken != null &&
+              continuationToken.isNotEmpty &&
+              continuationCount < 5) {
+            continuationCount++;
+            try {
+              final nextJson = await postInnerTube(
+                'browse',
+                queryParams: {'continuation': continuationToken},
+                bodyExtras: {'continuation': continuationToken},
+              );
+              if (nextJson == null) break;
+              allHomeResponses.add(nextJson);
+              continuationToken = extractContinuationToken(nextJson) ??
+                  traverseString(nextJson, ['continuation']);
+            } catch (_) {
+              break;
+            }
+          }
+        }
+
+        final shelves = <Map<String, dynamic>>[];
+        for (final resp in allHomeResponses) {
+          shelves.addAll(_collectRenderers(resp, 'musicCarouselShelfRenderer'));
+          shelves.addAll(_collectRenderers(resp, 'musicShelfRenderer'));
+        }
+
+        final seenShelfTitles = <String>{};
+
+        for (final shelf in shelves) {
+          String rawTitle = '';
+          String rawSubtitle = '';
+
+          if (shelf['header']?['musicCarouselShelfBasicHeaderRenderer'] is Map) {
             final header =
-                shelf['header']?['musicCarouselShelfBasicHeaderRenderer'];
-            final sectionTitle = _extractNodeText(header?['title']);
-            final titleLower = sectionTitle.toLowerCase();
-            final items = shelf['contents'] as List? ?? [];
-            final songs = <SongItem>[];
+                shelf['header']['musicCarouselShelfBasicHeaderRenderer'];
+            rawTitle = _extractNodeText(header['title']).trim();
+            final strapline = _extractNodeText(header['strapline']).trim();
+            final sub = _extractNodeText(header['subtitle']).trim();
+            rawSubtitle = strapline.isNotEmpty ? strapline : sub;
+          } else if (shelf['header']?['musicShelfBasicHeaderRenderer'] is Map) {
+            final header = shelf['header']['musicShelfBasicHeaderRenderer'];
+            rawTitle = _extractNodeText(header['title']).trim();
+            final strapline = _extractNodeText(header['strapline']).trim();
+            final sub = _extractNodeText(header['subtitle']).trim();
+            rawSubtitle = strapline.isNotEmpty ? strapline : sub;
+          } else if (shelf['title'] != null) {
+            rawTitle = _extractNodeText(shelf['title']).trim();
+            if (shelf['subtitle'] != null) {
+              rawSubtitle = _extractNodeText(shelf['subtitle']).trim();
+            }
+          }
+
+          if (rawTitle.isEmpty) continue;
+          final titleLower = rawTitle.toLowerCase();
+          if (!seenShelfTitles.add(titleLower)) continue;
+            final items = (shelf['contents'] as List?) ?? const [];
+
+            final shelfSongsList = <SongItem>[];
+            final shelfAlbumsList = <AlbumItem>[];
+            final shelfPlaylistsList = <PlaylistItem>[];
+            final shelfVideosList = <VideoItem>[];
 
             for (final it in items) {
-              if (it is Map) {
-                if (it['musicResponsiveListItemRenderer'] is Map) {
-                  final song = parseSongFromRenderer(
-                    it['musicResponsiveListItemRenderer']
-                        as Map<String, dynamic>,
+              if (it is! Map) continue;
+              if (it['musicResponsiveListItemRenderer'] is Map) {
+                final s = parseSongFromRenderer(
+                  it['musicResponsiveListItemRenderer'] as Map<String, dynamic>,
+                );
+                if (s != null) {
+                  shelfSongsList.add(s);
+                }
+              } else if (it['musicTwoRowItemRenderer'] is Map) {
+                final twoRow =
+                    it['musicTwoRowItemRenderer'] as Map<String, dynamic>;
+                final videoId = traverseString(
+                  twoRow,
+                  ['navigationEndpoint', 'watchEndpoint', 'videoId'],
+                );
+                final browseId = traverseString(
+                  twoRow,
+                  ['navigationEndpoint', 'browseEndpoint', 'browseId'],
+                );
+                final itemTitle = _extractNodeText(twoRow['title']).trim();
+                final itemSubtitle =
+                    _extractNodeText(twoRow['subtitle']).trim();
+                final thumb = _extractNodePhoto(twoRow);
+
+                final isVideo = titleLower.contains('video') ||
+                    titleLower.contains('performance') ||
+                    (videoId != null && videoId.isNotEmpty && browseId == null);
+
+                if (isVideo &&
+                    videoId != null &&
+                    videoId.isNotEmpty &&
+                    itemTitle.isNotEmpty) {
+                  shelfVideosList.add(VideoItem(
+                    id: videoId,
+                    title: itemTitle,
+                    artist: itemSubtitle.isNotEmpty
+                        ? itemSubtitle
+                        : 'Unknown Artist',
+                    thumbnailUrl: thumb,
+                  ));
+                } else if (browseId != null && browseId.isNotEmpty) {
+                  if (browseId.startsWith('MPREb') ||
+                      browseId.contains('album') ||
+                      titleLower.contains('album') ||
+                      titleLower.contains('single') ||
+                      titleLower.contains('release')) {
+                    final alb = _parseTwoRowAlbum(twoRow);
+                    if (alb != null) {
+                      shelfAlbumsList.add(alb);
+                    }
+                  } else {
+                    final pl = _parseTwoRowPlaylist(twoRow);
+                    if (pl != null) {
+                      shelfPlaylistsList.add(pl);
+                    }
+                  }
+                } else if (videoId != null &&
+                    videoId.isNotEmpty &&
+                    itemTitle.isNotEmpty) {
+                  final cleanArt = SongItem.sanitizeArtist(itemSubtitle);
+                  final s = SongItem(
+                    id: videoId,
+                    title: SongItem.sanitizeTitle(itemTitle, cleanArt),
+                    artist: cleanArt.isNotEmpty ? cleanArt : 'YouTube Music',
+                    thumbnailUrl: thumb,
                   );
-                  if (song != null) {
-                    songs.add(song);
-                    if (!seenSongIds.contains(song.id)) {
-                      seenSongIds.add(song.id);
-                    }
-                  }
-                } else if (it['musicTwoRowItemRenderer'] is Map) {
-                  final twoRow =
-                      it['musicTwoRowItemRenderer'] as Map<String, dynamic>;
-                  final title = _extractNodeText(twoRow['title']);
-                  final subtitle = _extractNodeText(twoRow['subtitle']);
-                  final thumb = _extractNodePhoto(twoRow);
-                  final browseId = traverseString(twoRow, [
-                    'navigationEndpoint',
-                    'browseEndpoint',
-                    'browseId',
-                  ]);
-                  final videoId = traverseString(twoRow, [
-                    'navigationEndpoint',
-                    'watchEndpoint',
-                    'videoId',
-                  ]);
+                  shelfSongsList.add(s);
+                }
 
-                  if (videoId != null && videoId.isNotEmpty) {
-                    var songTitle = title.trim();
-                    if (songTitle.isEmpty ||
-                        songTitle.toLowerCase() == 'untitled' ||
-                        songTitle.toLowerCase() == 'track') {
-                      final a11y =
-                          traverseString(twoRow, [
-                            'title',
-                            'runs',
-                            'navigationEndpoint',
-                            'watchEndpoint',
-                            'title',
-                          ]) ??
-                          traverseString(twoRow, [
-                            'accessibilityData',
-                            'accessibilityData',
-                            'label',
-                          ]);
-                      if (a11y != null && a11y.trim().isNotEmpty) {
-                        songTitle = a11y.trim();
-                      }
-                    }
-                    if (songTitle.isNotEmpty &&
-                        songTitle.toLowerCase() != 'untitled' &&
-                        songTitle.toLowerCase() != 'track') {
-                      final cleanArt = SongItem.sanitizeArtist(subtitle);
-                      final cleanTit = SongItem.sanitizeTitle(songTitle, cleanArt);
-                      final song = SongItem(
-                        id: videoId,
-                        title: cleanTit,
-                        artist: cleanArt.isNotEmpty ? cleanArt : 'YouTube Music',
-                        thumbnailUrl: thumb,
-                      );
-                      songs.add(song);
-                    }
-                  } else if (browseId != null && browseId.isNotEmpty) {
-                    if (browseId.startsWith('MPREb') ||
-                        browseId.contains('album')) {
-                      personalizedAlbums.add(
-                        AlbumItem(
-                          id: browseId,
-                          title: title.isNotEmpty ? title : 'Album',
-                          artist: subtitle.isNotEmpty ? subtitle : 'Artist',
-                          thumbnailUrl: thumb,
-                          type: 'Album',
-                          isCustom: false,
-                        ),
-                      );
-                    }
-                  }
+                // Also inspect artist cards
+                final artist = _parseTwoRowArtist(twoRow);
+                if (artist != null &&
+                    !featuredArtists.any((a) => a.id == artist.id)) {
+                  featuredArtists.add(artist);
                 }
               }
             }
 
-            if (titleLower.contains('listen again') ||
-                titleLower.contains('recent') ||
-                titleLower.contains('play it again') ||
-                titleLower.contains('repeat')) {
-              for (final s in songs) {
-                if (!personalizedRecents.any((r) => r.id == s.id)) {
-                  personalizedRecents.add(s);
+            // Route items into section layouts
+            if (shelfSongsList.isNotEmpty) {
+              dynamicSections.add(HomeSectionData(
+                id: 'shelf_${dynamicSections.length}',
+                title: rawTitle,
+                subtitle: rawSubtitle.isNotEmpty ? rawSubtitle : null,
+                layout: HomeSectionLayout.songColumns,
+                songs: shelfSongsList,
+              ));
+
+              for (final s in shelfSongsList) {
+                if (titleLower.contains('recent') ||
+                    titleLower.contains('listen again')) {
+                  addSong(recents, s);
+                } else if (titleLower.contains('trend')) {
+                  addSong(trendingSongs, s);
+                } else if (titleLower.contains('discover') ||
+                    titleLower.contains('community')) {
+                  addSong(dailyDiscover, s);
+                  discoveryStation ??= s;
+                } else {
+                  addSong(quickPicks, s);
                 }
               }
-            } else if (titleLower.contains('quick pick') ||
-                titleLower.contains('recommended') ||
-                titleLower.contains('for you') ||
-                titleLower.contains('favorites') ||
-                titleLower.contains('similar to')) {
-              personalizedQuickPicks.addAll(songs);
-            } else if (titleLower.contains('supermix') ||
-                titleLower.contains('mix') ||
-                titleLower.contains('mixed for you') ||
-                titleLower.contains('radio')) {
-              if (songs.isNotEmpty) {
-                personalizedHeroCards.add(
-                  HeroCardItem(
-                    id: 'hero_personal_${personalizedHeroCards.length}',
-                    title: sectionTitle.isNotEmpty
-                        ? sectionTitle
-                        : 'Personal Supermix',
-                    subtitle: 'For ${_currentAccount?.displayName ?? "You"}',
-                    caption: 'YouTube Music • Personalized',
-                    imageUrl: songs.first.thumbnailUrl,
-                    primaryColor: 0xFF1C1C1E,
-                    playTrack: songs.first,
-                  ),
-                );
+            } else if (shelfVideosList.isNotEmpty) {
+              dynamicSections.add(HomeSectionData(
+                id: 'shelf_${dynamicSections.length}',
+                title: rawTitle,
+                subtitle: rawSubtitle.isNotEmpty ? rawSubtitle : null,
+                layout: HomeSectionLayout.videoCards,
+                videos: shelfVideosList,
+              ));
+              musicVideos.addAll(shelfVideosList);
+            } else if (shelfAlbumsList.isNotEmpty ||
+                shelfPlaylistsList.isNotEmpty) {
+              dynamicSections.add(HomeSectionData(
+                id: 'shelf_${dynamicSections.length}',
+                title: rawTitle,
+                subtitle: rawSubtitle.isNotEmpty ? rawSubtitle : null,
+                layout: HomeSectionLayout.squareCards,
+                albums: shelfAlbumsList,
+                playlists: shelfPlaylistsList,
+              ));
+              albumsAndSingles.addAll(shelfAlbumsList);
+              if (titleLower.contains('new from') ||
+                  titleLower.contains('new release') ||
+                  titleLower.contains('new album') ||
+                  titleLower.contains('new single')) {
+                followedArtistNewReleases.addAll(shelfAlbumsList);
               }
-            } else if (titleLower.contains('album') ||
-                titleLower.contains('single') ||
-                titleLower.contains('new release')) {
-              for (final s in songs) {
-                personalizedAlbums.add(
-                  AlbumItem(
-                    id: s.id,
-                    title: s.title,
-                    artist: s.artist,
-                    thumbnailUrl: s.thumbnailUrl,
-                    type: 'Release',
-                    isCustom: false,
-                  ),
-                );
+              if (titleLower.contains('supermix') ||
+                  titleLower.contains('mixed for you')) {
+                mixedForYou.addAll(shelfPlaylistsList);
+              } else if (titleLower.contains('my mix')) {
+                myMixes.addAll(shelfPlaylistsList);
+              } else if (titleLower.contains('featured playlist')) {
+                featuredPlaylists.addAll(shelfPlaylistsList);
               }
-            } else if (titleLower.contains('video')) {
-              for (final s in songs) {
-                personalizedVideos.add(
-                  VideoItem(
-                    id: s.id,
-                    title: s.title,
-                    artist: s.artist,
-                    thumbnailUrl: s.thumbnailUrl,
-                  ),
-                );
+
+              for (final pl in shelfPlaylistsList) {
+                final plLower = pl.title.toLowerCase();
+                if (plLower.contains('new release mix')) {
+                  newReleaseMix ??= pl;
+                } else if (plLower.contains('station') &&
+                    !plLower.contains('discover')) {
+                  userStation ??= pl;
+                }
               }
             }
           }
-        }
-      } catch (e) {
-        debugPrint('FEmusic_home InnerTube error: $e');
+        } catch (e) {
+        debugPrint('_fetchPersonalized: FEmusic_home error: $e');
       }
 
-      // 2. Supplement from _ytMusic.getHomeSections()
-      final sections = await _ytMusic.getHomeSections();
-      if (sections.isNotEmpty) {
-        for (final section in sections) {
-          final titleLower = section.title.toLowerCase();
-
-          // Listen again / User's listening history
-          if (titleLower.contains('listen again') ||
-              titleLower.contains('recent') ||
-              titleLower.contains('play it again') ||
-              titleLower.contains('history')) {
-            if (personalizedRecents.isEmpty) {
-              personalizedRecents.addAll(_extractSongsFromHomeSection(section));
-            }
-          }
-          // Quick picks / Tailored algorithmic recommendations
-          else if (titleLower.contains('quick pick') ||
-              titleLower.contains('recommended') ||
-              titleLower.contains('start radio') ||
-              titleLower.contains('for you') ||
-              titleLower.contains('favorites')) {
-            if (personalizedQuickPicks.isEmpty) {
-              personalizedQuickPicks.addAll(
-                _extractSongsFromHomeSection(section),
-              );
-            }
-          }
-          // Mixed for you / Personal Supermixes
-          else if (titleLower.contains('mixed for you') ||
-              titleLower.contains('supermix') ||
-              titleLower.contains('mixes') ||
-              titleLower.contains('your mix')) {
-            if (personalizedHeroCards.isEmpty) {
-              final songs = _extractSongsFromHomeSection(section);
-              if (songs.isNotEmpty) {
-                personalizedHeroCards.add(
-                  HeroCardItem(
-                    id: 'hero_personal_${personalizedHeroCards.length}',
-                    title: section.title.isNotEmpty
-                        ? section.title
-                        : 'My Supermix',
-                    subtitle:
-                        'Personalized for ${_currentAccount?.displayName ?? "You"}',
-                    caption: 'YouTube Music • Personalized Mix',
-                    imageUrl: songs.first.thumbnailUrl,
-                    primaryColor: 0xFF1C1C1E,
-                    playTrack: songs.first,
-                  ),
-                );
-              }
-            }
-          }
-          // Albums & singles
-          else if (titleLower.contains('album') ||
-              titleLower.contains('single') ||
-              titleLower.contains('new release')) {
-            personalizedAlbums.addAll(_extractAlbumsFromHomeSection(section));
-          }
-          // Music videos
-          else if (titleLower.contains('video')) {
-            personalizedVideos.addAll(_extractVideosFromHomeSection(section));
-          }
-        }
-      }
-
-      // If personalized content was resolved, build personalized HomeData
-      if (personalizedRecents.isNotEmpty || personalizedQuickPicks.isNotEmpty) {
-        final rawHome = await _fetchRawYouTubeHomeData();
-        final defaultCategories = await _fetchMoodsAndGenres();
-
-        return HomeData(
-          heroCards: personalizedHeroCards.isNotEmpty
-              ? [
-                  ...personalizedHeroCards,
-                  ...rawHome.heroCards.take(
-                    (3 - personalizedHeroCards.length).clamp(0, 3),
-                  ),
-                ]
-              : rawHome.heroCards,
-          recents: personalizedRecents.isNotEmpty
-              ? personalizedRecents
-              : rawHome.recents,
-          quickPicks: personalizedQuickPicks.isNotEmpty
-              ? personalizedQuickPicks
-              : rawHome.quickPicks,
-          moods: defaultCategories.moods.isNotEmpty
-              ? defaultCategories.moods
-              : rawHome.moods,
-          genres: defaultCategories.genres.isNotEmpty
-              ? defaultCategories.genres
-              : rawHome.genres,
-          albumsAndSingles: personalizedAlbums.isNotEmpty
-              ? personalizedAlbums
-              : rawHome.albumsAndSingles,
-          musicVideos: personalizedVideos.isNotEmpty
-              ? personalizedVideos
-              : rawHome.musicVideos,
-          dailyDiscover: rawHome.dailyDiscover,
-          trendingSongs: rawHome.trendingSongs,
+      // Ensure "Recents" is at the top of dynamicSections if available from history
+      if (recents.isNotEmpty &&
+          !dynamicSections.any(
+            (s) =>
+                s.title.toLowerCase().contains('recent') ||
+                s.title.toLowerCase().contains('listen again'),
+          )) {
+        dynamicSections.insert(
+          0,
+          HomeSectionData(
+            id: 'shelf_recents',
+            title: 'Recents',
+            layout: HomeSectionLayout.songColumns,
+            songs: recents,
+          ),
         );
       }
-    } catch (e) {
-      debugPrint(
-        'Personalized home sections fetch error: $e, falling back to raw feed',
+
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 3 — getHomeSections() as supplementary fallback if empty
+      // ═══════════════════════════════════════════════════════════════════
+      if (dynamicSections.isEmpty) {
+        try {
+          final sections = await _ytMusic.getHomeSections();
+          for (final section in sections) {
+            final title = section.title.trim();
+            if (title.isEmpty) continue;
+            final songs = _extractSongsFromHomeSection(section);
+            final albs = _extractAlbumsFromHomeSection(section);
+            final vids = _extractVideosFromHomeSection(section);
+            final pls = _extractPlaylistsFromHomeSection(section);
+
+            if (songs.isNotEmpty) {
+              dynamicSections.add(HomeSectionData(
+                id: 'shelf_fallback_${dynamicSections.length}',
+                title: title,
+                layout: HomeSectionLayout.songColumns,
+                songs: songs,
+              ));
+              for (final s in songs) {
+                addSong(quickPicks, s);
+              }
+            } else if (vids.isNotEmpty) {
+              dynamicSections.add(HomeSectionData(
+                id: 'shelf_fallback_${dynamicSections.length}',
+                title: title,
+                layout: HomeSectionLayout.videoCards,
+                videos: vids,
+              ));
+              musicVideos.addAll(vids);
+            } else if (albs.isNotEmpty || pls.isNotEmpty) {
+              dynamicSections.add(HomeSectionData(
+                id: 'shelf_fallback_${dynamicSections.length}',
+                title: title,
+                layout: HomeSectionLayout.squareCards,
+                albums: albs,
+                playlists: pls,
+              ));
+              albumsAndSingles.addAll(albs);
+              featuredPlaylists.addAll(pls);
+            }
+          }
+        } catch (e) {
+          debugPrint('_fetchPersonalized: getHomeSections error: $e');
+        }
+      }
+
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 4 — Compose the exact 8 Top Picks Hero Cards (matching video)
+      // ═══════════════════════════════════════════════════════════════════
+      final orderedHeroCards = <HeroCardItem>[];
+      final cleanFollowed = followedArtistNewReleases
+          .where((a) => !a.title.toLowerCase().contains('liked music'))
+          .toList();
+      final cleanAlbums = albumsAndSingles
+          .where((a) => !a.title.toLowerCase().contains('liked music'))
+          .toList();
+
+      // 1. New from followed artist (Single / Album)
+      final followedRel = cleanFollowed.isNotEmpty
+          ? cleanFollowed.first
+          : (cleanAlbums.isNotEmpty ? cleanAlbums.first : null);
+      if (followedRel != null) {
+        orderedHeroCards.add(HeroCardItem(
+          id: 'hero_new_${followedRel.id}',
+          title: followedRel.title,
+          subtitle: 'New from ${followedRel.artist}',
+          caption:
+              '${followedRel.type} • ${followedRel.year ?? DateTime.now().year}',
+          imageUrl: followedRel.thumbnailUrl,
+          primaryColor: 0xFF141414,
+          style: 'fullBleed',
+        ));
+      }
+
+      // 2. Featuring [Artist Name]
+      final primaryArtist = featuredArtists.isNotEmpty
+          ? featuredArtists.first
+          : (recents.isNotEmpty
+              ? ArtistItem(
+                  id: 'art_${recents.first.artist}',
+                  name: recents.first.artist,
+                  thumbnailUrl: recents.first.thumbnailUrl,
+                  subscribers: 'Monthly audience',
+                )
+              : null);
+      if (primaryArtist != null) {
+        orderedHeroCards.add(HeroCardItem(
+          id: 'hero_featuring_${primaryArtist.id}',
+          title: primaryArtist.name,
+          subtitle: 'Featuring ${primaryArtist.name}',
+          caption: primaryArtist.subscribers ?? '197K monthly audience',
+          imageUrl: primaryArtist.thumbnailUrl,
+          primaryColor: 0xFF1A1A24,
+          style: 'artistPortrait',
+        ));
+      }
+
+      // 3. Made for You / Discovery Station (Radial pattern + 3-wave logo)
+      orderedHeroCards.add(HeroCardItem(
+        id: 'hero_discovery_station',
+        title: 'Discovery Station',
+        subtitle: 'Made for You',
+        caption: 'YouTube Music • Mix',
+        primaryColor: 0xFF2A1B6D,
+        style: 'discoveryStation',
+        playTrack:
+            discoveryStation ?? (recents.isNotEmpty ? recents.first : null),
+      ));
+
+      // 4. Featuring [Artist] & Similar Artists (3 circular avatars on magenta background)
+      final similarAvatars = <String>[];
+      for (final a in featuredArtists.take(3)) {
+        if (a.thumbnailUrl != null) similarAvatars.add(a.thumbnailUrl!);
+      }
+      if (similarAvatars.isEmpty) {
+        for (final s in recents.take(3)) {
+          if (s.thumbnailUrl != null) similarAvatars.add(s.thumbnailUrl!);
+        }
+      }
+      final leadSimilarArtist = featuredArtists.length > 1
+          ? featuredArtists[1].name
+          : (recents.isNotEmpty ? recents.first.artist : 'Your Favorites');
+      orderedHeroCards.add(HeroCardItem(
+        id: 'hero_similar_1',
+        title: '$leadSimilarArtist & Similar Artists',
+        subtitle: 'Featuring $leadSimilarArtist',
+        caption: 'YouTube Music • Radio',
+        primaryColor: 0xFFD81B60, // vibrant magenta
+        style: 'similarArtists',
+        artistAvatars: similarAvatars,
+        playTrack: recents.isNotEmpty ? recents.first : null,
+      ));
+
+      // 5. A Mood for You (Neon green with lightning bolt)
+      orderedHeroCards.add(HeroCardItem(
+        id: 'hero_mood_energy',
+        title: 'Energy',
+        subtitle: 'A Mood for You',
+        caption: 'For $userName',
+        primaryColor: 0xFF00D26A, // neon green
+        style: 'moodForYou',
+        iconType: 'lightning',
+      ));
+
+      // 6. Another Featuring [Artist] & Similar Artists (Orange background)
+      final secondSimilarArtist = featuredArtists.length > 2
+          ? featuredArtists[2].name
+          : (recents.length > 3 ? recents[3].artist : 'Featured');
+      final secondAvatars = <String>[];
+      for (final a in featuredArtists.skip(2).take(3)) {
+        if (a.thumbnailUrl != null) secondAvatars.add(a.thumbnailUrl!);
+      }
+      if (secondAvatars.isEmpty && recents.length > 3) {
+        for (final s in recents.skip(3).take(3)) {
+          if (s.thumbnailUrl != null) secondAvatars.add(s.thumbnailUrl!);
+        }
+      }
+      orderedHeroCards.add(HeroCardItem(
+        id: 'hero_similar_2',
+        title: '$secondSimilarArtist & Similar Artists',
+        subtitle: 'Featuring $secondSimilarArtist',
+        caption: 'YouTube Music • Radio',
+        primaryColor: 0xFFFF6D00, // vibrant deep orange
+        style: 'similarArtists',
+        artistAvatars: secondAvatars,
+        playTrack: recents.length > 3 ? recents[3] : null,
+      ));
+
+      // 7. Made for You / New Release Mix
+      final releaseMixSubtitle =
+          recents.take(4).map((e) => e.artist).toSet().join(', ');
+      orderedHeroCards.add(HeroCardItem(
+        id: 'hero_new_release_mix',
+        title: 'New Release Mix',
+        subtitle: 'Made for You',
+        caption: (newReleaseMix != null &&
+                newReleaseMix.author.isNotEmpty &&
+                newReleaseMix.author != 'YouTube Music')
+            ? newReleaseMix.author
+            : (releaseMixSubtitle.isNotEmpty
+                ? releaseMixSubtitle
+                : 'New releases you\'ll love'),
+        imageUrl: newReleaseMix?.thumbnailUrl ??
+            (albumsAndSingles.isNotEmpty
+                ? albumsAndSingles.first.thumbnailUrl
+                : null),
+        primaryColor: 0xFFC2185B,
+        style: 'mixWithBadge',
+      ));
+
+      // 8. Made for You / [UserName]'s Station (Radiant pink-orange gradient)
+      orderedHeroCards.add(HeroCardItem(
+        id: 'hero_user_station',
+        title: '$userName\'s Station',
+        subtitle: 'Made for You',
+        caption: 'Your personal station',
+        primaryColor: 0xFFFF5722, // coral-pink gradient
+        style: 'userStation',
+        playTrack: recents.isNotEmpty ? recents.first : null,
+      ));
+
+      // Never show "Liked Music" in Top Picks for You
+      orderedHeroCards.removeWhere((c) {
+        final t = c.title.toLowerCase();
+        final s = c.subtitle.toLowerCase();
+        final cap = c.caption.toLowerCase();
+        return t.contains('liked music') ||
+            t.contains('your likes') ||
+            s.contains('liked music') ||
+            cap.contains('liked music');
+      });
+
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 5 — Gate: only return personalized data if we got meaningful content
+      // ═══════════════════════════════════════════════════════════════════
+      final hasPersonalContent =
+          dynamicSections.isNotEmpty ||
+          recents.isNotEmpty ||
+          quickPicks.isNotEmpty ||
+          albumsAndSingles.isNotEmpty;
+
+      if (!hasPersonalContent) return null;
+
+      final defaultCategories = await _fetchMoodsAndGenres();
+
+      return HomeData(
+        heroCards: orderedHeroCards,
+        recents: recents,
+        quickPicks: quickPicks,
+        moods: defaultCategories.moods,
+        genres: defaultCategories.genres,
+        albumsAndSingles: albumsAndSingles,
+        musicVideos: musicVideos,
+        dailyDiscover: dailyDiscover,
+        trendingSongs: trendingSongs,
+        dynamicSections: dynamicSections,
+        // Personalized fields
+        featuredPlaylists: featuredPlaylists,
+        mixedForYou: mixedForYou,
+        myMixes: myMixes,
+        followedArtistNewReleases: followedArtistNewReleases,
+        featuredArtists: featuredArtists,
+        userStation: userStation,
+        newReleaseMix: newReleaseMix,
+        discoveryStation: discoveryStation,
       );
+    } catch (e) {
+      debugPrint('_fetchPersonalizedHomeData: top-level error: $e');
+      return null;
     }
-    return null;
   }
 
   List<SongItem> _extractSongsFromHomeSection(HomeSection section) {
@@ -1539,6 +1892,43 @@ class MusicService {
             year: item.year,
           ),
         );
+      }
+    }
+    return list;
+  }
+
+  /// Extracts PlaylistItems from a HomeSection whose contents may contain
+  /// PlaylistDetailed or AlbumDetailed items (used for Supermix / My Mix shelves).
+  List<PlaylistItem> _extractPlaylistsFromHomeSection(HomeSection section) {
+    final list = <PlaylistItem>[];
+    for (final item in section.contents) {
+      if (item is PlaylistDetailed && item.playlistId.isNotEmpty) {
+        String? thumb;
+        if (item.thumbnails.isNotEmpty) {
+          thumb = SongItem.upgradeThumbnail(item.thumbnails.last.url);
+        }
+        list.add(PlaylistItem(
+          id: item.playlistId,
+          title: item.name.isNotEmpty ? item.name : 'Mix',
+          author: item.artist.name.isNotEmpty
+              ? item.artist.name
+              : 'YouTube Music',
+          thumbnailUrl: thumb,
+        ));
+      } else if (item is AlbumDetailed && item.albumId.isNotEmpty) {
+        // Some mixes surface as albums — wrap them as playlists
+        String? thumb;
+        if (item.thumbnails.isNotEmpty) {
+          thumb = SongItem.upgradeThumbnail(item.thumbnails.last.url);
+        }
+        list.add(PlaylistItem(
+          id: item.albumId,
+          title: item.name.isNotEmpty ? item.name : 'Mix',
+          author: item.artist.name.isNotEmpty
+              ? item.artist.name
+              : 'YouTube Music',
+          thumbnailUrl: thumb,
+        ));
       }
     }
     return list;
@@ -1883,6 +2273,7 @@ class MusicService {
       musicVideos: videos,
       dailyDiscover: dailyDiscover,
       trendingSongs: trendingSongs,
+      // No personalized fields in raw (unauthenticated) feed
     );
   }
 

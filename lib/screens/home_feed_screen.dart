@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../constants/app_colors.dart';
 import '../constants/apple_typography.dart';
 import '../models/album_item.dart';
+import '../models/artist_item.dart';
 import '../models/hero_card_item.dart';
 import '../models/home_data.dart';
 import '../models/music_category.dart';
+import '../models/playlist_item.dart';
 import '../models/song_item.dart';
 import '../models/video_item.dart';
 import '../providers/home_data_provider.dart';
@@ -97,6 +99,168 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
     final recentlyPlayed = ref.watch(playerProvider.select((s) => s.recentlyPlayed));
     final topPadding = MediaQuery.of(context).padding.top;
 
+    // Filter out any "Liked Music" that might appear in hero cards
+    final cleanHeroCards = data.heroCards.where((c) {
+      final t = c.title.toLowerCase();
+      final s = c.subtitle.toLowerCase();
+      final cap = c.caption.toLowerCase();
+      return !t.contains('liked music') &&
+          !t.contains('your likes') &&
+          !s.contains('liked music') &&
+          !cap.contains('liked music');
+    }).toList();
+
+    // Prepare authentic Recents: API recents take precedence, falling back to local history or quickPicks
+    final effectiveRecents = data.recents.isNotEmpty
+        ? data.recents
+        : (recentlyPlayed.isNotEmpty
+            ? recentlyPlayed
+            : data.quickPicks.take(8).toList());
+
+    final feedChildren = <Widget>[
+      // Scrollable Brand Logo Header
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: const CadmiumLogo(size: 56),
+        ),
+      ),
+
+      // Section 1: "Top Picks for You" Hero Cards Carousel (No liked music)
+      _buildTopPicksHeroSection(context, ref, cleanHeroCards),
+      const SizedBox(height: AppleSpacing.sectionSpacing),
+
+      // Section 2: "Recents" (Always directly below Top Picks for You)
+      if (effectiveRecents.isNotEmpty) ...[
+        _build4ItemColumnsSection(
+          context: context,
+          ref: ref,
+          title: 'Recents',
+          songs: effectiveRecents,
+        ),
+        const SizedBox(height: AppleSpacing.sectionSpacing),
+      ],
+
+      // Section 3: "Find Your Mood"
+      _buildFindYourMoodSection(context, data.moods),
+      const SizedBox(height: AppleSpacing.sectionSpacing),
+    ];
+
+    if (data.dynamicSections.isNotEmpty) {
+      for (final section in data.dynamicSections) {
+        if (section.isEmpty) continue;
+
+        // Skip duplicate recents / listen again since we rendered it directly below Top Picks
+        final sTitleLower = section.title.trim().toLowerCase();
+        if ((sTitleLower == 'recents' || sTitleLower == 'listen again') &&
+            effectiveRecents.isNotEmpty) {
+          continue;
+        }
+
+        switch (section.layout) {
+          case HomeSectionLayout.songColumns:
+            feedChildren.add(
+              _build4ItemColumnsSection(
+                context: context,
+                ref: ref,
+                title: section.title,
+                subtitle: section.subtitle,
+                songs: section.songs,
+              ),
+            );
+            feedChildren.add(const SizedBox(height: AppleSpacing.sectionSpacing));
+            break;
+
+          case HomeSectionLayout.squareCards:
+            feedChildren.add(
+              _buildSquareCardsSection(
+                context: context,
+                ref: ref,
+                title: section.title,
+                subtitle: section.subtitle,
+                albums: section.albums,
+                playlists: section.playlists,
+              ),
+            );
+            feedChildren.add(const SizedBox(height: AppleSpacing.sectionSpacing));
+            break;
+
+          case HomeSectionLayout.videoCards:
+            feedChildren.add(
+              _buildMusicVideosSection(
+                context,
+                ref,
+                section.videos,
+                title: section.title,
+                subtitle: section.subtitle,
+              ),
+            );
+            feedChildren.add(const SizedBox(height: AppleSpacing.sectionSpacing));
+            break;
+        }
+      }
+    } else {
+      // Fallback layout (offline, unauthenticated, tests)
+      feedChildren.addAll([
+        _buildAlbumsAndSinglesSection(context, ref, data.albumsAndSingles),
+        const SizedBox(height: AppleSpacing.sectionSpacing),
+        _buildMusicVideosSection(context, ref, data.musicVideos),
+        const SizedBox(height: AppleSpacing.sectionSpacing),
+        _build4ItemColumnsSection(
+          context: context,
+          ref: ref,
+          title: 'Quick picks',
+          songs: data.quickPicks,
+        ),
+        const SizedBox(height: AppleSpacing.sectionSpacing),
+        if (data.mixedForYou.isNotEmpty) ...[
+          _buildPlaylistCarousel(
+            context: context,
+            ref: ref,
+            title: 'Mixed for You',
+            playlists: data.mixedForYou,
+          ),
+          const SizedBox(height: AppleSpacing.sectionSpacing),
+        ],
+        if (data.myMixes.isNotEmpty) ...[
+          _buildPlaylistCarousel(
+            context: context,
+            ref: ref,
+            title: 'Your Mixes',
+            playlists: data.myMixes,
+          ),
+          const SizedBox(height: AppleSpacing.sectionSpacing),
+        ],
+        if (data.featuredPlaylists.isNotEmpty) ...[
+          _buildPlaylistCarousel(
+            context: context,
+            ref: ref,
+            title: 'Featured Playlists',
+            playlists: data.featuredPlaylists,
+          ),
+          const SizedBox(height: AppleSpacing.sectionSpacing),
+        ],
+        if (data.featuredArtists.isNotEmpty) ...[
+          _buildFeaturedArtistsSection(context, ref, data.featuredArtists),
+          const SizedBox(height: AppleSpacing.sectionSpacing),
+        ],
+        _buildHorizontalSongCarousel(
+          context: context,
+          ref: ref,
+          title: 'Your daily discover',
+          songs: data.dailyDiscover,
+        ),
+        const SizedBox(height: AppleSpacing.sectionSpacing),
+        _buildHorizontalSongCarousel(
+          context: context,
+          ref: ref,
+          title: 'Trending songs for you',
+          songs: data.trendingSongs,
+        ),
+      ]);
+    }
+
     return Stack(
       children: [
         // 1. Scrollable Feed Body (extends edge-to-edge beyond the notification/battery bar)
@@ -110,87 +274,11 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
               parent: BouncingScrollPhysics(),
             ),
             padding: EdgeInsets.fromLTRB(0, topPadding + 6, 0, 160),
-            children: [
-              // Scrollable Brand Logo Header (Prominent Cadmium logo with comfortable top breathing room)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: const CadmiumLogo(size: 56),
-                ),
-              ),
-
-              // Section 1: "Top Picks for You" Hero Cards Carousel
-              _buildTopPicksHeroSection(context, ref, data.heroCards),
-              const SizedBox(height: AppleSpacing.sectionSpacing),
-
-              // Section 2: "Recents" (4-item vertical column horizontal paging)
-              _build4ItemColumnsSection(
-                context: context,
-                ref: ref,
-                title: 'Recents',
-                songs: data.recents,
-              ),
-              const SizedBox(height: AppleSpacing.sectionSpacing),
-
-              // Section 3: "Find Your Mood" with "Show all"
-              _buildFindYourMoodSection(context, data.moods),
-              const SizedBox(height: AppleSpacing.sectionSpacing),
-
-              // Section 4: "Albums & singles"
-              _buildAlbumsAndSinglesSection(
-                context,
-                ref,
-                data.albumsAndSingles,
-              ),
-              const SizedBox(height: AppleSpacing.sectionSpacing),
-
-              // Section 5: "Music videos" (16:9 widescreen)
-              _buildMusicVideosSection(context, ref, data.musicVideos),
-              const SizedBox(height: AppleSpacing.sectionSpacing),
-
-              // Section 6: "Listen again" (listening history from playerProvider)
-              if (recentlyPlayed.isNotEmpty) ...[
-                _build4ItemColumnsSection(
-                  context: context,
-                  ref: ref,
-                  title: 'Listen again',
-                  subtitle: 'UTKARSH',
-                  songs: recentlyPlayed,
-                ),
-                const SizedBox(height: AppleSpacing.sectionSpacing),
-              ],
-
-              // Section 7: "Quick picks" (4-item vertical column horizontal paging)
-              _build4ItemColumnsSection(
-                context: context,
-                ref: ref,
-                title: 'Quick picks',
-                songs: data.quickPicks,
-              ),
-              const SizedBox(height: AppleSpacing.sectionSpacing),
-
-              // Section 8: "Your daily discover"
-              _buildHorizontalSongCarousel(
-                context: context,
-                ref: ref,
-                title: 'Your daily discover',
-                songs: data.dailyDiscover,
-              ),
-              const SizedBox(height: AppleSpacing.sectionSpacing),
-
-              // Section 9: "Trending songs for you"
-              _buildHorizontalSongCarousel(
-                context: context,
-                ref: ref,
-                title: 'Trending songs for you',
-                songs: data.trendingSongs,
-              ),
-            ],
+            children: feedChildren,
           ),
         ),
 
-        // 2. Subtle Top Status Bar Dissolve on Scroll (confined strictly to the battery & notification edge)
+        // 2. Subtle Top Status Bar Dissolve on Scroll
         TopStatusBarBlur(scrollController: _scrollController),
       ],
     );
@@ -271,36 +359,43 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // 1. Sharp Full-Bleed Cover Artwork
-                if (hero.imageUrl != null)
-                  WavifyCachedImage(
-                    imageUrl: hero.imageUrl!,
-                    songId: hero.playTrack?.id,
-                    fit: BoxFit.cover,
-                    errorWidget: Container(
-                      color: const Color(0xFF141414),
-                      child: const Center(
-                        child: Icon(
-                          CupertinoIcons.music_note,
-                          color: Colors.white24,
-                          size: 48,
+                // 1. Dynamic Hero Background tailored to specific card style
+                _buildHeroBackground(context, hero, cardWidth, cardHeight),
+
+                // 2. Mix Badge on top-left for New Release Mix
+                if (hero.style == 'mixWithBadge')
+                  Positioned(
+                    top: 14,
+                    left: 14,
+                    child: Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.70),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.20),
+                          width: 0.8,
                         ),
                       ),
-                    ),
-                  )
-                else
-                  Container(
-                    color: const Color(0xFF141414),
-                    child: const Center(
-                      child: Icon(
-                        CupertinoIcons.music_note,
-                        color: Colors.white24,
-                        size: 48,
+                      child: const Center(
+                        child: Icon(
+                          CupertinoIcons.play_fill,
+                          color: Colors.white,
+                          size: 13,
+                        ),
                       ),
                     ),
                   ),
 
-                // 2. High-contrast OLED gradient scrim for crystal clear typography
+                // 3. Signature 3-Wave Wavify Logo on top-right
+                const Positioned(
+                  top: 14,
+                  right: 14,
+                  child: WavifyLogo(size: 18),
+                ),
+
+                // 4. High-contrast OLED gradient scrim for crystal clear typography
                 Positioned.fill(
                   child: Container(
                     decoration: const BoxDecoration(
@@ -319,7 +414,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                   ),
                 ),
 
-                // 3. White Typography floating over the scrim
+                // 5. White Typography floating over the scrim
                 Positioned(
                   left: 14,
                   right: 14,
@@ -328,40 +423,268 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                    Text(
-                      hero.subtitle.toUpperCase(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppleTypography.eyebrow.copyWith(
-                        color: Colors.white.withValues(alpha: 0.85),
+                      Text(
+                        hero.subtitle.toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppleTypography.eyebrow.copyWith(
+                          color: Colors.white.withValues(alpha: 0.85),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      hero.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppleTypography.sectionTitle,
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      hero.caption,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppleTypography.sectionSubtitle.copyWith(
-                        color: Colors.white.withValues(alpha: 0.70),
+                      const SizedBox(height: 3),
+                      Text(
+                        hero.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppleTypography.sectionTitle,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 3),
+                      Text(
+                        hero.caption,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppleTypography.sectionSubtitle.copyWith(
+                          color: Colors.white.withValues(alpha: 0.70),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Builds the background graphics and layout for the 8 hero card types matching BitChord/YTM
+  Widget _buildHeroBackground(
+    BuildContext context,
+    HeroCardItem hero,
+    double cardWidth,
+    double cardHeight,
+  ) {
+    switch (hero.style) {
+      case 'similarArtists':
+        final baseColor = Color(hero.primaryColor ?? 0xFFBA0C69);
+        return Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                baseColor,
+                baseColor.withValues(alpha: 0.85),
+                Colors.black.withValues(alpha: 0.95),
+              ],
+              stops: const [0.0, 0.55, 1.0],
+            ),
+          ),
+          child: Stack(
+            children: [
+              // 1 large top avatar
+              Positioned(
+                top: 24,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: _buildAvatarCircle(
+                    avatarUrl: hero.artistAvatars.isNotEmpty
+                        ? hero.artistAvatars[0]
+                        : hero.imageUrl,
+                    size: 80,
+                    borderWidth: 2.0,
+                  ),
+                ),
+              ),
+              // 2 bottom overlapping avatars
+              Positioned(
+                top: 80,
+                left: (cardWidth * 0.18).clamp(24.0, 42.0),
+                child: _buildAvatarCircle(
+                  avatarUrl: hero.artistAvatars.length > 1
+                      ? hero.artistAvatars[1]
+                      : (hero.artistAvatars.isNotEmpty
+                          ? hero.artistAvatars[0]
+                          : null),
+                  size: 58,
+                  borderWidth: 1.5,
+                ),
+              ),
+              Positioned(
+                top: 80,
+                right: (cardWidth * 0.18).clamp(24.0, 42.0),
+                child: _buildAvatarCircle(
+                  avatarUrl: hero.artistAvatars.length > 2
+                      ? hero.artistAvatars[2]
+                      : (hero.artistAvatars.isNotEmpty
+                          ? hero.artistAvatars[0]
+                          : null),
+                  size: 58,
+                  borderWidth: 1.5,
                 ),
               ),
             ],
           ),
+        );
+
+      case 'discoveryStation':
+        return Container(
+          decoration: const BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment(0.0, -0.25),
+              radius: 1.05,
+              colors: [
+                Color(0xFF381A78),
+                Color(0xFF1E2875),
+                Color(0xFF0F172A),
+                Color(0xFF0A0A10),
+              ],
+            ),
+          ),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 50),
+              child: VortexRingsIcon(
+                size: 80,
+                color: Colors.white.withValues(alpha: 0.40),
+              ),
+            ),
+          ),
+        );
+
+      case 'userStation':
+        return Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFFFF416C),
+                Color(0xFFFF4B2B),
+                Color(0xFFFF7E40),
+                Color(0xFF8E0E00),
+              ],
+            ),
+          ),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 50),
+              child: Icon(
+                CupertinoIcons.radiowaves_right,
+                size: 72,
+                color: Colors.white.withValues(alpha: 0.32),
+              ),
+            ),
+          ),
+        );
+
+      case 'moodForYou':
+        final baseColor = Color(hero.primaryColor ?? 0xFF00D26A);
+        return Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                baseColor,
+                baseColor.withValues(alpha: 0.85),
+                Colors.black.withValues(alpha: 0.95),
+              ],
+              stops: const [0.0, 0.55, 1.0],
+            ),
+          ),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 50),
+              child: _buildMoodIcon(hero.iconType ?? 'lightning'),
+            ),
+          ),
+        );
+
+      default:
+        // Full bleed cover artwork for fullBleed, artistPortrait, mixWithBadge
+        if (hero.imageUrl != null) {
+          return WavifyCachedImage(
+            imageUrl: hero.imageUrl!,
+            songId: hero.playTrack?.id,
+            fit: BoxFit.cover,
+            errorWidget: Container(
+              color: const Color(0xFF141414),
+              child: const Center(
+                child: Icon(
+                  CupertinoIcons.music_note,
+                  color: Colors.white24,
+                  size: 48,
+                ),
+              ),
+            ),
+          );
+        } else {
+          return Container(
+            color: const Color(0xFF141414),
+            child: const Center(
+              child: Icon(
+                CupertinoIcons.music_note,
+                color: Colors.white24,
+                size: 48,
+              ),
+            ),
+          );
+        }
+    }
+  }
+
+  Widget _buildAvatarCircle({
+    required String? avatarUrl,
+    required double size,
+    double borderWidth = 1.5,
+  }) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.9),
+          width: borderWidth,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
-    ),
-  );
-}
+      child: ClipOval(
+        child: avatarUrl != null
+            ? WavifyCachedImage(
+                imageUrl: avatarUrl,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                errorWidget: Container(
+                  color: AppColors.appleDarkSurfaceHigh,
+                  child: const Icon(
+                    CupertinoIcons.person_fill,
+                    color: Colors.white30,
+                    size: 24,
+                  ),
+                ),
+              )
+            : Container(
+                color: AppColors.appleDarkSurfaceHigh,
+                child: const Icon(
+                  CupertinoIcons.person_fill,
+                  color: Colors.white30,
+                  size: 24,
+                ),
+              ),
+      ),
+    );
+  }
 
   /// 4-Item Vertical Column with Horizontal Swiping (Recents / Quick picks / Listen again)
   Widget _build4ItemColumnsSection({
@@ -819,12 +1142,198 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
     );
   }
 
+  /// Square Cards Horizontal Carousel (Dynamic InnerTube Shelves: Albums, Playlists, Mixes, Community)
+  Widget _buildSquareCardsSection({
+    required BuildContext context,
+    required WidgetRef ref,
+    required String title,
+    String? subtitle,
+    List<AlbumItem> albums = const [],
+    List<PlaylistItem> playlists = const [],
+  }) {
+    if (albums.isEmpty && playlists.isEmpty) return const SizedBox.shrink();
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final cardWidth = (screenWidth * 0.40).clamp(148.0, 190.0);
+    final cardHeight = cardWidth * 1.28;
+
+    final items = <_SquareItem>[
+      ...albums.map((a) => _SquareItem.album(a)),
+      ...playlists.map((p) => _SquareItem.playlist(p)),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppleSpacing.horizontalPadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (subtitle != null && subtitle.trim().isNotEmpty) ...[
+                Text(
+                  subtitle.toUpperCase(),
+                  style: AppleTypography.eyebrow,
+                ),
+                const SizedBox(height: 2),
+              ],
+              Text(
+                title,
+                style: AppleTypography.sectionTitle,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppleSpacing.sectionHeaderToContent),
+        SizedBox(
+          height: cardHeight,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: items.length > 15 ? 15 : items.length,
+            separatorBuilder: (context, index) => const SizedBox(width: 14),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return RepaintBoundary(
+                child: ApplePressable(
+                  onTap: () {
+                    if (item.album != null) {
+                      openAlbumScreen(context, item.album!);
+                    } else if (item.playlist != null) {
+                      openPlaylistScreen(context, ref, item.playlist!);
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    width: cardWidth,
+                    height: cardHeight,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      color: const Color(0xFF141414),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        width: 0.6,
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Positioned.fill(
+                            child: item.isLikedMusic
+                                ? Container(
+                                    decoration: const BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          Color(0xFF6B21A8),
+                                          Color(0xFFEC4899),
+                                        ],
+                                      ),
+                                    ),
+                                    child: const Center(
+                                      child: Icon(
+                                        CupertinoIcons.hand_thumbsup_fill,
+                                        color: Colors.white,
+                                        size: 44,
+                                      ),
+                                    ),
+                                  )
+                                : item.album != null
+                                    ? DynamicAlbumArtwork(
+                                        album: item.album!,
+                                        size: cardWidth,
+                                      )
+                                    : (item.imageUrl != null
+                                        ? WavifyCachedImage(
+                                            imageUrl: item.imageUrl!,
+                                            fit: BoxFit.cover,
+                                            errorWidget: _fallbackSquareArt(
+                                              size: cardWidth,
+                                              icon: CupertinoIcons.music_note_list,
+                                            ),
+                                          )
+                                        : _fallbackSquareArt(
+                                            size: cardWidth,
+                                            icon: CupertinoIcons.music_note_list,
+                                          )),
+                          ),
+                          // High-contrast OLED gradient scrim
+                          Positioned.fill(
+                            child: Container(
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.transparent,
+                                    Color(0x66000000),
+                                    Color(0xF0000000),
+                                  ],
+                                  stops: [0.0, 0.38, 0.68, 1.0],
+                                ),
+                              ),
+                            ),
+                          ),
+                          // Title & Subtitle overlay
+                          Positioned(
+                            left: 12,
+                            right: 12,
+                            bottom: 12,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (item.eyebrow.isNotEmpty) ...[
+                                  Text(
+                                    item.eyebrow.toUpperCase(),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppleTypography.eyebrow.copyWith(
+                                      color: Colors.white.withValues(alpha: 0.80),
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                ],
+                                Text(
+                                  item.title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   /// 16:9 Music Videos Widescreen Carousel
   Widget _buildMusicVideosSection(
     BuildContext context,
     WidgetRef ref,
-    List<VideoItem> videos,
-  ) {
+    List<VideoItem> videos, {
+    String title = 'Music Videos',
+    String? subtitle,
+  }) {
     if (videos.isEmpty) return const SizedBox.shrink();
 
     final screenWidth = MediaQuery.of(context).size.width;
@@ -835,11 +1344,23 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: AppleSpacing.horizontalPadding),
-          child: Text(
-            'Music Videos',
-            style: AppleTypography.sectionTitle,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppleSpacing.horizontalPadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (subtitle != null && subtitle.trim().isNotEmpty) ...[
+                Text(
+                  subtitle.toUpperCase(),
+                  style: AppleTypography.eyebrow,
+                ),
+                const SizedBox(height: 2),
+              ],
+              Text(
+                title,
+                style: AppleTypography.sectionTitle,
+              ),
+            ],
           ),
         ),
         const SizedBox(height: AppleSpacing.sectionHeaderToContent),
@@ -1075,6 +1596,238 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
     );
   }
 
+  // =========================================================================
+  // PERSONALIZED SECTION WIDGETS
+  // =========================================================================
+
+  /// Playlist Carousel — renders "Mixed for You", "Your Mixes", "Featured Playlists"
+  Widget _buildPlaylistCarousel({
+    required BuildContext context,
+    required WidgetRef ref,
+    required String title,
+    required List<PlaylistItem> playlists,
+  }) {
+    if (playlists.isEmpty) return const SizedBox.shrink();
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final cardWidth = (screenWidth * 0.40).clamp(148.0, 190.0);
+    final cardHeight = cardWidth * 1.28;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppleSpacing.horizontalPadding,
+          ),
+          child: Text(title, style: AppleTypography.sectionTitle),
+        ),
+        const SizedBox(height: AppleSpacing.sectionHeaderToContent),
+        SizedBox(
+          height: cardHeight,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: playlists.length > 12 ? 12 : playlists.length,
+            separatorBuilder: (context, index) => const SizedBox(width: 14),
+            itemBuilder: (context, index) {
+              final playlist = playlists[index];
+              return RepaintBoundary(
+                child: ApplePressable(
+                  onTap: () => openPlaylistScreen(context, ref, playlist),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    width: cardWidth,
+                    height: cardHeight,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      color: const Color(0xFF141414),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        width: 0.6,
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          // Artwork
+                          if (playlist.thumbnailUrl != null)
+                            WavifyCachedImage(
+                              imageUrl: playlist.thumbnailUrl!,
+                              fit: BoxFit.cover,
+                              errorWidget: _fallbackSquareArt(
+                                size: cardWidth,
+                                icon: CupertinoIcons.music_note_list,
+                              ),
+                            )
+                          else
+                            _fallbackSquareArt(
+                              size: cardWidth,
+                              icon: CupertinoIcons.music_note_list,
+                            ),
+                          // Gradient scrim
+                          Positioned.fill(
+                            child: Container(
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.transparent,
+                                    Color(0x66000000),
+                                    Color(0xF0000000),
+                                  ],
+                                  stops: [0.0, 0.38, 0.68, 1.0],
+                                ),
+                              ),
+                            ),
+                          ),
+                          // Text overlay
+                          Positioned(
+                            left: 12,
+                            right: 12,
+                            bottom: 12,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (playlist.author.isNotEmpty &&
+                                    playlist.author.toLowerCase() !=
+                                        'youtube music') ...[
+                                  Text(
+                                    playlist.author.toUpperCase(),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppleTypography.eyebrow.copyWith(
+                                      color: Colors.white.withValues(alpha: 0.80),
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                ],
+                                Text(
+                                  playlist.title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Featured Artists & Similar Artists — horizontal circular avatar carousel.
+  Widget _buildFeaturedArtistsSection(
+    BuildContext context,
+    WidgetRef ref,
+    List<ArtistItem> artists,
+  ) {
+    if (artists.isEmpty) return const SizedBox.shrink();
+
+    const avatarSize = 86.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: AppleSpacing.horizontalPadding,
+          ),
+          child: Text('Featured Artists', style: AppleTypography.sectionTitle),
+        ),
+        const SizedBox(height: AppleSpacing.sectionHeaderToContent),
+        SizedBox(
+          height: avatarSize + 48,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: artists.length > 12 ? 12 : artists.length,
+            separatorBuilder: (context, index) => const SizedBox(width: 10),
+            itemBuilder: (context, index) {
+              final artist = artists[index];
+              return RepaintBoundary(
+                child: ApplePressable(
+                  onTap: () =>
+                      openArtistScreen(context, artistName: artist.name),
+                  borderRadius: BorderRadius.circular(avatarSize / 2 + 4),
+                  child: SizedBox(
+                    width: avatarSize + 8,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ClipOval(
+                          child: artist.thumbnailUrl != null
+                              ? WavifyCachedImage(
+                                  imageUrl: artist.thumbnailUrl!,
+                                  width: avatarSize,
+                                  height: avatarSize,
+                                  fit: BoxFit.cover,
+                                  errorWidget: Container(
+                                    width: avatarSize,
+                                    height: avatarSize,
+                                    color: AppColors.appleDarkSurfaceHigh,
+                                    child: const Icon(
+                                      CupertinoIcons.person_fill,
+                                      color: Colors.white30,
+                                      size: 36,
+                                    ),
+                                  ),
+                                )
+                              : Container(
+                                  width: avatarSize,
+                                  height: avatarSize,
+                                  color: AppColors.appleDarkSurfaceHigh,
+                                  child: const Icon(
+                                    CupertinoIcons.person_fill,
+                                    color: Colors.white30,
+                                    size: 36,
+                                  ),
+                                ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          artist.name,
+                          maxLines: 2,
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: -0.1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _fallbackSquareArt({
     double size = 48,
     IconData icon = CupertinoIcons.music_note,
@@ -1148,6 +1901,50 @@ class _Snapping4ItemColumnsState extends State<_Snapping4ItemColumns> {
           );
         },
       ),
+    );
+  }
+}
+
+class _SquareItem {
+  final String title;
+  final String eyebrow;
+  final String? imageUrl;
+  final AlbumItem? album;
+  final PlaylistItem? playlist;
+  final bool isLikedMusic;
+
+  const _SquareItem._({
+    required this.title,
+    required this.eyebrow,
+    this.imageUrl,
+    this.album,
+    this.playlist,
+    this.isLikedMusic = false,
+  });
+
+  factory _SquareItem.album(AlbumItem album) {
+    return _SquareItem._(
+      title: album.title,
+      eyebrow: album.subtitle.isNotEmpty ? album.subtitle : album.artist,
+      imageUrl: album.thumbnailUrl,
+      album: album,
+    );
+  }
+
+  factory _SquareItem.playlist(PlaylistItem playlist) {
+    final isLiked = playlist.id == 'LM' ||
+        playlist.title.trim().toLowerCase() == 'liked music' ||
+        playlist.title.trim().toLowerCase() == 'your likes';
+    final author = (playlist.author.isNotEmpty &&
+            playlist.author.toLowerCase() != 'youtube music')
+        ? playlist.author
+        : (isLiked ? 'Auto playlist' : '');
+    return _SquareItem._(
+      title: playlist.title,
+      eyebrow: author,
+      imageUrl: playlist.thumbnailUrl,
+      playlist: playlist,
+      isLikedMusic: isLiked,
     );
   }
 }

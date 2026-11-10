@@ -9,6 +9,9 @@ class HeroCardItem {
   final int? primaryColor;
   final String? secondaryImageUrl;
   final SongItem? playTrack;
+  final String? style; // 'fullBleed', 'artistPortrait', 'similarArtists', 'discoveryStation', 'userStation', 'moodForYou', 'mixWithBadge'
+  final List<String> artistAvatars;
+  final String? iconType;
 
   const HeroCardItem({
     required this.id,
@@ -19,6 +22,9 @@ class HeroCardItem {
     this.primaryColor,
     this.secondaryImageUrl,
     this.playTrack,
+    this.style,
+    this.artistAvatars = const [],
+    this.iconType,
   });
 
   Map<String, dynamic> toJson() => {
@@ -30,6 +36,9 @@ class HeroCardItem {
         'primaryColor': primaryColor,
         'secondaryImageUrl': secondaryImageUrl,
         'playTrack': playTrack?.toJson(),
+        'style': style,
+        'artistAvatars': artistAvatars,
+        'iconType': iconType,
       };
 
   factory HeroCardItem.fromJson(Map<String, dynamic> json) => HeroCardItem(
@@ -43,6 +52,11 @@ class HeroCardItem {
         playTrack: json['playTrack'] != null
             ? SongItem.fromJson(json['playTrack'] as Map<String, dynamic>)
             : null,
+        style: json['style'] as String?,
+        artistAvatars: (json['artistAvatars'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            const [],
+        iconType: json['iconType'] as String?,
       );
 }
-

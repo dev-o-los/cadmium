@@ -3,17 +3,26 @@ import 'music_category.dart';
 import 'album_item.dart';
 import 'video_item.dart';
 import 'hero_card_item.dart';
+import 'playlist_item.dart';
+import 'artist_item.dart';
+import 'home_section_data.dart';
 
-/// Aggregates all sections displayed on the home page:
-/// - Top picks hero cards
+export 'home_section_data.dart';
+
+/// Aggregates all sections displayed on the home page, covering both the
+/// unauthenticated raw feed and the full personalized authenticated experience:
+///
+/// **Core sections (always shown):**
+/// - Top picks hero cards (personalized ordering when logged in)
 /// - Recents / Listen again (4-row column batches)
 /// - Find Your Mood
-/// - Albums & singles
-/// - Music videos (16:9 widescreen)
+/// - Albums & singles (new from followed artists first when logged in)
+/// - Music videos you'll watch (16:9 widescreen)
 /// - Quick picks (4-row column batches)
 /// - Your daily discover
 /// - Trending songs for you
-/// - Genres
+///
+/// **Dynamic sections:** Real, ordered shelves from YouTube Music InnerTube feed.
 class HomeData {
   final List<HeroCardItem> heroCards;
   final List<SongItem> recents;
@@ -25,6 +34,34 @@ class HomeData {
   final List<SongItem> dailyDiscover;
   final List<SongItem> trendingSongs;
 
+  // ── Dynamic live shelves from YouTube Music ────────────────────────────
+  final List<HomeSectionData> dynamicSections;
+
+  // ── Personalized-only fields (empty when not logged in) ──────────────────
+  /// Featured editorial / algorithmic playlists curated for this user.
+  final List<PlaylistItem> featuredPlaylists;
+
+  /// "Mixed for You" Supermix playlists generated from user's taste.
+  final List<PlaylistItem> mixedForYou;
+
+  /// Personal mixes: My Mix 1, My Super Mix, My Mix 2, etc.
+  final List<PlaylistItem> myMixes;
+
+  /// New albums / singles released by artists the user follows.
+  final List<AlbumItem> followedArtistNewReleases;
+
+  /// Artists featured in "Featuring [Artist] & Similar Artists" shelves, with images.
+  final List<ArtistItem> featuredArtists;
+
+  /// The user's personal radio station (e.g. "Utkarsh's Station").
+  final PlaylistItem? userStation;
+
+  /// "New Release Mix" playlist — new releases matching the user's taste.
+  final PlaylistItem? newReleaseMix;
+
+  /// The lead track of the "Discovery Station / Made for You" shelf.
+  final SongItem? discoveryStation;
+
   const HomeData({
     required this.heroCards,
     required this.recents,
@@ -35,13 +72,37 @@ class HomeData {
     required this.musicVideos,
     required this.dailyDiscover,
     required this.trendingSongs,
+    // Dynamic shelves
+    this.dynamicSections = const [],
+    // Personalized
+    this.featuredPlaylists = const [],
+    this.mixedForYou = const [],
+    this.myMixes = const [],
+    this.followedArtistNewReleases = const [],
+    this.featuredArtists = const [],
+    this.userStation,
+    this.newReleaseMix,
+    this.discoveryStation,
   });
+
+  /// Whether any personalized data was fetched for this home feed.
+  bool get isPersonalized =>
+      dynamicSections.isNotEmpty ||
+      featuredPlaylists.isNotEmpty ||
+      mixedForYou.isNotEmpty ||
+      myMixes.isNotEmpty ||
+      followedArtistNewReleases.isNotEmpty ||
+      featuredArtists.isNotEmpty ||
+      userStation != null ||
+      newReleaseMix != null ||
+      discoveryStation != null;
 
   /// Backwards compatibility alias for trendingSongs
   List<SongItem> get trendingTracks => trendingSongs;
 
   bool get isEmpty =>
       heroCards.isEmpty &&
+      dynamicSections.isEmpty &&
       recents.isEmpty &&
       quickPicks.isEmpty &&
       moods.isEmpty &&
@@ -49,7 +110,10 @@ class HomeData {
       albumsAndSingles.isEmpty &&
       musicVideos.isEmpty &&
       dailyDiscover.isEmpty &&
-      trendingSongs.isEmpty;
+      trendingSongs.isEmpty &&
+      featuredPlaylists.isEmpty &&
+      mixedForYou.isEmpty &&
+      myMixes.isEmpty;
 
   Map<String, dynamic> toJson() => {
         'heroCards': heroCards.map((e) => e.toJson()).toList(),
@@ -61,6 +125,17 @@ class HomeData {
         'musicVideos': musicVideos.map((e) => e.toJson()).toList(),
         'dailyDiscover': dailyDiscover.map((e) => e.toJson()).toList(),
         'trendingSongs': trendingSongs.map((e) => e.toJson()).toList(),
+        'dynamicSections': dynamicSections.map((e) => e.toJson()).toList(),
+        // Personalized
+        'featuredPlaylists': featuredPlaylists.map((e) => e.toJson()).toList(),
+        'mixedForYou': mixedForYou.map((e) => e.toJson()).toList(),
+        'myMixes': myMixes.map((e) => e.toJson()).toList(),
+        'followedArtistNewReleases':
+            followedArtistNewReleases.map((e) => e.toJson()).toList(),
+        'featuredArtists': featuredArtists.map((e) => e.toJson()).toList(),
+        'userStation': userStation?.toJson(),
+        'newReleaseMix': newReleaseMix?.toJson(),
+        'discoveryStation': discoveryStation?.toJson(),
       };
 
   factory HomeData.fromJson(Map<String, dynamic> json) => HomeData(
@@ -100,5 +175,50 @@ class HomeData {
                 ?.map((e) => SongItem.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             const [],
+        dynamicSections: (json['dynamicSections'] as List<dynamic>?)
+                ?.map(
+                  (e) => HomeSectionData.fromJson(e as Map<String, dynamic>),
+                )
+                .toList() ??
+            const [],
+        // Personalized
+        featuredPlaylists: (json['featuredPlaylists'] as List<dynamic>?)
+                ?.map((e) => PlaylistItem.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            const [],
+        mixedForYou: (json['mixedForYou'] as List<dynamic>?)
+                ?.map((e) => PlaylistItem.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            const [],
+        myMixes: (json['myMixes'] as List<dynamic>?)
+                ?.map((e) => PlaylistItem.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            const [],
+        followedArtistNewReleases:
+            (json['followedArtistNewReleases'] as List<dynamic>?)
+                    ?.map(
+                      (e) => AlbumItem.fromJson(e as Map<String, dynamic>),
+                    )
+                    .toList() ??
+                const [],
+        featuredArtists: (json['featuredArtists'] as List<dynamic>?)
+                ?.map((e) => ArtistItem.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            const [],
+        userStation: json['userStation'] != null
+            ? PlaylistItem.fromJson(
+                json['userStation'] as Map<String, dynamic>,
+              )
+            : null,
+        newReleaseMix: json['newReleaseMix'] != null
+            ? PlaylistItem.fromJson(
+                json['newReleaseMix'] as Map<String, dynamic>,
+              )
+            : null,
+        discoveryStation: json['discoveryStation'] != null
+            ? SongItem.fromJson(
+                json['discoveryStation'] as Map<String, dynamic>,
+              )
+            : null,
       );
 }

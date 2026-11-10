@@ -153,6 +153,29 @@ void openAlbumScreen(BuildContext context, AlbumItem album) {
   );
 }
 
+/// Opens a playlist as a full-page [AlbumScreen] using an [AlbumItem] wrapper,
+/// preserving the existing album screen for playlist viewing without a new screen class.
+void openPlaylistScreen(
+  BuildContext context,
+  WidgetRef ref,
+  PlaylistItem playlist,
+) {
+  final album = AlbumItem(
+    id: playlist.id,
+    title: playlist.title,
+    artist: playlist.author,
+    thumbnailUrl: playlist.thumbnailUrl,
+    type: 'Playlist',
+    isCustom: playlist.isCustom,
+  );
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => AlbumScreen(album: album),
+    ),
+  );
+}
+
 /// Opens the dedicated full-page [ArtistScreen] with ambient hero banner, top songs,
 /// albums, singles, videos, playlists, similar artists, and Apple-styled biography stats.
 void openArtistScreen(
