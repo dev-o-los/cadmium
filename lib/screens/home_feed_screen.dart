@@ -1029,7 +1029,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
 
     final screenWidth = MediaQuery.of(context).size.width;
     final cardWidth = (screenWidth * 0.40).clamp(148.0, 190.0);
-    final cardHeight = cardWidth * 1.28;
+    final cardHeight = cardWidth + 50.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1054,83 +1054,52 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
               return RepaintBoundary(
                 child: ApplePressable(
                   onTap: () => openAlbumScreen(context, album),
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
+                  borderRadius: BorderRadius.circular(14),
+                  child: SizedBox(
                     width: cardWidth,
-                    height: cardHeight,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      color: const Color(0xFF141414),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        width: 0.6,
-                      ),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Positioned.fill(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 1:1 Aspect Ratio Square Box
+                        Container(
+                          width: cardWidth,
+                          height: cardWidth,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            color: const Color(0xFF141414),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              width: 0.6,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(14),
                             child: DynamicAlbumArtwork(
                               album: album,
                               size: cardWidth,
                             ),
                           ),
-                          // High-contrast OLED gradient scrim slowly fading to black (same as Top picks for you)
-                          Positioned.fill(
-                            child: Container(
-                              decoration: const BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.transparent,
-                                    Colors.transparent,
-                                    Color(0x66000000),
-                                    Color(0xF0000000),
-                                  ],
-                                  stops: [0.0, 0.38, 0.68, 1.0],
-                                ),
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            left: 12,
-                            right: 12,
-                            bottom: 12,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (album.subtitle.isNotEmpty) ...[
-                                  Text(
-                                    album.subtitle.toUpperCase(),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AppleTypography.eyebrow.copyWith(
-                                      color: Colors.white.withValues(alpha: 0.80),
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                ],
-                                Text(
-                                  album.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: -0.2,
-                                  ),
-                                ),
-                              ],
-                            ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Title below the artwork
+                        Text(
+                          album.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppleTypography.cardTitle,
+                        ),
+                        // Subtitle below the title (natural case, no uppercase)
+                        if (album.subtitle.isNotEmpty) ...[
+                          const SizedBox(height: AppleSpacing.titleToSubtitle),
+                          Text(
+                            album.subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppleTypography.cardSubtitle,
                           ),
                         ],
-                      ),
+                      ],
                     ),
                   ),
                 ),
@@ -1155,7 +1124,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
 
     final screenWidth = MediaQuery.of(context).size.width;
     final cardWidth = (screenWidth * 0.40).clamp(148.0, 190.0);
-    final cardHeight = cardWidth * 1.28;
+    final cardHeight = cardWidth + 50.0;
 
     final items = <_SquareItem>[
       ...albums.map((a) => _SquareItem.album(a)),
@@ -1172,7 +1141,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             children: [
               if (subtitle != null && subtitle.trim().isNotEmpty) ...[
                 Text(
-                  subtitle.toUpperCase(),
+                  subtitle,
                   style: AppleTypography.eyebrow,
                 ),
                 const SizedBox(height: 2),
@@ -1203,24 +1172,27 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                       openPlaylistScreen(context, ref, item.playlist!);
                     }
                   },
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
+                  borderRadius: BorderRadius.circular(14),
+                  child: SizedBox(
                     width: cardWidth,
-                    height: cardHeight,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      color: const Color(0xFF141414),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        width: 0.6,
-                      ),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Positioned.fill(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 1:1 Aspect Ratio Square Box for Album Art / Picture
+                        Container(
+                          width: cardWidth,
+                          height: cardWidth,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            color: const Color(0xFF141414),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              width: 0.6,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(14),
                             child: item.isLikedMusic
                                 ? Container(
                                     decoration: const BoxDecoration(
@@ -1260,61 +1232,25 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                                             icon: CupertinoIcons.music_note_list,
                                           )),
                           ),
-                          // High-contrast OLED gradient scrim
-                          Positioned.fill(
-                            child: Container(
-                              decoration: const BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.transparent,
-                                    Colors.transparent,
-                                    Color(0x66000000),
-                                    Color(0xF0000000),
-                                  ],
-                                  stops: [0.0, 0.38, 0.68, 1.0],
-                                ),
-                              ),
-                            ),
-                          ),
-                          // Title & Subtitle overlay
-                          Positioned(
-                            left: 12,
-                            right: 12,
-                            bottom: 12,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (item.eyebrow.isNotEmpty) ...[
-                                  Text(
-                                    item.eyebrow.toUpperCase(),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AppleTypography.eyebrow.copyWith(
-                                      color: Colors.white.withValues(alpha: 0.80),
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                ],
-                                Text(
-                                  item.title,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: -0.2,
-                                  ),
-                                ),
-                              ],
-                            ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Text written below the artwork (natural case, no uppercase!)
+                        Text(
+                          item.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppleTypography.cardTitle,
+                        ),
+                        if (item.eyebrow.isNotEmpty) ...[
+                          const SizedBox(height: AppleSpacing.titleToSubtitle),
+                          Text(
+                            item.eyebrow,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppleTypography.cardSubtitle,
                           ),
                         ],
-                      ),
+                      ],
                     ),
                   ),
                 ),
@@ -1611,7 +1547,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
 
     final screenWidth = MediaQuery.of(context).size.width;
     final cardWidth = (screenWidth * 0.40).clamp(148.0, 190.0);
-    final cardHeight = cardWidth * 1.28;
+    final cardHeight = cardWidth + 50.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1635,95 +1571,63 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
               return RepaintBoundary(
                 child: ApplePressable(
                   onTap: () => openPlaylistScreen(context, ref, playlist),
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
+                  borderRadius: BorderRadius.circular(14),
+                  child: SizedBox(
                     width: cardWidth,
-                    height: cardHeight,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      color: const Color(0xFF141414),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        width: 0.6,
-                      ),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          // Artwork
-                          if (playlist.thumbnailUrl != null)
-                            WavifyCachedImage(
-                              imageUrl: playlist.thumbnailUrl!,
-                              fit: BoxFit.cover,
-                              errorWidget: _fallbackSquareArt(
-                                size: cardWidth,
-                                icon: CupertinoIcons.music_note_list,
-                              ),
-                            )
-                          else
-                            _fallbackSquareArt(
-                              size: cardWidth,
-                              icon: CupertinoIcons.music_note_list,
-                            ),
-                          // Gradient scrim
-                          Positioned.fill(
-                            child: Container(
-                              decoration: const BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.transparent,
-                                    Colors.transparent,
-                                    Color(0x66000000),
-                                    Color(0xF0000000),
-                                  ],
-                                  stops: [0.0, 0.38, 0.68, 1.0],
-                                ),
-                              ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 1:1 Aspect Ratio Square Box for Playlist Artwork
+                        Container(
+                          width: cardWidth,
+                          height: cardWidth,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            color: const Color(0xFF141414),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              width: 0.6,
                             ),
                           ),
-                          // Text overlay
-                          Positioned(
-                            left: 12,
-                            right: 12,
-                            bottom: 12,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (playlist.author.isNotEmpty &&
-                                    playlist.author.toLowerCase() !=
-                                        'youtube music') ...[
-                                  Text(
-                                    playlist.author.toUpperCase(),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AppleTypography.eyebrow.copyWith(
-                                      color: Colors.white.withValues(alpha: 0.80),
-                                      fontSize: 10,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(14),
+                            child: playlist.thumbnailUrl != null
+                                ? WavifyCachedImage(
+                                    imageUrl: playlist.thumbnailUrl!,
+                                    fit: BoxFit.cover,
+                                    errorWidget: _fallbackSquareArt(
+                                      size: cardWidth,
+                                      icon: CupertinoIcons.music_note_list,
                                     ),
+                                  )
+                                : _fallbackSquareArt(
+                                    size: cardWidth,
+                                    icon: CupertinoIcons.music_note_list,
                                   ),
-                                  const SizedBox(height: 2),
-                                ],
-                                Text(
-                                  playlist.title,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: -0.2,
-                                  ),
-                                ),
-                              ],
-                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Title below the artwork
+                        Text(
+                          playlist.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppleTypography.cardTitle,
+                        ),
+                        // Subtitle below the title (natural case, no uppercase!)
+                        if (playlist.author.isNotEmpty &&
+                            playlist.author.toLowerCase() !=
+                                'youtube music') ...[
+                          const SizedBox(height: AppleSpacing.titleToSubtitle),
+                          Text(
+                            playlist.author,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppleTypography.cardSubtitle,
                           ),
                         ],
-                      ),
+                      ],
                     ),
                   ),
                 ),
