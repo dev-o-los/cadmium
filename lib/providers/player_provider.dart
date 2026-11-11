@@ -481,7 +481,13 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       activeLyricIndex: -1,
       position: Duration.zero,
       duration: initialDuration,
+      autoplayQueue: state.isAutoplay ? state.autoplayQueue : const [],
     );
+
+    // Keep native just_audio loop mode synced:
+    // Only LoopMode.one loops the single track natively;
+    // LoopMode.all and LoopMode.off must allow ProcessingState.completed so queue advances!
+    unawaited(_audioPlayer.setLoopMode(state.loopMode == LoopMode.one ? LoopMode.one : LoopMode.off));
     ArtworkCacheService.instance.recordSongPlay(song);
     _fetchLyrics(song);
     _fetchAnimatedArtwork(song);
@@ -575,7 +581,13 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       activeLyricIndex: -1,
       position: Duration.zero,
       duration: initialDuration,
+      autoplayQueue: state.isAutoplay ? state.autoplayQueue : const [],
     );
+
+    // Keep native just_audio loop mode synced:
+    // Only LoopMode.one loops the single track natively;
+    // LoopMode.all and LoopMode.off must allow ProcessingState.completed so queue advances!
+    unawaited(_audioPlayer.setLoopMode(state.loopMode == LoopMode.one ? LoopMode.one : LoopMode.off));
 
     // Request notification permission on Android 13+ (OnePlus, Samsung, Pixel) if needed
     unawaited(requestNotificationPermissionIfNeeded());
@@ -921,14 +933,14 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   void skipNext() {
     if (state.currentSong == null) return;
 
-    // If Repeat-One is active, repeat current track
+    // If Repeat-One is active ("loop many times, then repeat the same song"), repeat current track
     if (state.loopMode == LoopMode.one) {
       seek(Duration.zero);
       play();
       return;
     }
 
-    // 1. Regular queue has tracks
+    // 1. Regular queue has tracks ("When the loop is on, just play the music that is in queue")
     if (state.queue.isNotEmpty) {
       final nextSong = state.queue.first;
       final remainingQueue = state.queue.sublist(1);
@@ -937,18 +949,27 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       return;
     }
 
-    // 2. Queue is empty, check Repeat-All
-    if (state.loopMode == LoopMode.all && state.originalQueue.isNotEmpty) {
-      final allTracks = state.isShuffle
-          ? (List<SongItem>.from(state.originalQueue)..shuffle())
-          : List<SongItem>.from(state.originalQueue);
-      final firstTrack = allTracks.first;
-      final remainingQueue = allTracks.length > 1 ? allTracks.sublist(1) : <SongItem>[];
-      _playTrackFromQueue(firstTrack, queue: remainingQueue, history: const []);
-      return;
+    // 2. Queue is empty, check Repeat-All ("When the loop is on, just play the music that is in queue")
+    if (state.loopMode == LoopMode.all) {
+      final allTracks = state.originalQueue.isNotEmpty
+          ? (state.isShuffle
+              ? (List<SongItem>.from(state.originalQueue)..shuffle())
+              : List<SongItem>.from(state.originalQueue))
+          : (state.history.isNotEmpty
+              ? (state.isShuffle
+                  ? (List<SongItem>.from([...state.history, state.currentSong!])..shuffle())
+                  : [...state.history, state.currentSong!])
+              : <SongItem>[]);
+
+      if (allTracks.isNotEmpty) {
+        final firstTrack = allTracks.first;
+        final remainingQueue = allTracks.length > 1 ? allTracks.sublist(1) : <SongItem>[];
+        _playTrackFromQueue(firstTrack, queue: remainingQueue, history: const []);
+        return;
+      }
     }
 
-    // 3. Queue is empty, check Autoplay (Infinity / Radio)
+    // 3. Queue is empty and Loop is OFF: check Autoplay (Infinity / Radio)
     if (state.isAutoplay) {
       if (state.autoplayQueue.isNotEmpty) {
         final nextSong = state.autoplayQueue.first;
@@ -967,8 +988,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     }
 
     // 4. Autoplay is OFF and queue is empty:
-    // User requested: "if that button is not open, then just we will play that track once."
-    // Stop playback!
+    // "don't play similar types of songs" - stop playback cleanly!
     pause();
     seek(Duration.zero);
   }
@@ -992,6 +1012,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   }
 
   Future<void> _fetchAutoplayQueue(SongItem song) async {
+    if (!state.isAutoplay) return;
     try {
       final musicService = _ref.read(musicServiceProvider);
       final tracks = await musicService.getSongRadio(
@@ -1000,8 +1021,9 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         title: song.title,
       );
       if (!mounted) return;
+      if (!state.isAutoplay) return; // User turned off autoplay while request was in-flight
       final candidateTracks = tracks.where((s) => s.id != song.id).toList();
-      if (candidateTracks.isNotEmpty) {
+      if (candidateTracks.isNotEmpty && state.isAutoplay) {
         state = state.copyWith(autoplayQueue: candidateTracks);
       }
     } catch (e) {
@@ -1011,12 +1033,17 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
 
   Future<void> fetchAutoplayQueueForCurrentSong() async {
     final current = state.currentSong;
-    if (current != null) {
+    if (current != null && state.isAutoplay) {
       await _fetchAutoplayQueue(current);
     }
   }
 
   Future<void> _fetchAutoplayNext() async {
+    if (!state.isAutoplay) {
+      pause();
+      seek(Duration.zero);
+      return;
+    }
     final current = state.currentSong;
     if (current == null) return;
     try {
@@ -1027,8 +1054,13 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         title: current.title,
       );
       if (!mounted) return;
+      if (!state.isAutoplay) {
+        pause();
+        seek(Duration.zero);
+        return;
+      }
       final candidateTracks = tracks.where((s) => s.id != current.id).toList();
-      if (candidateTracks.isNotEmpty) {
+      if (candidateTracks.isNotEmpty && state.isAutoplay) {
         final nextSong = candidateTracks.first;
         final nextQueue = candidateTracks.sublist(1);
         final updatedHistory = [...state.history, current];
@@ -1038,7 +1070,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       }
     } catch (_) {}
 
-    // If radio fails and autoplay is on, pause cleanly
+    // If radio fails or autoplay is off, pause cleanly
     pause();
     seek(Duration.zero);
   }
@@ -1088,8 +1120,14 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     } else {
       nextMode = LoopMode.off;
     }
-    _audioPlayer.setLoopMode(nextMode);
-    state = state.copyWith(loopMode: nextMode);
+    setLoopMode(nextMode);
+  }
+
+  void setLoopMode(LoopMode mode) {
+    // Only configure native player loop when repeating the exact same audio stream (LoopMode.one).
+    // For LoopMode.all, Wavify coordinates advancing and cycling across tracks in the queue.
+    _audioPlayer.setLoopMode(mode == LoopMode.one ? LoopMode.one : LoopMode.off);
+    state = state.copyWith(loopMode: mode);
   }
 
   void toggleShuffle() {
@@ -1130,13 +1168,18 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   }
 
   void toggleAutoplay() {
-    final nextAutoplay = !state.isAutoplay;
+    setAutoplay(!state.isAutoplay);
+  }
+
+  void setAutoplay(bool enabled) {
     state = state.copyWith(
-      isAutoplay: nextAutoplay,
-      autoplayQueue: nextAutoplay ? state.autoplayQueue : const [],
+      isAutoplay: enabled,
+      autoplayQueue: enabled ? state.autoplayQueue : const [],
     );
-    if (nextAutoplay && state.currentSong != null && state.autoplayQueue.isEmpty) {
-      _fetchAutoplayQueue(state.currentSong!);
+    if (enabled) {
+      if (state.currentSong != null) {
+        _fetchAutoplayQueue(state.currentSong!);
+      }
     }
   }
 

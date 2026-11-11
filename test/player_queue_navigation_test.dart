@@ -233,5 +233,88 @@ void main() {
       expect(container.read(playerProvider).isShuffle, isFalse);
       expect(container.read(playerProvider).queue.map((s) => s.id), equals(songs.sublist(1).map((s) => s.id)));
     });
+
+    testWidgets('Turning Autoplay OFF removes all items from autoplay and does not play similar songs', (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          musicServiceProvider.overrideWithValue(MockMusicService()),
+        ],
+      );
+      final notifier = container.read(playerProvider.notifier);
+
+      const radioSong = SongItem(id: 'radio_1', title: 'Radio Track', artist: 'Similar Artist');
+
+      notifier.state = const PlayerStateModel(
+        currentSong: track1,
+        isPlaying: true,
+        queue: [],
+        history: [],
+        isAutoplay: true,
+        autoplayQueue: [radioSong],
+      );
+
+      // Turn Autoplay OFF via toggleAutoplay
+      notifier.toggleAutoplay();
+      expect(container.read(playerProvider).isAutoplay, isFalse);
+      // Items must be completely removed from autoplay
+      expect(container.read(playerProvider).autoplayQueue, isEmpty);
+
+      // skipNext must stop and NOT play similar songs
+      notifier.skipNext();
+      await tester.pump();
+      expect(container.read(playerProvider).isPlaying, isFalse);
+      expect(container.read(playerProvider).currentSong?.id, equals('t1'));
+
+      await tester.pump(const Duration(seconds: 3));
+    });
+
+    testWidgets('Loop mode cycle: off -> all -> one -> off, and loops queue vs repeating same song', (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          musicServiceProvider.overrideWithValue(MockMusicService()),
+        ],
+      );
+      final notifier = container.read(playerProvider.notifier);
+
+      notifier.state = const PlayerStateModel(
+        currentSong: track1,
+        isPlaying: true,
+        queue: [track2],
+        history: [],
+        originalQueue: [track1, track2],
+        loopMode: LoopMode.off,
+      );
+
+      // Cycle 1: off -> all
+      notifier.cycleLoopMode();
+      expect(container.read(playerProvider).loopMode, equals(LoopMode.all));
+
+      // With LoopMode.all, playing next advances through queue
+      notifier.skipNext();
+      await tester.pump();
+      expect(container.read(playerProvider).currentSong?.id, equals('t2'));
+      expect(container.read(playerProvider).queue, isEmpty);
+
+      // Next at end of queue with LoopMode.all loops back to queue track 1
+      notifier.skipNext();
+      await tester.pump();
+      expect(container.read(playerProvider).currentSong?.id, equals('t1'));
+
+      // Cycle 2: all -> one (repeat same song)
+      notifier.cycleLoopMode();
+      expect(container.read(playerProvider).loopMode, equals(LoopMode.one));
+
+      // With LoopMode.one, skipNext repeats the SAME track
+      notifier.skipNext();
+      await tester.pump();
+      expect(container.read(playerProvider).currentSong?.id, equals('t1'));
+
+      // Cycle 3: one -> off
+      notifier.cycleLoopMode();
+      expect(container.read(playerProvider).loopMode, equals(LoopMode.off));
+
+      notifier.pause();
+      await tester.pump(const Duration(seconds: 3));
+    });
   });
 }

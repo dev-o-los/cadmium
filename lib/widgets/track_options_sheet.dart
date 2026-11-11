@@ -205,16 +205,31 @@ class _TrackMenuCard extends ConsumerWidget {
                   ),
 
                   // 3. Start Radio / Autoplay
-                  _buildMenuItem(
-                    icon: CupertinoIcons.infinite,
-                    title: 'Start radio',
-                    subtitle: 'Autoplay similar music',
-                    onTap: () {
-                      onDismiss();
-                      ref.read(playerProvider.notifier).startRadio(song);
-                      showWavifySnackBar(
-                        context,
-                        'Starting radio based on "${song.title}"',
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final isAutoplay = ref.watch(playerProvider.select((s) => s.isAutoplay));
+                      final isCurrentSong = ref.watch(playerProvider.select((s) => s.currentSong?.id == song.id));
+                      final activeAutoplay = isCurrentSong && isAutoplay;
+
+                      return _buildMenuItem(
+                        icon: CupertinoIcons.infinite,
+                        title: activeAutoplay ? 'Autoplay: On' : 'Start radio',
+                        subtitle: activeAutoplay
+                            ? 'Turn off autoplay & remove similar music'
+                            : 'Autoplay similar music',
+                        onTap: () {
+                          onDismiss();
+                          if (activeAutoplay) {
+                            ref.read(playerProvider.notifier).setAutoplay(false);
+                            showWavifySnackBar(context, 'Autoplay turned off');
+                          } else {
+                            ref.read(playerProvider.notifier).startRadio(song);
+                            showWavifySnackBar(
+                              context,
+                              'Starting radio based on "${song.title}"',
+                            );
+                          }
+                        },
                       );
                     },
                   ),
