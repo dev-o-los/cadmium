@@ -119,11 +119,12 @@ class PlayerControls extends ConsumerWidget {
   }) {
     return GlassContainer(
       useOwnLayer: true,
+      margin: const EdgeInsets.symmetric(horizontal: 6.0),
       height: 52,
       shape: const LiquidRoundedRectangle(borderRadius: 26),
       settings: kLiquidBottomDockGlassSettings,
       child: Padding(
-        padding: const EdgeInsets.only(left: 12, right: 8, top: 4, bottom: 4),
+        padding: const EdgeInsets.only(left: 14, right: 12, top: 4, bottom: 4),
         child: Row(
             children: [
               // Album Artwork (BitChord spec: 31x31 with 6px rounded corners)
