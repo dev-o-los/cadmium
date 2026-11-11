@@ -1,6 +1,7 @@
 // ignore_for_file: experimental_member_use
 
 import 'dart:async';
+import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -203,6 +204,29 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     _audioHandler.onSkipPrevious = () => skipPrevious();
     _audioHandler.onPlay = () => play();
     _audioHandler.onPause = () => pause();
+    _audioHandler.onStop = () => stop();
+    _audioHandler.onFastForward = () => fastForward();
+    _audioHandler.onRewind = () => rewind();
+    _audioHandler.onSeek = (pos) => seek(pos);
+    _audioHandler.onSetRepeatMode = (mode) {
+      if (mode == AudioServiceRepeatMode.none) {
+        setLoopMode(LoopMode.off);
+      } else if (mode == AudioServiceRepeatMode.one) {
+        setLoopMode(LoopMode.one);
+      } else {
+        setLoopMode(LoopMode.all);
+      }
+    };
+    _audioHandler.onSetShuffleMode = (mode) {
+      setShuffle(mode != AudioServiceShuffleMode.none);
+    };
+
+    ArtworkCacheService.instance.onArtworkReady = (songId, localPath) {
+      if (state.currentSong?.id == songId) {
+        _audioHandler.updateArtworkPath(localPath);
+      }
+    };
+
     _initAudioListeners();
     _initAudioSession();
     _restorePersistedPlayback();
@@ -251,13 +275,15 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
           isResolvingStream: false,
         );
 
-        final cachedArt = ArtworkCacheService.instance.getCachedArtworkFile(cachedSong.id);
+        final cachedArt = ArtworkCacheService.instance.getCachedRoundedArtworkFile(cachedSong.id) ??
+            ArtworkCacheService.instance.getCachedArtworkFile(cachedSong.id);
         _audioHandler.updateCurrentSong(
           cachedSong,
           duration: initialDuration,
           localArtworkPath: cachedArt?.path,
         );
 
+        unawaited(ArtworkCacheService.instance.getOrGenerateRoundedArtwork(cachedSong));
         unawaited(_resolveMasterArtwork(cachedSong));
       }
     }
@@ -593,12 +619,22 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     unawaited(requestNotificationPermissionIfNeeded());
 
     // Immediately broadcast to system media notification & lock screen with active buffering state
-    final cachedArt = ArtworkCacheService.instance.getCachedArtworkFile(song.id);
+    final cachedArt = ArtworkCacheService.instance.getCachedRoundedArtworkFile(song.id) ??
+        ArtworkCacheService.instance.getCachedArtworkFile(song.id);
     _audioHandler.updateCurrentSong(
       song,
       duration: initialDuration,
       localArtworkPath: cachedArt?.path,
       isBuffering: true,
+    );
+
+    // Warm up / generate hardware-antialiased rounded artwork for Android notifications
+    unawaited(
+      ArtworkCacheService.instance.getOrGenerateRoundedArtwork(song).then((file) {
+        if (file != null && state.currentSong?.id == song.id) {
+          _audioHandler.updateArtworkPath(file.path);
+        }
+      }),
     );
 
     // Fetch lyrics asynchronously in background
@@ -829,11 +865,20 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         final updatedSong = song.copyWith(thumbnailUrl: masterArt);
         state = state.copyWith(currentSong: updatedSong);
 
-        final cachedArt = ArtworkCacheService.instance.getCachedArtworkFile(song.id);
+        final cachedArt = ArtworkCacheService.instance.getCachedRoundedArtworkFile(song.id) ??
+            ArtworkCacheService.instance.getCachedArtworkFile(song.id);
         _audioHandler.updateCurrentSong(
           updatedSong,
           duration: state.duration,
           localArtworkPath: cachedArt?.path,
+        );
+
+        unawaited(
+          ArtworkCacheService.instance.getOrGenerateRoundedArtwork(updatedSong).then((file) {
+            if (file != null && state.currentSong?.id == song.id) {
+              _audioHandler.updateArtworkPath(file.path);
+            }
+          }),
         );
 
         unawaited(PlayerHistoryCacheService.instance.saveLastPlayedSong(
@@ -900,6 +945,36 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     }
     _audioPlayer.play();
     state = state.copyWith(isPlaying: true);
+  }
+
+  void stop() {
+    if (state.isResolvingStream) {
+      _currentStreamRequestId++;
+    }
+    _audioPlayer.stop();
+    state = state.copyWith(
+      isPlaying: false,
+      isBuffering: false,
+      isResolvingStream: false,
+      position: Duration.zero,
+    );
+  }
+
+  void fastForward({Duration interval = const Duration(seconds: 10)}) {
+    final currentPos = state.position;
+    final totalDur = state.duration;
+    final target = currentPos + interval;
+    if (totalDur > Duration.zero && target >= totalDur) {
+      skipNext();
+    } else {
+      seek(target);
+    }
+  }
+
+  void rewind({Duration interval = const Duration(seconds: 10)}) {
+    final currentPos = state.position;
+    final target = currentPos - interval;
+    seek(target > Duration.zero ? target : Duration.zero);
   }
 
   Future<void> seek(Duration position) async {
@@ -1086,17 +1161,33 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     await _fetchAutoplayQueue(song);
   }
 
+  DateTime? _lastPreviousTapTime;
+
   void skipPrevious() {
     if (state.currentSong == null) return;
 
-    // 1. If played >= 3 seconds, restart current track to beginning (standard Apple Music behavior)
-    if (state.position.inSeconds >= 3) {
+    final now = DateTime.now();
+    final isDoubleTap = _lastPreviousTapTime != null &&
+        now.difference(_lastPreviousTapTime!) < const Duration(milliseconds: 1800);
+    _lastPreviousTapTime = now;
+
+    // 1. If double-tapped within 1.8 seconds, immediately jump to previous track in history
+    if (isDoubleTap && state.history.isNotEmpty) {
+      final prevSong = state.history.last;
+      final remainingHistory = state.history.sublist(0, state.history.length - 1);
+      final updatedQueue = [state.currentSong!, ...state.queue];
+      _playTrackFromQueue(prevSong, queue: updatedQueue, history: remainingHistory);
+      return;
+    }
+
+    // 2. If played >= 3 seconds and not rapid double tap, restart current track to beginning
+    if (state.position.inSeconds >= 3 && !isDoubleTap) {
       seek(Duration.zero);
       play();
       return;
     }
 
-    // 2. If within first 3 seconds, go to previous track in history
+    // 3. If within first 3 seconds, go to previous track in history
     if (state.history.isNotEmpty) {
       final prevSong = state.history.last;
       final remainingHistory = state.history.sublist(0, state.history.length - 1);
@@ -1106,7 +1197,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       return;
     }
 
-    // 3. If history is empty, restart track
+    // 4. If history is empty, restart track
     seek(Duration.zero);
     play();
   }
