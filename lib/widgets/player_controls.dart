@@ -118,7 +118,7 @@ class PlayerControls extends ConsumerWidget {
     required Color secondaryColor,
   }) {
     return GlassContainer(
-      useOwnLayer: true,
+      useOwnLayer: false,
       margin: const EdgeInsets.symmetric(horizontal: 6.0),
       height: 52,
       shape: const LiquidRoundedRectangle(borderRadius: 26),
@@ -258,7 +258,7 @@ class PlayerControls extends ConsumerWidget {
     required Color secondaryColor,
   }) {
     return GlassContainer(
-      useOwnLayer: true,
+      useOwnLayer: false,
       height: 52,
       shape: const LiquidRoundedRectangle(borderRadius: 26),
       settings: kLiquidBottomDockGlassSettings,
