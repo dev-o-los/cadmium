@@ -117,129 +117,128 @@ class PlayerControls extends ConsumerWidget {
     required bool isLoading,
     required Color secondaryColor,
   }) {
-    const double barHeight = 52.0;
-    const double artSize = 36.0;
-
     return GlassContainer(
-      height: barHeight,
+      useOwnLayer: true,
+      height: 52,
       shape: const LiquidRoundedRectangle(borderRadius: 26),
       settings: kLiquidBottomDockGlassSettings,
-      useOwnLayer: false,
-      child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Padding around the artwork only (equal 8px padding on all sides)
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: GestureDetector(
-                onTap: onTap,
-                behavior: HitTestBehavior.opaque,
-                child: Hero(
-                  tag: 'player_album_art_$songId',
-                  flightShuttleBuilder: playerHeroFlightShuttleBuilder,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: WavifyCachedImage(
-                      imageUrl: highResArt ?? thumbArt,
-                      placeholderImageUrl: thumbArt,
-                      songId: songId,
-                      width: artSize,
-                      height: artSize,
-                      fit: BoxFit.cover,
-                      filterQuality: FilterQuality.medium,
-                      errorWidget: _fallbackArtwork(size: artSize),
-                    ),
-                  )
-                      .animate(key: ValueKey('mini_art_inline_$songId'))
-                      .fadeIn(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOut,
-                      )
-                      .scale(
-                        begin: const Offset(0.85, 0.85),
-                        end: const Offset(1.0, 1.0),
-                        duration: const Duration(milliseconds: 350),
-                        curve: Curves.easeOutCubic,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+            children: [
+              // Album Artwork (BitChord spec: 31x31 with 6px rounded corners)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: onTap,
+                  behavior: HitTestBehavior.opaque,
+                  child: Hero(
+                    tag: 'player_album_art_$songId',
+                    flightShuttleBuilder: playerHeroFlightShuttleBuilder,
+                    child:
+                        ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: WavifyCachedImage(
+                                imageUrl: highResArt ?? thumbArt,
+                                placeholderImageUrl: thumbArt,
+                                songId: songId,
+                                width: 31,
+                                height: 31,
+                                fit: BoxFit.cover,
+                                filterQuality: FilterQuality.medium,
+                                errorWidget: _fallbackArtwork(size: 31),
+                              ),
+                            )
+                            .animate(key: ValueKey('mini_art_inline_$songId'))
+                            .fadeIn(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeOut,
+                            )
+                            .scale(
+                              begin: const Offset(0.85, 0.85),
+                              end: const Offset(1.0, 1.0),
+                              duration: const Duration(milliseconds: 350),
+                              curve: Curves.easeOutCubic,
+                            ),
+                  ),
+                ),
+              ),
+
+              // Tappable Title & Artist metadata
+              Expanded(
+                child: GestureDetector(
+                  onTap: onTap,
+                  behavior: HitTestBehavior.opaque,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppleTypography.miniPlayerInlineTitle,
                       ),
+                      const SizedBox(height: AppleSpacing.titleToSubtitle),
+                      Text(
+                        artist.isNotEmpty ? artist : 'Unknown Artist',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppleTypography.miniPlayerInlineArtist,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
 
-            // Tappable Title & Artist metadata
-            Expanded(
-              child: GestureDetector(
-                onTap: onTap,
-                behavior: HitTestBehavior.opaque,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppleTypography.miniPlayerInlineTitle,
-                    ),
-                    const SizedBox(height: AppleSpacing.titleToSubtitle),
-                    Text(
-                      artist.isNotEmpty ? artist : 'Unknown Artist',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppleTypography.miniPlayerInlineArtist,
-                    ),
-                  ],
-                ),
-              ),
-            ),
+              const SizedBox(width: 4),
 
-            const SizedBox(width: 4),
-
-            // Play / Pause Button with responsive spring physics & smooth loading indicator
-            ApplePressable(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                ref.read(playerProvider.notifier).togglePlayPause();
-              },
-              pressedScale: 0.88,
-              child: Container(
-                width: 32,
-                height: 32,
-                alignment: Alignment.center,
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 240),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  transitionBuilder: (child, animation) {
-                    return FadeTransition(
-                      opacity: animation,
-                      child: ScaleTransition(
-                        scale: Tween<double>(begin: 0.78, end: 1.0).animate(
-                          CurvedAnimation(
-                            parent: animation,
-                            curve: Curves.easeOutBack,
+              // Play / Pause Button with responsive spring physics & smooth loading indicator
+              ApplePressable(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  ref.read(playerProvider.notifier).togglePlayPause();
+                },
+                pressedScale: 0.88,
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  alignment: Alignment.center,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 240),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    transitionBuilder: (child, animation) {
+                      return FadeTransition(
+                        opacity: animation,
+                        child: ScaleTransition(
+                          scale: Tween<double>(begin: 0.78, end: 1.0).animate(
+                            CurvedAnimation(
+                              parent: animation,
+                              curve: Curves.easeOutBack,
+                            ),
                           ),
+                          child: child,
                         ),
-                        child: child,
-                      ),
-                    );
-                  },
-                  child:
-                      (isLoading &&
-                          !Platform.environment.containsKey('FLUTTER_TEST'))
-                      ? const SmoothPlayerLoader(radius: 9)
-                      : AnimatedCupertinoIcon(
-                          key: ValueKey('mini_inline_play_pause_$isPlaying'),
-                          icon: isPlaying
-                              ? CupertinoIcons.pause_fill
-                              : CupertinoIcons.play_fill,
-                          color: Colors.white,
-                          size: 20,
-                        ),
+                      );
+                    },
+                    child:
+                        (isLoading &&
+                            !Platform.environment.containsKey('FLUTTER_TEST'))
+                        ? const SmoothPlayerLoader(radius: 9)
+                        : AnimatedCupertinoIcon(
+                            key: ValueKey('mini_inline_play_pause_$isPlaying'),
+                            icon: isPlaying
+                                ? CupertinoIcons.pause_fill
+                                : CupertinoIcons.play_fill,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 4),
-          ],
+            ],
+          ),
         ),
       );
   }
@@ -257,170 +256,166 @@ class PlayerControls extends ConsumerWidget {
     required bool isLoading,
     required Color secondaryColor,
   }) {
-    const double barHeight = 58.0;
-    const double artSize = 42.0;
-
     return GlassContainer(
-      height: barHeight,
-      shape: const LiquidRoundedRectangle(borderRadius: 29),
+      useOwnLayer: true,
+      height: 52,
+      shape: const LiquidRoundedRectangle(borderRadius: 26),
       settings: kLiquidBottomDockGlassSettings,
-      useOwnLayer: false,
-      child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Tappable song info (Artwork + Title + Artist) to open full player screen
-            Expanded(
-              child: GestureDetector(
-                onTap: onTap,
-                behavior: HitTestBehavior.opaque,
-                child: Row(
-                  children: [
-                    // Padding around the artwork only (equal 8px padding on all sides)
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Hero(
-                        tag: 'player_album_art_$songId',
-                        flightShuttleBuilder: playerHeroFlightShuttleBuilder,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: WavifyCachedImage(
-                            imageUrl: highResArt ?? thumbArt,
-                            placeholderImageUrl: thumbArt,
-                            songId: songId,
-                            width: artSize,
-                            height: artSize,
-                            fit: BoxFit.cover,
-                            filterQuality: FilterQuality.medium,
-                            errorWidget: _fallbackArtwork(size: artSize),
-                          ),
-                        )
-                            .animate(
-                              key: ValueKey('mini_art_expanded_$songId'),
-                            )
-                            .fadeIn(
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeOut,
-                            )
-                            .scale(
-                              begin: const Offset(0.85, 0.85),
-                              end: const Offset(1.0, 1.0),
-                              duration: const Duration(milliseconds: 350),
-                              curve: Curves.easeOutCubic,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Row(
+            children: [
+              // Tappable song info (Artwork + Title + Artist) to open full player screen
+              Expanded(
+                child: GestureDetector(
+                  onTap: onTap,
+                  behavior: HitTestBehavior.opaque,
+                  child: Row(
+                    children: [
+                      // Album Artwork (BitChord spec: 31x31 with 6px rounded corners)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 9),
+                        child: Hero(
+                          tag: 'player_album_art_$songId',
+                          flightShuttleBuilder: playerHeroFlightShuttleBuilder,
+                          child:
+                              ClipRRect(
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: WavifyCachedImage(
+                                      imageUrl: highResArt ?? thumbArt,
+                                      placeholderImageUrl: thumbArt,
+                                      songId: songId,
+                                      width: 31,
+                                      height: 31,
+                                      fit: BoxFit.cover,
+                                      filterQuality: FilterQuality.medium,
+                                      errorWidget: _fallbackArtwork(size: 31),
+                                    ),
+                                  )
+                                  .animate(
+                                    key: ValueKey('mini_art_expanded_$songId'),
+                                  )
+                                  .fadeIn(
+                                    duration: const Duration(milliseconds: 300),
+                                    curve: Curves.easeOut,
+                                  )
+                                  .scale(
+                                    begin: const Offset(0.85, 0.85),
+                                    end: const Offset(1.0, 1.0),
+                                    duration: const Duration(milliseconds: 350),
+                                    curve: Curves.easeOutCubic,
+                                  ),
+                        ),
+                      ),
+
+                      // Song Title & Artist
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppleTypography.miniPlayerTitle,
                             ),
-                      ),
-                    ),
-
-                    // Song Title & Artist
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppleTypography.miniPlayerTitle,
-                          ),
-                          const SizedBox(
-                            height: AppleSpacing.titleToSubtitle,
-                          ),
-                          Text(
-                            artist.isNotEmpty ? artist : 'Unknown Artist',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppleTypography.miniPlayerArtist,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(width: 4),
-
-            // Play / Pause Button with responsive spring physics & smooth loading indicator
-            ApplePressable(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                ref.read(playerProvider.notifier).togglePlayPause();
-              },
-              pressedScale: 0.88,
-              child: Container(
-                width: 38,
-                height: 38,
-                alignment: Alignment.center,
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 240),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  transitionBuilder: (child, animation) {
-                    return FadeTransition(
-                      opacity: animation,
-                      child: ScaleTransition(
-                        scale: Tween<double>(begin: 0.78, end: 1.0).animate(
-                          CurvedAnimation(
-                            parent: animation,
-                            curve: Curves.easeOutBack,
-                          ),
+                            const SizedBox(
+                              height: AppleSpacing.titleToSubtitle,
+                            ),
+                            Text(
+                              artist.isNotEmpty ? artist : 'Unknown Artist',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppleTypography.miniPlayerArtist,
+                            ),
+                          ],
                         ),
-                        child: child,
                       ),
-                    );
-                  },
-                  child:
-                      (isLoading &&
-                          !Platform.environment.containsKey('FLUTTER_TEST'))
-                      ? const SmoothPlayerLoader(radius: 11)
-                      : AnimatedCupertinoIcon(
-                          key: ValueKey(
-                            'mini_expanded_play_pause_$isPlaying',
-                          ),
-                          icon: isPlaying
-                              ? CupertinoIcons.pause_fill
-                              : CupertinoIcons.play_fill,
-                          color: Colors.white,
-                          size: 28,
-                        ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 2),
 
-            // Skip Next Button (Fast Forward)
-            GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                ref.read(playerProvider.notifier).skipNext();
-              },
-              behavior: HitTestBehavior.opaque,
-              child: Container(
-                width: 38,
-                height: 38,
-                alignment: Alignment.center,
-                child: const AnimatedCupertinoIcon(
-                  icon: CupertinoIcons.forward_fill,
-                  color: Color(0xB3FFFFFF),
-                  size: 22,
+              const SizedBox(width: 4),
+
+              // Play / Pause Button with responsive spring physics & smooth loading indicator
+              ApplePressable(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  ref.read(playerProvider.notifier).togglePlayPause();
+                },
+                pressedScale: 0.88,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 240),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    transitionBuilder: (child, animation) {
+                      return FadeTransition(
+                        opacity: animation,
+                        child: ScaleTransition(
+                          scale: Tween<double>(begin: 0.78, end: 1.0).animate(
+                            CurvedAnimation(
+                              parent: animation,
+                              curve: Curves.easeOutBack,
+                            ),
+                          ),
+                          child: child,
+                        ),
+                      );
+                    },
+                    child:
+                        (isLoading &&
+                            !Platform.environment.containsKey('FLUTTER_TEST'))
+                        ? const SmoothPlayerLoader(radius: 11)
+                        : AnimatedCupertinoIcon(
+                            key: ValueKey(
+                              'mini_expanded_play_pause_$isPlaying',
+                            ),
+                            icon: isPlaying
+                                ? CupertinoIcons.pause_fill
+                                : CupertinoIcons.play_fill,
+                            color: Colors.white,
+                            size: 29,
+                          ),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 4),
-          ],
+              const SizedBox(width: 4),
+
+              // Skip Next Button (Fast Forward - BitChord spec: 40x40 touch target, 22pt glyph, 70% white)
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  ref.read(playerProvider.notifier).skipNext();
+                },
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  child: const AnimatedCupertinoIcon(
+                    icon: CupertinoIcons.forward_fill,
+                    color: Color(0xB3FFFFFF),
+                    size: 22,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       );
   }
 
-  Widget _fallbackArtwork({double size = 36}) {
+  Widget _fallbackArtwork({double size = 31}) {
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        color: const Color(0xFF2C2C2E),
-        borderRadius: BorderRadius.circular(8),
-      ),
+      color: const Color(0xFF2C2C2E),
       child: Center(
         child: Icon(
           CupertinoIcons.music_note,
