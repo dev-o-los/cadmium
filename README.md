@@ -31,7 +31,7 @@
     <img src="https://img.shields.io/badge/Flutter-3.47.4-02569B?logo=flutter&logoColor=white" alt="Flutter" />
     <img src="https://img.shields.io/badge/Dart-3.13.3-0175C2?logo=dart&logoColor=white" alt="Dart" />
     <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License" />
-    <img src="https://img.shields.io/badge/Tests-129_Passing-success?logo=checkmarx&logoColor=white" alt="Tests" />
+    <img src="https://img.shields.io/badge/Tests-160_Passing-success?logo=checkmarx&logoColor=white" alt="Tests" />
   </p>
 
   <p align="center">
@@ -84,12 +84,12 @@ The buttons and links below navigate to the official GitHub Releases where you c
 
 | Package | Version | Architecture | Download Link |
 | :--- | :--- | :--- | :--- |
-| **Latest Cadmium APK** | **v1.0.2** | `arm64-v8a`, `armeabi-v7a`, `x86_64` | [**Download cadmium-v1.0.2.apk**](https://github.com/dev-o-los/cadmium/releases/download/v1.0.2/cadmium-v1.0.2.apk) |
+| **Latest Cadmium APK** | **v1.0.4** | `arm64-v8a`, `armeabi-v7a`, `x86_64` | [**Download cadmium-v1.0.4.apk**](https://github.com/dev-o-los/cadmium/releases/download/v1.0.4/cadmium-v1.0.4.apk) |
 | **GitHub Releases** | All Versions | Universal | [**View Latest Release Page**](https://github.com/dev-o-los/cadmium/releases/latest) |
 
 </div>
 
-> 💡 **Tip:** Official release binaries are exclusively named **`cadmium-v<version>.apk`** (e.g., `cadmium-v1.0.2.apk`). Visiting the [GitHub Releases](https://github.com/dev-o-los/cadmium/releases/latest) page will always redirect you directly to the latest release notes and assets.
+> 💡 **Tip:** Official release binaries are exclusively named **`cadmium-v<version>.apk`** (e.g., `cadmium-v1.0.4.apk`). Visiting the [GitHub Releases](https://github.com/dev-o-los/cadmium/releases/latest) page will always redirect you directly to the latest release notes and assets.
 
 ---
 
@@ -98,7 +98,7 @@ The buttons and links below navigate to the official GitHub Releases where you c
 Follow these quick steps to get Cadmium running on your phone in under a minute:
 
 1. **Download the APK**:
-   Tap [**Download cadmium-v1.0.1.apk**](https://github.com/dev-o-los/cadmium/releases/download/v1.0.1/cadmium-v1.0.1.apk) or open the [GitHub Releases](https://github.com/dev-o-los/cadmium/releases/latest) page and select the latest `cadmium-v*.apk` under **Assets**.
+   Tap [**Download cadmium-v1.0.4.apk**](https://github.com/dev-o-los/cadmium/releases/download/v1.0.4/cadmium-v1.0.4.apk) or open the [GitHub Releases](https://github.com/dev-o-los/cadmium/releases/latest) page and select the latest `cadmium-v*.apk` under **Assets**.
 2. **Confirm Download**:
    If your browser displays *"File might be harmful"* (standard Android warning for apps downloaded outside Google Play), tap **Download anyway**.
 3. **Allow Installation**:
@@ -118,9 +118,15 @@ Follow these quick steps to get Cadmium running on your phone in under a minute:
 
 ### 🎵 High-Fidelity Streaming & Background Playback
 * **YouTube Music Innertube Catalog**: Access millions of official songs, albums, singles, artist discographies, and playlists without ads.
-* **OS Media Notification & Lock Screen**: Full Android media player in the notification bar and quick settings shade, complete with scrub bar, artwork, and lock screen controls.
+* **Overhauled Android Notification Player**: Zero-lag optimistic playback controls, 10s fast-forward/rewind actions, double-tap skip-previous track history, high-contrast Cadmium brand logo icon, and Skia/Impeller rounded artwork with transparent corner cutouts.
 * **Persistent Background Playback**: Engineered to keep playing smoothly when your phone is locked or minimized without being terminated by OS battery optimization.
 * **Fast Audio Pre-Caching**: Frequently heard tracks are automatically cached to local storage for instantaneous 0ms playback and reduced mobile data consumption.
+
+### ⚡ 60/120fps Flawless Performance & Fluid Transitions
+* **Native Cupertino Slide Transitions**: Silky smooth horizontal screen navigation across Album, Artist, and Playlist views with native edge swipe-to-back gestures.
+* **Isolated Compositing Layers**: Hardware-accelerated modal player presentations utilizing `RepaintBoundary` and Apple spring modal physics (`Cubic(0.16, 1.0, 0.3, 1.0)`).
+* **Microsecond Palette Quantization**: Downsampled 64×64 batch color analysis with memoization eliminating main-thread stutters when opening screens.
+* **Enlarged Image Memory Cache**: Expanded 250MB image cache preventing thumbnail thrashing during rapid scrolling and tab switching.
 
 ### 🎤 Syllable-Level Karaoke Lyrics
 * **Word-by-Word Real-Time Animations**: Synced via Apple TTML and `lrc.red` engines, glowing syllable-by-syllable alongside the artist's vocals.
@@ -220,10 +226,11 @@ Cadmium includes automated unit, widget, and integration test coverage:
 flutter test
 ```
 
-* **129 Passing Automated Tests** covering:
+* **160 Passing Automated Tests** covering:
   - TTML and lrc.red syllable-level lyrics parsers
   - Audio stream resolution and auto-recovery fallbacks
-  - MediaSession background notifications and controls
+  - MediaSession background notifications, rounded artwork corners, and optimistic controls
+  - Screen transition performance, memoized batch color palettes, and isolated repaint boundaries
   - Liquid glass Cupertino components and touch responses
   - High-precision lyric clock synchronization
 
