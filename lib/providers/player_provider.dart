@@ -28,6 +28,8 @@ class PlayerStateModel {
   final List<SongItem> queue;
   final List<SongItem> autoplayQueue;
   final List<SongItem> recentlyPlayed;
+  final List<SongItem> history;
+  final List<SongItem> originalQueue;
   final LoopMode loopMode;
   final bool isShuffle;
   final bool isAutoplay;
@@ -58,6 +60,8 @@ class PlayerStateModel {
     this.queue = const [],
     this.autoplayQueue = const [],
     this.recentlyPlayed = const [],
+    this.history = const [],
+    this.originalQueue = const [],
     this.loopMode = LoopMode.off,
     this.isShuffle = false,
     this.isAutoplay = true,
@@ -104,6 +108,8 @@ class PlayerStateModel {
     List<SongItem>? queue,
     List<SongItem>? autoplayQueue,
     List<SongItem>? recentlyPlayed,
+    List<SongItem>? history,
+    List<SongItem>? originalQueue,
     LoopMode? loopMode,
     bool? isShuffle,
     bool? isAutoplay,
@@ -139,6 +145,8 @@ class PlayerStateModel {
       queue: queue ?? this.queue,
       autoplayQueue: autoplayQueue ?? this.autoplayQueue,
       recentlyPlayed: recentlyPlayed ?? this.recentlyPlayed,
+      history: history ?? this.history,
+      originalQueue: originalQueue ?? this.originalQueue,
       loopMode: loopMode ?? this.loopMode,
       isShuffle: isShuffle ?? this.isShuffle,
       isAutoplay: isAutoplay ?? this.isAutoplay,
@@ -224,6 +232,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
 
   Future<void> _restorePersistedPlayback() async {
     await PlayerHistoryCacheService.instance.init();
+    if (!mounted) return;
     if (state.currentSong == null) {
       final cachedSong = PlayerHistoryCacheService.instance.lastPlayedSong;
       if (cachedSong != null) {
@@ -481,7 +490,13 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   }
 
   /// Selects and plays a song, automatically resolving its stream and fetching synced lyrics.
-  Future<void> playSong(SongItem song, {List<SongItem>? contextQueue, bool forceReload = false}) async {
+  Future<void> playSong(
+    SongItem song, {
+    List<SongItem>? contextQueue,
+    List<SongItem>? initialHistory,
+    List<SongItem>? originalTracklist,
+    bool forceReload = false,
+  }) async {
     // If user clicked the song currently loaded and not resolving:
     // If paused, immediately start playing. If already playing, continue playing.
     if (state.currentSong?.id == song.id && !forceReload) {
@@ -517,8 +532,25 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     }
 
     List<SongItem> updatedQueue = state.queue;
-    if (contextQueue != null && contextQueue.isNotEmpty) {
+    if (contextQueue != null) {
       updatedQueue = contextQueue.where((s) => s.id != song.id).toList();
+    }
+
+    List<SongItem> updatedHistory = state.history;
+    if (initialHistory != null) {
+      updatedHistory = List<SongItem>.from(initialHistory);
+    }
+
+    List<SongItem> updatedOriginalQueue = state.originalQueue;
+    if (originalTracklist != null && originalTracklist.isNotEmpty) {
+      updatedOriginalQueue = List<SongItem>.from(originalTracklist);
+    } else if (contextQueue != null) {
+      updatedOriginalQueue = [song, ...updatedQueue];
+    }
+
+    // If shuffle is enabled, shuffle the upcoming queue
+    if (state.isShuffle && contextQueue != null && updatedQueue.isNotEmpty) {
+      updatedQueue = List<SongItem>.from(updatedQueue)..shuffle();
     }
 
     final initialDuration = (song.durationSeconds != null && song.durationSeconds! > 0)
@@ -536,6 +568,8 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       clearErrorMessage: true,
       recentlyPlayed: updatedRecentlyPlayed,
       queue: updatedQueue,
+      history: updatedHistory,
+      originalQueue: updatedOriginalQueue,
       lyrics: const [],
       isLoadingLyrics: true,
       activeLyricIndex: -1,
@@ -614,6 +648,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
           streamInfo.url,
           streamInfo.headers,
         );
+        if (!mounted) return;
 
         // If heard repeatedly, trigger background audio cache download
         if (ArtworkCacheService.instance.isHeardRepeatedly(song.id)) {
@@ -627,6 +662,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       }
 
       await _audioPlayer.setAudioSource(audioSource, preload: true);
+      if (!mounted) return;
 
       // Stream resolution is completed once audio source is loaded
       if (requestId == _currentStreamRequestId && state.currentSong?.id == song.id) {
@@ -642,7 +678,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
 
       // Guard: User might have skipped track while setting audio source
       if (requestId != _currentStreamRequestId || state.currentSong?.id != song.id) {
-        if (requestId == _currentStreamRequestId) {
+        if (requestId == _currentStreamRequestId && mounted) {
           state = state.copyWith(isResolvingStream: false, isBuffering: false);
         }
         return;
@@ -650,6 +686,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
 
       await _audioSession?.setActive(true);
       await _audioPlayer.play();
+      if (!mounted) return;
 
       if (requestId != _currentStreamRequestId) return;
 
@@ -659,6 +696,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         isBuffering: false,
       );
     } catch (e) {
+      if (!mounted) return;
       if (requestId == _currentStreamRequestId && state.currentSong?.id == song.id) {
         state = state.copyWith(
           isResolvingStream: false,
@@ -710,6 +748,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         durationSeconds: durSec,
         provider: targetProvider,
       );
+      if (!mounted) return;
       if (requestId == _lyricsRequestId &&
           state.currentSong?.id == song.id &&
           state.selectedLyricsProvider == targetProvider) {
@@ -728,6 +767,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
       if (requestId == _lyricsRequestId &&
           state.currentSong?.id == song.id &&
           state.selectedLyricsProvider == targetProvider) {
@@ -747,6 +787,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     try {
       final musicService = _ref.read(musicServiceProvider);
       final artworkData = await musicService.getAnimatedArtworkData(song);
+      if (!mounted) return;
       if (state.currentSong?.id == song.id && artworkData != null) {
         state = state.copyWith(
           animatedArtworkUrl: artworkData.url,
@@ -771,6 +812,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         title: song.title,
         artist: song.artist,
       );
+      if (!mounted) return;
       if (masterArt != null && masterArt.isNotEmpty && state.currentSong?.id == song.id) {
         final updatedSong = song.copyWith(thumbnailUrl: masterArt);
         state = state.copyWith(currentSong: updatedSong);
@@ -877,28 +919,76 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   Timer? _sleepTimer;
 
   void skipNext() {
+    if (state.currentSong == null) return;
+
+    // If Repeat-One is active, repeat current track
+    if (state.loopMode == LoopMode.one) {
+      seek(Duration.zero);
+      play();
+      return;
+    }
+
+    // 1. Regular queue has tracks
     if (state.queue.isNotEmpty) {
       final nextSong = state.queue.first;
       final remainingQueue = state.queue.sublist(1);
-      playSong(nextSong, contextQueue: remainingQueue, forceReload: true);
-    } else if (state.isAutoplay && state.autoplayQueue.isNotEmpty) {
-      final nextSong = state.autoplayQueue.first;
-      final remainingAutoplay = state.autoplayQueue.sublist(1);
-      state = state.copyWith(autoplayQueue: remainingAutoplay);
-      playSong(nextSong, forceReload: true);
-      if (remainingAutoplay.length <= 2) {
-        _fetchAutoplayQueue(nextSong);
-      }
-    } else if (state.isAutoplay && state.currentSong != null) {
-      _fetchAutoplayNext();
-    } else if (state.recentlyPlayed.length > 1) {
-      final currentIdx = state.recentlyPlayed.indexWhere((s) => s.id == state.currentSong?.id);
-      final nextIdx = (currentIdx + 1) % state.recentlyPlayed.length;
-      playSong(state.recentlyPlayed[nextIdx], forceReload: true);
-    } else if (state.currentSong != null) {
-      seek(Duration.zero);
-      play();
+      final updatedHistory = [...state.history, state.currentSong!];
+      _playTrackFromQueue(nextSong, queue: remainingQueue, history: updatedHistory);
+      return;
     }
+
+    // 2. Queue is empty, check Repeat-All
+    if (state.loopMode == LoopMode.all && state.originalQueue.isNotEmpty) {
+      final allTracks = state.isShuffle
+          ? (List<SongItem>.from(state.originalQueue)..shuffle())
+          : List<SongItem>.from(state.originalQueue);
+      final firstTrack = allTracks.first;
+      final remainingQueue = allTracks.length > 1 ? allTracks.sublist(1) : <SongItem>[];
+      _playTrackFromQueue(firstTrack, queue: remainingQueue, history: const []);
+      return;
+    }
+
+    // 3. Queue is empty, check Autoplay (Infinity / Radio)
+    if (state.isAutoplay) {
+      if (state.autoplayQueue.isNotEmpty) {
+        final nextSong = state.autoplayQueue.first;
+        final remainingAutoplay = state.autoplayQueue.sublist(1);
+        final updatedHistory = [...state.history, state.currentSong!];
+        state = state.copyWith(autoplayQueue: remainingAutoplay);
+        _playTrackFromQueue(nextSong, queue: const [], history: updatedHistory);
+        if (remainingAutoplay.length <= 2) {
+          _fetchAutoplayQueue(nextSong);
+        }
+        return;
+      } else {
+        _fetchAutoplayNext();
+        return;
+      }
+    }
+
+    // 4. Autoplay is OFF and queue is empty:
+    // User requested: "if that button is not open, then just we will play that track once."
+    // Stop playback!
+    pause();
+    seek(Duration.zero);
+  }
+
+  void _playTrackFromQueue(
+    SongItem song, {
+    required List<SongItem> queue,
+    required List<SongItem> history,
+  }) {
+    state = state.copyWith(
+      queue: queue,
+      history: history,
+    );
+    playSong(
+      song,
+      contextQueue: queue,
+      initialHistory: history,
+      originalTracklist: state.originalQueue,
+      forceReload: true,
+    );
   }
 
   Future<void> _fetchAutoplayQueue(SongItem song) async {
@@ -909,6 +999,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         artist: song.artist,
         title: song.title,
       );
+      if (!mounted) return;
       final candidateTracks = tracks.where((s) => s.id != song.id).toList();
       if (candidateTracks.isNotEmpty) {
         state = state.copyWith(autoplayQueue: candidateTracks);
@@ -935,42 +1026,57 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         artist: current.artist,
         title: current.title,
       );
+      if (!mounted) return;
       final candidateTracks = tracks.where((s) => s.id != current.id).toList();
       if (candidateTracks.isNotEmpty) {
         final nextSong = candidateTracks.first;
         final nextQueue = candidateTracks.sublist(1);
+        final updatedHistory = [...state.history, current];
         state = state.copyWith(autoplayQueue: nextQueue);
-        playSong(nextSong, forceReload: true);
+        _playTrackFromQueue(nextSong, queue: const [], history: updatedHistory);
         return;
       }
     } catch (_) {}
-    if (state.recentlyPlayed.length > 1) {
-      final currentIdx = state.recentlyPlayed.indexWhere((s) => s.id == current.id);
-      final nextIdx = (currentIdx + 1) % state.recentlyPlayed.length;
-      playSong(state.recentlyPlayed[nextIdx], forceReload: true);
-    }
+
+    // If radio fails and autoplay is on, pause cleanly
+    pause();
+    seek(Duration.zero);
   }
 
   Future<void> startRadio(SongItem song) async {
-    state = state.copyWith(isAutoplay: true, queue: []);
-    playSong(song, forceReload: true);
+    state = state.copyWith(
+      isAutoplay: true,
+      queue: const [],
+      history: const [],
+      originalQueue: [song],
+    );
+    await playSong(song, forceReload: true);
     await _fetchAutoplayQueue(song);
   }
 
   void skipPrevious() {
-    if (state.position.inSeconds > 4) {
+    if (state.currentSong == null) return;
+
+    // 1. If played >= 3 seconds, restart current track to beginning (standard Apple Music behavior)
+    if (state.position.inSeconds >= 3) {
       seek(Duration.zero);
+      play();
       return;
     }
 
-    if (state.recentlyPlayed.length > 1) {
-      final currentIdx = state.recentlyPlayed.indexWhere((s) => s.id == state.currentSong?.id);
-      final prevIdx = (currentIdx - 1 + state.recentlyPlayed.length) % state.recentlyPlayed.length;
-      playSong(state.recentlyPlayed[prevIdx], forceReload: true);
-    } else if (state.currentSong != null) {
-      seek(Duration.zero);
-      play();
+    // 2. If within first 3 seconds, go to previous track in history
+    if (state.history.isNotEmpty) {
+      final prevSong = state.history.last;
+      final remainingHistory = state.history.sublist(0, state.history.length - 1);
+      // Prepend currentSong back to queue so 'next' can return to it
+      final updatedQueue = [state.currentSong!, ...state.queue];
+      _playTrackFromQueue(prevSong, queue: updatedQueue, history: remainingHistory);
+      return;
     }
+
+    // 3. If history is empty, restart track
+    seek(Duration.zero);
+    play();
   }
 
   void cycleLoopMode() {
@@ -987,14 +1093,48 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   }
 
   void toggleShuffle() {
-    final nextShuffle = !state.isShuffle;
-    _audioPlayer.setShuffleModeEnabled(nextShuffle);
-    state = state.copyWith(isShuffle: nextShuffle);
+    setShuffle(!state.isShuffle);
+  }
+
+  void setShuffle(bool enabled) {
+    if (state.isShuffle == enabled) return;
+    _audioPlayer.setShuffleModeEnabled(enabled);
+
+    if (enabled) {
+      // Shuffling: save original order if needed and shuffle upcoming queue
+      final orig = state.originalQueue.isNotEmpty
+          ? state.originalQueue
+          : (state.currentSong != null ? [state.currentSong!, ...state.queue] : state.queue);
+      final shuffledQueue = List<SongItem>.from(state.queue)..shuffle();
+      state = state.copyWith(
+        isShuffle: true,
+        queue: shuffledQueue,
+        originalQueue: orig,
+      );
+    } else {
+      // Un-shuffling: restore remaining unplayed tracks in original order
+      if (state.originalQueue.isNotEmpty) {
+        final currentId = state.currentSong?.id;
+        final historyIds = state.history.map((s) => s.id).toSet();
+        final unplayedTracks = state.originalQueue
+            .where((s) => s.id != currentId && !historyIds.contains(s.id))
+            .toList();
+        state = state.copyWith(
+          isShuffle: false,
+          queue: unplayedTracks,
+        );
+      } else {
+        state = state.copyWith(isShuffle: false);
+      }
+    }
   }
 
   void toggleAutoplay() {
     final nextAutoplay = !state.isAutoplay;
-    state = state.copyWith(isAutoplay: nextAutoplay);
+    state = state.copyWith(
+      isAutoplay: nextAutoplay,
+      autoplayQueue: nextAutoplay ? state.autoplayQueue : const [],
+    );
     if (nextAutoplay && state.currentSong != null && state.autoplayQueue.isEmpty) {
       _fetchAutoplayQueue(state.currentSong!);
     }

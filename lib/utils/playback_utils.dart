@@ -202,12 +202,16 @@ void playSong(
   WidgetRef ref,
   SongItem song, {
   List<SongItem>? contextQueue,
+  List<SongItem>? initialHistory,
+  List<SongItem>? originalTracklist,
   bool autoOpenPlayer = false,
   bool forceReload = false,
 }) {
   ref.read(playerProvider.notifier).playSong(
         song,
         contextQueue: contextQueue,
+        initialHistory: initialHistory,
+        originalTracklist: originalTracklist,
         forceReload: forceReload,
       );
   if (autoOpenPlayer) {
@@ -246,6 +250,7 @@ Future<void> playAlbumOrSingle(
       ref.read(playerProvider.notifier).playSong(
             firstTrack,
             contextQueue: queue,
+            originalTracklist: tracks,
             forceReload: true,
           );
     } else {

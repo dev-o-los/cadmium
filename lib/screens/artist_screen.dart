@@ -188,6 +188,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
       showWavifySnackBar(context, 'No playable tracks for $_displayName');
       return;
     }
+    ref.read(playerProvider.notifier).setShuffle(true);
     final shuffled = List<SongItem>.from(tracks)..shuffle();
     final firstTrack = shuffled.first;
     final queue = shuffled.length > 1 ? shuffled.sublist(1) : <SongItem>[];
@@ -197,6 +198,8 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
       ref,
       firstTrack,
       contextQueue: queue,
+      initialHistory: const [],
+      originalTracklist: tracks,
       autoOpenPlayer: false,
       forceReload: true,
     );
@@ -232,6 +235,8 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
       ref,
       tracks.first,
       contextQueue: tracks.length > 1 ? tracks.sublist(1) : [],
+      initialHistory: const [],
+      originalTracklist: tracks,
       autoOpenPlayer: false,
       forceReload: true,
     );
@@ -948,13 +953,22 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
               final isCurrent = currentSong?.id == song.id;
 
               return ApplePressable(
-                onTap: () => playSong(
-                  context,
-                  ref,
-                  song,
-                  contextQueue: songs,
-                  forceReload: true,
-                ),
+                onTap: () {
+                  final idx = songs.indexWhere((s) => s.id == song.id);
+                  final history = idx > 0 ? songs.sublist(0, idx) : const <SongItem>[];
+                  final queue = (idx >= 0 && idx < songs.length - 1)
+                      ? songs.sublist(idx + 1)
+                      : const <SongItem>[];
+                  playSong(
+                    context,
+                    ref,
+                    song,
+                    contextQueue: queue,
+                    initialHistory: history,
+                    originalTracklist: songs,
+                    forceReload: true,
+                  );
+                },
                 borderRadius: BorderRadius.circular(10),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),

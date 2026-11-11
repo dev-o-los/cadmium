@@ -763,13 +763,26 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
     return SizedBox(
       height: 64,
       child: ApplePressable(
-        onTap: () => playSong(
-          context,
-          ref,
-          song,
-          contextQueue: contextQueue,
-          forceReload: true,
-        ),
+        onTap: () {
+          List<SongItem>? queue;
+          List<SongItem>? history;
+          if (contextQueue != null && contextQueue.isNotEmpty) {
+            final idx = contextQueue.indexWhere((s) => s.id == song.id);
+            history = idx > 0 ? contextQueue.sublist(0, idx) : const <SongItem>[];
+            queue = (idx >= 0 && idx < contextQueue.length - 1)
+                ? contextQueue.sublist(idx + 1)
+                : const <SongItem>[];
+          }
+          playSong(
+            context,
+            ref,
+            song,
+            contextQueue: queue,
+            initialHistory: history,
+            originalTracklist: contextQueue,
+            forceReload: true,
+          );
+        },
         borderRadius: BorderRadius.circular(10),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
@@ -1454,13 +1467,21 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
 
               return RepaintBoundary(
                 child: ApplePressable(
-                  onTap: () => playSong(
-                    context,
-                    ref,
-                    song,
-                    contextQueue: songs,
-                    forceReload: true,
-                  ),
+                  onTap: () {
+                    final history = index > 0 ? songs.sublist(0, index) : const <SongItem>[];
+                    final queue = (index < songs.length - 1)
+                        ? songs.sublist(index + 1)
+                        : const <SongItem>[];
+                    playSong(
+                      context,
+                      ref,
+                      song,
+                      contextQueue: queue,
+                      initialHistory: history,
+                      originalTracklist: songs,
+                      forceReload: true,
+                    );
+                  },
                   borderRadius: BorderRadius.circular(12),
                   child: SizedBox(
                     width: cardWidth,

@@ -256,13 +256,22 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     final isSelected = currentSong?.id == song.id;
 
     return ApplePressable(
-      onTap: () => playSong(
-        context,
-        ref,
-        song,
-        contextQueue: allTracks.where((t) => t.id != song.id).toList(),
-        forceReload: true,
-      ),
+      onTap: () {
+        final idx = allTracks.indexWhere((t) => t.id == song.id);
+        final history = idx > 0 ? allTracks.sublist(0, idx) : const <SongItem>[];
+        final queue = (idx >= 0 && idx < allTracks.length - 1)
+            ? allTracks.sublist(idx + 1)
+            : const <SongItem>[];
+        playSong(
+          context,
+          ref,
+          song,
+          contextQueue: queue,
+          initialHistory: history,
+          originalTracklist: allTracks,
+          forceReload: true,
+        );
+      },
       borderRadius: BorderRadius.circular(10),
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 58),

@@ -204,10 +204,11 @@ class _TrackMenuCard extends ConsumerWidget {
                     },
                   ),
 
-                  // 3. Start Radio
+                  // 3. Start Radio / Autoplay
                   _buildMenuItem(
-                    icon: Icons.podcasts_rounded,
+                    icon: CupertinoIcons.infinite,
                     title: 'Start radio',
+                    subtitle: 'Autoplay similar music',
                     onTap: () {
                       onDismiss();
                       ref.read(playerProvider.notifier).startRadio(song);

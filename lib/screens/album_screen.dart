@@ -606,11 +606,17 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
           ? tracksToPlay.sublist(1)
           : <SongItem>[];
 
+      if (shuffle) {
+        ref.read(playerProvider.notifier).setShuffle(true);
+      }
+
       playSong(
         context,
         ref,
         firstTrack,
         contextQueue: queue,
+        initialHistory: const [],
+        originalTracklist: _allTracks,
         autoOpenPlayer: true,
         forceReload: true,
       );
@@ -634,8 +640,32 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   }
 
   void _onTrackSelected(SongItem track) {
-    final queue = _allTracks.where((t) => t.id != track.id).toList();
-    playSong(context, ref, track, contextQueue: queue, forceReload: true);
+    final idx = _allTracks.indexWhere((t) => t.id == track.id);
+    final isShuffle = ref.read(playerProvider).isShuffle;
+
+    List<SongItem> queue;
+    List<SongItem> history;
+
+    if (isShuffle) {
+      final others = _allTracks.where((t) => t.id != track.id).toList()..shuffle();
+      queue = others;
+      history = const [];
+    } else {
+      history = idx > 0 ? _allTracks.sublist(0, idx) : const [];
+      queue = (idx >= 0 && idx < _allTracks.length - 1)
+          ? _allTracks.sublist(idx + 1)
+          : const [];
+    }
+
+    playSong(
+      context,
+      ref,
+      track,
+      contextQueue: queue,
+      initialHistory: history,
+      originalTracklist: _allTracks,
+      forceReload: true,
+    );
   }
 
   String _formatTotalDuration() {
