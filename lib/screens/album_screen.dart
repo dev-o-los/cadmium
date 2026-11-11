@@ -119,18 +119,19 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
 
   Future<void> _updateBackgroundColor() async {
     final seed = '${widget.album.title} ${widget.album.artist}';
-    final color = await ArtworkColorService.instance.extractAttractiveColor(
+    final colorFuture = ArtworkColorService.instance.extractAttractiveColor(
       _resolvedArtwork,
       fallbackSeed: seed,
     );
-    final secondary = await ArtworkColorService.instance.extractSecondaryColor(
+    final secondaryFuture = ArtworkColorService.instance.extractSecondaryColor(
       _resolvedArtwork,
       fallbackSeed: seed,
     );
+    final results = await Future.wait([colorFuture, secondaryFuture]);
     if (mounted) {
       setState(() {
-        _backgroundColor = color;
-        _secondaryColor = secondary;
+        _backgroundColor = results[0];
+        _secondaryColor = results[1];
       });
     }
   }

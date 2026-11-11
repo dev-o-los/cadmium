@@ -19,6 +19,9 @@ class ArtworkColorService {
   final Map<String, Color> _secondaryCache = {};
   final Map<String, Color> _bestColorCache = {};
 
+  final Map<String, PaletteGenerator> _paletteCache = {};
+  final Map<String, Future<PaletteGenerator?>> _inFlightPalettes = {};
+
   /// Retrieves the cached attractive color if already computed for [key].
   Color? getCachedColor(String key) => _cache[key];
 
@@ -27,6 +30,56 @@ class ArtworkColorService {
 
   /// Retrieves the cached brightest vibrant color if already computed for [key].
   Color? getCachedBestColor(String key) => _bestColorCache[key];
+
+  /// Internal batch coordinator that extracts and quantizes image palette downsized to 64x64.
+  /// Prevents main-thread microstutters by processing ~250x fewer pixels than raw album art,
+  /// and memoizes in-flight futures so simultaneous requests share the exact same pass.
+  Future<PaletteGenerator?> _getOrComputePalette(String cleanUrl) {
+    if (_paletteCache.containsKey(cleanUrl)) {
+      return Future.value(_paletteCache[cleanUrl]);
+    }
+    if (_inFlightPalettes.containsKey(cleanUrl)) {
+      return _inFlightPalettes[cleanUrl]!;
+    }
+    final future = _computePalette(cleanUrl);
+    _inFlightPalettes[cleanUrl] = future;
+    return future;
+  }
+
+  Future<PaletteGenerator?> _computePalette(String cleanUrl) async {
+    final isTest = !kIsWeb && Platform.environment.containsKey('FLUTTER_TEST');
+    if (isTest || cleanUrl.isEmpty || (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://'))) {
+      return null;
+    }
+
+    try {
+      final imageProvider = CachedNetworkImageProvider(cleanUrl);
+      final palette = await PaletteGenerator.fromImageProvider(
+        imageProvider,
+        size: const Size(64, 64),
+        maximumColorCount: 16,
+      ).timeout(const Duration(seconds: 3));
+
+      _paletteCache[cleanUrl] = palette;
+
+      // Optimistically compute and populate all three caches from this single palette pass
+      final primary = _pickMostAttractiveColor(palette);
+      _cache[cleanUrl] = _tuneForAlbumBackground(primary);
+
+      final secondary = _pickSecondaryColor(palette, primary);
+      _secondaryCache[cleanUrl] = _tuneForSecondaryAccent(secondary);
+
+      final best = _pickBestVibrantColor(palette);
+      _bestColorCache[cleanUrl] = _tuneForBrightAppleBloom(best);
+
+      return palette;
+    } catch (e) {
+      debugPrint('ArtworkColorService palette extraction error for $cleanUrl: $e');
+      return null;
+    } finally {
+      _inFlightPalettes.remove(cleanUrl);
+    }
+  }
 
   /// Extracts the most attractive color from [imageUrl].
   /// [fallbackSeed] (e.g. album title + artist) is used to compute a consistent,
@@ -43,21 +96,13 @@ class ArtworkColorService {
     }
 
     Color? extracted;
-
-    // In unit / widget tests, avoid HTTP image requests and use the deterministic seed
-    final isTest = !kIsWeb && Platform.environment.containsKey('FLUTTER_TEST');
-
-    if (!isTest && cleanUrl.isNotEmpty && (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://'))) {
-      try {
-        final imageProvider = CachedNetworkImageProvider(cleanUrl);
-        final palette = await PaletteGenerator.fromImageProvider(
-          imageProvider,
-          maximumColorCount: 20,
-        ).timeout(const Duration(seconds: 4));
-
+    if (cleanUrl.isNotEmpty) {
+      final palette = await _getOrComputePalette(cleanUrl);
+      if (palette != null) {
+        if (_cache.containsKey(cleanUrl)) {
+          return _cache[cleanUrl]!;
+        }
         extracted = _pickMostAttractiveColor(palette);
-      } catch (e) {
-        debugPrint('ArtworkColorService extraction error for $cleanUrl: $e');
       }
     }
 
@@ -83,20 +128,14 @@ class ArtworkColorService {
     }
 
     Color? extracted;
-    final isTest = !kIsWeb && Platform.environment.containsKey('FLUTTER_TEST');
-
-    if (!isTest && cleanUrl.isNotEmpty && (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://'))) {
-      try {
-        final imageProvider = CachedNetworkImageProvider(cleanUrl);
-        final palette = await PaletteGenerator.fromImageProvider(
-          imageProvider,
-          maximumColorCount: 20,
-        ).timeout(const Duration(seconds: 4));
-
+    if (cleanUrl.isNotEmpty) {
+      final palette = await _getOrComputePalette(cleanUrl);
+      if (palette != null) {
+        if (_secondaryCache.containsKey(cleanUrl)) {
+          return _secondaryCache[cleanUrl]!;
+        }
         final primaryColor = _pickMostAttractiveColor(palette);
         extracted = _pickSecondaryColor(palette, primaryColor);
-      } catch (e) {
-        debugPrint('ArtworkColorService secondary extraction error for $cleanUrl: $e');
       }
     }
 
@@ -121,19 +160,13 @@ class ArtworkColorService {
     }
 
     Color? extracted;
-    final isTest = !kIsWeb && Platform.environment.containsKey('FLUTTER_TEST');
-
-    if (!isTest && cleanUrl.isNotEmpty && (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://'))) {
-      try {
-        final imageProvider = CachedNetworkImageProvider(cleanUrl);
-        final palette = await PaletteGenerator.fromImageProvider(
-          imageProvider,
-          maximumColorCount: 20,
-        ).timeout(const Duration(seconds: 4));
-
+    if (cleanUrl.isNotEmpty) {
+      final palette = await _getOrComputePalette(cleanUrl);
+      if (palette != null) {
+        if (_bestColorCache.containsKey(cleanUrl)) {
+          return _bestColorCache[cleanUrl]!;
+        }
         extracted = _pickBestVibrantColor(palette);
-      } catch (e) {
-        debugPrint('ArtworkColorService best vibrant extraction error for $cleanUrl: $e');
       }
     }
 

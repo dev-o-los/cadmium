@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -88,10 +89,10 @@ class PlayerModalPageRoute<T> extends PageRoute<T> {
   bool get maintainState => true;
 
   @override
-  Duration get transitionDuration => const Duration(milliseconds: 380);
+  Duration get transitionDuration => const Duration(milliseconds: 320);
 
   @override
-  Duration get reverseTransitionDuration => const Duration(milliseconds: 300);
+  Duration get reverseTransitionDuration => const Duration(milliseconds: 260);
 
   @override
   Widget buildPage(
@@ -111,7 +112,7 @@ class PlayerModalPageRoute<T> extends PageRoute<T> {
   ) {
     final curvedAnimation = CurvedAnimation(
       parent: animation,
-      curve: const Cubic(0.2, 0.9, 0.2, 1.0),
+      curve: const Cubic(0.16, 1.0, 0.3, 1.0),
       reverseCurve: Curves.easeInCubic,
     );
     return SlideTransition(
@@ -119,7 +120,9 @@ class PlayerModalPageRoute<T> extends PageRoute<T> {
         begin: const Offset(0.0, 1.0),
         end: Offset.zero,
       ).animate(curvedAnimation),
-      child: child,
+      child: RepaintBoundary(
+        child: child,
+      ),
     );
   }
 }
@@ -147,7 +150,7 @@ void openPlayerScreen(BuildContext context) {
 void openAlbumScreen(BuildContext context, AlbumItem album) {
   Navigator.push(
     context,
-    MaterialPageRoute(
+    CupertinoPageRoute(
       builder: (context) => AlbumScreen(album: album),
     ),
   );
@@ -170,7 +173,7 @@ void openPlaylistScreen(
   );
   Navigator.push(
     context,
-    MaterialPageRoute(
+    CupertinoPageRoute(
       builder: (context) => AlbumScreen(album: album),
     ),
   );
@@ -186,7 +189,7 @@ void openArtistScreen(
 }) {
   Navigator.push(
     context,
-    MaterialPageRoute(
+    CupertinoPageRoute(
       builder: (context) => ArtistScreen(
         artistId: artistId,
         artistName: artistName,

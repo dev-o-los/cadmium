@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,6 +32,10 @@ void main() async {
   } catch (e) {
     debugPrint('LiquidGlassWidgets.initialize error: $e');
   }
+
+  // Enlarge image cache capacity to eliminate image decoding thrash & stutter during rapid scrolls
+  PaintingBinding.instance.imageCache.maximumSize = 1000;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 250 << 20; // 250 MB
 
   // Initialize background audio notification service for lock screen & system status
   final audioHandler = await initCadmiumAudioService();
@@ -79,6 +84,15 @@ class AurumApp extends StatelessWidget {
         highlightColor: Colors.transparent,
         hoverColor: Colors.transparent,
         listTileTheme: const ListTileThemeData(enableFeedback: false),
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.linux: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.windows: CupertinoPageTransitionsBuilder(),
+          },
+        ),
         colorScheme: const ColorScheme.dark(
           primary: Colors.white,
           onPrimary: Colors.black,

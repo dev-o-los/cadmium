@@ -82,18 +82,19 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
 
   Future<void> _updateArtistColors() async {
     final banner = _heroBannerUrl;
-    final primary = await ArtworkColorService.instance.extractAttractiveColor(
+    final primaryFuture = ArtworkColorService.instance.extractAttractiveColor(
       banner,
       fallbackSeed: _displayName,
     );
-    final secondary = await ArtworkColorService.instance.extractSecondaryColor(
+    final secondaryFuture = ArtworkColorService.instance.extractSecondaryColor(
       banner,
       fallbackSeed: _displayName,
     );
+    final results = await Future.wait([primaryFuture, secondaryFuture]);
     if (mounted) {
       setState(() {
-        _primaryColor = primary;
-        _secondaryColor = secondary;
+        _primaryColor = results[0];
+        _secondaryColor = results[1];
       });
     }
   }
