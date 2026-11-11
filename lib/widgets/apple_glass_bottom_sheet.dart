@@ -10,7 +10,6 @@ import '../constants/apple_typography.dart';
 import '../models/audio_device_item.dart';
 import '../providers/player_provider.dart';
 import 'apple_pressable.dart';
-import 'liquid_glass_bottom_bar.dart';
 
 /// Shows an authentic bottom sheet with frosted glass blur,
 /// translucent dark background, subtle highlight border, and rounded corners.
@@ -27,7 +26,7 @@ Future<T?> showAppleGlassBottomSheet<T>({
     enableDrag: enableDrag,
     isDismissible: isDismissible,
     backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withValues(alpha: 0.55),
+    barrierColor: Colors.black.withValues(alpha: 0.15),
     builder: (modalContext) {
       return AppleGlassBottomSheetContainer(child: builder(modalContext));
     },
@@ -56,33 +55,15 @@ class AppleGlassBottomSheetContainer extends StatelessWidget {
       child: ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+          filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: Container(
             decoration: BoxDecoration(
-              color: const Color(0xCC181822),
+              color: Colors.white.withValues(alpha: 0.08),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  const Color(0xD922222C),
-                  const Color(0xCC181822),
-                  const Color(0xDE121218),
-                ],
-                stops: const [0.0, 0.35, 1.0],
-              ),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.14),
+                color: Colors.white.withValues(alpha: 0.22),
                 width: 0.8,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.55),
-                  blurRadius: 40,
-                  spreadRadius: 2,
-                  offset: const Offset(0, -10),
-                ),
-              ],
             ),
             child: SafeArea(
               top: false,
@@ -401,8 +382,9 @@ Widget _buildOutputCard({
 void _showCastDialog(BuildContext context) {
   GlassDialog.show(
     context: context,
-    settings: kLiquidBottomDockGlassSettings,
+    settings: const LiquidGlassSettings(),
     barrierDismissible: true,
+    barrierColor: Colors.black.withValues(alpha: 0.10),
     title: 'Google Cast',
     message:
         'Searching for nearby Chromecast, Google Nest, and Cast-enabled speakers on your Wi-Fi network...',

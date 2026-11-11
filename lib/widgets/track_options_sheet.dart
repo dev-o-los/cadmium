@@ -37,7 +37,7 @@ void showTrackOptionsModal(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'TrackMenu',
-    barrierColor: Colors.black.withValues(alpha: 0.30),
+    barrierColor: Colors.black.withValues(alpha: 0.10),
     transitionDuration: const Duration(milliseconds: 200),
     pageBuilder: (dialogContext, animation, secondaryAnimation) {
       return SafeArea(
@@ -112,25 +112,17 @@ class _TrackMenuCard extends ConsumerWidget {
         useOwnLayer: true,
         shape: const LiquidRoundedSuperellipse(borderRadius: 24),
         color: Colors.transparent,
-        settings: kTrackMenuGlassSettings,
+        settings: const LiquidGlassSettings(),
         child: AdaptiveLiquidGlassLayer(
-          settings: kTrackMenuGlassSettings,
+          settings: const LiquidGlassSettings(),
           quality: GlassQuality.standard,
           child: DecoratedBox(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.14),
-                width: 0.5,
+                color: Colors.white.withValues(alpha: 0.22),
+                width: 0.6,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.35),
-                  blurRadius: 36,
-                  spreadRadius: 1,
-                  offset: const Offset(0, 10),
-                ),
-              ],
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(24),
@@ -576,7 +568,8 @@ class _TrackMenuCard extends ConsumerWidget {
     GlassDialog.show(
       context: context,
       barrierDismissible: true,
-      settings: kTrackMenuGlassSettings,
+      barrierColor: Colors.black.withValues(alpha: 0.10),
+      settings: const LiquidGlassSettings(),
       title: 'New Playlist',
       message: 'Enter a title for this playlist.',
       maxWidth: 300,
@@ -641,7 +634,8 @@ class _TrackMenuCard extends ConsumerWidget {
     GlassDialog.show(
       context: context,
       barrierDismissible: true,
-      settings: kTrackMenuGlassSettings,
+      barrierColor: Colors.black.withValues(alpha: 0.10),
+      settings: const LiquidGlassSettings(),
       title: 'Song Info',
       maxWidth: 320,
       content: Padding(

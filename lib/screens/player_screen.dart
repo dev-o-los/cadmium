@@ -108,8 +108,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   late AnimationController _dragSnapBackController;
   late Animation<double> _dragSnapBackAnimation;
 
-  // Auto-hide timer for collapsing downside controls after 5-10s (7 seconds default)
+  // Auto-hide timer for collapsing downside controls after 5-10s (7 seconds default in lyrics mode)
   Timer? _autoHideTimer;
+  // Timer for smoothly moving player down when video is playing in nowPlaying mode
+  Timer? _videoMoveDownTimer;
 
   // Scrubber drag state (local UI interaction only)
   bool _isDraggingSlider = false;
@@ -128,7 +130,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // Downside player collapse/expand animation controller (starts visible)
     _controlsAnimController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 520),
+      duration: const Duration(milliseconds: 600),
       value: 1.0,
     );
 
@@ -150,12 +152,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           });
         });
 
-    // Auto-collapse check after initial screen load only if in lyrics mode
+    // Auto-collapse check after initial screen load
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final isPlaying = ref.read(playerProvider).isPlaying;
-        if (isPlaying && _currentMode == PlayerViewMode.lyrics) {
-          _startAutoHideTimer();
+        if (isPlaying) {
+          if (_currentMode == PlayerViewMode.lyrics) {
+            _startAutoHideTimer();
+          } else {
+            _startVideoMoveDownTimer();
+          }
         }
       }
     });
@@ -215,6 +221,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
+  void _startVideoMoveDownTimer() {
+    _videoMoveDownTimer?.cancel();
+    if (!mounted) return;
+    final isPlaying = ref.read(playerProvider).isPlaying;
+    final animUrl = ref.read(playerProvider).animatedArtworkUrl ??
+        ref.read(playerProvider).currentSong?.animatedArtworkUrl;
+    final hasVideo = animUrl != null && animUrl.isNotEmpty;
+    if (isPlaying && hasVideo && _currentMode == PlayerViewMode.nowPlaying && !_isDraggingSlider) {
+      _videoMoveDownTimer = Timer(const Duration(milliseconds: 3200), () {
+        if (mounted &&
+            ref.read(playerProvider).isPlaying &&
+            !_isDraggingSlider &&
+            _currentMode == PlayerViewMode.nowPlaying) {
+          final currentAnim = ref.read(playerProvider).animatedArtworkUrl ??
+              ref.read(playerProvider).currentSong?.animatedArtworkUrl;
+          if (currentAnim != null && currentAnim.isNotEmpty) {
+            _controlsAnimController.reverse();
+          }
+        }
+      });
+    }
+  }
+
+  void _cancelVideoMoveDownTimer() {
+    _videoMoveDownTimer?.cancel();
+    _videoMoveDownTimer = null;
+  }
+
   void _cancelAutoHideTimer() {
     _autoHideTimer?.cancel();
     _autoHideTimer = null;
@@ -227,24 +261,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
     if (_currentMode == PlayerViewMode.lyrics) {
       _startAutoHideTimer();
+    } else {
+      _startVideoMoveDownTimer();
     }
   }
 
   void _toggleControls() {
-    // Only allow collapsing controls when in lyrics mode
-    if (_currentMode != PlayerViewMode.lyrics) {
-      if (_controlsAnimController.value < 1.0) {
+    if (_controlsAnimController.isAnimating) return;
+    if (_currentMode == PlayerViewMode.lyrics) {
+      if (_controlsAnimController.value > 0.5) {
+        _cancelAutoHideTimer();
+        _controlsAnimController.reverse();
+      } else {
         _controlsAnimController.forward();
+        _startAutoHideTimer();
       }
       return;
     }
-    if (_controlsAnimController.isAnimating) return;
+
+    // Now Playing mode: toggle between moved-down and normal
     if (_controlsAnimController.value > 0.5) {
-      _cancelAutoHideTimer();
+      _cancelVideoMoveDownTimer();
       _controlsAnimController.reverse();
     } else {
       _controlsAnimController.forward();
-      _startAutoHideTimer();
+      _startVideoMoveDownTimer();
     }
   }
 
@@ -263,6 +304,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       );
       _cancelAutoHideTimer();
       _controlsAnimController.forward();
+      _startVideoMoveDownTimer();
     } else {
       if (oldMode == PlayerViewMode.nowPlaying) {
         _modeAnimController.animateTo(
@@ -271,6 +313,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           curve: Curves.easeInOutCubic,
         );
       }
+      _cancelVideoMoveDownTimer();
       _controlsAnimController.forward();
       if (newMode == PlayerViewMode.lyrics) {
         _startAutoHideTimer();
@@ -297,6 +340,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   void dispose() {
     _autoHideTimer?.cancel();
+    _videoMoveDownTimer?.cancel();
     _ambientAnimController.dispose();
     _controlsAnimController.dispose();
     _modeAnimController.dispose();
@@ -324,7 +368,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       favoritesProvider.select((list) => list.any((s) => s.id == song.id)),
     );
 
-    // Auto-hide controls when song starts playing ONLY in lyrics mode; keep visible in nowPlaying and queue
+    // Auto-hide controls in lyrics mode, and smoothly move player down when video is playing
     ref.listen<bool>(playerProvider.select((s) => s.isPlaying), (
       previous,
       isPlaying,
@@ -333,12 +377,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         if (_currentMode == PlayerViewMode.lyrics) {
           _startAutoHideTimer();
         } else {
-          _cancelAutoHideTimer();
-          _controlsAnimController.forward();
+          _startVideoMoveDownTimer();
         }
       } else {
         _cancelAutoHideTimer();
+        _cancelVideoMoveDownTimer();
         _controlsAnimController.forward();
+      }
+    });
+
+    ref.listen<String?>(playerProvider.select((s) => s.animatedArtworkUrl), (
+      previous,
+      animUrl,
+    ) {
+      if (animUrl != null && animUrl.isNotEmpty && ref.read(playerProvider).isPlaying) {
+        if (_currentMode == PlayerViewMode.nowPlaying) {
+          _startVideoMoveDownTimer();
+        }
       }
     });
 
@@ -364,14 +419,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             offset: Offset(0, _dragOffsetY),
             child: GestureDetector(
               onTap: () {
-                // Tapping anywhere reveals controls if collapsed, or resets inactivity timer in lyrics mode
+                // Tapping anywhere reveals controls if moved down, or resets inactivity timer
                 if (_controlsAnimController.value < 0.5) {
                   _controlsAnimController.forward();
                   if (_currentMode == PlayerViewMode.lyrics) {
                     _startAutoHideTimer();
+                  } else {
+                    _startVideoMoveDownTimer();
                   }
                 } else if (_currentMode == PlayerViewMode.lyrics) {
                   _startAutoHideTimer();
+                } else {
+                  final animUrl = ref.read(playerProvider).animatedArtworkUrl ??
+                      ref.read(playerProvider).currentSong?.animatedArtworkUrl;
+                  if (animUrl != null && animUrl.isNotEmpty) {
+                    _cancelVideoMoveDownTimer();
+                    _controlsAnimController.reverse();
+                  }
                 }
               },
               behavior: HitTestBehavior.translucent,
@@ -450,10 +514,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return Container(color: Colors.black);
     }
 
-    final animatedArtworkUrl =
-        ref.watch(playerProvider.select((s) => s.animatedArtworkUrl)) ??
-        song.animatedArtworkUrl;
-
     return Positioned.fill(
       child: AnimatedBuilder(
         animation: Listenable.merge([
@@ -462,99 +522,46 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           _controlsAnimController,
         ]),
         builder: (context, _) {
-          final scale = 1.0 + (_ambientAnimController.value * 0.05);
           final modeVal = _modeAnimController.value;
           final controlsVal = CurvedAnimation(
             parent: _controlsAnimController,
             curve: Curves.easeInOutCubic,
           ).value;
 
-          // In nowPlaying mode, blur smoothly transitions from 15.0 down to 0.0 when controls collapse.
-          // In lyrics/queue mode, keep ambient blur (15.0) for readability of text.
-          final effectiveSigma = ui.lerpDouble(
-            15.0 * modeVal,
-            15.0,
-            controlsVal,
-          )!.clamp(0.0, 15.0);
-
-          Widget backdropImage = WavifyCachedImage(
-            imageUrl:
-                AmbientVideoCanvas.isVideoUrl(
-                  animatedArtworkUrl,
-                )
-                ? artworkUrl
-                : (animatedArtworkUrl ?? artworkUrl),
-            placeholderImageUrl:
-                song.resolvedThumbnailUrl ??
-                song.thumbnailUrl,
-            songId: song.id,
-            fit: BoxFit.cover,
-            alignment: Alignment.topCenter,
-            filterQuality: FilterQuality.medium,
-            errorWidget: const SizedBox(),
-          );
-
-          backdropImage = ColorFiltered(
-            colorFilter: _amoledVibrancyFilter,
-            child: backdropImage,
-          );
-
-          if (effectiveSigma > 0.1) {
-            backdropImage = ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(
-                sigmaX: effectiveSigma,
-                sigmaY: effectiveSigma,
-              ),
-              child: backdropImage,
-            );
-          }
-
           final primaryColor = ref.watch(currentSongPrimaryColorProvider).asData?.value ??
               ArtworkColorService.instance.getCachedColor(artworkUrl) ??
               ArtworkColorService.instance.getFallbackBestColor('${song.title} ${song.artist}');
-          final deeperPrimary = ArtworkColorService.instance.computeDeeperTone(primaryColor);
+
+          // Keep colors bright, luminous and saturated; do not add extra dark shades!
+          final hsl = HSLColor.fromColor(primaryColor);
+          final brightPrimary = hsl
+              .withSaturation((hsl.saturation * 1.15).clamp(0.60, 1.0))
+              .withLightness(hsl.lightness.clamp(0.38, 0.55))
+              .toColor();
+          final brightAccent = hsl
+              .withHue((hsl.hue + 28) % 360)
+              .withSaturation((hsl.saturation * 1.10).clamp(0.60, 1.0))
+              .withLightness((hsl.lightness * 1.10).clamp(0.42, 0.60))
+              .toColor();
 
           return Stack(
             fit: StackFit.expand,
             children: [
-              // 1. Solid primary color foundation from PaletteGenerator (Player Screen solid backdrop beneath artwork)
+              // 1. Solid bright primary color foundation (bottom section uses this solid color, no blurred album art!)
               Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        primaryColor.withValues(alpha: 0.90),
-                        primaryColor,
-                        deeperPrimary,
-                      ],
-                      stops: const [0.0, 0.45, 1.0],
-                    ),
+                    color: brightPrimary,
                   ),
                 ),
+              )
+              .animate(key: ValueKey('player_screen_ambient_${song.id}'))
+              .fadeIn(
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeOut,
               ),
 
-              // 2. Full-bleed artwork backdrop (blurred when controls are up, crisp when controls collapse)
-              Positioned.fill(
-                    child: Opacity(
-                      opacity: ui.lerpDouble(1.0, 0.25, modeVal)!,
-                      child: ClipRect(
-                        child: Transform.scale(
-                          scale: scale * (1.0 + (0.15 * controlsVal)),
-                          alignment: Alignment.topCenter,
-                          child: backdropImage,
-                        ),
-                      ),
-                    ),
-                  )
-                  .animate(key: ValueKey('player_screen_ambient_${song.id}'))
-                  .fadeIn(
-                    duration: const Duration(milliseconds: 500),
-                    curve: Curves.easeOut,
-                  ),
-
-              // 3. Apple Music-style Animated Solid Primary Color Canvas for Lyrics Screen
+              // 2. Animated Bright Color Palette Canvas for Lyrics Screen (bright, vibrant tones, no dark shades!)
               if (modeVal > 0.001)
                 Positioned.fill(
                   child: Opacity(
@@ -572,48 +579,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                               ),
                               radius: 1.30,
                               colors: [
-                                primaryColor.withValues(alpha: 0.95),
-                                primaryColor.withValues(alpha: 0.90),
-                                deeperPrimary.withValues(alpha: 0.96),
-                                deeperPrimary,
+                                brightPrimary,
+                                brightAccent,
+                                brightPrimary.withValues(alpha: 0.95),
+                                brightAccent,
                               ],
-                              stops: const [0.0, 0.45, 0.80, 1.0],
+                              stops: const [0.0, 0.40, 0.75, 1.0],
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-
-              // Smooth transition to primary color beneath the artwork in Now Playing mode
-              Positioned.fill(
-                child: Opacity(
-                  opacity: (1.0 - modeVal).clamp(0.0, 1.0),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.transparent,
-                          primaryColor.withValues(alpha: 0.20 * controlsVal),
-                          primaryColor.withValues(alpha: 0.65 * controlsVal),
-                          primaryColor.withValues(alpha: 0.90 * controlsVal),
-                        ],
-                        stops: const [0.0, 0.40, 0.55, 0.75, 1.0],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              // Subtle darkening layer for Lyrics readability
-              if (modeVal > 0.0)
-                Positioned.fill(
-                  child: Container(
-                    color: Colors.black.withValues(alpha: 0.15 * modeVal),
                   ),
                 ),
 
@@ -631,7 +607,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Colors.black.withValues(alpha: 0.50),
+                          Colors.black.withValues(alpha: 0.35),
                           Colors.transparent,
                         ],
                         stops: const [0.0, 1.0],
@@ -1096,241 +1072,222 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     required double bottomPadding,
     required bool isFavorite,
   }) {
-    return Positioned(
-      left: 0,
-      right: 0,
-      bottom: bottomPadding + 54,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 26),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Metadata Row: Track Title & Artist on Left, Star & 3-dots on Right
-            AnimatedBuilder(
-              animation: _modeAnimController,
-              builder: (context, _) {
-                final modeVal = _modeAnimController.value;
-                if (modeVal >= 0.95) {
-                  return const SizedBox.shrink();
-                }
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        _modeAnimController,
+        _controlsAnimController,
+      ]),
+      builder: (context, _) {
+        final modeVal = _modeAnimController.value;
+        final controlsVal = CurvedAnimation(
+          parent: _controlsAnimController,
+          curve: Curves.easeInOutCubic,
+        ).value;
 
-                return Opacity(
-                  opacity: (1.0 - (modeVal * 2.2)).clamp(0.0, 1.0),
-                  child: _buildMetadataRow(song, isFavorite),
-                );
-              },
-            ),
+        // When video is playing on the player screen and controls move down:
+        // Gradually moves the player down with a smooth transition.
+        // The title track, lyrics above slider, slider bar, player controls,
+        // and three bottom buttons remain completely visible!
+        final bottomOffset = ui.lerpDouble(
+          math.max(bottomPadding, 10.0) + 4.0,
+          bottomPadding + 44.0,
+          controlsVal,
+        )!;
 
-            // Downside collapsible player controls (Scrubber, transport, dock)
-            ClipRect(
-              child: SizeTransition(
-                sizeFactor: CurvedAnimation(
-                  parent: _controlsAnimController,
-                  curve: Curves.easeInOutCubic,
-                ),
-                alignment: Alignment.topCenter,
-                child: FadeTransition(
-                  opacity: CurvedAnimation(
-                    parent: _controlsAnimController,
-                    curve: const Interval(0.25, 1.0, curve: Curves.easeOut),
-                  ),
-                  child: SlideTransition(
-                    position:
-                        Tween<Offset>(
-                          begin: const Offset(0.0, 0.25),
-                          end: Offset.zero,
-                        ).animate(
-                          CurvedAnimation(
-                            parent: _controlsAnimController,
-                            curve: Curves.easeInOutCubic,
-                          ),
-                        ),
-                    child: AnimatedBuilder(
-                      animation: _controlsAnimController,
-                      builder: (context, child) {
-                        if (_controlsAnimController.value == 0.0) {
-                          return const SizedBox.shrink();
-                        }
-                        return child!;
-                      },
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (_currentMode != PlayerViewMode.lyrics)
-                            const SizedBox(height: 20)
-                          else
-                            const SizedBox(height: 8),
+        final verticalSlide = ui.lerpDouble(16.0, 0.0, controlsVal)!;
+        final gapMetadataToLyrics = ui.lerpDouble(6.0, 16.0, controlsVal)!;
+        final gapLyricsToScrubber = ui.lerpDouble(2.0, 4.0, controlsVal)!;
+        final gapScrubberToTransport = ui.lerpDouble(12.0, 36.0, controlsVal)!;
+        final gapTransportToActionDock = ui.lerpDouble(12.0, 36.0, controlsVal)!;
 
-                          // Lyrics Hook Preview Banner (visible in Now Playing and Queue modes)
-                          if (_currentMode != PlayerViewMode.lyrics) ...[
-                            Consumer(
-                              builder: (context, ref, _) {
-                                final activeLyric = ref.watch(
-                                  playerProvider.select((s) {
-                                    if (s.lyrics.isNotEmpty) {
-                                      if (s.activeLyricIndex >= 0 &&
-                                          s.activeLyricIndex <
-                                              s.lyrics.length) {
-                                        final lyricText = s
-                                            .lyrics[s.activeLyricIndex]
-                                            .text
-                                            .trim();
-                                        if (lyricText.isNotEmpty) {
-                                          return lyricText;
-                                        }
-                                      } else if (s.lyrics.first.text
-                                          .trim()
-                                          .isNotEmpty) {
-                                        return s.lyrics.first.text.trim();
-                                      }
-                                    }
-                                    return 'The hook is on the way';
-                                  }),
-                                );
+        return Positioned(
+          left: 0,
+          right: 0,
+          bottom: bottomOffset,
+          child: Transform.translate(
+            offset: Offset(0, verticalSlide),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 26),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 1. Metadata Row: Track Title & Artist on Left, Star & 3-dots on Right
+                  if (modeVal < 0.95)
+                    Opacity(
+                      opacity: (1.0 - (modeVal * 2.2)).clamp(0.0, 1.0),
+                      child: _buildMetadataRow(song, isFavorite),
+                    ),
 
-                                return ApplePressable(
-                                  onTap: () =>
-                                      _switchMode(PlayerViewMode.lyrics),
-                                  pressedScale: 0.98,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 2,
+                  if (_currentMode != PlayerViewMode.lyrics)
+                    SizedBox(height: gapMetadataToLyrics)
+                  else
+                    const SizedBox(height: 8),
+
+                  // 2. Lyrics Hook Preview Banner (visible in Now Playing and Queue modes)
+                  if (_currentMode != PlayerViewMode.lyrics) ...[
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final activeLyric = ref.watch(
+                          playerProvider.select((s) {
+                            if (s.lyrics.isNotEmpty) {
+                              if (s.activeLyricIndex >= 0 &&
+                                  s.activeLyricIndex <
+                                      s.lyrics.length) {
+                                final lyricText = s
+                                    .lyrics[s.activeLyricIndex]
+                                    .text
+                                    .trim();
+                                if (lyricText.isNotEmpty) {
+                                  return lyricText;
+                                }
+                              } else if (s.lyrics.first.text
+                                  .trim()
+                                  .isNotEmpty) {
+                                return s.lyrics.first.text.trim();
+                              }
+                            }
+                            return 'The hook is on the way';
+                          }),
+                        );
+
+                        return ApplePressable(
+                          onTap: () =>
+                              _switchMode(PlayerViewMode.lyrics),
+                          pressedScale: 0.98,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 2,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  CupertinoIcons.music_note_2,
+                                  color: Colors.white,
+                                  size: 15,
+                                ),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: AnimatedSwitcher(
+                                    duration: const Duration(
+                                      milliseconds: 320,
                                     ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.center,
-                                      children: [
-                                        const Icon(
-                                          CupertinoIcons.music_note_2,
-                                          color: Colors.white,
-                                          size: 15,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Flexible(
-                                          child: AnimatedSwitcher(
-                                            duration: const Duration(
-                                              milliseconds: 320,
-                                            ),
-                                            layoutBuilder:
-                                                (
-                                                  currentChild,
-                                                  previousChildren,
-                                                ) {
-                                                  return Stack(
-                                                    alignment:
-                                                        Alignment.centerLeft,
-                                                    children: [
-                                                      ...previousChildren,
-                                                      ?currentChild,
-                                                    ],
-                                                  );
-                                                },
-                                            transitionBuilder:
-                                                (child, animation) {
-                                                  final isEntering =
-                                                      (child.key
-                                                              as ValueKey<
-                                                                String
-                                                              >?)
-                                                          ?.value ==
-                                                      activeLyric;
-                                                  final offsetAnimation =
-                                                      isEntering
-                                                      ? Tween<Offset>(
-                                                          begin: const Offset(
-                                                            0.0,
-                                                            0.9,
-                                                          ),
-                                                          end: Offset.zero,
-                                                        ).animate(
-                                                          CurvedAnimation(
-                                                            parent: animation,
-                                                            curve: Curves
-                                                                .easeOutCubic,
-                                                          ),
-                                                        )
-                                                      : Tween<Offset>(
-                                                          begin: const Offset(
-                                                            0.0,
-                                                            -0.9,
-                                                          ),
-                                                          end: Offset.zero,
-                                                        ).animate(
-                                                          CurvedAnimation(
-                                                            parent: animation,
-                                                            curve: Curves
-                                                                .easeInCubic,
-                                                          ),
-                                                        );
+                                    layoutBuilder:
+                                        (
+                                          currentChild,
+                                          previousChildren,
+                                        ) {
+                                          return Stack(
+                                            alignment:
+                                                Alignment.centerLeft,
+                                            children: [
+                                              ...previousChildren,
+                                              ?currentChild,
+                                            ],
+                                          );
+                                        },
+                                    transitionBuilder:
+                                        (child, animation) {
+                                          final isEntering =
+                                              (child.key
+                                                      as ValueKey<
+                                                        String
+                                                      >?)
+                                                  ?.value ==
+                                              activeLyric;
+                                          final offsetAnimation =
+                                              isEntering
+                                              ? Tween<Offset>(
+                                                  begin: const Offset(
+                                                    0.0,
+                                                    0.9,
+                                                  ),
+                                                  end: Offset.zero,
+                                                ).animate(
+                                                  CurvedAnimation(
+                                                    parent: animation,
+                                                    curve: Curves
+                                                        .easeOutCubic,
+                                                  ),
+                                                )
+                                              : Tween<Offset>(
+                                                  begin: const Offset(
+                                                    0.0,
+                                                    -0.9,
+                                                  ),
+                                                  end: Offset.zero,
+                                                ).animate(
+                                                  CurvedAnimation(
+                                                    parent: animation,
+                                                    curve: Curves
+                                                        .easeInCubic,
+                                                  ),
+                                                );
 
-                                                  return ClipRect(
-                                                    child: SlideTransition(
-                                                      position: offsetAnimation,
-                                                      child: FadeTransition(
-                                                        opacity: animation,
-                                                        child: child,
-                                                      ),
-                                                    ),
-                                                  );
-                                                },
-                                            child: Text(
-                                              activeLyric,
-                                              key: ValueKey<String>(
-                                                activeLyric,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                color: Colors.white.withValues(
-                                                  alpha: 0.85,
-                                                ),
-                                                fontSize: 13.5,
-                                                fontWeight: FontWeight.w500,
-                                                letterSpacing: -0.2,
+                                          return ClipRect(
+                                            child: SlideTransition(
+                                              position: offsetAnimation,
+                                              child: FadeTransition(
+                                                opacity: animation,
+                                                child: child,
                                               ),
                                             ),
-                                          ),
+                                          );
+                                        },
+                                    child: Text(
+                                      activeLyric,
+                                      key: ValueKey<String>(
+                                        activeLyric,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.85,
                                         ),
-                                        const SizedBox(width: 5),
-                                        Icon(
-                                          CupertinoIcons.chevron_right,
-                                          color: Colors.white.withValues(
-                                            alpha: 0.45,
-                                          ),
-                                          size: 12.5,
-                                        ),
-                                      ],
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w500,
+                                        letterSpacing: -0.2,
+                                      ),
                                     ),
                                   ),
-                                );
-                              },
+                                ),
+                                const SizedBox(width: 5),
+                                Icon(
+                                  CupertinoIcons.chevron_right,
+                                  color: Colors.white.withValues(
+                                    alpha: 0.45,
+                                  ),
+                                  size: 12.5,
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 4),
-                          ],
-
-                          // Slider Bar with appropriate padding top & bottom
-                          _buildDurationScrubber(),
-                          const SizedBox(height: 40),
-
-                          // Player Controls (Transport) with padding at top and bottom
-                          _buildTransportControls(),
-                          const SizedBox(height: 40),
-
-                          // Bottom Parts (Action Dock: Lyrics, Speaker, Queue) - ALWAYS at the bottom!
-                          _buildActionDock(),
-                        ],
-                      ),
+                          ),
+                        );
+                      },
                     ),
-                  ),
-                ),
+                    SizedBox(height: gapLyricsToScrubber),
+                  ],
+
+                  // 3. Slider Bar with appropriate padding top & bottom
+                  _buildDurationScrubber(),
+                  SizedBox(height: gapScrubberToTransport),
+
+                  // 4. Player Controls (Transport) with padding at top and bottom
+                  _buildTransportControls(),
+                  SizedBox(height: gapTransportToActionDock),
+
+                  // 5. Bottom Parts (Action Dock: Lyrics, Speaker, Queue) - ALWAYS at the bottom!
+                  _buildActionDock(),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -1422,15 +1379,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         song.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppleTypography.playerTitle.copyWith(
-                          shadows: [
-                            Shadow(
-                              color: Colors.black.withValues(alpha: 0.70),
-                              blurRadius: 10,
-                              offset: const Offset(0, 1),
-                            ),
-                          ],
-                        ),
+                        style: AppleTypography.playerTitle,
                       ),
                     ),
                   ],
@@ -1443,15 +1392,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     song.artist,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppleTypography.playerArtist.copyWith(
-                      shadows: [
-                        Shadow(
-                          color: Colors.black.withValues(alpha: 0.70),
-                          blurRadius: 8,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
-                    ),
+                    style: AppleTypography.playerArtist,
                   ),
                 ),
               ],
