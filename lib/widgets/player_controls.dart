@@ -123,7 +123,7 @@ class PlayerControls extends ConsumerWidget {
       shape: const LiquidRoundedRectangle(borderRadius: 26),
       settings: kLiquidBottomDockGlassSettings,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.only(left: 12, right: 8, top: 4, bottom: 4),
         child: Row(
             children: [
               // Album Artwork (BitChord spec: 31x31 with 6px rounded corners)
@@ -262,7 +262,7 @@ class PlayerControls extends ConsumerWidget {
       shape: const LiquidRoundedRectangle(borderRadius: 26),
       settings: kLiquidBottomDockGlassSettings,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10),
+        padding: const EdgeInsets.only(left: 16, right: 10),
         child: Row(
             children: [
               // Tappable song info (Artwork + Title + Artist) to open full player screen
