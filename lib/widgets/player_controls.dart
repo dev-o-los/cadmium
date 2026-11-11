@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -9,29 +10,28 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../constants/apple_typography.dart';
 import '../providers/player_provider.dart';
-import '../services/artwork_color_service.dart';
 import '../utils/playback_utils.dart';
 import 'animated_cupertino_icon.dart';
 import 'apple_pressable.dart';
-import 'liquid_glass_bottom_bar.dart';
 import 'smooth_player_loader.dart';
 import 'wavify_cached_image.dart';
 
-/// Reactive provider extracting the secondary ambient tone from current song artwork
-final currentSongSecondaryColorProvider = FutureProvider.autoDispose<Color>((
-  ref,
-) async {
-  final song = ref.watch(playerProvider.select((s) => s.currentSong));
-  if (song == null) return const Color(0xFF1E1E26);
-  final art =
-      song.highResThumbnailUrl ??
-      song.resolvedThumbnailUrl ??
-      song.thumbnailUrl;
-  return ArtworkColorService.instance.extractSecondaryColor(
-    art,
-    fallbackSeed: '${song.title} ${song.artist}',
-  );
-});
+/// Pure liquid glass preset for the mini player matching the bottom navigation buttons:
+/// - Exact optical parameters matching bottom bar dock (thickness: 30, blur: 3, lightIntensity: 0.6,
+///   refractiveIndex: 1.59, saturation: 0.7, ambientStrength: 1, lightAngle: 0.75 * pi, glassColor: 0x3DFFFFFF).
+/// - chromaticAberration: 0.0: eliminated so high-contrast album artwork never creates green/magenta/black
+///   chromatic dispersion fringes or spots.
+const kMiniPlayerGlassSettings = LiquidGlassSettings(
+  thickness: 30,
+  blur: 3,
+  chromaticAberration: 0.0,
+  lightIntensity: 0.6,
+  refractiveIndex: 1.59,
+  saturation: 0.7,
+  ambientStrength: 1,
+  lightAngle: 0.75 * math.pi,
+  glassColor: Color(0x3DFFFFFF),
+);
 
 /// Floating Liquid Glass Mini Player inspired by Apple Music.
 /// Uses Riverpod for reactive playback state management, Cupertino icons, and zero-lag controls.
@@ -58,18 +58,6 @@ class PlayerControls extends ConsumerWidget {
     final thumbArt =
         currentSong.resolvedThumbnailUrl ?? currentSong.thumbnailUrl;
 
-    // Pick secondary color from currently playing album artwork
-    final cachedSec = ArtworkColorService.instance.getCachedSecondaryColor(
-      effectiveArt ?? thumbArt ?? '${currentSong.title} ${currentSong.artist}',
-    );
-    final asyncSec = ref.watch(currentSongSecondaryColorProvider).valueOrNull;
-    final secondaryColor =
-        asyncSec ??
-        cachedSec ??
-        ArtworkColorService.instance.getFallbackSecondaryColor(
-          '${currentSong.title} ${currentSong.artist}',
-        );
-
     // Detect whether we are rendering inline inside minimized GlassTabBar or expanded
     final placement = GlassTabBarAccessoryPlacementScope.of(context);
     final isInline = placement == GlassTabBarAccessoryPlacement.inline;
@@ -85,7 +73,6 @@ class PlayerControls extends ConsumerWidget {
         songId: currentSong.id,
         isPlaying: isPlaying,
         isLoading: isLoading,
-        secondaryColor: secondaryColor,
       );
     }
 
@@ -99,7 +86,6 @@ class PlayerControls extends ConsumerWidget {
       songId: currentSong.id,
       isPlaying: isPlaying,
       isLoading: isLoading,
-      secondaryColor: secondaryColor,
     );
   }
 
@@ -115,16 +101,15 @@ class PlayerControls extends ConsumerWidget {
     required String? songId,
     required bool isPlaying,
     required bool isLoading,
-    required Color secondaryColor,
   }) {
     return GlassContainer(
-      useOwnLayer: false,
+      useOwnLayer: true,
       margin: const EdgeInsets.symmetric(horizontal: 6.0),
       height: 52,
-      shape: const LiquidRoundedRectangle(borderRadius: 26),
-      settings: kLiquidBottomDockGlassSettings,
+      shape: const LiquidRoundedSuperellipse(borderRadius: 26),
+      settings: kMiniPlayerGlassSettings,
       child: Padding(
-        padding: const EdgeInsets.only(left: 14, right: 12, top: 4, bottom: 4),
+        padding: const EdgeInsets.only(left: 18, right: 12, top: 4, bottom: 4),
         child: Row(
             children: [
               // Album Artwork (BitChord spec: 31x31 with 6px rounded corners)
@@ -255,15 +240,14 @@ class PlayerControls extends ConsumerWidget {
     required String? songId,
     required bool isPlaying,
     required bool isLoading,
-    required Color secondaryColor,
   }) {
     return GlassContainer(
-      useOwnLayer: false,
+      useOwnLayer: true,
       height: 52,
-      shape: const LiquidRoundedRectangle(borderRadius: 26),
-      settings: kLiquidBottomDockGlassSettings,
+      shape: const LiquidRoundedSuperellipse(borderRadius: 26),
+      settings: kMiniPlayerGlassSettings,
       child: Padding(
-        padding: const EdgeInsets.only(left: 16, right: 10),
+        padding: const EdgeInsets.only(left: 18, right: 10),
         child: Row(
             children: [
               // Tappable song info (Artwork + Title + Artist) to open full player screen
