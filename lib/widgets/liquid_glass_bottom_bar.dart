@@ -82,7 +82,7 @@ class LiquidGlassBottomBar extends StatelessWidget {
       ),
       bottomAccessory: bottomAccessory,
       bottomAccessoryEnabled: bottomAccessory != null,
-      bottomAccessoryHeight: 52.0,
+      bottomAccessoryHeight: 58.0,
       bottomAccessorySpacing: 6.0,
       barHeight: 58.0,
       minimizedBarHeight: 52.0,
