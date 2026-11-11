@@ -103,18 +103,6 @@ class PlayerControls extends ConsumerWidget {
     );
   }
 
-  /// Resolves liquid glass settings matching the bottom navigation dock,
-  /// subtly blended with the artwork secondary tone for Apple-style ambient harmony and high visibility.
-  LiquidGlassSettings _resolveGlassSettings(Color secondaryColor) {
-    final glassColor = Color.alphaBlend(
-      secondaryColor.withValues(alpha: 0.08),
-      kLiquidBottomDockGlassSettings.glassColor,
-    );
-    return kLiquidBottomDockGlassSettings.copyWith(
-      glassColor: glassColor,
-    );
-  }
-
   /// Compact inline music player capsule fitting between collapsed tab circle and search pill
   /// matching the exact reference layout in the liquid_glass_widgets specifications.
   Widget _buildInlinePlayer({
@@ -129,18 +117,22 @@ class PlayerControls extends ConsumerWidget {
     required bool isLoading,
     required Color secondaryColor,
   }) {
+    const double barHeight = 52.0;
+    const double artSize = 36.0;
+    const double symmetricPadding = 8.0;
+
     return GlassContainer(
       useOwnLayer: true,
-      height: 52,
+      height: barHeight,
       shape: const LiquidRoundedRectangle(borderRadius: 26),
-      settings: _resolveGlassSettings(secondaryColor),
+      settings: kLiquidBottomDockGlassSettings,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: symmetricPadding),
         child: Row(
             children: [
-              // Album Artwork (BitChord spec: 31x31 with 6px rounded corners)
+              // Album Artwork: perfectly symmetric 8px padding on top, bottom, left, and right
               Padding(
-                padding: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.only(right: symmetricPadding),
                 child: GestureDetector(
                   onTap: onTap,
                   behavior: HitTestBehavior.opaque,
@@ -149,16 +141,16 @@ class PlayerControls extends ConsumerWidget {
                     flightShuttleBuilder: playerHeroFlightShuttleBuilder,
                     child:
                         ClipRRect(
-                              borderRadius: BorderRadius.circular(6),
+                              borderRadius: BorderRadius.circular(8),
                               child: WavifyCachedImage(
                                 imageUrl: highResArt ?? thumbArt,
                                 placeholderImageUrl: thumbArt,
                                 songId: songId,
-                                width: 31,
-                                height: 31,
+                                width: artSize,
+                                height: artSize,
                                 fit: BoxFit.cover,
                                 filterQuality: FilterQuality.medium,
-                                errorWidget: _fallbackArtwork(size: 31),
+                                errorWidget: _fallbackArtwork(size: artSize),
                               ),
                             )
                             .animate(key: ValueKey('mini_art_inline_$songId'))
@@ -268,13 +260,17 @@ class PlayerControls extends ConsumerWidget {
     required bool isLoading,
     required Color secondaryColor,
   }) {
+    const double barHeight = 52.0;
+    const double artSize = 36.0;
+    const double symmetricPadding = 8.0;
+
     return GlassContainer(
       useOwnLayer: true,
-      height: 52,
+      height: barHeight,
       shape: const LiquidRoundedRectangle(borderRadius: 26),
-      settings: _resolveGlassSettings(secondaryColor),
+      settings: kLiquidBottomDockGlassSettings,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10),
+        padding: const EdgeInsets.symmetric(horizontal: symmetricPadding),
         child: Row(
             children: [
               // Tappable song info (Artwork + Title + Artist) to open full player screen
@@ -284,24 +280,24 @@ class PlayerControls extends ConsumerWidget {
                   behavior: HitTestBehavior.opaque,
                   child: Row(
                     children: [
-                      // Album Artwork (BitChord spec: 31x31 with 6px rounded corners)
+                      // Album Artwork: perfectly symmetric 8px padding on top, bottom, left, and right
                       Padding(
-                        padding: const EdgeInsets.only(right: 9),
+                        padding: const EdgeInsets.only(right: symmetricPadding),
                         child: Hero(
                           tag: 'player_album_art_$songId',
                           flightShuttleBuilder: playerHeroFlightShuttleBuilder,
                           child:
                               ClipRRect(
-                                    borderRadius: BorderRadius.circular(6),
+                                    borderRadius: BorderRadius.circular(8),
                                     child: WavifyCachedImage(
                                       imageUrl: highResArt ?? thumbArt,
                                       placeholderImageUrl: thumbArt,
                                       songId: songId,
-                                      width: 31,
-                                      height: 31,
+                                      width: artSize,
+                                      height: artSize,
                                       fit: BoxFit.cover,
                                       filterQuality: FilterQuality.medium,
-                                      errorWidget: _fallbackArtwork(size: 31),
+                                      errorWidget: _fallbackArtwork(size: artSize),
                                     ),
                                   )
                                   .animate(
@@ -359,8 +355,8 @@ class PlayerControls extends ConsumerWidget {
                 },
                 pressedScale: 0.88,
                 child: Container(
-                  width: 40,
-                  height: 40,
+                  width: 36,
+                  height: 36,
                   alignment: Alignment.center,
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 240),
@@ -383,7 +379,7 @@ class PlayerControls extends ConsumerWidget {
                     child:
                         (isLoading &&
                             !Platform.environment.containsKey('FLUTTER_TEST'))
-                        ? const SmoothPlayerLoader(radius: 11)
+                        ? const SmoothPlayerLoader(radius: 10)
                         : AnimatedCupertinoIcon(
                             key: ValueKey(
                               'mini_expanded_play_pause_$isPlaying',
@@ -392,14 +388,14 @@ class PlayerControls extends ConsumerWidget {
                                 ? CupertinoIcons.pause_fill
                                 : CupertinoIcons.play_fill,
                             color: Colors.white,
-                            size: 29,
+                            size: 26,
                           ),
                   ),
                 ),
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 2),
 
-              // Skip Next Button (Fast Forward - BitChord spec: 40x40 touch target, 22pt glyph, 70% white)
+              // Skip Next Button (Fast Forward)
               GestureDetector(
                 onTap: () {
                   HapticFeedback.lightImpact();
@@ -407,8 +403,8 @@ class PlayerControls extends ConsumerWidget {
                 },
                 behavior: HitTestBehavior.opaque,
                 child: Container(
-                  width: 40,
-                  height: 40,
+                  width: 36,
+                  height: 36,
                   alignment: Alignment.center,
                   child: const AnimatedCupertinoIcon(
                     icon: CupertinoIcons.forward_fill,
@@ -423,11 +419,14 @@ class PlayerControls extends ConsumerWidget {
       );
     }
 
-  Widget _fallbackArtwork({double size = 40}) {
+  Widget _fallbackArtwork({double size = 36}) {
     return Container(
       width: size,
       height: size,
-      color: const Color(0xFF2C2C2E),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2C2C2E),
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Center(
         child: Icon(
           CupertinoIcons.music_note,
