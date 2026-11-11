@@ -74,6 +74,36 @@ final currentSongBestColorProvider =
 
 enum PlayerViewMode { nowPlaying, lyrics, queue }
 
+class _PlayerScreenColors {
+  final Color primary;
+  final Color secondary;
+  final Color deeper;
+
+  const _PlayerScreenColors({
+    required this.primary,
+    required this.secondary,
+    required this.deeper,
+  });
+
+  static _PlayerScreenColors lerp(_PlayerScreenColors a, _PlayerScreenColors b, double t) {
+    return _PlayerScreenColors(
+      primary: Color.lerp(a.primary, b.primary, t) ?? b.primary,
+      secondary: Color.lerp(a.secondary, b.secondary, t) ?? b.secondary,
+      deeper: Color.lerp(a.deeper, b.deeper, t) ?? b.deeper,
+    );
+  }
+}
+
+class _PlayerColorsTween extends Tween<_PlayerScreenColors> {
+  _PlayerColorsTween({super.end});
+
+  @override
+  _PlayerScreenColors lerp(double t) {
+    if (begin == null) return end!;
+    return _PlayerScreenColors.lerp(begin!, end!, t);
+  }
+}
+
 /// Full-Screen Apple Music-inspired Now Playing screen:
 /// - Seamless edge-to-edge artwork extending behind status bar with gradual downward blur transition
 /// - Downside player controls smoothly collapse/slide down after inactivity when playing
@@ -514,109 +544,120 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return Container(color: Colors.black);
     }
 
+    final primaryColor = ref.watch(currentSongPrimaryColorProvider).asData?.value ??
+        ArtworkColorService.instance.getCachedColor(artworkUrl) ??
+        ArtworkColorService.instance.getFallbackBestColor('${song.title} ${song.artist}');
+
+    final secondaryColor = ref.watch(currentSongSecondaryColorProvider).asData?.value ??
+        ArtworkColorService.instance.getCachedSecondaryColor(artworkUrl) ??
+        ArtworkColorService.instance.getFallbackSecondaryColor('${song.title} ${song.artist}');
+
+    final deeperTone = ArtworkColorService.instance.computeDeeperTone(primaryColor);
+
+    final targetColors = _PlayerScreenColors(
+      primary: primaryColor,
+      secondary: secondaryColor,
+      deeper: deeperTone,
+    );
+
     return Positioned.fill(
-      child: AnimatedBuilder(
-        animation: Listenable.merge([
-          _ambientAnimController,
-          _modeAnimController,
-          _controlsAnimController,
-        ]),
-        builder: (context, _) {
-          final modeVal = _modeAnimController.value;
-          final controlsVal = CurvedAnimation(
-            parent: _controlsAnimController,
-            curve: Curves.easeInOutCubic,
-          ).value;
+      child: TweenAnimationBuilder<_PlayerScreenColors>(
+        tween: _PlayerColorsTween(end: targetColors),
+        duration: const Duration(milliseconds: 650),
+        curve: Curves.easeInOutCubic,
+        builder: (context, animColors, _) {
+          return AnimatedBuilder(
+            animation: Listenable.merge([
+              _ambientAnimController,
+              _modeAnimController,
+              _controlsAnimController,
+            ]),
+            builder: (context, _) {
+              final modeVal = _modeAnimController.value;
+              final controlsVal = CurvedAnimation(
+                parent: _controlsAnimController,
+                curve: Curves.easeInOutCubic,
+              ).value;
 
-          final primaryColor = ref.watch(currentSongPrimaryColorProvider).asData?.value ??
-              ArtworkColorService.instance.getCachedColor(artworkUrl) ??
-              ArtworkColorService.instance.getFallbackBestColor('${song.title} ${song.artist}');
-
-          // Keep colors bright, luminous and saturated; do not add extra dark shades!
-          final hsl = HSLColor.fromColor(primaryColor);
-          final brightPrimary = hsl
-              .withSaturation((hsl.saturation * 1.15).clamp(0.60, 1.0))
-              .withLightness(hsl.lightness.clamp(0.38, 0.55))
-              .toColor();
-          final brightAccent = hsl
-              .withHue((hsl.hue + 28) % 360)
-              .withSaturation((hsl.saturation * 1.10).clamp(0.60, 1.0))
-              .withLightness((hsl.lightness * 1.10).clamp(0.42, 0.60))
-              .toColor();
-
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              // 1. Solid bright primary color foundation (bottom section uses this solid color, no blurred album art!)
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: brightPrimary,
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  // 1. Apple-style continuous eye-soothing vertical gradient
+                  // Top flows from a subtle tint into rich album tones,
+                  // settling into a velvety deep dark foundation (#07070A) where all controls and text sit cleanly.
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            animColors.primary.withValues(alpha: 0.50),
+                            animColors.primary,
+                            animColors.secondary,
+                            animColors.deeper,
+                            const Color(0xFF07070A),
+                          ],
+                          stops: const [0.0, 0.28, 0.55, 0.82, 1.0],
+                        ),
+                      ),
+                    ),
+                  )
+                  .animate(key: ValueKey('player_screen_ambient_${song.id}'))
+                  .fadeIn(
+                    duration: const Duration(milliseconds: 500),
+                    curve: Curves.easeOut,
                   ),
-                ),
-              )
-              .animate(key: ValueKey('player_screen_ambient_${song.id}'))
-              .fadeIn(
-                duration: const Duration(milliseconds: 500),
-                curve: Curves.easeOut,
-              ),
 
-              // 2. Animated Bright Color Palette Canvas for Lyrics Screen (bright, vibrant tones, no dark shades!)
-              if (modeVal > 0.001)
-                Positioned.fill(
-                  child: Opacity(
-                    opacity: modeVal,
-                    child: Transform.rotate(
-                      angle: _ambientAnimController.value * 0.10,
-                      child: Transform.scale(
-                        scale: 1.15 + (_ambientAnimController.value * 0.06),
+                  // 2. Lyrics Screen Ambient Flow (smooth, eye-soothing, zero blotches)
+                  if (modeVal > 0.001)
+                    Positioned.fill(
+                      child: Opacity(
+                        opacity: modeVal,
                         child: DecoratedBox(
                           decoration: BoxDecoration(
-                            gradient: RadialGradient(
-                              center: Alignment(
-                                math.sin(_ambientAnimController.value * 2 * math.pi) * 0.35,
-                                math.cos(_ambientAnimController.value * 2 * math.pi) * 0.30 - 0.15,
-                              ),
-                              radius: 1.30,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                               colors: [
-                                brightPrimary,
-                                brightAccent,
-                                brightPrimary.withValues(alpha: 0.95),
-                                brightAccent,
+                                animColors.primary,
+                                animColors.secondary,
+                                animColors.deeper,
+                                const Color(0xFF07070A),
                               ],
-                              stops: const [0.0, 0.40, 0.75, 1.0],
+                              stops: const [0.0, 0.38, 0.72, 1.0],
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ),
 
-              // Top Status Bar Vignette (preserves status icons readability, fades when controls collapse)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                height: 120,
-                child: Opacity(
-                  opacity: controlsVal,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withValues(alpha: 0.35),
-                          Colors.transparent,
-                        ],
-                        stops: const [0.0, 1.0],
+                  // Top Status Bar Vignette (preserves status icons readability, fades when controls collapse)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 120,
+                    child: Opacity(
+                      opacity: controlsVal,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.35),
+                              Colors.transparent,
+                            ],
+                            stops: const [0.0, 1.0],
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           );
         },
       ),
@@ -744,7 +785,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   Color.lerp(Colors.black, const Color(0x22000000), dissolveFactor)!,
                   Color.lerp(Colors.black, const Color(0x00000000), dissolveFactor)!,
                 ],
-                stops: const [0.0, 0.60, 0.74, 0.86, 0.95, 1.0],
+                stops: const [0.0, 0.70, 0.82, 0.92, 0.98, 1.0],
               ).createShader(bounds);
             },
             blendMode: BlendMode.dstIn,

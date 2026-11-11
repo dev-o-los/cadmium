@@ -284,45 +284,67 @@ class ArtworkColorService {
 
   /// Evaluates swatches and returns the most attractive, vibrant, chromatic color.
   Color _pickMostAttractiveColor(PaletteGenerator palette) {
-    // 1. Vibrant is prioritized as the most attractive color
-    if (palette.vibrantColor != null && _isChromaAttractive(palette.vibrantColor!.color)) {
-      return palette.vibrantColor!.color;
+    if (palette.paletteColors.isEmpty) {
+      return palette.dominantColor?.color ?? const Color(0xFF1E1E26);
     }
 
-    // 2. Light vibrant or dark vibrant
-    if (palette.lightVibrantColor != null && _isChromaAttractive(palette.lightVibrantColor!.color)) {
-      return palette.lightVibrantColor!.color;
-    }
-    if (palette.darkVibrantColor != null && _isChromaAttractive(palette.darkVibrantColor!.color)) {
-      return palette.darkVibrantColor!.color;
-    }
+    final totalPopulation = palette.paletteColors.fold<int>(
+      0,
+      (sum, p) => sum + p.population,
+    );
+    final safeTotal = totalPopulation > 0 ? totalPopulation : 1;
 
-    // 3. Dominant color if chromatic
-    if (palette.dominantColor != null && _isChromaAttractive(palette.dominantColor!.color)) {
-      return palette.dominantColor!.color;
-    }
-
-    // 4. Muted vibrant
-    if (palette.mutedColor != null && _isChromaAttractive(palette.mutedColor!.color)) {
-      return palette.mutedColor!.color;
-    }
-
-    // 5. Scan all swatches and pick highest saturation score
-    PaletteColor? best;
-    double bestScore = -1.0;
+    PaletteColor? bestSwatch;
+    double highestScore = -999.0;
 
     for (final swatch in palette.paletteColors) {
       final hsl = HSLColor.fromColor(swatch.color);
-      // Prioritize high saturation and non-grayscale
-      final score = hsl.saturation * 1.5 + (1.0 - (hsl.lightness - 0.5).abs());
-      if (score > bestScore) {
-        bestScore = score;
-        best = swatch;
+      final popRatio = swatch.population / safeTotal;
+
+      // Skip near-monochrome (grayscale, pure white, pure black)
+      if (hsl.saturation < 0.12 || hsl.lightness < 0.08 || hsl.lightness > 0.92) {
+        continue;
+      }
+
+      // Penalty for sickly/acidic yellow-greens (hues 65° to 95°) which look muddy/toxic
+      double hueWeight = 1.0;
+      if (hsl.hue >= 65.0 && hsl.hue <= 95.0) {
+        hueWeight = 0.30; // Strongly de-prioritize sickly greens/olives
+      } else if (hsl.hue >= 195.0 && hsl.hue <= 330.0) {
+        // Jewel blues, indigos, purples, violets, and magentas look gorgeous in music UIs
+        hueWeight = 1.35;
+      } else if (hsl.hue >= 340.0 || hsl.hue <= 30.0) {
+        // Rich crimsons, wines, and warm ambers look luxurious
+        hueWeight = 1.25;
+      }
+
+      // Balanced saturation score (prefers 0.35 to 0.70, penalizes garish radioactive neon > 0.85)
+      final satScore = 1.0 - (hsl.saturation - 0.52).abs() * 1.3;
+
+      // Balanced lightness score (prefers 0.25 to 0.52, avoids muddy dark or washed out light)
+      final lightScore = 1.0 - (hsl.lightness - 0.38).abs() * 1.5;
+
+      // Population factor (log/sqrt-scaled so dominant atmosphere wins, tiny artifacts ignored)
+      final popScore = math.sqrt(popRatio) * 2.2;
+
+      final totalScore = ((popScore + satScore + lightScore) * hueWeight);
+
+      if (totalScore > highestScore) {
+        highestScore = totalScore;
+        bestSwatch = swatch;
       }
     }
 
-    if (best != null) {
-      return best.color;
+    if (bestSwatch != null) {
+      return bestSwatch.color;
+    }
+
+    // Fallbacks if no swatch passed chroma filter
+    if (palette.dominantColor != null && _isChromaAttractive(palette.dominantColor!.color)) {
+      return palette.dominantColor!.color;
+    }
+    if (palette.vibrantColor != null && _isChromaAttractive(palette.vibrantColor!.color)) {
+      return palette.vibrantColor!.color;
     }
 
     return palette.dominantColor?.color ?? const Color(0xFF1E1E26);
@@ -330,7 +352,7 @@ class ArtworkColorService {
 
   bool _isChromaAttractive(Color color) {
     final hsl = HSLColor.fromColor(color);
-    return hsl.saturation >= 0.20;
+    return hsl.saturation >= 0.20 && (hsl.hue < 65.0 || hsl.hue > 95.0);
   }
 
   /// Tunes any extracted color into a luxurious, deep album background tone
@@ -343,11 +365,18 @@ class ArtworkColorService {
       return const Color(0xFF16161A);
     }
 
-    // Ensure rich saturation and clear primary color lightness (24% - 38%)
-    final tunedSaturation = (hsl.saturation * 1.15).clamp(0.45, 0.95);
-    final tunedLightness = hsl.lightness.clamp(0.24, 0.38);
+    // Adjust any lingering sickly green-yellow (65° to 95°) toward warm golden amber or rich emerald
+    double tunedHue = hsl.hue;
+    if (tunedHue >= 65.0 && tunedHue <= 95.0) {
+      tunedHue = tunedHue < 80.0 ? 42.0 : 145.0;
+    }
+
+    // Eye-soothing saturation (0.40 - 0.65) and luxurious depth (0.22 - 0.27)
+    final tunedSaturation = (hsl.saturation * 1.05).clamp(0.40, 0.65);
+    final tunedLightness = hsl.lightness.clamp(0.22, 0.27);
 
     return hsl
+        .withHue(tunedHue)
         .withSaturation(tunedSaturation)
         .withLightness(tunedLightness)
         .toColor();
@@ -389,10 +418,10 @@ class ArtworkColorService {
   Color _tuneForSecondaryAccent(Color source) {
     final hsl = HSLColor.fromColor(source);
     if (hsl.saturation < 0.12) {
-      return const Color(0xFF2A2A36);
+      return const Color(0xFF24222E);
     }
-    final tunedSaturation = (hsl.saturation * 1.10).clamp(0.40, 0.85);
-    final tunedLightness = hsl.lightness.clamp(0.28, 0.44);
+    final tunedSaturation = (hsl.saturation * 1.05).clamp(0.35, 0.65);
+    final tunedLightness = hsl.lightness.clamp(0.20, 0.30);
 
     return hsl
         .withSaturation(tunedSaturation)
@@ -403,7 +432,7 @@ class ArtworkColorService {
   /// Computes a deeper companion tone for smooth vertical gradient depth.
   Color computeDeeperTone(Color color) {
     final hsl = HSLColor.fromColor(color);
-    final deeperLightness = (hsl.lightness * 0.60).clamp(0.08, 0.16);
+    final deeperLightness = (hsl.lightness * 0.45).clamp(0.06, 0.12);
     return hsl.withLightness(deeperLightness).toColor();
   }
 }
