@@ -45,6 +45,7 @@ class PlayerControls extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
+    ref.watch(playerProvider.select((s) => s.currentSong?.thumbnailUrl));
 
     if (currentSong == null) {
       return const SizedBox.shrink();

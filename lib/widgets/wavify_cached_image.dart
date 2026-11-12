@@ -26,6 +26,8 @@ class WavifyCachedImage extends StatelessWidget {
   final Widget? placeholder;
   final Widget? errorWidget;
   final BorderRadius? borderRadius;
+  final Color? shimmerBaseColor;
+  final Color? shimmerHighlightColor;
 
   const WavifyCachedImage({
     super.key,
@@ -40,6 +42,8 @@ class WavifyCachedImage extends StatelessWidget {
     this.placeholder,
     this.errorWidget,
     this.borderRadius,
+    this.shimmerBaseColor,
+    this.shimmerHighlightColor,
   });
 
   /// Factory helper that returns an [ImageProvider] (either [FileImage] or [CachedNetworkImageProvider]).
@@ -221,6 +225,8 @@ class WavifyCachedImage extends StatelessWidget {
 
   Widget _buildDefaultPlaceholder() {
     return AppShimmer(
+      baseColor: shimmerBaseColor,
+      highlightColor: shimmerHighlightColor,
       child: Container(
         width: width,
         height: height,

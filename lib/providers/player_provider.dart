@@ -34,6 +34,7 @@ class PlayerStateModel {
   final LoopMode loopMode;
   final bool isShuffle;
   final bool isAutoplay;
+  final bool isLoadingAutoplay;
   final double volume;
   final String? errorMessage;
   final List<LyricLine> lyrics;
@@ -66,6 +67,7 @@ class PlayerStateModel {
     this.loopMode = LoopMode.off,
     this.isShuffle = false,
     this.isAutoplay = true,
+    this.isLoadingAutoplay = false,
     this.volume = 0.8,
     this.errorMessage,
     this.lyrics = const [],
@@ -114,6 +116,7 @@ class PlayerStateModel {
     LoopMode? loopMode,
     bool? isShuffle,
     bool? isAutoplay,
+    bool? isLoadingAutoplay,
     double? volume,
     String? errorMessage,
     bool clearErrorMessage = false,
@@ -151,6 +154,7 @@ class PlayerStateModel {
       loopMode: loopMode ?? this.loopMode,
       isShuffle: isShuffle ?? this.isShuffle,
       isAutoplay: isAutoplay ?? this.isAutoplay,
+      isLoadingAutoplay: isLoadingAutoplay ?? this.isLoadingAutoplay,
       volume: volume ?? this.volume,
       errorMessage: clearErrorMessage ? null : (errorMessage ?? this.errorMessage),
       lyrics: lyrics ?? this.lyrics,
@@ -186,6 +190,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   StreamSubscription<void>? _becomingNoisySub;
   AudioSession? _audioSession;
   int _currentStreamRequestId = 0;
+  int _autoplayRequestId = 0;
   int _recoveryAttempts = 0;
   String? _lastRecoveredSongId;
   int _lyricsRequestId = 0;
@@ -528,6 +533,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     List<SongItem>? initialHistory,
     List<SongItem>? originalTracklist,
     bool forceReload = false,
+    bool preserveAutoplayQueue = false,
   }) async {
     // If user clicked the song currently loaded and not resolving:
     // If paused, immediately start playing. If already playing, continue playing.
@@ -545,6 +551,9 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
 
     final requestId = ++_currentStreamRequestId;
     _lyricsRequestId++;
+    if (!preserveAutoplayQueue) {
+      _autoplayRequestId++;
+    }
     _recoveryAttempts = 0;
     _lastRecoveredSongId = null;
     _pendingSeekPosition = null;
@@ -607,7 +616,8 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       activeLyricIndex: -1,
       position: Duration.zero,
       duration: initialDuration,
-      autoplayQueue: state.isAutoplay ? state.autoplayQueue : const [],
+      autoplayQueue: (state.isAutoplay && preserveAutoplayQueue) ? state.autoplayQueue : const [],
+      isLoadingAutoplay: state.isAutoplay && !preserveAutoplayQueue,
     );
 
     // Keep native just_audio loop mode synced:
@@ -644,7 +654,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     _fetchAnimatedArtwork(song);
 
     // Fetch YouTube Music AutoPlay recommendations asynchronously in background
-    if (state.isAutoplay) {
+    if (state.isAutoplay && !preserveAutoplayQueue) {
       _fetchAutoplayQueue(song);
     }
 
@@ -862,7 +872,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       );
       if (!mounted) return;
       if (masterArt != null && masterArt.isNotEmpty && state.currentSong?.id == song.id) {
-        final updatedSong = song.copyWith(thumbnailUrl: masterArt);
+        final updatedSong = (state.currentSong ?? song).copyWith(thumbnailUrl: masterArt);
         state = state.copyWith(currentSong: updatedSong);
 
         final cachedArt = ArtworkCacheService.instance.getCachedRoundedArtworkFile(song.id) ??
@@ -1020,7 +1030,12 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       final nextSong = state.queue.first;
       final remainingQueue = state.queue.sublist(1);
       final updatedHistory = [...state.history, state.currentSong!];
-      _playTrackFromQueue(nextSong, queue: remainingQueue, history: updatedHistory);
+      _playTrackFromQueue(
+        nextSong,
+        queue: remainingQueue,
+        history: updatedHistory,
+        preserveAutoplayQueue: state.autoplayQueue.isNotEmpty,
+      );
       return;
     }
 
@@ -1051,9 +1066,14 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         final remainingAutoplay = state.autoplayQueue.sublist(1);
         final updatedHistory = [...state.history, state.currentSong!];
         state = state.copyWith(autoplayQueue: remainingAutoplay);
-        _playTrackFromQueue(nextSong, queue: const [], history: updatedHistory);
+        _playTrackFromQueue(
+          nextSong,
+          queue: const [],
+          history: updatedHistory,
+          preserveAutoplayQueue: true,
+        );
         if (remainingAutoplay.length <= 2) {
-          _fetchAutoplayQueue(nextSong);
+          _fetchAutoplayQueue(nextSong, appendToExisting: true);
         }
         return;
       } else {
@@ -1072,6 +1092,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     SongItem song, {
     required List<SongItem> queue,
     required List<SongItem> history,
+    bool preserveAutoplayQueue = false,
   }) {
     state = state.copyWith(
       queue: queue,
@@ -1083,11 +1104,17 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       initialHistory: history,
       originalTracklist: state.originalQueue,
       forceReload: true,
+      preserveAutoplayQueue: preserveAutoplayQueue,
     );
   }
 
-  Future<void> _fetchAutoplayQueue(SongItem song) async {
+  Future<void> _fetchAutoplayQueue(
+    SongItem song, {
+    bool appendToExisting = false,
+  }) async {
     if (!state.isAutoplay) return;
+    final requestId = ++_autoplayRequestId;
+    state = state.copyWith(isLoadingAutoplay: !appendToExisting || state.autoplayQueue.isEmpty);
     try {
       final musicService = _ref.read(musicServiceProvider);
       final tracks = await musicService.getSongRadio(
@@ -1095,14 +1122,26 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         artist: song.artist,
         title: song.title,
       );
-      if (!mounted) return;
-      if (!state.isAutoplay) return; // User turned off autoplay while request was in-flight
+      if (!mounted || requestId != _autoplayRequestId || !state.isAutoplay) return;
       final candidateTracks = tracks.where((s) => s.id != song.id).toList();
-      if (candidateTracks.isNotEmpty && state.isAutoplay) {
-        state = state.copyWith(autoplayQueue: candidateTracks);
+      if (appendToExisting && state.autoplayQueue.isNotEmpty) {
+        final existingIds = state.autoplayQueue.map((s) => s.id).toSet();
+        final newTracks = candidateTracks.where((s) => !existingIds.contains(s.id)).toList();
+        state = state.copyWith(
+          autoplayQueue: [...state.autoplayQueue, ...newTracks],
+          isLoadingAutoplay: false,
+        );
+      } else {
+        state = state.copyWith(
+          autoplayQueue: candidateTracks.isNotEmpty ? candidateTracks : state.autoplayQueue,
+          isLoadingAutoplay: false,
+        );
       }
     } catch (e) {
       debugPrint('[PlayerNotifier] Error fetching autoplay queue: $e');
+      if (mounted && requestId == _autoplayRequestId) {
+        state = state.copyWith(isLoadingAutoplay: false);
+      }
     }
   }
 
@@ -1121,6 +1160,8 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     }
     final current = state.currentSong;
     if (current == null) return;
+    final requestId = ++_autoplayRequestId;
+    state = state.copyWith(isLoadingAutoplay: true);
     try {
       final musicService = _ref.read(musicServiceProvider);
       final tracks = await musicService.getSongRadio(
@@ -1128,8 +1169,9 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         artist: current.artist,
         title: current.title,
       );
-      if (!mounted) return;
+      if (!mounted || requestId != _autoplayRequestId) return;
       if (!state.isAutoplay) {
+        state = state.copyWith(isLoadingAutoplay: false);
         pause();
         seek(Duration.zero);
         return;
@@ -1139,11 +1181,24 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         final nextSong = candidateTracks.first;
         final nextQueue = candidateTracks.sublist(1);
         final updatedHistory = [...state.history, current];
-        state = state.copyWith(autoplayQueue: nextQueue);
-        _playTrackFromQueue(nextSong, queue: const [], history: updatedHistory);
+        state = state.copyWith(
+          autoplayQueue: nextQueue,
+          isLoadingAutoplay: false,
+        );
+        _playTrackFromQueue(
+          nextSong,
+          queue: const [],
+          history: updatedHistory,
+          preserveAutoplayQueue: true,
+        );
         return;
       }
-    } catch (_) {}
+      state = state.copyWith(isLoadingAutoplay: false);
+    } catch (_) {
+      if (mounted && requestId == _autoplayRequestId) {
+        state = state.copyWith(isLoadingAutoplay: false);
+      }
+    }
 
     // If radio fails or autoplay is off, pause cleanly
     pause();
@@ -1151,14 +1206,28 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   }
 
   Future<void> startRadio(SongItem song) async {
+    if (state.currentSong?.id == song.id) {
+      // Do not restart the currently playing song from 0:00 — just enable radio seamlessly.
+      ++_autoplayRequestId;
+      state = state.copyWith(
+        isAutoplay: true,
+        autoplayQueue: const [],
+        isLoadingAutoplay: true,
+      );
+      await _fetchAutoplayQueue(song);
+      return;
+    }
+
+    ++_autoplayRequestId;
     state = state.copyWith(
       isAutoplay: true,
       queue: const [],
       history: const [],
       originalQueue: [song],
+      autoplayQueue: const [],
+      isLoadingAutoplay: true,
     );
     await playSong(song, forceReload: true);
-    await _fetchAutoplayQueue(song);
   }
 
   DateTime? _lastPreviousTapTime;
@@ -1263,14 +1332,24 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   }
 
   void setAutoplay(bool enabled) {
+    final requestId = ++_autoplayRequestId;
+    if (!enabled) {
+      state = state.copyWith(
+        isAutoplay: false,
+        autoplayQueue: const [],
+        isLoadingAutoplay: false,
+      );
+      return;
+    }
+    final hasSong = state.currentSong != null;
     state = state.copyWith(
-      isAutoplay: enabled,
-      autoplayQueue: enabled ? state.autoplayQueue : const [],
+      isAutoplay: true,
+      isLoadingAutoplay: hasSong && state.autoplayQueue.isEmpty,
     );
-    if (enabled) {
-      if (state.currentSong != null) {
-        _fetchAutoplayQueue(state.currentSong!);
-      }
+    if (hasSong && state.autoplayQueue.isEmpty) {
+      _fetchAutoplayQueue(state.currentSong!);
+    } else if (requestId == _autoplayRequestId) {
+      state = state.copyWith(isLoadingAutoplay: false);
     }
   }
 

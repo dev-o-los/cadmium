@@ -49,6 +49,7 @@ void showTrackOptionsModal(
               child: _TrackMenuCard(
                 song: song,
                 isFavorite: isFav,
+                parentContext: context,
                 onDismiss: () => Navigator.pop(dialogContext),
               ),
             ),
@@ -90,11 +91,13 @@ const kTrackMenuGlassSettings = LiquidGlassSettings(
 class _TrackMenuCard extends ConsumerWidget {
   final SongItem song;
   final bool isFavorite;
+  final BuildContext parentContext;
   final VoidCallback onDismiss;
 
   const _TrackMenuCard({
     required this.song,
     required this.isFavorite,
+    required this.parentContext,
     required this.onDismiss,
   });
 
@@ -103,19 +106,17 @@ class _TrackMenuCard extends ConsumerWidget {
     final screenHeight = MediaQuery.sizeOf(context).height;
     final maxCardHeight = screenHeight * 0.85;
 
-    return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxWidth: 320,
-        maxHeight: maxCardHeight,
-      ),
-      child: GlassContainer(
-        useOwnLayer: true,
-        shape: const LiquidRoundedSuperellipse(borderRadius: 24),
-        color: Colors.transparent,
-        settings: const LiquidGlassSettings(),
-        child: AdaptiveLiquidGlassLayer(
-          settings: const LiquidGlassSettings(),
-          quality: GlassQuality.standard,
+    return RepaintBoundary(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 320,
+          maxHeight: maxCardHeight,
+        ),
+        child: GlassContainer(
+          useOwnLayer: true,
+          shape: const LiquidRoundedSuperellipse(borderRadius: 24),
+          color: Colors.black.withValues(alpha: 0.36),
+          settings: kTrackMenuGlassSettings,
           child: DecoratedBox(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
@@ -200,7 +201,9 @@ class _TrackMenuCard extends ConsumerWidget {
                     title: 'Add to playlist',
                     onTap: () {
                       onDismiss();
-                      _showAddToPlaylistSheet(context, ref);
+                      if (parentContext.mounted) {
+                        _showAddToPlaylistSheet(parentContext, ref);
+                      }
                     },
                   ),
 
@@ -221,13 +224,25 @@ class _TrackMenuCard extends ConsumerWidget {
                           onDismiss();
                           if (activeAutoplay) {
                             ref.read(playerProvider.notifier).setAutoplay(false);
-                            showWavifySnackBar(context, 'Autoplay turned off');
+                            if (parentContext.mounted) {
+                              showWavifySnackBar(parentContext, 'Autoplay turned off');
+                            }
+                          } else if (isCurrentSong) {
+                            ref.read(playerProvider.notifier).setAutoplay(true);
+                            if (parentContext.mounted) {
+                              showWavifySnackBar(
+                                parentContext,
+                                'Autoplay enabled for "${song.title}"',
+                              );
+                            }
                           } else {
                             ref.read(playerProvider.notifier).startRadio(song);
-                            showWavifySnackBar(
-                              context,
-                              'Starting radio based on "${song.title}"',
-                            );
+                            if (parentContext.mounted) {
+                              showWavifySnackBar(
+                                parentContext,
+                                'Starting radio based on "${song.title}"',
+                              );
+                            }
                           }
                         },
                       );
@@ -241,10 +256,12 @@ class _TrackMenuCard extends ConsumerWidget {
                     onTap: () {
                       onDismiss();
                       ref.read(playerProvider.notifier).playNext(song);
-                      showWavifySnackBar(
-                        context,
-                        'Added "${song.title}" to play next',
-                      );
+                      if (parentContext.mounted) {
+                        showWavifySnackBar(
+                          parentContext,
+                          'Added "${song.title}" to play next',
+                        );
+                      }
                     },
                   ),
 
@@ -259,11 +276,12 @@ class _TrackMenuCard extends ConsumerWidget {
                         : song.title.trim(),
                     onTap: () {
                       onDismiss();
+                      if (!parentContext.mounted) return;
                       final albumName = (song.album != null && song.album!.trim().isNotEmpty)
                           ? song.album!.trim()
                           : song.title.trim();
                       openAlbumScreen(
-                        context,
+                        parentContext,
                         AlbumItem(
                           id: song.id,
                           title: albumName,
@@ -280,7 +298,9 @@ class _TrackMenuCard extends ConsumerWidget {
                     title: 'View Artist: ${song.artist}',
                     onTap: () {
                       onDismiss();
-                      openArtistScreen(context, artistName: song.artist);
+                      if (parentContext.mounted) {
+                        openArtistScreen(parentContext, artistName: song.artist);
+                      }
                     },
                   ),
 
@@ -290,7 +310,9 @@ class _TrackMenuCard extends ConsumerWidget {
                     title: 'Song Info',
                     onTap: () {
                       onDismiss();
-                      _showSongInfoDialog(context);
+                      if (parentContext.mounted) {
+                        _showSongInfoDialog(parentContext);
+                      }
                     },
                   ),
 
@@ -324,12 +346,14 @@ class _TrackMenuCard extends ConsumerWidget {
                   ref.read(musicServiceProvider).unlikeSong(song.id);
                 }
                 onDismiss();
-                showWavifySnackBar(
-                  context,
-                  isFavorite
-                      ? 'Removed "${song.title}" from favorites'
-                      : 'Saved "${song.title}" to favorites',
-                );
+                if (parentContext.mounted) {
+                  showWavifySnackBar(
+                    parentContext,
+                    isFavorite
+                        ? 'Removed "${song.title}" from favorites'
+                        : 'Saved "${song.title}" to favorites',
+                  );
+                }
               },
             ),
           ),
@@ -342,10 +366,12 @@ class _TrackMenuCard extends ConsumerWidget {
               onTap: () {
                 ref.read(musicServiceProvider).dislikeSong(song.id);
                 onDismiss();
-                showWavifySnackBar(
-                  context,
-                  'Marked "${song.title}" as disliked. Wavify will tune your recommendations.',
-                );
+                if (parentContext.mounted) {
+                  showWavifySnackBar(
+                    parentContext,
+                    'Marked "${song.title}" as disliked. Wavify will tune your recommendations.',
+                  );
+                }
               },
             ),
           ),
@@ -359,10 +385,12 @@ class _TrackMenuCard extends ConsumerWidget {
                 onDismiss();
                 final shareUrl = 'https://music.youtube.com/watch?v=${song.id}';
                 Clipboard.setData(ClipboardData(text: shareUrl));
-                showWavifySnackBar(
-                  context,
-                  'Copied YouTube Music link for "${song.title}" to clipboard',
-                );
+                if (parentContext.mounted) {
+                  showWavifySnackBar(
+                    parentContext,
+                    'Copied YouTube Music link for "${song.title}" to clipboard',
+                  );
+                }
               },
             ),
           ),

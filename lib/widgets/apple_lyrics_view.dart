@@ -641,6 +641,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     }
 
     final displayLines = _displayLyrics;
+    final int? firstStartMs = displayLines.isNotEmpty ? displayLines.first.startTimeMs : null;
 
     return Stack(
       children: [
@@ -660,7 +661,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
                   Colors.black,
                   Colors.transparent,
                 ],
-                stops: [0.0, 0.045, 0.88, 1.0],
+                stops: [0.0, 0.045, 0.85, 1.0],
               ).createShader(bounds);
             },
             blendMode: BlendMode.dstIn,
@@ -669,15 +670,25 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
               physics: const BouncingScrollPhysics(),
               padding: const EdgeInsets.only(
                 top: _focalTopOffset,
-                bottom: 480,
+                bottom: 320,
                 left: 24,
                 right: 24,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  for (int i = 0; i < displayLines.length; i++)
+                  if (firstStartMs != null && firstStartMs >= 2500)
+                    _buildInstrumentalBreakSlot(
+                      gapStartMs: 0,
+                      gapEndMs: math.max(1000, firstStartMs - 300),
+                      alignRight: displayLines.first.isOppositeTurn,
+                      onTap: () => _handleLyricTap(displayLines.first, 0),
+                    ),
+                  for (int i = 0; i < displayLines.length; i++) ...[
                     _buildLyricLineItem(displayLines, i),
+                    if (i + 1 < displayLines.length)
+                      _buildBetweenLinesInstrumentalSlot(displayLines[i], displayLines[i + 1], i + 1),
+                  ],
                   _buildAttributionFooter(),
                 ],
               ),
@@ -688,12 +699,101 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     );
   }
 
+  Widget _buildBetweenLinesInstrumentalSlot(
+    LyricLine current,
+    LyricLine next,
+    int nextIndex,
+  ) {
+    final start = current.startTimeMs;
+    final nextStart = next.startTimeMs;
+    if (start == null || nextStart == null) return const SizedBox.shrink();
+
+    final estimatedEnd = current.endTimeMs ?? (start + 3500);
+    final gapStart = math.max(start + 1200, estimatedEnd);
+    final gapDuration = nextStart - gapStart;
+    if (gapDuration < 4000) return const SizedBox.shrink();
+
+    return _buildInstrumentalBreakSlot(
+      gapStartMs: gapStart,
+      gapEndMs: math.max(gapStart + 1000, nextStart - 250),
+      alignRight: next.isOppositeTurn,
+      onTap: () => _handleLyricTap(next, nextIndex),
+    );
+  }
+
+  Widget _buildInstrumentalBreakSlot({
+    required int gapStartMs,
+    required int gapEndMs,
+    required bool alignRight,
+    required VoidCallback onTap,
+  }) {
+    return ValueListenableBuilder<int>(
+      valueListenable: _smoothPositionNotifier,
+      builder: (context, smoothMs, _) {
+        final bool visible = smoothMs >= gapStartMs && smoothMs <= gapEndMs + 150;
+        return AnimatedSize(
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+          alignment: alignRight ? Alignment.centerRight : Alignment.centerLeft,
+          child: visible
+              ? AnimatedOpacity(
+                  opacity: 1.0,
+                  duration: const Duration(milliseconds: 240),
+                  child: Align(
+                    alignment: alignRight ? Alignment.centerRight : Alignment.centerLeft,
+                    child: AppleInstrumentalDots(
+                      gapStartMs: gapStartMs,
+                      gapEndMs: gapEndMs,
+                      currentPositionListenable: _smoothPositionNotifier,
+                      onTap: onTap,
+                    ),
+                  ),
+                )
+              : const SizedBox.shrink(),
+        );
+      },
+    );
+  }
+
+  static bool _isInstrumentalMarker(String text) {
+    final trimmed = text.trim().toLowerCase();
+    if (trimmed.isEmpty) return true;
+    if (const {
+      '♪',
+      '♫',
+      '🎶',
+      '🎵',
+      '...',
+      '…',
+      '•••',
+      '---',
+      '(instrumental)',
+      '[instrumental]',
+      'instrumental',
+      '(music)',
+      '[music]',
+      '(interlude)',
+      '[interlude]',
+      '(intro)',
+      '[intro]',
+      '(outro)',
+      '[outro]',
+      '(solo)',
+      '[solo]',
+    }.contains(trimmed)) {
+      return true;
+    }
+    return RegExp(r'^[♪♫🎶🎵•.\-—\s]+$').hasMatch(trimmed);
+  }
+
   Widget _buildLyricsShimmer() {
     return LayoutBuilder(
       builder: (context, constraints) {
         final totalWidth = constraints.maxWidth;
         final lineRatios = [0.72, 0.88, 0.58, 0.82, 0.65, 0.90, 0.45];
         return AppShimmer(
+          baseColor: Colors.white.withValues(alpha: 0.14),
+          highlightColor: Colors.white.withValues(alpha: 0.34),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: List.generate(lineRatios.length, (index) {
@@ -764,6 +864,33 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     final wrapAlignment = line.isOppositeTurn
         ? WrapAlignment.end
         : WrapAlignment.start;
+
+    if (_isInstrumentalMarker(line.text) && line.startTimeMs != null) {
+      final markerStart = line.startTimeMs!;
+      final nextStart = (index + 1 < displayLines.length)
+          ? displayLines[index + 1].startTimeMs
+          : null;
+      final markerEnd = (line.endTimeMs != null && line.endTimeMs! > markerStart)
+          ? line.endTimeMs!
+          : (nextStart != null && nextStart > markerStart)
+              ? nextStart
+              : markerStart + 6000;
+
+      return Container(
+        key: _getKeyForIndex(index),
+        alignment: alignment,
+        child: AnimatedOpacity(
+          opacity: isActive ? 1.0 : 0.40,
+          duration: const Duration(milliseconds: 300),
+          child: AppleInstrumentalDots(
+            gapStartMs: markerStart,
+            gapEndMs: markerEnd,
+            currentPositionListenable: _smoothPositionNotifier,
+            onTap: () => _handleLyricTap(line, index),
+          ),
+        ),
+      );
+    }
 
     return ApplePressable(
       key: _getKeyForIndex(index),

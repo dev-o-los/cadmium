@@ -4,7 +4,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../constants/apple_typography.dart';
 import '../models/audio_device_item.dart';
@@ -26,7 +25,13 @@ Future<T?> showAppleGlassBottomSheet<T>({
     enableDrag: enableDrag,
     isDismissible: isDismissible,
     backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withValues(alpha: 0.15),
+    barrierColor: Colors.black.withValues(alpha: 0.24),
+    sheetAnimationStyle: const AnimationStyle(
+      duration: Duration(milliseconds: 340),
+      reverseDuration: Duration(milliseconds: 260),
+      curve: Cubic(0.16, 1.0, 0.3, 1.0),
+      reverseCurve: Curves.easeInCubic,
+    ),
     builder: (modalContext) {
       return AppleGlassBottomSheetContainer(child: builder(modalContext));
     },
@@ -52,19 +57,20 @@ class AppleGlassBottomSheetContainer extends StatelessWidget {
 
     return Padding(
       padding: EdgeInsets.only(bottom: viewInsetsBottom),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.08),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.22),
-                width: 0.8,
+      child: RepaintBoundary(
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C1C22).withValues(alpha: 0.84),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.20),
+                  width: 0.8,
+                ),
               ),
-            ),
             child: SafeArea(
               top: false,
               bottom: false,
@@ -97,6 +103,7 @@ class AppleGlassBottomSheetContainer extends StatelessWidget {
           ),
         ),
       ),
+      ),
     );
   }
 }
@@ -106,9 +113,7 @@ class AppleGlassBottomSheetContainer extends StatelessWidget {
 /// - Individual dark rounded container cards
 /// - Phone device card
 /// - Connected audio device with "Playing here" and checkmark
-/// - Cast card with Google Cast / Chromecast and chevron
 /// - Volume slider card with speaker icon and rounded track
-/// - Audio Pipeline card with "32-bit float · 48 kHz" and chevron
 void showAudioOutputModal(BuildContext context, WidgetRef ref) {
   final notifier = ref.read(playerProvider.notifier);
   notifier.refreshAudioDevices();
@@ -219,27 +224,7 @@ void showAudioOutputModal(BuildContext context, WidgetRef ref) {
                     },
                   ),
 
-                  // Card 3: Cast
-                  _buildOutputCard(
-                    leadingIcon: const Icon(
-                      Icons.cast_rounded,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                    title: 'Cast',
-                    subtitle: 'Chromecast and Google Cast speakers',
-                    trailing: const Icon(
-                      CupertinoIcons.chevron_right,
-                      color: Colors.white38,
-                      size: 18,
-                    ),
-                    onTap: () {
-                      Navigator.pop(modalContext);
-                      _showCastDialog(context);
-                    },
-                  ),
-
-                  // Card 4: Volume Card
+                  // Volume Card
                   Container(
                     margin: const EdgeInsets.only(bottom: 10),
                     padding: const EdgeInsets.symmetric(
@@ -376,24 +361,6 @@ Widget _buildOutputCard({
         ),
       ),
     ),
-  );
-}
-
-void _showCastDialog(BuildContext context) {
-  GlassDialog.show(
-    context: context,
-    settings: const LiquidGlassSettings(),
-    barrierDismissible: true,
-    barrierColor: Colors.black.withValues(alpha: 0.10),
-    title: 'Google Cast',
-    message:
-        'Searching for nearby Chromecast, Google Nest, and Cast-enabled speakers on your Wi-Fi network...',
-    actions: [
-      GlassDialogAction(
-        label: 'Cancel',
-        onPressed: () => Navigator.pop(context),
-      ),
-    ],
   );
 }
 

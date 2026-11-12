@@ -64,12 +64,9 @@ class _AmbientVideoCanvasState extends State<AmbientVideoCanvas> {
     if (oldWidget.mediaUrl != widget.mediaUrl || oldWidget.headers != widget.headers) {
       _disposeController();
       _initMedia();
-    } else if (_controller != null && _isInitialized) {
-      if (widget.isPlaying && !_controller!.value.isPlaying) {
-        _controller!.play();
-      } else if (!widget.isPlaying && _controller!.value.isPlaying) {
-        _controller!.pause();
-      }
+    } else if (_controller != null && _isInitialized && !_controller!.value.isPlaying) {
+      // Keep ambient moving artwork / GIF video continuously looping even when audio is paused
+      _controller!.play();
     }
   }
 
@@ -99,9 +96,7 @@ class _AmbientVideoCanvasState extends State<AmbientVideoCanvas> {
         if (!mounted) return;
         _controller!.setVolume(0.0); // Strictly muted so it never conflicts with main audio
         _controller!.setLooping(true);
-        if (widget.isPlaying) {
-          _controller!.play();
-        }
+        _controller!.play(); // Continuously animate looping canvas even when music is paused
         setState(() {
           _isInitialized = true;
         });
@@ -152,19 +147,19 @@ class _AmbientVideoCanvasState extends State<AmbientVideoCanvas> {
       final width = size.width > 0 ? size.width : 16.0;
       final height = size.height > 0 ? size.height : 9.0;
 
-      return AnimatedOpacity(
-        opacity: _isInitialized ? 1.0 : 0.0,
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeOutCubic,
-        child: SizedBox.expand(
-          child: FittedBox(
-            fit: widget.fit,
-            alignment: widget.alignment,
-            child: SizedBox(
-              width: width,
-              height: height,
-              child: AspectRatio(
-                aspectRatio: width / height,
+      return RepaintBoundary(
+        child: AnimatedOpacity(
+          opacity: _isInitialized ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOutCubic,
+          child: SizedBox.expand(
+            child: FittedBox(
+              fit: widget.fit,
+              alignment: widget.alignment,
+              clipBehavior: Clip.hardEdge,
+              child: SizedBox(
+                width: width,
+                height: height,
                 child: VideoPlayer(_controller!),
               ),
             ),

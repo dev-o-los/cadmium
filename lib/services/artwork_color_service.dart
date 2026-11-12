@@ -31,6 +31,38 @@ class ArtworkColorService {
   /// Retrieves the cached brightest vibrant color if already computed for [key].
   Color? getCachedBestColor(String key) => _bestColorCache[key];
 
+  /// Returns true when [url] is empty, a video stream, or a YouTube video frame thumbnail
+  /// (`i.ytimg.com` / `img.youtube.com`) rather than dedicated album artwork.
+  static bool isVideoOrNonArtworkUrl(String? url) {
+    if (url == null || url.trim().isEmpty) return true;
+    final lower = url.trim().toLowerCase();
+    return lower.contains('i.ytimg.com') ||
+        lower.contains('img.youtube.com') ||
+        lower.contains('googlevideo.com') ||
+        lower.contains('videoplayback') ||
+        lower.contains('an_webp') ||
+        lower.contains('.mp4') ||
+        lower.contains('.m3u8') ||
+        lower.contains('.webm') ||
+        lower.contains('.mov') ||
+        lower.contains('.mkv');
+  }
+
+  /// Picks the highest-quality non-video artwork URL suitable for color extraction.
+  static String? extractableArtworkUrl({
+    String? highResUrl,
+    String? resolvedUrl,
+    String? thumbnailUrl,
+  }) {
+    for (final candidate in [highResUrl, resolvedUrl, thumbnailUrl]) {
+      final trimmed = candidate?.trim() ?? '';
+      if (trimmed.isNotEmpty && !isVideoOrNonArtworkUrl(trimmed)) {
+        return trimmed;
+      }
+    }
+    return null;
+  }
+
   /// Internal batch coordinator that extracts and quantizes image palette downsized to 64x64.
   /// Prevents main-thread microstutters by processing ~250x fewer pixels than raw album art,
   /// and memoizes in-flight futures so simultaneous requests share the exact same pass.
@@ -48,7 +80,9 @@ class ArtworkColorService {
 
   Future<PaletteGenerator?> _computePalette(String cleanUrl) async {
     final isTest = !kIsWeb && Platform.environment.containsKey('FLUTTER_TEST');
-    if (isTest || cleanUrl.isEmpty || (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://'))) {
+    if (isTest ||
+        isVideoOrNonArtworkUrl(cleanUrl) ||
+        (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://'))) {
       return null;
     }
 
@@ -89,14 +123,15 @@ class ArtworkColorService {
     String? fallbackSeed,
   }) async {
     final cleanUrl = imageUrl?.trim() ?? '';
-    final cacheKey = cleanUrl.isNotEmpty ? cleanUrl : (fallbackSeed ?? 'default');
+    final canExtract = cleanUrl.isNotEmpty && !isVideoOrNonArtworkUrl(cleanUrl);
+    final cacheKey = canExtract ? cleanUrl : (fallbackSeed ?? 'default');
 
     if (_cache.containsKey(cacheKey)) {
       return _cache[cacheKey]!;
     }
 
     Color? extracted;
-    if (cleanUrl.isNotEmpty) {
+    if (canExtract) {
       final palette = await _getOrComputePalette(cleanUrl);
       if (palette != null) {
         if (_cache.containsKey(cleanUrl)) {
@@ -121,14 +156,15 @@ class ArtworkColorService {
     String? fallbackSeed,
   }) async {
     final cleanUrl = imageUrl?.trim() ?? '';
-    final cacheKey = cleanUrl.isNotEmpty ? cleanUrl : (fallbackSeed ?? 'default');
+    final canExtract = cleanUrl.isNotEmpty && !isVideoOrNonArtworkUrl(cleanUrl);
+    final cacheKey = canExtract ? cleanUrl : (fallbackSeed ?? 'default');
 
     if (_secondaryCache.containsKey(cacheKey)) {
       return _secondaryCache[cacheKey]!;
     }
 
     Color? extracted;
-    if (cleanUrl.isNotEmpty) {
+    if (canExtract) {
       final palette = await _getOrComputePalette(cleanUrl);
       if (palette != null) {
         if (_secondaryCache.containsKey(cleanUrl)) {
@@ -153,14 +189,15 @@ class ArtworkColorService {
     String? fallbackSeed,
   }) async {
     final cleanUrl = imageUrl?.trim() ?? '';
-    final cacheKey = cleanUrl.isNotEmpty ? cleanUrl : (fallbackSeed ?? 'default');
+    final canExtract = cleanUrl.isNotEmpty && !isVideoOrNonArtworkUrl(cleanUrl);
+    final cacheKey = canExtract ? cleanUrl : (fallbackSeed ?? 'default');
 
     if (_bestColorCache.containsKey(cacheKey)) {
       return _bestColorCache[cacheKey]!;
     }
 
     Color? extracted;
-    if (cleanUrl.isNotEmpty) {
+    if (canExtract) {
       final palette = await _getOrComputePalette(cleanUrl);
       if (palette != null) {
         if (_bestColorCache.containsKey(cleanUrl)) {

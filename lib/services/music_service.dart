@@ -2511,17 +2511,22 @@ class MusicService {
         debugPrint('getAlbumArtwork searchAlbums error for $query: $e');
       }
 
-      // 3. Fallback search songs for the track artwork
+      // 3. Fallback search songs for dedicated album artwork (never YouTube video stills)
       try {
         final songs = await _ytMusic.searchSongs(query);
-        if (songs.isNotEmpty && songs.first.thumbnails.isNotEmpty) {
-          final raw = songs.first.thumbnails.last.url;
-          final url = SongItem.upgradeThumbnail(
-            raw.startsWith('//') ? 'https:$raw' : raw,
-          );
-          if (url != null && url.isNotEmpty) {
-            if (cleanId.isNotEmpty) _albumArtworkCache[cleanId] = url;
-            return url;
+        for (final s in songs) {
+          if (s.thumbnails.isNotEmpty) {
+            final raw = s.thumbnails.last.url;
+            final url = SongItem.upgradeThumbnail(
+              raw.startsWith('//') ? 'https:$raw' : raw,
+            );
+            if (url != null &&
+                url.isNotEmpty &&
+                !url.contains('i.ytimg.com') &&
+                !url.contains('img.youtube.com')) {
+              if (cleanId.isNotEmpty) _albumArtworkCache[cleanId] = url;
+              return url;
+            }
           }
         }
       } catch (_) {}
@@ -5232,22 +5237,65 @@ class MusicService {
         final streamingData = data['streamingData'] as Map<String, dynamic>?;
         if (streamingData == null) continue;
 
-        // 1. Prefer HLS Master Manifest (.m3u8) - natively decoded by AVPlayer (iOS/macOS)
-        // and ExoPlayer (Android), adaptive up to 1080p/720p, zero fragmented container errors!
+        // 1. Prefer HLS Variant Playlist locked to crisp 720p/1080p (.m3u8) - prevents
+        // ExoPlayer ABR from starting blurry at 144p/240p or lagging during quality switches.
         final hlsUrl = streamingData['hlsManifestUrl'] as String?;
         if (hlsUrl != null && hlsUrl.isNotEmpty) {
-          final info = VideoStreamInfo(
-            url: hlsUrl,
-            headers: {'User-Agent': client.userAgent},
-            width: 1920,
-            height: 1080,
-            qualityLabel: '1080p',
-          );
+          final headers = {'User-Agent': client.userAgent};
+          final lockedVariant = await _pickCrispHlsVariant(hlsUrl, headers);
+          final info = lockedVariant ??
+              VideoStreamInfo(
+                url: hlsUrl,
+                headers: headers,
+                width: 1920,
+                height: 1080,
+                qualityLabel: '1080p',
+              );
           _videoStreamCache[trimmedId] = info;
           return info;
         }
 
-        // 2. Next check combined progressive MP4 formats (has full standard moov container atom)
+        // 2. Next check adaptiveFormats H.264 MP4 (720p/1080p hardware-decoded video-only stream)
+        final adaptiveFormats =
+            streamingData['adaptiveFormats'] as List<dynamic>? ?? [];
+        final h264Adaptive = adaptiveFormats.where((f) {
+          final mime = f['mimeType'] as String? ?? '';
+          final h = (f['height'] as num?)?.toInt() ?? 0;
+          return mime.startsWith('video/mp4') &&
+              mime.contains('avc1') &&
+              h >= 720 &&
+              h <= 1080 &&
+              f.containsKey('url');
+        }).toList();
+
+        if (h264Adaptive.isNotEmpty) {
+          h264Adaptive.sort((a, b) {
+            final aH = (a['height'] as num?)?.toInt() ?? 0;
+            final bH = (b['height'] as num?)?.toInt() ?? 0;
+            // Prefer 720p first for smooth zero-lag playback on mobile screens
+            if (aH == 720 && bH != 720) return -1;
+            if (bH == 720 && aH != 720) return 1;
+            return bH.compareTo(aH);
+          });
+          final selected = h264Adaptive.first;
+          final videoUrl = selected['url'] as String?;
+          if (videoUrl != null && videoUrl.isNotEmpty) {
+            final w = (selected['width'] as num?)?.toInt() ?? 1280;
+            final h = (selected['height'] as num?)?.toInt() ?? 720;
+            final q = selected['qualityLabel'] as String? ?? '${h}p';
+            final info = VideoStreamInfo(
+              url: videoUrl,
+              headers: {'User-Agent': client.userAgent},
+              width: w,
+              height: h,
+              qualityLabel: q,
+            );
+            _videoStreamCache[trimmedId] = info;
+            return info;
+          }
+        }
+
+        // 3. Next check combined progressive MP4 formats (>= 720p first)
         final progressiveFormats =
             (streamingData['formats'] as List<dynamic>? ?? []).where((f) {
               final mime = f['mimeType'] as String? ?? '';
@@ -5278,9 +5326,7 @@ class MusicService {
           }
         }
 
-        // 3. Fallback to adaptiveFormats MP4
-        final adaptiveFormats =
-            streamingData['adaptiveFormats'] as List<dynamic>? ?? [];
+        // 4. Fallback to remaining adaptiveFormats MP4
         final videoFormats = adaptiveFormats.where((f) {
           final mime = f['mimeType'] as String? ?? '';
           return mime.startsWith('video/mp4') && f.containsKey('url');
@@ -5324,6 +5370,71 @@ class MusicService {
 
     _videoStreamCache[trimmedId] = null;
     return null;
+  }
+
+  /// Parses an HLS master playlist and locks onto a crisp 720p or 1080p H.264 variant stream
+  /// so ExoPlayer/AVPlayer never starts blurry at 144p/240p or stalls on adaptive bitrate jumps.
+  Future<VideoStreamInfo?> _pickCrispHlsVariant(
+    String masterUrl,
+    Map<String, String> headers,
+  ) async {
+    final client = HttpClient();
+    client.connectionTimeout = const Duration(seconds: 2);
+    try {
+      final uri = Uri.parse(masterUrl);
+      final req = await client.getUrl(uri).timeout(const Duration(seconds: 2));
+      headers.forEach((k, v) => req.headers.set(k, v));
+      final res = await req.close().timeout(const Duration(seconds: 2));
+      if (res.statusCode != 200) return null;
+      final body = await res
+          .transform(utf8.decoder)
+          .join()
+          .timeout(const Duration(seconds: 2));
+
+      final lines = body.split('\n').map((l) => l.trim()).toList();
+      final resRegex = RegExp(r'RESOLUTION=(\d+)x(\d+)');
+      final candidates = <({String url, int width, int height, bool isH264})>[];
+
+      for (int i = 0; i < lines.length - 1; i++) {
+        final line = lines[i];
+        if (!line.startsWith('#EXT-X-STREAM-INF:')) continue;
+        final nextLine = lines[i + 1];
+        if (nextLine.isEmpty || nextLine.startsWith('#')) continue;
+
+        final match = resRegex.firstMatch(line);
+        if (match == null) continue;
+        final w = int.tryParse(match.group(1) ?? '') ?? 0;
+        final h = int.tryParse(match.group(2) ?? '') ?? 0;
+        if (h < 720 || h > 1080) continue;
+
+        final isH264 = line.contains('avc1') || !line.contains('vp09') && !line.contains('av01');
+        final resolvedUrl = uri.resolve(nextLine).toString();
+        candidates.add((url: resolvedUrl, width: w, height: h, isH264: isH264));
+      }
+
+      if (candidates.isEmpty) return null;
+
+      // Prefer hardware-accelerated H.264 (avc1) 720p first (ultra crisp & lag-free on mobile), then 1080p
+      candidates.sort((a, b) {
+        if (a.isH264 != b.isH264) return a.isH264 ? -1 : 1;
+        if (a.height == 720 && b.height != 720) return -1;
+        if (b.height == 720 && a.height != 720) return 1;
+        return b.height.compareTo(a.height);
+      });
+
+      final best = candidates.first;
+      return VideoStreamInfo(
+        url: best.url,
+        headers: headers,
+        width: best.width,
+        height: best.height,
+        qualityLabel: '${best.height}p',
+      );
+    } catch (_) {
+      return null;
+    } finally {
+      client.close(force: true);
+    }
   }
 
   /// Backwards-compatible convenience method that returns just the direct stream URL.
