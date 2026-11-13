@@ -202,10 +202,12 @@ class HomeScreenSkeleton extends StatelessWidget {
 /// Proper Skeleton for Search Results.
 class SearchScreenSkeleton extends StatelessWidget {
   final int itemCount;
+  final EdgeInsetsGeometry padding;
 
   const SearchScreenSkeleton({
     super.key,
     this.itemCount = 8,
+    this.padding = const EdgeInsets.fromLTRB(22, 10, 22, 160),
   });
 
   @override
@@ -213,26 +215,112 @@ class SearchScreenSkeleton extends StatelessWidget {
     return AppShimmer(
       child: ListView.separated(
         physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: padding,
         itemCount: itemCount,
         separatorBuilder: (context, index) => const SizedBox(height: 12),
-        itemBuilder: (context, index) => const Row(
+        itemBuilder: (context, index) => Row(
           children: [
-            ShimmerBox(width: 52, height: 52),
-            SizedBox(width: 14),
+            ShimmerBox(
+              width: 48,
+              height: 48,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ShimmerBox(width: 180, height: 14),
-                  SizedBox(height: 6),
-                  ShimmerBox(width: 110, height: 12),
+                  ShimmerBox(
+                    width: index % 2 == 0 ? 165 : 135,
+                    height: 14,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  const SizedBox(height: 6),
+                  ShimmerBox(
+                    width: index % 2 == 0 ? 110 : 85,
+                    height: 12,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ],
               ),
             ),
-            SizedBox(width: 12),
-            ShimmerBox(width: 18, height: 18),
+            const SizedBox(width: 12),
+            ShimmerBox(
+              width: 28,
+              height: 11,
+              borderRadius: BorderRadius.circular(3),
+            ),
+            const SizedBox(width: 8),
+            const ShimmerBox(
+              width: 18,
+              height: 18,
+              borderRadius: BorderRadius.all(Radius.circular(9)),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shimmer loader displayed at the bottom of the search results during infinite-scroll loading.
+class SearchLoadingMoreShimmer extends StatelessWidget {
+  final int itemCount;
+
+  const SearchLoadingMoreShimmer({
+    super.key,
+    this.itemCount = 2,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppShimmer(
+      child: Column(
+        children: List.generate(
+          itemCount,
+          (index) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              children: [
+                ShimmerBox(
+                  width: 48,
+                  height: 48,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ShimmerBox(
+                        width: index == 0 ? 150 : 175,
+                        height: 14,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      const SizedBox(height: 6),
+                      ShimmerBox(
+                        width: index == 0 ? 100 : 80,
+                        height: 12,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                ShimmerBox(
+                  width: 28,
+                  height: 11,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                const SizedBox(width: 8),
+                const ShimmerBox(
+                  width: 18,
+                  height: 18,
+                  borderRadius: BorderRadius.all(Radius.circular(9)),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

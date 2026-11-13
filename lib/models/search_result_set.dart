@@ -51,5 +51,31 @@ class SearchResultSet {
       videos: videos ?? this.videos,
     );
   }
+
+  /// Merges another [SearchResultSet] into this one, deduplicating items by id.
+  SearchResultSet merge(SearchResultSet other) {
+    final existingSongIds = songs.map((s) => s.id).toSet();
+    final newSongs = other.songs.where((s) => !existingSongIds.contains(s.id)).toList();
+
+    final existingArtistIds = artists.map((a) => a.id).toSet();
+    final newArtists = other.artists.where((a) => !existingArtistIds.contains(a.id)).toList();
+
+    final existingAlbumIds = albums.map((a) => a.id).toSet();
+    final newAlbums = other.albums.where((a) => !existingAlbumIds.contains(a.id)).toList();
+
+    final existingPlaylistIds = playlists.map((p) => p.id).toSet();
+    final newPlaylists = other.playlists.where((p) => !existingPlaylistIds.contains(p.id)).toList();
+
+    final existingVideoIds = videos.map((v) => v.id).toSet();
+    final newVideos = other.videos.where((v) => !existingVideoIds.contains(v.id)).toList();
+
+    return SearchResultSet(
+      songs: [...songs, ...newSongs],
+      artists: [...artists, ...newArtists],
+      albums: [...albums, ...newAlbums],
+      playlists: [...playlists, ...newPlaylists],
+      videos: [...videos, ...newVideos],
+    );
+  }
 }
 

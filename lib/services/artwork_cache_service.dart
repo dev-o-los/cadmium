@@ -434,10 +434,10 @@ class ArtworkCacheService {
     return null;
   }
 
-  /// Pre-caches artwork for a batch of songs (e.g. from queue or home recents).
-  Future<void> prefetchArtworks(List<SongItem> songs) async {
+  /// Pre-caches artwork for a batch of songs (e.g. from search, queue or home recents).
+  Future<void> prefetchArtworks(List<SongItem> songs, {int max = 24}) async {
     if (!kIsWeb && Platform.environment.containsKey('FLUTTER_TEST')) return;
-    for (final song in songs.take(4)) {
+    for (final song in songs.take(max)) {
       if (getCachedArtworkFile(song.id) == null) {
         // Run unawaited with safe priority so it doesn't block the UI thread
         cacheSongArtwork(song, forceHighRes: false);
@@ -446,9 +446,9 @@ class ArtworkCacheService {
   }
 
   /// Pre-fetches and warms disk/memory cache for arbitrary image URLs (e.g. artists, albums, playlists, videos).
-  Future<void> prefetchImageUrls(List<String?> urls) async {
+  Future<void> prefetchImageUrls(List<String?> urls, {int max = 30}) async {
     if (!kIsWeb && Platform.environment.containsKey('FLUTTER_TEST')) return;
-    for (final url in urls) {
+    for (final url in urls.take(max)) {
       if (url != null && url.trim().isNotEmpty) {
         final cleanUrl = url.trim().startsWith('//') ? 'https:${url.trim()}' : url.trim();
         try {

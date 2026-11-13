@@ -131,6 +131,47 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
     setState(() {});
   }
 
+  static const double kSearchHorizontalPadding = 22.0;
+
+  static const TextStyle _songTitleStyle = TextStyle(
+    color: Colors.white,
+    fontSize: 15.0,
+    fontWeight: FontWeight.w500,
+    letterSpacing: -0.24,
+    height: 1.25,
+  );
+
+  static const TextStyle _songArtistStyle = TextStyle(
+    color: AppColors.appleSecondaryText,
+    fontSize: 13.0,
+    fontWeight: FontWeight.w400,
+    letterSpacing: -0.1,
+    height: 1.2,
+  );
+
+  static const TextStyle _videoTitleStyle = TextStyle(
+    color: Colors.white,
+    fontSize: 14.5,
+    fontWeight: FontWeight.w500,
+    letterSpacing: -0.2,
+    height: 1.24,
+  );
+
+  static const TextStyle _videoSubtitleStyle = TextStyle(
+    color: AppColors.appleSecondaryText,
+    fontSize: 12.5,
+    fontWeight: FontWeight.w400,
+    letterSpacing: -0.08,
+    height: 1.2,
+  );
+
+  static const TextStyle _durationStyle = TextStyle(
+    color: AppColors.appleSecondaryText,
+    fontSize: 12.5,
+    fontWeight: FontWeight.w400,
+    letterSpacing: -0.1,
+  );
+
   bool _isExplicit(String title, [String? album]) {
     final lower = '$title ${album ?? ''}'.toLowerCase();
     return lower.contains('(explicit') ||
@@ -140,10 +181,27 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   String _cleanTitle(String title) {
-    return title
+    var clean = title
         .replaceAll(RegExp(r'\s*\(explicit.*?\)', caseSensitive: false), '')
         .replaceAll(RegExp(r'\s*\[explicit.*?\]', caseSensitive: false), '')
         .trim();
+
+    // Strip video/audio tags and clutter from YouTube titles
+    clean = clean.replaceAll(
+      RegExp(
+        r'\s*[\(\[](?:official\s*)?(?:music\s*)?(?:video|audio|visualizer|lyric\s*video|official|hd|4k|extended|remastered)[\)\]]',
+        caseSensitive: false,
+      ),
+      '',
+    );
+
+    // Strip automated "- Topic"
+    clean = clean.replaceAll(RegExp(r'\s*-\s*Topic$', caseSensitive: false), '');
+
+    // Strip leading "Play "
+    clean = clean.replaceFirst(RegExp(r'^Play\s+', caseSensitive: false), '');
+
+    return clean.trim().isNotEmpty ? clean.trim() : title.trim();
   }
 
   @override
@@ -159,7 +217,12 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
           children: [
             // Top Liquid Glass Search Bar & Avatar Row
             Padding(
-              padding: EdgeInsets.fromLTRB(16, topPadding + 8, 16, 8),
+              padding: EdgeInsets.fromLTRB(
+                kSearchHorizontalPadding,
+                topPadding + 8,
+                kSearchHorizontalPadding,
+                8,
+              ),
               child: Row(
                 children: [
                   Expanded(child: _buildLiquidGlassSearchBar()),
@@ -188,7 +251,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
 
             const SizedBox(height: 6),
 
-            // Content Area with gentle natural dissolve towards the pill
+            // Content Area with gentle natural dissolve towards the pill and smooth transitions
             Expanded(
               child: ShaderMask(
                 shaderCallback: (Rect bounds) {
@@ -200,7 +263,12 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                   ).createShader(bounds);
                 },
                 blendMode: BlendMode.dstIn,
-                child: _buildBodyContent(searchState, isQueryActive),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  child: _buildBodyContent(searchState, isQueryActive),
+                ),
               ),
             ),
           ],
@@ -305,14 +373,21 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
 
     // 2. Loading state
     if (searchState.isLoading) {
-      return const SearchScreenSkeleton();
+      return const SearchScreenSkeleton(
+        padding: EdgeInsets.fromLTRB(
+          kSearchHorizontalPadding,
+          8,
+          kSearchHorizontalPadding,
+          160,
+        ),
+      );
     }
 
     // 3. Error state
     if (searchState.errorMessage != null) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -361,11 +436,15 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
     // 4. Empty results state
     if (searchState.results.isEmpty) {
       return Center(
-        child: Text(
-          'No results found for "${searchState.query}"',
-          style: const TextStyle(
-            color: AppColors.appleSecondaryText,
-            fontSize: 16,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Text(
+            'No results found for "${searchState.query}"',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.appleSecondaryText,
+              fontSize: 16,
+            ),
           ),
         ),
       );
@@ -377,31 +456,48 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
     );
     final activeIndex = categoryIndex >= 0 ? categoryIndex : 0;
 
-    return IndexedStack(
-      index: activeIndex,
-      children: [
-        _buildAllCategoriesGrouped(searchState.results),
-        _buildFullCategoryList(
-          items: searchState.results.songs,
-          itemBuilder: (song) => _buildSongRow(song),
-        ),
-        _buildFullCategoryList(
-          items: searchState.results.videos,
-          itemBuilder: (video) => _buildVideoRow(video),
-        ),
-        _buildFullCategoryList(
-          items: searchState.results.albums,
-          itemBuilder: (album) => _buildAlbumRow(album),
-        ),
-        _buildFullCategoryList(
-          items: searchState.results.artists,
-          itemBuilder: (artist) => _buildArtistRow(artist),
-        ),
-        _buildFullCategoryList(
-          items: searchState.results.playlists,
-          itemBuilder: (playlist) => _buildPlaylistRow(playlist),
-        ),
-      ],
+    return NotificationListener<ScrollNotification>(
+      onNotification: (scrollInfo) {
+        if (scrollInfo.metrics.pixels >=
+            scrollInfo.metrics.maxScrollExtent - 400) {
+          ref.read(searchProvider.notifier).loadMore();
+        }
+        return false;
+      },
+      child: IndexedStack(
+        index: activeIndex,
+        children: [
+          _buildAllCategoriesGrouped(
+            searchState.results,
+            searchState.isLoadingMore,
+          ),
+          _buildFullCategoryList(
+            items: searchState.results.songs,
+            itemBuilder: (song) => _buildSongRow(song),
+            isLoadingMore: searchState.isLoadingMore,
+          ),
+          _buildFullCategoryList(
+            items: searchState.results.videos,
+            itemBuilder: (video) => _buildVideoRow(video),
+            isLoadingMore: searchState.isLoadingMore,
+          ),
+          _buildFullCategoryList(
+            items: searchState.results.albums,
+            itemBuilder: (album) => _buildAlbumRow(album),
+            isLoadingMore: searchState.isLoadingMore,
+          ),
+          _buildFullCategoryList(
+            items: searchState.results.artists,
+            itemBuilder: (artist) => _buildArtistRow(artist),
+            isLoadingMore: searchState.isLoadingMore,
+          ),
+          _buildFullCategoryList(
+            items: searchState.results.playlists,
+            itemBuilder: (playlist) => _buildPlaylistRow(playlist),
+            isLoadingMore: searchState.isLoadingMore,
+          ),
+        ],
+      ),
     );
   }
 
@@ -417,7 +513,13 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 160),
+      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+      padding: const EdgeInsets.fromLTRB(
+        kSearchHorizontalPadding,
+        8,
+        kSearchHorizontalPadding,
+        160,
+      ),
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -521,7 +623,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 56),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
+          padding: const EdgeInsets.symmetric(vertical: 5),
           child: Row(
             children: [
               if (isArtist)
@@ -587,21 +689,24 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                       item.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppleTypography.songTitle,
+                      style: _songTitleStyle,
                     ),
                     if (item.subtitle.isNotEmpty) ...[
-                      const SizedBox(height: AppleSpacing.titleToSubtitle),
+                      const SizedBox(height: 3.5),
                       Text(
                         item.subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppleTypography.songArtist,
+                        style: _songArtistStyle,
                       ),
                     ],
                   ],
                 ),
               ),
               IconButton(
+                padding: const EdgeInsets.all(4),
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                visualDensity: VisualDensity.compact,
                 icon: const Icon(
                   CupertinoIcons.clear,
                   color: AppColors.appleSecondaryText,
@@ -667,10 +772,15 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   /// "All" tab: sectioned results (Songs, Artists, Albums, Playlists, Videos)
-  /// matching Screenshot 1 & 3.
-  Widget _buildAllCategoriesGrouped(SearchResultSet results) {
+  Widget _buildAllCategoriesGrouped(SearchResultSet results, [bool isLoadingMore = false]) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 160),
+      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+      padding: const EdgeInsets.fromLTRB(
+        kSearchHorizontalPadding,
+        8,
+        kSearchHorizontalPadding,
+        160,
+      ),
       children: [
         // 1. Songs Section
         if (results.songs.isNotEmpty) ...[
@@ -680,11 +790,11 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                 ref.read(searchProvider.notifier).setCategory('Songs'),
           ),
           const SizedBox(height: 6),
-          ...results.songs.take(9).map((song) => _buildSongRow(song)),
+          ...results.songs.take(12).map((song) => _buildSongRow(song)),
           const SizedBox(height: 20),
         ],
 
-        // 2. Artists Section (Screenshot 3)
+        // 2. Artists Section
         if (results.artists.isNotEmpty) ...[
           _buildSectionHeader(
             'Artists',
@@ -692,11 +802,11 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                 ref.read(searchProvider.notifier).setCategory('Artists'),
           ),
           const SizedBox(height: 6),
-          ...results.artists.take(5).map((artist) => _buildArtistRow(artist)),
+          ...results.artists.take(6).map((artist) => _buildArtistRow(artist)),
           const SizedBox(height: 20),
         ],
 
-        // 3. Albums Section (Screenshot 3)
+        // 3. Albums Section
         if (results.albums.isNotEmpty) ...[
           _buildSectionHeader(
             'Albums',
@@ -704,11 +814,11 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                 ref.read(searchProvider.notifier).setCategory('Albums'),
           ),
           const SizedBox(height: 6),
-          ...results.albums.take(5).map((album) => _buildAlbumRow(album)),
+          ...results.albums.take(6).map((album) => _buildAlbumRow(album)),
           const SizedBox(height: 20),
         ],
 
-        // 4. Playlists Section (Screenshot 3)
+        // 4. Playlists Section
         if (results.playlists.isNotEmpty) ...[
           _buildSectionHeader(
             'Playlists',
@@ -717,7 +827,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
           ),
           const SizedBox(height: 6),
           ...results.playlists
-              .take(5)
+              .take(6)
               .map((playlist) => _buildPlaylistRow(playlist)),
           const SizedBox(height: 20),
         ],
@@ -730,7 +840,16 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                 ref.read(searchProvider.notifier).setCategory('Videos'),
           ),
           const SizedBox(height: 6),
-          ...results.videos.take(5).map((video) => _buildVideoRow(video)),
+          ...results.videos.take(6).map((video) => _buildVideoRow(video)),
+          const SizedBox(height: 20),
+        ],
+
+        // Bottom shimmer loader during infinite scrolling
+        if (isLoadingMore) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: SearchLoadingMoreShimmer(itemCount: 2),
+          ),
         ],
       ],
     );
@@ -740,8 +859,9 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
   Widget _buildFullCategoryList<T>({
     required List<T> items,
     required Widget Function(T item) itemBuilder,
+    bool isLoadingMore = false,
   }) {
-    if (items.isEmpty) {
+    if (items.isEmpty && !isLoadingMore) {
       return const Center(
         child: Text(
           'No results found in this category.',
@@ -750,10 +870,26 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
       );
     }
 
+    final totalCount = items.length + (isLoadingMore ? 1 : 0);
+
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 160),
-      itemCount: items.length,
-      itemBuilder: (context, index) => itemBuilder(items[index]),
+      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+      padding: const EdgeInsets.fromLTRB(
+        kSearchHorizontalPadding,
+        8,
+        kSearchHorizontalPadding,
+        160,
+      ),
+      itemCount: totalCount,
+      itemBuilder: (context, index) {
+        if (index >= items.length) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: SearchLoadingMoreShimmer(itemCount: 2),
+          );
+        }
+        return itemBuilder(items[index]);
+      },
     );
   }
 
@@ -772,7 +908,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
 
   /// Song row matching Screenshot 1:
   /// Artwork with animated equalizer overlay if currently playing,
-  /// Song title with [E] badge, Artist subtitle, Duration, 3-dots menu.
+  /// Clean song title with [E] badge, Artist subtitle, Duration, compact 3-dots menu.
   Widget _buildSongRow(SongItem song) {
     final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
     final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
@@ -811,7 +947,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
       },
       borderRadius: BorderRadius.circular(10),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 58),
+        constraints: const BoxConstraints(minHeight: 56),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 5),
           child: Row(
@@ -825,23 +961,23 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                     WavifyCachedImage(
                       imageUrl: song.thumbnailUrl,
                       songId: song.id,
-                      width: 50,
-                      height: 50,
+                      width: 48,
+                      height: 48,
                       fit: BoxFit.cover,
                       borderRadius: BorderRadius.circular(8),
                       placeholder: const AppShimmer(
                         child: ShimmerBox(
-                          width: 50,
-                          height: 50,
+                          width: 48,
+                          height: 48,
                           borderRadius: BorderRadius.all(Radius.circular(8)),
                         ),
                       ),
-                      errorWidget: _fallbackSquareArt(),
+                      errorWidget: _fallbackSquareArt(size: 48),
                     ),
                     if (isSelected && isPlaying)
                       Container(
-                        width: 50,
-                        height: 50,
+                        width: 48,
+                        height: 48,
                         decoration: BoxDecoration(
                           color: Colors.black.withValues(alpha: 0.55),
                           borderRadius: BorderRadius.circular(8),
@@ -873,12 +1009,12 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                             displayTitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: AppleTypography.songTitle,
+                            style: _songTitleStyle,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: AppleSpacing.titleToSubtitle),
+                    const SizedBox(height: 3.5),
                     ApplePressable(
                       onTap: () =>
                           openArtistScreen(context, artistName: song.artist),
@@ -886,7 +1022,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                         song.artist,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppleTypography.songArtist,
+                        style: _songArtistStyle,
                       ),
                     ),
                   ],
@@ -896,19 +1032,22 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
               // Duration
               if (song.formattedDuration.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.only(left: 8, right: 4),
                   child: Text(
                     song.formattedDuration,
-                    style: AppleTypography.timestamp,
+                    style: _durationStyle,
                   ),
                 ),
 
               // 3-dots Menu
               IconButton(
+                padding: const EdgeInsets.all(4),
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                visualDensity: VisualDensity.compact,
                 icon: const AnimatedCupertinoIcon(
                   icon: CupertinoIcons.ellipsis_vertical,
                   color: AppColors.appleSecondaryText,
-                  size: 18,
+                  size: 17,
                 ),
                 onPressed: () => showTrackOptionsModal(context, ref, song),
               ),
@@ -920,7 +1059,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   /// Artist row matching Screenshot 3:
-  /// Circular avatar (52x52), Artist name, Audience/Subscribers subtitle.
+  /// Circular avatar (48x48), Artist name, Audience/Subscribers subtitle.
   Widget _buildArtistRow(ArtistItem artist) {
     return ApplePressable(
       onTap: () {
@@ -946,22 +1085,22 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
       },
       borderRadius: BorderRadius.circular(10),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 60),
+        constraints: const BoxConstraints(minHeight: 56),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
+          padding: const EdgeInsets.symmetric(vertical: 5),
           child: Row(
             children: [
               ClipOval(
                 child: WavifyCachedImage(
                   imageUrl: artist.thumbnailUrl,
-                  width: 52,
-                  height: 52,
+                  width: 48,
+                  height: 48,
                   fit: BoxFit.cover,
                   placeholder: const AppShimmer(
-                    child: ShimmerBox.circle(size: 52),
+                    child: ShimmerBox.circle(size: 48),
                   ),
                   errorWidget: _fallbackSquareArt(
-                    size: 52,
+                    size: 48,
                     icon: CupertinoIcons.person_fill,
                     isCircle: true,
                   ),
@@ -977,15 +1116,17 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                       artist.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppleTypography.songTitle,
+                      style: _songTitleStyle,
                     ),
-                    const SizedBox(height: AppleSpacing.titleToSubtitle),
-                    Text(
-                      artist.subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppleTypography.songArtist,
-                    ),
+                    if (artist.subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 3.5),
+                      Text(
+                        artist.subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _songArtistStyle,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -997,7 +1138,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   /// Album row matching Screenshot 3:
-  /// Artwork (50x50), Album title, EP/Album Year subtitle.
+  /// Artwork (48x48), Album title, EP/Album Year subtitle.
   Widget _buildAlbumRow(AlbumItem album) {
     return ApplePressable(
       onTap: () {
@@ -1018,9 +1159,9 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
       },
       borderRadius: BorderRadius.circular(10),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 58),
+        constraints: const BoxConstraints(minHeight: 56),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
+          padding: const EdgeInsets.symmetric(vertical: 5),
           child: Row(
             children: [
               ClipRRect(
@@ -1028,18 +1169,18 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                 child: WavifyCachedImage(
                   imageUrl:
                       album.resolvedThumbnailUrl ?? album.thumbnailUrl,
-                  width: 50,
-                  height: 50,
+                  width: 48,
+                  height: 48,
                   fit: BoxFit.cover,
                   borderRadius: BorderRadius.circular(8),
                   placeholder: const AppShimmer(
                     child: ShimmerBox(
-                      width: 50,
-                      height: 50,
+                      width: 48,
+                      height: 48,
                       borderRadius: BorderRadius.all(Radius.circular(8)),
                     ),
                   ),
-                  errorWidget: _fallbackSquareArt(),
+                  errorWidget: _fallbackSquareArt(size: 48),
                 ),
               ),
               const SizedBox(width: 14),
@@ -1052,14 +1193,14 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                       album.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppleTypography.songTitle,
+                      style: _songTitleStyle,
                     ),
-                    const SizedBox(height: AppleSpacing.titleToSubtitle),
+                    const SizedBox(height: 3.5),
                     Text(
                       album.subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppleTypography.songArtist,
+                      style: _songArtistStyle,
                     ),
                   ],
                 ),
@@ -1072,7 +1213,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   /// Playlist row matching Screenshot 3:
-  /// Artwork (50x50), Playlist title, Subtitle.
+  /// Artwork (48x48), Playlist title, Subtitle.
   Widget _buildPlaylistRow(PlaylistItem playlist) {
     return ApplePressable(
       onTap: () {
@@ -1093,27 +1234,27 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
       },
       borderRadius: BorderRadius.circular(10),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 58),
+        constraints: const BoxConstraints(minHeight: 56),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
+          padding: const EdgeInsets.symmetric(vertical: 5),
           child: Row(
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: WavifyCachedImage(
                   imageUrl: playlist.thumbnailUrl,
-                  width: 50,
-                  height: 50,
+                  width: 48,
+                  height: 48,
                   fit: BoxFit.cover,
                   borderRadius: BorderRadius.circular(8),
                   placeholder: const AppShimmer(
                     child: ShimmerBox(
-                      width: 50,
-                      height: 50,
+                      width: 48,
+                      height: 48,
                       borderRadius: BorderRadius.all(Radius.circular(8)),
                     ),
                   ),
-                  errorWidget: _fallbackSquareArt(),
+                  errorWidget: _fallbackSquareArt(size: 48),
                 ),
               ),
               const SizedBox(width: 14),
@@ -1126,14 +1267,14 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                       playlist.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppleTypography.songTitle,
+                      style: _songTitleStyle,
                     ),
-                    const SizedBox(height: AppleSpacing.titleToSubtitle),
+                    const SizedBox(height: 3.5),
                     Text(
                       playlist.subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppleTypography.songArtist,
+                      style: _songArtistStyle,
                     ),
                   ],
                 ),
@@ -1146,7 +1287,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   /// Video row matching Screenshot 4:
-  /// 16:9 widescreen thumbnail, Title, Channel, Duration, 3-dots menu.
+  /// 16:9 widescreen thumbnail, Title, Channel, Duration, compact 3-dots menu.
   Widget _buildVideoRow(VideoItem video) {
     final durationStr =
         video.durationSeconds != null && video.durationSeconds! > 0
@@ -1180,9 +1321,9 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
       },
       borderRadius: BorderRadius.circular(10),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 68),
+        constraints: const BoxConstraints(minHeight: 64),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
+          padding: const EdgeInsets.symmetric(vertical: 5),
           child: Row(
             children: [
               ClipRRect(
@@ -1190,14 +1331,14 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                 child: WavifyCachedImage(
                   imageUrl: video.resolvedThumbnailUrl,
                   songId: video.id,
-                  width: 104,
-                  height: 58,
+                  width: 96,
+                  height: 54,
                   fit: BoxFit.cover,
                   borderRadius: BorderRadius.circular(8),
                   placeholder: const AppShimmer(
                     child: ShimmerBox(
-                      width: 104,
-                      height: 58,
+                      width: 96,
+                      height: 54,
                       borderRadius: BorderRadius.all(Radius.circular(8)),
                     ),
                   ),
@@ -1214,31 +1355,34 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
                       video.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: AppleTypography.cardTitle,
+                      style: _videoTitleStyle,
                     ),
-                    const SizedBox(height: AppleSpacing.titleToSubtitle),
+                    const SizedBox(height: 3.5),
                     Text(
                       video.artist,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppleTypography.cardSubtitle,
+                      style: _videoSubtitleStyle,
                     ),
                   ],
                 ),
               ),
               if (durationStr.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.only(left: 8, right: 4),
                   child: Text(
                     durationStr,
-                    style: AppleTypography.timestamp,
+                    style: _durationStyle,
                   ),
                 ),
               IconButton(
+                padding: const EdgeInsets.all(4),
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                visualDensity: VisualDensity.compact,
                 icon: const AnimatedCupertinoIcon(
                   icon: CupertinoIcons.ellipsis_vertical,
                   color: AppColors.appleSecondaryText,
-                  size: 18,
+                  size: 17,
                 ),
                 onPressed: () {
                   final videoSong = SongItem(
@@ -1275,7 +1419,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _fallbackSquareArt({
-    double size = 50,
+    double size = 48,
     IconData icon = CupertinoIcons.music_note,
     bool isCircle = false,
   }) {
@@ -1296,13 +1440,13 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _fallbackWidescreenArt() {
     return Container(
-      width: 104,
-      height: 58,
+      width: 96,
+      height: 54,
       color: AppColors.appleDarkSurfaceHigh,
       child: const Icon(
         CupertinoIcons.play_rectangle_fill,
         color: Colors.white30,
-        size: 26,
+        size: 24,
       ),
     );
   }

@@ -4850,6 +4850,22 @@ class MusicService {
     return searchResultSet;
   }
 
+  /// Retrieves search suggestions for a given query from YouTube Music.
+  Future<List<String>> getSearchSuggestions(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return const [];
+    if (!_isInitialized) {
+      await initialize();
+    }
+    try {
+      final suggestions = await _ytMusic.getSearchSuggestions(trimmed);
+      return suggestions.where((s) => s.trim().isNotEmpty).toList();
+    } catch (e) {
+      debugPrint('[MusicService] getSearchSuggestions error: $e');
+      return const [];
+    }
+  }
+
   /// Curated InnerTube mood & genre categories with high-resolution imagery and playlist subtitles
   static const Map<String, ({String subtitle, String imageUrl, int color, String params})> curatedMoodMetadata = {
     'Chill': (

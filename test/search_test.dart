@@ -66,6 +66,22 @@ class MockMusicService extends Fake implements MusicService {
       ],
     );
   }
+
+  @override
+  Future<List<String>> getSearchSuggestions(String query) async {
+    return ['tsumyoki live', 'tsumyoki hits'];
+  }
+
+  @override
+  Future<List<SongItem>> searchSongs(String query) async {
+    return [
+      const SongItem(
+        id: 'test_song_more_1',
+        title: 'More Song 1',
+        artist: 'Tsumyoki',
+      ),
+    ];
+  }
 }
 
 class MockCountingMusicService extends Fake implements MusicService {
@@ -475,6 +491,60 @@ void main() {
       // Verify Recent Searches view is restored immediately
       expect(find.text('YAH YAH'), findsNothing);
       expect(find.text('No results found for ""'), findsNothing);
+    });
+
+    test('SearchNotifier infinite scrolling loadMore fetches related queries', () async {
+      final container = ProviderContainer(
+        overrides: [
+          musicServiceProvider.overrideWithValue(MockMusicService()),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final notifier = container.read(searchProvider.notifier);
+      await notifier.search('tsumyoki');
+
+      final initialSongs = container.read(searchProvider).results.songs.length;
+      expect(initialSongs, 2);
+
+      // Switch to Songs category and trigger loadMore
+      notifier.setCategory('Songs');
+      await notifier.loadMore();
+
+      final updatedSongs = container.read(searchProvider).results.songs.length;
+      expect(updatedSongs, greaterThan(initialSongs));
+      expect(container.read(searchProvider).results.songs.any((s) => s.id == 'test_song_more_1'), isTrue);
+    });
+
+    testWidgets('renders proper spacing and font sizes for mobile screens',
+        (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            musicServiceProvider.overrideWithValue(MockMusicService()),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: SearchScreen(),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'tsumyoki');
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      // Check title track text style
+      final titleWidget = tester.widget<Text>(find.text('YAH YAH'));
+      expect(titleWidget.style?.fontSize, 15.0);
+      expect(titleWidget.style?.fontWeight, FontWeight.w500);
+
+      // Check artist text style
+      final artistWidget = tester.widget<Text>(find.text('Tsumyoki').first);
+      expect(artistWidget.style?.fontSize, 13.0);
+      expect(artistWidget.style?.fontWeight, FontWeight.w400);
     });
   });
 }
