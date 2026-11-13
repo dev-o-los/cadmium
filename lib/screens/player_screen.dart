@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -68,6 +69,25 @@ final currentSongSecondaryColorProvider =
   );
 });
 
+/// Reactive provider extracting the dominant (most populated) color in the bottom area and whole album artwork.
+final currentSongDominantColorProvider =
+    FutureProvider.autoDispose<Color>((ref) async {
+  ref.watch(
+    playerProvider.select((s) => (s.currentSong?.id, s.currentSong?.thumbnailUrl)),
+  );
+  final song = ref.read(playerProvider).currentSong;
+  if (song == null) return const Color(0xFF141418);
+  final art = ArtworkColorService.extractableArtworkUrl(
+    highResUrl: song.highResThumbnailUrl,
+    resolvedUrl: song.resolvedThumbnailUrl,
+    thumbnailUrl: song.thumbnailUrl,
+  );
+  return ArtworkColorService.instance.extractDominantColor(
+    art,
+    fallbackSeed: '${song.title} ${song.artist}',
+  );
+});
+
 /// Reactive provider extracting the brightest vibrant color strictly from album artwork.
 final currentSongBestColorProvider =
     FutureProvider.autoDispose<Color>((ref) async {
@@ -93,11 +113,13 @@ class _PlayerScreenColors {
   final Color primary;
   final Color secondary;
   final Color deeper;
+  final Color dominant;
 
   const _PlayerScreenColors({
     required this.primary,
     required this.secondary,
     required this.deeper,
+    required this.dominant,
   });
 
   static _PlayerScreenColors lerp(_PlayerScreenColors a, _PlayerScreenColors b, double t) {
@@ -105,6 +127,7 @@ class _PlayerScreenColors {
       primary: Color.lerp(a.primary, b.primary, t) ?? b.primary,
       secondary: Color.lerp(a.secondary, b.secondary, t) ?? b.secondary,
       deeper: Color.lerp(a.deeper, b.deeper, t) ?? b.deeper,
+      dominant: Color.lerp(a.dominant, b.dominant, t) ?? b.dominant,
     );
   }
 }
@@ -154,6 +177,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // Auto-hide timer for collapsing downside controls after 7s ONLY in lyrics mode
   Timer? _autoHideTimer;
 
+  // Continuous ambient background dynamic fluid flow controller (Apple Music style)
+  late final AnimationController _ambientFlowController;
+
   // Scrubber drag state (local UI interaction only)
   bool _isDraggingSlider = false;
   double _dragSliderValue = 0.0;
@@ -175,6 +201,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       duration: const Duration(milliseconds: 400),
       value: _currentMode == PlayerViewMode.nowPlaying ? 0.0 : 1.0,
     );
+
+    // Continuous Apple Music-inspired ambient atmosphere flow
+    _ambientFlowController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 14),
+    );
+    if (kIsWeb || !Platform.environment.containsKey('FLUTTER_TEST')) {
+      _ambientFlowController.repeat(reverse: true);
+    }
 
     // Interactive downward drag snap back
     _dragSnapBackController =
@@ -343,6 +378,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   void dispose() {
     _autoHideTimer?.cancel();
+    _ambientFlowController.dispose();
     _controlsAnimController.dispose();
     _modeAnimController.dispose();
     _dragSnapBackController.dispose();
@@ -460,8 +496,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   /// Derives a rich, saturated Apple Music-inspired palette from the album artwork
-  /// so the blurred video/artwork dissolve mixes seamlessly into a colorful bottom player.
-  ({Color upper, Color mid, Color lower, Color bottomAnchor, Color lyricsGlow})
+  /// rooted in the most populated (dominant) color of the artwork's bottom area,
+  /// differentiated with harmonic secondary and vibrant bloom layers so the bottom player
+  /// feels living, dynamic, and organic.
+  ({
+    Color upper,
+    Color mid,
+    Color lower,
+    Color bottomAnchor,
+    Color lyricsGlow,
+    Color accentBloom,
+    Color dominantBottom,
+  })
       _computeAtmosphericPalette(SongItem song) {
     final artworkUrl = ArtworkColorService.extractableArtworkUrl(
       highResUrl: song.highResThumbnailUrl,
@@ -470,65 +516,85 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
     final seed = '${song.title} ${song.artist}';
 
+    // The most populated color in that bottom area of the whole album art
+    final dominantColor = (artworkUrl != null)
+        ? (ref.watch(currentSongDominantColorProvider).asData?.value ??
+              ArtworkColorService.instance.getCachedDominantColor(artworkUrl) ??
+              ArtworkColorService.instance.getFallbackDominantColor(seed))
+        : ArtworkColorService.instance.getFallbackDominantColor(seed);
+
     final bestColor = (artworkUrl != null)
         ? (ref.watch(currentSongBestColorProvider).asData?.value ??
               ArtworkColorService.instance.getCachedBestColor(artworkUrl) ??
               ArtworkColorService.instance.getCachedColor(artworkUrl) ??
               ArtworkColorService.instance.getFallbackBestColor(seed))
         : ArtworkColorService.instance.getFallbackBestColor(seed);
+
     final primaryColor = (artworkUrl != null)
         ? (ref.watch(currentSongPrimaryColorProvider).asData?.value ??
               ArtworkColorService.instance.getCachedColor(artworkUrl) ??
               bestColor)
         : ArtworkColorService.instance.getFallbackBestColor(seed);
+
     final secondaryColor = (artworkUrl != null)
         ? (ref.watch(currentSongSecondaryColorProvider).asData?.value ??
               ArtworkColorService.instance.getCachedSecondaryColor(artworkUrl) ??
               primaryColor)
         : ArtworkColorService.instance.getFallbackSecondaryColor(seed);
 
+    final domHsl = HSLColor.fromColor(dominantColor);
     final baseHsl = HSLColor.fromColor(bestColor);
     final primaryHsl = HSLColor.fromColor(primaryColor);
     final secondaryHsl = HSLColor.fromColor(secondaryColor);
-    final isNeutral = baseHsl.saturation < 0.08 && primaryHsl.saturation < 0.08;
+    final isNeutral = domHsl.saturation < 0.10 && primaryHsl.saturation < 0.10;
 
-    final double sat = isNeutral
-        ? 0.06
-        : math.max(baseHsl.saturation, primaryHsl.saturation).clamp(0.48, 0.78);
-    final double midSat = isNeutral ? 0.05 : sat.clamp(0.46, 0.76);
-    final double lowSat = isNeutral ? 0.05 : (sat * 0.85).clamp(0.40, 0.70);
+    final double domSat = isNeutral
+        ? 0.04
+        : (domHsl.saturation * 1.05).clamp(0.35, 0.70);
 
+    // 1. Bottom Anchor: Deep, comfortable OLED base rooted in the most populated color of the artwork
+    final Color bottomAnchor = domHsl
+        .withSaturation(domSat)
+        .withLightness(isNeutral ? 0.07 : 0.11)
+        .toColor();
+
+    // 2. Dominant Bottom: Lower foundation for the bottom player area
+    final Color dominantBottom = domHsl
+        .withSaturation(domSat)
+        .withLightness(isNeutral ? 0.10 : 0.15)
+        .toColor();
+
+    // 3. Lower Player Body (controls & dock): Differentiated with secondary harmony
+    final Color lower = Color.lerp(
+      dominantBottom,
+      secondaryHsl
+          .withSaturation(isNeutral ? 0.05 : 0.55)
+          .withLightness(isNeutral ? 0.11 : 0.17)
+          .toColor(),
+      0.22,
+    )!;
+
+    // 4. Mid Player Body (scrubber, metadata, lyrics hook): Differentiated bridge into primary color
+    final Color mid = Color.lerp(
+      lower,
+      primaryHsl
+          .withSaturation(isNeutral ? 0.06 : 0.62)
+          .withLightness(isNeutral ? 0.17 : 0.25)
+          .toColor(),
+      0.55,
+    )!;
+
+    // 5. Upper Dissolve: Luminous bloom blending into the artwork
     final Color upper = baseHsl
-        .withSaturation(sat)
-        .withLightness(isNeutral ? 0.19 : 0.31)
+        .withSaturation(isNeutral ? 0.06 : 0.65)
+        .withLightness(isNeutral ? 0.22 : 0.32)
         .toColor();
-    final Color mid = primaryHsl
-        .withSaturation(midSat)
-        .withLightness(isNeutral ? 0.16 : 0.25)
-        .toColor();
-    final Color lowerBase = baseHsl
-        .withHue((baseHsl.hue + 14.0) % 360.0)
-        .withSaturation(lowSat)
-        .withLightness(isNeutral ? 0.12 : 0.18)
-        .toColor();
-    final Color lower =
-        Color.lerp(
-          lowerBase,
-          secondaryHsl
-              .withSaturation(lowSat)
-              .withLightness(isNeutral ? 0.12 : 0.18)
-              .toColor(),
-          0.26,
-        ) ??
-        lowerBase;
-    final Color bottomAnchor = HSLColor.fromColor(lower)
-        .withSaturation(isNeutral ? 0.04 : (lowSat * 0.88).clamp(0.32, 0.65))
-        .withLightness(isNeutral ? 0.08 : 0.13)
-        .toColor();
-    final Color lyricsGlow = baseHsl
-        .withSaturation((sat * 0.92).clamp(0.05, 0.75))
-        .withLightness(isNeutral ? 0.24 : 0.32)
-        .toColor();
+
+    // 6. Vibrant Accent Bloom: Dynamic Apple Music atmospheric contrast orb
+    final Color accentBloom = Color.lerp(bestColor, secondaryColor, 0.40)!;
+
+    // 7. Luminous glow for lyrics / queue
+    final Color lyricsGlow = Color.lerp(mid, accentBloom, 0.35)!;
 
     return (
       upper: upper,
@@ -536,6 +602,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       lower: lower,
       bottomAnchor: bottomAnchor,
       lyricsGlow: lyricsGlow,
+      accentBloom: accentBloom,
+      dominantBottom: dominantBottom,
     );
   }
 
@@ -551,6 +619,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       primary: palette.upper,
       secondary: palette.mid,
       deeper: palette.lower,
+      dominant: palette.dominantBottom,
     );
 
     final Widget staticBlurLayer = (artworkUrl != null)
@@ -589,20 +658,70 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             animation: Listenable.merge([
               _modeAnimController,
               _controlsAnimController,
+              _ambientFlowController,
             ]),
             child: blurChild,
             builder: (context, innerChild) {
               final modeVal = _modeAnimController.value;
               final controlsVal = _controlsAnimController.value;
+              final flowVal = _ambientFlowController.value;
+              final flowSin = math.sin(flowVal * math.pi);
+              final flowCos = math.cos(flowVal * math.pi);
 
               return Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Rich album-tinted foundation + raster-cached blurred album artwork atmosphere
+                  // 1. Rich album-tinted foundation rooted in the most populated color of artwork
                   ColoredBox(color: palette.bottomAnchor),
                   if (innerChild != null) Positioned.fill(child: innerChild),
 
-                  // Apple Music-style colorful atmospheric wash extending down into bottom player
+                  // 2. Apple Music-style dynamic floating accent bloom (subtly shifts & breathes)
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          center: Alignment(
+                            -0.30 + 0.45 * flowSin,
+                            0.20 + 0.22 * flowCos,
+                          ),
+                          radius: 1.10 + 0.15 * flowSin,
+                          colors: [
+                            palette.accentBloom.withValues(
+                              alpha: 0.36 + 0.10 * flowSin,
+                            ),
+                            animColors.secondary.withValues(
+                              alpha: 0.20 + 0.06 * flowCos,
+                            ),
+                            Colors.transparent,
+                          ],
+                          stops: const [0.0, 0.55, 1.0],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // 3. Apple Music-style dynamic secondary bottom radial bloom anchoring the bottom player
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          center: Alignment(
+                            0.35 - 0.40 * flowCos,
+                            0.70 - 0.18 * flowSin,
+                          ),
+                          radius: 0.95 + 0.10 * flowCos,
+                          colors: [
+                            animColors.dominant.withValues(alpha: 0.48),
+                            animColors.deeper.withValues(alpha: 0.20),
+                            Colors.transparent,
+                          ],
+                          stops: const [0.0, 0.50, 1.0],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // 4. Apple Music-style colorful differentiated atmospheric wash extending into bottom player
                   Positioned.fill(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
@@ -610,12 +729,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            animColors.primary.withValues(alpha: 0.42),
-                            animColors.secondary.withValues(alpha: 0.68),
-                            animColors.deeper.withValues(alpha: 0.84),
-                            palette.bottomAnchor.withValues(alpha: 0.92),
+                            animColors.primary.withValues(alpha: 0.38),
+                            animColors.secondary.withValues(alpha: 0.62),
+                            animColors.deeper.withValues(alpha: 0.78),
+                            animColors.dominant.withValues(alpha: 0.90),
+                            palette.bottomAnchor.withValues(alpha: 0.96),
                           ],
-                          stops: const [0.0, 0.44, 0.74, 1.0],
+                          stops: [
+                            0.0,
+                            0.40 + 0.03 * flowSin,
+                            0.68 + 0.03 * flowCos,
+                            0.88,
+                            1.0,
+                          ],
                         ),
                       ),
                     ),
@@ -1601,6 +1727,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           playerProvider.select((s) => s.isLoadingAutoplay),
         );
         final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
+        final palette = _computeAtmosphericPalette(song);
 
         return RepaintBoundary(
           child: Padding(
@@ -1712,175 +1839,258 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 ),
                 const SizedBox(height: 16),
 
-                // Lazy sliver-backed Queue & AutoPlay tracklist (no shrinkWrap/ShaderMask jank)
+                // Lazy sliver-backed Queue & AutoPlay tracklist with top & bottom blurriness and smooth fading
                 Expanded(
                   child: Theme(
                     data: Theme.of(context).copyWith(
                       canvasColor: Colors.transparent,
                       shadowColor: Colors.transparent,
                     ),
-                    child: CustomScrollView(
-                      physics: const BouncingScrollPhysics(),
-                      slivers: [
-                        if (queue.isNotEmpty) ...[
-                          const SliverToBoxAdapter(
-                            child: Padding(
-                              padding: EdgeInsets.only(bottom: 8),
-                              child: Text(
-                                'NEXT IN QUEUE',
-                                style: AppleTypography.eyebrow,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // Scrolling tracklist with top and bottom fading dissolve
+                        ShaderMask(
+                          shaderCallback: (Rect bounds) {
+                            return const LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black,
+                                Colors.black,
+                                Colors.transparent,
+                              ],
+                              stops: [0.0, 0.05, 0.92, 1.0],
+                            ).createShader(bounds);
+                          },
+                          blendMode: BlendMode.dstIn,
+                          child: CustomScrollView(
+                            physics: const BouncingScrollPhysics(),
+                            slivers: [
+                              const SliverToBoxAdapter(
+                                child: SizedBox(height: 8),
                               ),
-                            ),
-                          ),
-                          SliverReorderableList(
-                            itemCount: queue.length,
-                            onReorderItem: (oldIndex, newIndex) {
-                              final adjustedIndex =
-                                  newIndex > oldIndex ? newIndex + 1 : newIndex;
-                              ref
-                                  .read(playerProvider.notifier)
-                                  .reorderQueue(oldIndex, adjustedIndex);
-                            },
-                            itemBuilder: (context, index) {
-                              final item = queue[index];
-                              return _buildQueueItemRow(
-                                key: ValueKey('manual_q_${item.id}_$index'),
-                                index: index,
-                                item: item,
-                                onRemove: () {
-                                  ref
-                                      .read(playerProvider.notifier)
-                                      .removeFromQueue(index);
-                                },
-                              );
-                            },
-                          ),
-                          const SliverToBoxAdapter(child: SizedBox(height: 16)),
-                        ],
-
-                        if (isAutoplay) ...[
-                          SliverToBoxAdapter(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Row(
-                                  children: [
-                                    Icon(
-                                      CupertinoIcons.infinite,
-                                      color: Colors.white,
-                                      size: 18,
+                              if (queue.isNotEmpty) ...[
+                                const SliverToBoxAdapter(
+                                  child: Padding(
+                                    padding: EdgeInsets.only(bottom: 8),
+                                    child: Text(
+                                      'NEXT IN QUEUE',
+                                      style: AppleTypography.eyebrow,
                                     ),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      'AutoPlay',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: -0.3,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Similar music, selected to play next',
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.60),
-                                    fontSize: 13,
                                   ),
                                 ),
-                                const SizedBox(height: 10),
+                                SliverReorderableList(
+                                  itemCount: queue.length,
+                                  onReorderItem: (oldIndex, newIndex) {
+                                    final adjustedIndex =
+                                        newIndex > oldIndex ? newIndex + 1 : newIndex;
+                                    ref
+                                        .read(playerProvider.notifier)
+                                        .reorderQueue(oldIndex, adjustedIndex);
+                                  },
+                                  itemBuilder: (context, index) {
+                                    final item = queue[index];
+                                    return _buildQueueItemRow(
+                                      key: ValueKey('manual_q_${item.id}_$index'),
+                                      index: index,
+                                      item: item,
+                                      onRemove: () {
+                                        ref
+                                            .read(playerProvider.notifier)
+                                            .removeFromQueue(index);
+                                      },
+                                    );
+                                  },
+                                ),
+                                const SliverToBoxAdapter(child: SizedBox(height: 16)),
                               ],
-                            ),
-                          ),
-                          if (autoplayQueue.isEmpty && isLoadingAutoplay)
-                            SliverToBoxAdapter(child: _buildQueueAutoplayShimmer())
-                          else if (autoplayQueue.isEmpty)
-                            SliverToBoxAdapter(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        'No similar tracks loaded yet.',
+
+                              if (isAutoplay) ...[
+                                SliverToBoxAdapter(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Row(
+                                        children: [
+                                          Icon(
+                                            CupertinoIcons.infinite,
+                                            color: Colors.white,
+                                            size: 18,
+                                          ),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            'AutoPlay',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 17,
+                                              fontWeight: FontWeight.bold,
+                                              letterSpacing: -0.3,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Similar music, selected to play next',
                                         style: TextStyle(
                                           color: Colors.white.withValues(alpha: 0.60),
                                           fontSize: 13,
                                         ),
                                       ),
-                                    ),
-                                    ApplePressable(
-                                      onTap: () => ref
-                                          .read(playerProvider.notifier)
-                                          .fetchAutoplayQueueForCurrentSong(),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withValues(alpha: 0.16),
-                                          borderRadius: BorderRadius.circular(14),
-                                        ),
-                                        child: const Text(
-                                          'Retry',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12.5,
-                                            fontWeight: FontWeight.w600,
+                                      const SizedBox(height: 10),
+                                    ],
+                                  ),
+                                ),
+                                if (autoplayQueue.isEmpty && isLoadingAutoplay)
+                                  SliverToBoxAdapter(child: _buildQueueAutoplayShimmer())
+                                else if (autoplayQueue.isEmpty)
+                                  SliverToBoxAdapter(
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              'No similar tracks loaded yet.',
+                                              style: TextStyle(
+                                                color: Colors.white.withValues(alpha: 0.60),
+                                                fontSize: 13,
+                                              ),
+                                            ),
                                           ),
+                                          ApplePressable(
+                                            onTap: () => ref
+                                                .read(playerProvider.notifier)
+                                                .fetchAutoplayQueueForCurrentSong(),
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 12,
+                                                vertical: 6,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white.withValues(alpha: 0.16),
+                                                borderRadius: BorderRadius.circular(14),
+                                              ),
+                                              child: const Text(
+                                                'Retry',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 12.5,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  SliverReorderableList(
+                                    itemCount: autoplayQueue.length,
+                                    onReorderItem: (oldIndex, newIndex) {
+                                      final adjustedIndex = newIndex > oldIndex
+                                          ? newIndex + 1
+                                          : newIndex;
+                                      ref
+                                          .read(playerProvider.notifier)
+                                          .reorderAutoplayQueue(oldIndex, adjustedIndex);
+                                    },
+                                    itemBuilder: (context, index) {
+                                      final item = autoplayQueue[index];
+                                      return _buildQueueItemRow(
+                                        key: ValueKey('autoplay_q_${item.id}_$index'),
+                                        index: index,
+                                        item: item,
+                                        onRemove: () {
+                                          ref
+                                              .read(playerProvider.notifier)
+                                              .removeFromAutoplayQueue(index);
+                                        },
+                                      );
+                                    },
+                                  ),
+                              ] else if (queue.isEmpty)
+                                SliverToBoxAdapter(
+                                  child: Center(
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(top: 32),
+                                      child: Text(
+                                        'Queue is empty. Turn on AutoPlay for similar tracks.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: Colors.white.withValues(alpha: 0.50),
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
                                         ),
                                       ),
                                     ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            )
-                          else
-                            SliverReorderableList(
-                              itemCount: autoplayQueue.length,
-                              onReorderItem: (oldIndex, newIndex) {
-                                final adjustedIndex = newIndex > oldIndex
-                                    ? newIndex + 1
-                                    : newIndex;
-                                ref
-                                    .read(playerProvider.notifier)
-                                    .reorderAutoplayQueue(oldIndex, adjustedIndex);
-                              },
-                              itemBuilder: (context, index) {
-                                final item = autoplayQueue[index];
-                                return _buildQueueItemRow(
-                                  key: ValueKey('autoplay_q_${item.id}_$index'),
-                                  index: index,
-                                  item: item,
-                                  onRemove: () {
-                                    ref
-                                        .read(playerProvider.notifier)
-                                        .removeFromAutoplayQueue(index);
-                                  },
-                                );
-                              },
-                            ),
-                        ] else if (queue.isEmpty)
-                          SliverToBoxAdapter(
-                            child: Center(
-                              child: Padding(
-                                padding: const EdgeInsets.only(top: 32),
-                                child: Text(
-                                  'Queue is empty. Turn on AutoPlay for similar tracks.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.50),
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
+                              const SliverToBoxAdapter(child: SizedBox(height: 36)),
+                            ],
+                          ),
+                        ),
+
+                        // Top progressive blur & delicate scrim dissolving songs at the top
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: 30,
+                          child: IgnorePointer(
+                            child: ClipRect(
+                              child: BackdropFilter(
+                                filter: ui.ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        palette.bottomAnchor.withValues(alpha: 0.65),
+                                        palette.bottomAnchor.withValues(alpha: 0.15),
+                                        Colors.transparent,
+                                      ],
+                                      stops: const [0.0, 0.55, 1.0],
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                        const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                        ),
+
+                        // Bottom progressive blur & delicate scrim dissolving songs at the bottom
+                        Positioned(
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          height: 36,
+                          child: IgnorePointer(
+                            child: ClipRect(
+                              child: BackdropFilter(
+                                filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.bottomCenter,
+                                      end: Alignment.topCenter,
+                                      colors: [
+                                        palette.bottomAnchor.withValues(alpha: 0.82),
+                                        palette.bottomAnchor.withValues(alpha: 0.25),
+                                        Colors.transparent,
+                                      ],
+                                      stops: const [0.0, 0.60, 1.0],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1943,7 +2153,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }) {
     return Container(
       key: key,
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: 6.5),
       child: Row(
         children: [
           ReorderableDragStartListener(
@@ -1981,13 +2191,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: GestureDetector(
+            child: ApplePressable(
               onTap: () {
                 ref
                     .read(playerProvider.notifier)
                     .playSong(item, forceReload: true);
               },
-              behavior: HitTestBehavior.opaque,
+              pressedScale: 0.98,
+              borderRadius: BorderRadius.circular(8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,

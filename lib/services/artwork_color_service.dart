@@ -18,6 +18,7 @@ class ArtworkColorService {
   final Map<String, Color> _cache = {};
   final Map<String, Color> _secondaryCache = {};
   final Map<String, Color> _bestColorCache = {};
+  final Map<String, Color> _dominantCache = {};
 
   final Map<String, PaletteGenerator> _paletteCache = {};
   final Map<String, Future<PaletteGenerator?>> _inFlightPalettes = {};
@@ -30,6 +31,9 @@ class ArtworkColorService {
 
   /// Retrieves the cached brightest vibrant color if already computed for [key].
   Color? getCachedBestColor(String key) => _bestColorCache[key];
+
+  /// Retrieves the cached dominant (most populated) color if already computed for [key].
+  Color? getCachedDominantColor(String key) => _dominantCache[key];
 
   /// Returns true when [url] is empty, a video stream, or a YouTube video frame thumbnail
   /// (`i.ytimg.com` / `img.youtube.com`) rather than dedicated album artwork.
@@ -91,12 +95,28 @@ class ArtworkColorService {
       final palette = await PaletteGenerator.fromImageProvider(
         imageProvider,
         size: const Size(64, 64),
-        maximumColorCount: 16,
+        maximumColorCount: 24,
+        filters: const [],
       ).timeout(const Duration(seconds: 3));
 
       _paletteCache[cleanUrl] = palette;
 
-      // Optimistically compute and populate all three caches from this single palette pass
+      // Extract dominant / most populated color in bottom area connecting with bottom player
+      PaletteGenerator? bottomPalette;
+      try {
+        bottomPalette = await PaletteGenerator.fromImageProvider(
+          imageProvider,
+          size: const Size(64, 64),
+          region: const Rect.fromLTWH(0, 32, 64, 32),
+          maximumColorCount: 16,
+          filters: const [],
+        ).timeout(const Duration(milliseconds: 1500));
+      } catch (_) {}
+
+      final dominant = _pickMostPopulatedColor(bottomPalette ?? palette);
+      _dominantCache[cleanUrl] = _tuneForBottomPlayerFoundation(dominant);
+
+      // Optimistically compute and populate primary, secondary, and vibrant bloom caches
       final primary = _pickMostAttractiveColor(palette);
       _cache[cleanUrl] = _tuneForAlbumBackground(primary);
 
@@ -113,6 +133,43 @@ class ArtworkColorService {
     } finally {
       _inFlightPalettes.remove(cleanUrl);
     }
+  }
+
+  /// Extracts the most populated color in the album artwork (specifically prioritizing
+  /// the bottom area connecting with the bottom player controls).
+  Future<Color> extractDominantColor(
+    String? imageUrl, {
+    String? fallbackSeed,
+  }) async {
+    final cleanUrl = imageUrl?.trim() ?? '';
+    final canExtract = cleanUrl.isNotEmpty && !isVideoOrNonArtworkUrl(cleanUrl);
+    final cacheKey = canExtract ? cleanUrl : (fallbackSeed ?? 'default');
+
+    if (_dominantCache.containsKey(cacheKey)) {
+      return _dominantCache[cacheKey]!;
+    }
+
+    Color? extracted;
+    if (canExtract) {
+      final palette = await _getOrComputePalette(cleanUrl);
+      if (_dominantCache.containsKey(cleanUrl)) {
+        return _dominantCache[cleanUrl]!;
+      }
+      if (palette != null) {
+        extracted = _pickMostPopulatedColor(palette);
+      }
+    }
+
+    extracted ??= _generateAestheticColorFromSeed(fallbackSeed ?? cleanUrl);
+    final tuned = _tuneForBottomPlayerFoundation(extracted);
+    _dominantCache[cacheKey] = tuned;
+    return tuned;
+  }
+
+  /// Generates a deterministic deep foundation color from seed when image is not yet decoded.
+  Color getFallbackDominantColor(String seed) {
+    final base = _generateAestheticColorFromSeed(seed);
+    return _tuneForBottomPlayerFoundation(base);
   }
 
   /// Extracts the most attractive color from [imageUrl].
@@ -418,6 +475,47 @@ class ArtworkColorService {
     }
 
     return palette.dominantColor?.color ?? const Color(0xFF1E1E26);
+  }
+
+  /// Picks the color swatch with the highest population from [palette].
+  Color _pickMostPopulatedColor(PaletteGenerator palette) {
+    if (palette.paletteColors.isEmpty) {
+      return palette.dominantColor?.color ?? const Color(0xFF141418);
+    }
+    PaletteColor? maxSwatch;
+    int maxPop = -1;
+    for (final swatch in palette.paletteColors) {
+      if (swatch.population > maxPop) {
+        maxPop = swatch.population;
+        maxSwatch = swatch;
+      }
+    }
+    return maxSwatch?.color ?? palette.dominantColor?.color ?? const Color(0xFF141418);
+  }
+
+  /// Tunes the most populated artwork color into a luxurious, deep bottom player foundation.
+  /// Preserves the authentic hue and rich saturation while guaranteeing comfortable OLED contrast
+  /// for white text, progress scrubber, and transport controls.
+  Color _tuneForBottomPlayerFoundation(Color source) {
+    final hsl = HSLColor.fromColor(source);
+
+    // If monochrome/neutral (e.g. black and white or grayscale album cover)
+    if (hsl.saturation < 0.10) {
+      // If white/light gray background, anchor to deep sleek OLED graphite
+      if (hsl.lightness > 0.40) {
+        return const Color(0xFF121216);
+      }
+      return hsl.withLightness(hsl.lightness.clamp(0.07, 0.13)).toColor();
+    }
+
+    // Preserve the authentic hue of the populated area, tuning saturation and dark lightness
+    final tunedSat = (hsl.saturation * 1.05).clamp(0.35, 0.68);
+    final tunedLightness = hsl.lightness.clamp(0.09, 0.15);
+
+    return hsl
+        .withSaturation(tunedSat)
+        .withLightness(tunedLightness)
+        .toColor();
   }
 
   bool _isChromaAttractive(Color color) {

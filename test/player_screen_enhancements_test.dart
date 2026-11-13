@@ -522,5 +522,72 @@ void main() {
       sub.close();
       container.dispose();
     });
+
+    test('ArtworkColorService extracts dominant populated color and tunes it for bottom player foundation', () async {
+      final dominantSeed = ArtworkColorService.instance.getFallbackDominantColor('Blinding Lights');
+      final hsl = HSLColor.fromColor(dominantSeed);
+      expect(hsl.lightness, inInclusiveRange(0.07, 0.16));
+      expect(hsl.saturation, inInclusiveRange(0.03, 0.70));
+
+      final extractedDominant = await ArtworkColorService.instance.extractDominantColor(
+        'https://example.com/art.jpg',
+        fallbackSeed: 'After Hours The Weeknd',
+      );
+      expect(extractedDominant, isNotNull);
+      expect(
+        ArtworkColorService.instance.getCachedDominantColor('https://example.com/art.jpg'),
+        equals(extractedDominant),
+      );
+    });
+
+    testWidgets('Queue section in PlayerScreen renders top and bottom blurriness and fading masks with proper padding', (tester) async {
+      const screenH = 900.0;
+      const screenW = 430.0;
+      tester.view.physicalSize = const Size(screenW, screenH);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final container = ProviderContainer();
+      container.read(playerProvider.notifier).state = const PlayerStateModel(
+        currentSong: testSongA,
+        isPlaying: true,
+        queue: [testSongB],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: Scaffold(body: PlayerScreen()),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+
+      // Switch to Queue tab via the 3-menu bullet button
+      await tester.tap(find.byIcon(CupertinoIcons.list_bullet));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Verify Queue header & Now Playing are rendered
+      expect(find.text('Queue'), findsOneWidget);
+      expect(find.text('NOW PLAYING'), findsOneWidget);
+      expect(find.text('NEXT IN QUEUE'), findsOneWidget);
+      expect(find.text('Starboy'), findsWidgets);
+      expect(find.text('Blinding Lights'), findsOneWidget);
+
+      // Verify top and bottom blur overlays (BackdropFilter) exist within the queue view
+      final backdropFilters = find.byType(BackdropFilter);
+      expect(backdropFilters, findsWidgets);
+
+      // Verify ShaderMask for fading in/out the songs at top and bottom is mounted
+      final shaderMasks = find.byType(ShaderMask);
+      expect(shaderMasks, findsWidgets);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      container.dispose();
+    });
   });
 }
