@@ -320,8 +320,12 @@ class _CascadingCachedImage extends StatelessWidget {
       );
     }
 
-    final memW = width != null && width! > 0 ? (width! * 2.5).round() : null;
-    final memH = height != null && height! > 0 ? (height! * 2.5).round() : null;
+    final maxDim = width != null && height != null
+        ? (width! > height! ? width! : height!)
+        : (width ?? height);
+    final targetMem = maxDim != null && maxDim > 0
+        ? (maxDim * 3.0).round()
+        : null;
 
     return CachedNetworkImage(
       imageUrl: currentUrl,
@@ -330,8 +334,8 @@ class _CascadingCachedImage extends StatelessWidget {
       fit: fit,
       alignment: alignment,
       filterQuality: filterQuality,
-      memCacheWidth: memW,
-      memCacheHeight: memH,
+      memCacheWidth: targetMem,
+      memCacheHeight: null, // Preserves natural aspect ratio during decode without stretching
       fadeInDuration: const Duration(milliseconds: 120),
       fadeOutDuration: const Duration(milliseconds: 120),
       placeholder: (context, url) => placeholder,

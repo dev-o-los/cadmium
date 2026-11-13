@@ -84,7 +84,8 @@ class HomeScreenSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
     final screenWidth = MediaQuery.of(context).size.width;
-    final heroCardWidth = (screenWidth * 0.58).clamp(215.0, 245.0);
+    final heroCardWidth = (screenWidth * 0.58).clamp(215.0, 240.0);
+    const heroCardHeight = 305.0;
 
     return AppShimmer(
       child: SingleChildScrollView(
@@ -110,7 +111,7 @@ class HomeScreenSkeleton extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             SizedBox(
-              height: 305,
+              height: heroCardHeight,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 physics: const NeverScrollableScrollPhysics(),
@@ -119,10 +120,34 @@ class HomeScreenSkeleton extends StatelessWidget {
                 separatorBuilder: (context, index) => const SizedBox(width: 12),
                 itemBuilder: (context, index) => Container(
                   width: heroCardWidth,
-                  height: 305,
+                  height: heroCardHeight,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    color: const Color(0xFF18181A),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      width: 0.8,
+                    ),
+                  ),
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Align(
+                          alignment: const Alignment(-0.4, -0.2),
+                          child: ShimmerBox(
+                            width: heroCardWidth * 0.48,
+                            height: heroCardWidth * 0.48,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const ShimmerBox(width: 80, height: 11),
+                      const SizedBox(height: 6),
+                      const ShimmerBox(width: 150, height: 16),
+                    ],
                   ),
                 ),
               ),

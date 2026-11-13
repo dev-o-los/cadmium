@@ -152,9 +152,15 @@ class SongItem {
     }
 
     // YouTube standard thumbnails:
-    // hqdefault.jpg (480x360) is guaranteed to exist on EVERY YouTube video.
-    // Upgrading low-res default / mqdefault to hqdefault ensures fast 20ms load without 404s.
+    // When studio HD resolution is requested (size >= 800), upgrade to maxresdefault.jpg.
+    // Otherwise upgrade low-res default / mqdefault to hqdefault (480x360).
     if (cleanUrl.contains('i.ytimg.com') || cleanUrl.contains('img.youtube.com')) {
+      if (size >= 800) {
+        return cleanUrl.replaceAll(
+          RegExp(r'/(mqdefault|default|hqdefault|sddefault|hq720)\.jpg'),
+          '/maxresdefault.jpg',
+        );
+      }
       if (cleanUrl.contains('/default.jpg') || cleanUrl.contains('/mqdefault.jpg')) {
         return cleanUrl.replaceAll(RegExp(r'/(mqdefault|default)\.jpg'), '/hqdefault.jpg');
       }

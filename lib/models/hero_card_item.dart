@@ -13,6 +13,12 @@ class HeroCardItem {
   final List<String> artistAvatars;
   final String? iconType;
 
+  /// Studio-quality HD resolution URL (up to 1024x1024 or maxresdefault) for hero displays
+  String? get hdImageUrl {
+    if (imageUrl == null || imageUrl!.trim().isEmpty) return null;
+    return SongItem.upgradeThumbnail(imageUrl!.trim(), size: 1024, quality: 95);
+  }
+
   const HeroCardItem({
     required this.id,
     required this.title,

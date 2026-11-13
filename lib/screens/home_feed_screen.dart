@@ -306,6 +306,10 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
   ) {
     if (heroCards.isEmpty) return const SizedBox.shrink();
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final cardWidth = (screenWidth * 0.58).clamp(215.0, 240.0);
+    const cardHeight = 305.0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -318,7 +322,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
         ),
         const SizedBox(height: AppleSpacing.sectionHeaderToContent),
         SizedBox(
-          height: 305,
+          height: cardHeight,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -326,7 +330,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             separatorBuilder: (context, index) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               final hero = heroCards[index];
-              return _buildHeroCard(context, ref, hero);
+              return _buildHeroCard(context, ref, hero, cardWidth, cardHeight);
             },
           ),
         ),
@@ -338,11 +342,9 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
     BuildContext context,
     WidgetRef ref,
     HeroCardItem hero,
+    double cardWidth,
+    double cardHeight,
   ) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final cardWidth = (screenWidth * 0.58).clamp(215.0, 245.0);
-    const cardHeight = 305.0;
-
     return RepaintBoundary(
       child: ApplePressable(
         onTap: () {
@@ -352,39 +354,39 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             playHero(context, ref, hero);
           }
         },
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         child: Container(
           width: cardWidth,
           height: cardHeight,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             color: const Color(0xFF141414),
             border: Border.all(
-              color: Colors.white.withValues(alpha: 0.08),
-              width: 0.6,
+              color: Colors.white.withValues(alpha: 0.10),
+              width: 0.8,
             ),
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             child: Stack(
               fit: StackFit.expand,
               children: [
                 // 1. Dynamic Hero Background tailored to specific card style
                 _buildHeroBackground(context, hero, cardWidth, cardHeight),
 
-                // 2. Mix Badge on top-left for New Release Mix
+                // 2. Mix Badge on top-left for New Release Mix (Image 2)
                 if (hero.style == 'mixWithBadge')
                   Positioned(
                     top: 14,
                     left: 14,
                     child: Container(
-                      width: 30,
-                      height: 30,
+                      width: 28,
+                      height: 28,
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.70),
+                        color: Colors.black.withValues(alpha: 0.65),
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.20),
+                          color: Colors.white.withValues(alpha: 0.25),
                           width: 0.8,
                         ),
                       ),
@@ -392,39 +394,44 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                         child: Icon(
                           CupertinoIcons.play_fill,
                           color: Colors.white,
-                          size: 13,
+                          size: 12,
                         ),
                       ),
                     ),
                   ),
 
-                // 3. Signature 3-Wave Wavify Logo on top-right
-                const Positioned(
-                  top: 14,
-                  right: 14,
-                  child: WavifyLogo(size: 18),
-                ),
+                // 3. Signature 3-Wave Wavify Logo on top-right (Image 1, 3, 4)
+                if (hero.style != 'mixWithBadge')
+                  const Positioned(
+                    top: 14,
+                    right: 14,
+                    child: WavifyLogo(size: 20),
+                  ),
 
-                // 4. High-contrast OLED gradient scrim for crystal clear typography
-                Positioned.fill(
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.transparent,
-                          Color(0x66000000),
-                          Color(0xF0000000),
-                        ],
-                        stops: [0.0, 0.38, 0.68, 1.0],
+                // 4. High-contrast OLED gradient scrim for crystal clear typography on full bleed cards
+                if (hero.style != 'mixWithBadge' &&
+                    hero.style != 'similarArtists' &&
+                    hero.style != 'userStation' &&
+                    hero.style != 'discoveryStation')
+                  Positioned.fill(
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.transparent,
+                            Color(0x66000000),
+                            Color(0xF0000000),
+                          ],
+                          stops: [0.0, 0.40, 0.70, 1.0],
+                        ),
                       ),
                     ),
                   ),
-                ),
 
-                // 5. White Typography floating over the scrim
+                // 5. White Typography floating at bottom matching reference images
                 Positioned(
                   left: 14,
                   right: 14,
@@ -434,29 +441,43 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        hero.subtitle.toUpperCase(),
+                        hero.subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppleTypography.eyebrow.copyWith(
-                          color: Colors.white.withValues(alpha: 0.85),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white.withValues(alpha: 0.82),
+                          letterSpacing: 0.1,
                         ),
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 2),
                       Text(
                         hero.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppleTypography.sectionTitle,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        hero.caption,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppleTypography.sectionSubtitle.copyWith(
-                          color: Colors.white.withValues(alpha: 0.70),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          letterSpacing: -0.2,
                         ),
                       ),
+                      if (hero.caption.isNotEmpty &&
+                          hero.style != 'similarArtists' &&
+                          hero.style != 'userStation') ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          hero.caption,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400,
+                            color: Colors.white.withValues(alpha: 0.68),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -468,7 +489,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
     );
   }
 
-  /// Builds the background graphics and layout for the 8 hero card types matching BitChord/YTM
+  /// Builds the background graphics and layout for the 8 hero card types matching reference images
   Widget _buildHeroBackground(
     BuildContext context,
     HeroCardItem hero,
@@ -477,7 +498,9 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
   ) {
     switch (hero.style) {
       case 'similarArtists':
-        final baseColor = Color(hero.primaryColor ?? 0xFFBA0C69);
+        // Warm copper/amber gradient matching Image 1 and Image 4
+        final baseColor = Color(hero.primaryColor ?? 0xFFC04B02);
+        final hdUrl = hero.hdImageUrl ?? hero.imageUrl;
         return Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -485,108 +508,179 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
               end: Alignment.bottomCenter,
               colors: [
                 baseColor,
-                baseColor.withValues(alpha: 0.85),
-                Colors.black.withValues(alpha: 0.95),
+                baseColor.withValues(alpha: 0.90),
+                const Color(0xFF702800),
+                const Color(0xFF3E1400),
               ],
-              stops: const [0.0, 0.55, 1.0],
+              stops: const [0.0, 0.45, 0.80, 1.0],
             ),
           ),
           child: Stack(
             children: [
-              // 1 large top avatar
+              // 1. Large top circular avatar (Image 1 & 4)
               Positioned(
-                top: 24,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: _buildAvatarCircle(
-                    avatarUrl: hero.artistAvatars.isNotEmpty
-                        ? hero.artistAvatars[0]
-                        : hero.imageUrl,
-                    size: 80,
-                    borderWidth: 2.0,
-                  ),
+                top: 18,
+                left: 16,
+                child: _buildAvatarCircle(
+                  avatarUrl: hero.artistAvatars.isNotEmpty
+                      ? hero.artistAvatars[0]
+                      : hdUrl,
+                  size: cardWidth * 0.50, // ~115
+                  borderWidth: 0,
                 ),
               ),
-              // 2 bottom overlapping avatars
+              // 2. Medium right circular avatar (Image 1 & 4)
               Positioned(
-                top: 80,
-                left: (cardWidth * 0.18).clamp(24.0, 42.0),
+                top: 85,
+                right: 14,
                 child: _buildAvatarCircle(
                   avatarUrl: hero.artistAvatars.length > 1
                       ? hero.artistAvatars[1]
                       : (hero.artistAvatars.isNotEmpty
                           ? hero.artistAvatars[0]
                           : null),
-                  size: 58,
-                  borderWidth: 1.5,
+                  size: cardWidth * 0.35, // ~80
+                  borderWidth: 0,
                 ),
               ),
+              // 3. Small bottom circular avatar (Image 1 & 4)
               Positioned(
-                top: 80,
-                right: (cardWidth * 0.18).clamp(24.0, 42.0),
+                top: 135,
+                left: cardWidth * 0.30, // ~70
                 child: _buildAvatarCircle(
                   avatarUrl: hero.artistAvatars.length > 2
                       ? hero.artistAvatars[2]
                       : (hero.artistAvatars.isNotEmpty
                           ? hero.artistAvatars[0]
                           : null),
-                  size: 58,
-                  borderWidth: 1.5,
+                  size: cardWidth * 0.30, // ~70
+                  borderWidth: 0,
                 ),
               ),
             ],
           ),
         );
 
-      case 'discoveryStation':
+      case 'mixWithBadge':
+        // New Release Mix matching Image 2 with top rectangular HD image and display typography
+        final hdUrl = hero.hdImageUrl ?? hero.imageUrl;
         return Container(
           decoration: const BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment(0.0, -0.25),
-              radius: 1.05,
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
               colors: [
-                Color(0xFF381A78),
-                Color(0xFF1E2875),
-                Color(0xFF0F172A),
-                Color(0xFF0A0A10),
+                Color(0xFF5A1435),
+                Color(0xFF380C20),
+                Color(0xFF1C0510),
               ],
+              stops: [0.0, 0.60, 1.0],
             ),
           ),
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 50),
-              child: VortexRingsIcon(
-                size: 80,
-                color: Colors.white.withValues(alpha: 0.40),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Top rectangular artwork container (Image 2)
+              if (hdUrl != null)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: cardHeight * 0.54,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      WavifyCachedImage(
+                        imageUrl: hdUrl,
+                        songId: hero.playTrack?.id,
+                        width: cardWidth,
+                        height: cardHeight * 0.54,
+                        fit: BoxFit.cover,
+                        alignment: Alignment.center,
+                        filterQuality: FilterQuality.high,
+                        placeholder: AppShimmer(
+                          baseColor: const Color(0xFF1E1E22),
+                          highlightColor: const Color(0xFF2E2E34),
+                          child: Container(color: const Color(0xFF141414)),
+                        ),
+                      ),
+                      // Smooth vertical gradient blend at bottom into card body
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.transparent,
+                                const Color(0xFF380C20).withValues(alpha: 0.70),
+                                const Color(0xFF380C20),
+                              ],
+                              stops: const [0.0, 0.40, 0.80, 1.0],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // Large stylized display title matching Image 2
+              Positioned(
+                top: cardHeight * 0.35,
+                left: 14,
+                right: 14,
+                child: Text(
+                  'New\nRelease\nMix',
+                  style: TextStyle(
+                    fontFamily: 'SF Pro Display',
+                    fontSize: 27,
+                    fontWeight: FontWeight.w800,
+                    height: 0.94,
+                    letterSpacing: -0.8,
+                    color: Colors.white.withValues(alpha: 0.95),
+                    shadows: [
+                      Shadow(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         );
 
       case 'userStation':
+        // Right-pointing faceted chevrons matching Image 3 (Utkarsh's Station)
+        return CustomPaint(
+          size: Size(cardWidth, cardHeight),
+          painter: _ChevronStationPainter(),
+        );
+
+      case 'discoveryStation':
+        // Deep warm amber with concentric circular rings matching Image 4 left card
+        final baseColor = Color(hero.primaryColor ?? 0xFFD84315);
         return Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
               colors: [
-                Color(0xFFFF416C),
-                Color(0xFFFF4B2B),
-                Color(0xFFFF7E40),
-                Color(0xFF8E0E00),
+                baseColor,
+                baseColor.withValues(alpha: 0.90),
+                const Color(0xFF4A1000),
+                const Color(0xFF1E0500),
               ],
+              stops: const [0.0, 0.50, 0.85, 1.0],
             ),
           ),
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 50),
-              child: Icon(
-                CupertinoIcons.radiowaves_right,
-                size: 72,
-                color: Colors.white.withValues(alpha: 0.32),
-              ),
-            ),
+          child: CustomPaint(
+            size: Size(cardWidth, cardHeight),
+            painter: const _ConcentricRingsPainter(ringColor: Colors.white),
           ),
         );
 
@@ -607,26 +701,40 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
           ),
           child: Center(
             child: Padding(
-              padding: const EdgeInsets.only(bottom: 50),
+              padding: const EdgeInsets.only(bottom: 40),
               child: _buildMoodIcon(hero.iconType ?? 'lightning'),
             ),
           ),
         );
 
       default:
-        // Full bleed cover artwork for fullBleed, artistPortrait, mixWithBadge
-        if (hero.imageUrl != null) {
+        // Studio HD full bleed cover artwork (Image 1 left peek) with proper shimmer placeholder
+        final hdUrl = hero.hdImageUrl ?? hero.imageUrl;
+        if (hdUrl != null) {
           return WavifyCachedImage(
-            imageUrl: hero.imageUrl!,
+            imageUrl: hdUrl,
             songId: hero.playTrack?.id,
+            width: cardWidth,
+            height: cardHeight,
             fit: BoxFit.cover,
+            alignment: Alignment.center,
+            filterQuality: FilterQuality.high,
+            placeholder: AppShimmer(
+              baseColor: const Color(0xFF18181A),
+              highlightColor: const Color(0xFF28282E),
+              child: Container(
+                width: cardWidth,
+                height: cardHeight,
+                color: const Color(0xFF141414),
+              ),
+            ),
             errorWidget: Container(
               color: const Color(0xFF141414),
               child: const Center(
                 child: Icon(
                   CupertinoIcons.music_note,
                   color: Colors.white24,
-                  size: 48,
+                  size: 40,
                 ),
               ),
             ),
@@ -638,7 +746,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
               child: Icon(
                 CupertinoIcons.music_note,
                 color: Colors.white24,
-                size: 48,
+                size: 40,
               ),
             ),
           );
@@ -649,32 +757,51 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
   Widget _buildAvatarCircle({
     required String? avatarUrl,
     required double size,
-    double borderWidth = 1.5,
+    double borderWidth = 0,
   }) {
+    final hdAvatar = avatarUrl != null
+        ? (SongItem.upgradeThumbnail(avatarUrl, size: 500, quality: 95) ?? avatarUrl)
+        : null;
+
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.9),
-          width: borderWidth,
-        ),
+        border: borderWidth > 0
+            ? Border.all(
+                color: Colors.white.withValues(alpha: 0.9),
+                width: borderWidth,
+              )
+            : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+            color: Colors.black.withValues(alpha: 0.40),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: ClipOval(
-        child: avatarUrl != null
+        child: hdAvatar != null
             ? WavifyCachedImage(
-                imageUrl: avatarUrl,
+                imageUrl: hdAvatar,
                 width: size,
                 height: size,
                 fit: BoxFit.cover,
+                filterQuality: FilterQuality.high,
+                placeholder: AppShimmer(
+                  baseColor: const Color(0xFF1E1E22),
+                  highlightColor: const Color(0xFF2E2E34),
+                  child: Container(
+                    width: size,
+                    height: size,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF141414),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
                 errorWidget: Container(
                   color: AppColors.appleDarkSurfaceHigh,
                   child: const Icon(
@@ -1899,4 +2026,112 @@ class _SquareItem {
       isLikedMusic: isLiked,
     );
   }
+}
+
+/// Custom painter for right-pointing faceted chevrons matching Image 3 (Utkarsh's Station)
+class _ChevronStationPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // Base background gradient: Radiant rose / pink / magenta
+    final basePaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFFFA2D65), Color(0xFFE01853), Color(0xFF880E4F)],
+      ).createShader(Rect.fromLTWH(0, 0, w, h));
+    canvas.drawRect(Rect.fromLTWH(0, 0, w, h), basePaint);
+
+    // Chevron 3 (deep magenta/rose)
+    final p3 = Path()
+      ..moveTo(0, 0)
+      ..lineTo(w * 0.25, 0)
+      ..lineTo(w * 0.88, h * 0.50)
+      ..lineTo(w * 0.25, h)
+      ..lineTo(0, h)
+      ..lineTo(w * 0.63, h * 0.50)
+      ..close();
+    canvas.drawPath(
+      p3,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFE91E63), Color(0xFFAD1457)],
+        ).createShader(Rect.fromLTWH(0, 0, w, h)),
+    );
+
+    // Chevron 2 (middle vibrant coral/pink)
+    final p2 = Path()
+      ..moveTo(0, 0)
+      ..lineTo(w * 0.12, 0)
+      ..lineTo(w * 0.65, h * 0.50)
+      ..lineTo(w * 0.12, h)
+      ..lineTo(0, h)
+      ..lineTo(w * 0.50, h * 0.50)
+      ..close();
+    canvas.drawPath(
+      p2,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFFF4081), Color(0xFFF50057)],
+        ).createShader(Rect.fromLTWH(0, 0, w, h)),
+    );
+
+    // Chevron 1 (leftmost warm coral/orange)
+    final p1 = Path()
+      ..moveTo(0, 0)
+      ..lineTo(w * 0.05, 0)
+      ..lineTo(w * 0.45, h * 0.50)
+      ..lineTo(w * 0.05, h)
+      ..lineTo(0, h)
+      ..lineTo(w * 0.38, h * 0.50)
+      ..close();
+    canvas.drawPath(
+      p1,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomLeft,
+          colors: [Color(0xFFFF6E40), Color(0xFFFF3D00)],
+        ).createShader(Rect.fromLTWH(0, 0, w, h)),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Custom painter for concentric rings on warm amber background matching Image 4 left card
+class _ConcentricRingsPainter extends CustomPainter {
+  final Color ringColor;
+  const _ConcentricRingsPainter({this.ringColor = Colors.white});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(0, size.height * 0.45);
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+
+    final radii = [
+      size.width * 0.15,
+      size.width * 0.30,
+      size.width * 0.48,
+      size.width * 0.68,
+      size.width * 0.90,
+    ];
+
+    for (int i = 0; i < radii.length; i++) {
+      paint.color = ringColor.withValues(alpha: (0.35 - i * 0.05).clamp(0.12, 0.40));
+      canvas.drawCircle(center, radii[i], paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
