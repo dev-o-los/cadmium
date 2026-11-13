@@ -26,7 +26,7 @@ class AppUpdateState {
   const AppUpdateState({
     this.status = UpdateStatus.idle,
     this.updateInfo,
-    this.currentVersion = '1.0.4',
+    this.currentVersion = '1.0.5',
     this.progress = 0.0,
     this.receivedBytes = 0,
     this.totalBytes = 0,

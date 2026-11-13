@@ -48,7 +48,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _wifiOnly = false;
   bool _gaplessPlayback = true;
   bool _autoCheckUpdates = true;
-  String _appVersion = '1.0.4';
+  String _appVersion = '1.0.5';
 
   @override
   void initState() {
