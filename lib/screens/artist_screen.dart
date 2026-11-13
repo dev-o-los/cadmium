@@ -60,6 +60,17 @@ class ArtistScreen extends ConsumerStatefulWidget {
   ConsumerState<ArtistScreen> createState() => _ArtistScreenState();
 }
 
+const LiquidGlassSettings _kArtistGlassSettings = LiquidGlassSettings(
+  glassColor: Color(0x1EFFFFFF),
+  thickness: 26,
+  blur: 24,
+  refractiveIndex: 1.25,
+  lightIntensity: 0.78,
+  specularSharpness: GlassSpecularSharpness.sharp,
+  fresnelStrength: 1.32,
+  rimLight: 0.48,
+);
+
 class _ArtistScreenState extends ConsumerState<ArtistScreen> {
   final ScrollController _scrollController = ScrollController();
 
@@ -68,9 +79,13 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
   bool _isDescriptionExpanded = false;
   Color? _primaryColor;
   Color? _secondaryColor;
+  Color? _recentPrimaryColor;
+  Color? _recentSecondaryColor;
 
   // Mini player dock crawl / minimization state
-  bool _isMiniPlayerCrawled = false;
+  final ValueNotifier<bool> _miniPlayerCrawledNotifier = ValueNotifier<bool>(
+    false,
+  );
   double _accumulatedScrollDelta = 0.0;
 
   @override
@@ -90,11 +105,30 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
       banner,
       fallbackSeed: _displayName,
     );
+    final recent = _artistDetails?.recentRelease;
+    final recentFutures = recent != null
+        ? Future.wait([
+            ArtworkColorService.instance.extractAttractiveColor(
+              recent.thumbnailUrl,
+              fallbackSeed: recent.title,
+            ),
+            ArtworkColorService.instance.extractSecondaryColor(
+              recent.thumbnailUrl,
+              fallbackSeed: recent.title,
+            ),
+          ])
+        : Future.value(<Color>[]);
+
     final results = await Future.wait([primaryFuture, secondaryFuture]);
+    final recentResults = await recentFutures;
     if (mounted) {
       setState(() {
         _primaryColor = results[0];
         _secondaryColor = results[1];
+        if (recentResults.length == 2) {
+          _recentPrimaryColor = recentResults[0];
+          _recentSecondaryColor = recentResults[1];
+        }
       });
     }
   }
@@ -102,6 +136,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _miniPlayerCrawledNotifier.dispose();
     super.dispose();
   }
 
@@ -112,8 +147,8 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
 
     final pixels = notification.metrics.pixels;
     if (pixels <= 25) {
-      if (_isMiniPlayerCrawled) {
-        setState(() => _isMiniPlayerCrawled = false);
+      if (_miniPlayerCrawledNotifier.value) {
+        _miniPlayerCrawledNotifier.value = false;
       }
       _accumulatedScrollDelta = 0;
       return false;
@@ -121,25 +156,25 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
 
     if (notification is UserScrollNotification) {
       if (notification.direction == ScrollDirection.reverse &&
-          !_isMiniPlayerCrawled) {
-        setState(() => _isMiniPlayerCrawled = true);
+          !_miniPlayerCrawledNotifier.value) {
+        _miniPlayerCrawledNotifier.value = true;
       } else if (notification.direction == ScrollDirection.forward &&
-          _isMiniPlayerCrawled) {
-        setState(() => _isMiniPlayerCrawled = false);
+          _miniPlayerCrawledNotifier.value) {
+        _miniPlayerCrawledNotifier.value = false;
       }
     } else if (notification is ScrollUpdateNotification) {
       final delta = notification.scrollDelta ?? 0.0;
       if (delta > 0) {
         _accumulatedScrollDelta =
             (_accumulatedScrollDelta > 0 ? _accumulatedScrollDelta : 0) + delta;
-        if (_accumulatedScrollDelta > 20 && !_isMiniPlayerCrawled) {
-          setState(() => _isMiniPlayerCrawled = true);
+        if (_accumulatedScrollDelta > 20 && !_miniPlayerCrawledNotifier.value) {
+          _miniPlayerCrawledNotifier.value = true;
         }
       } else if (delta < 0) {
         _accumulatedScrollDelta =
             (_accumulatedScrollDelta < 0 ? _accumulatedScrollDelta : 0) + delta;
-        if (_accumulatedScrollDelta < -12 && _isMiniPlayerCrawled) {
-          setState(() => _isMiniPlayerCrawled = false);
+        if (_accumulatedScrollDelta < -12 && _miniPlayerCrawledNotifier.value) {
+          _miniPlayerCrawledNotifier.value = false;
         }
       }
     }
@@ -268,55 +303,84 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
           _displayName.toLowerCase().contains(a.artist.toLowerCase());
     }).toList();
 
-    final topPadding = MediaQuery.of(context).padding.top;
-    final bannerHeight = 360.0 + topPadding;
+    final media = MediaQuery.of(context);
+    final topPadding = media.padding.top;
+    final bannerHeight =
+        (media.size.height * 0.43).clamp(320.0, 396.0) + topPadding;
 
     final resolvedPrimary =
         _primaryColor ??
         ArtworkColorService.instance.getCachedColor(_heroBannerUrl ?? '') ??
-        ArtworkColorService.instance.getFallbackBestColor(_displayName);
+        ArtworkColorService.instance.getFallbackAttractiveColor(_displayName);
     final resolvedSecondary =
         _secondaryColor ??
         ArtworkColorService.instance.getCachedSecondaryColor(
           _heroBannerUrl ?? '',
         ) ??
         ArtworkColorService.instance.getFallbackSecondaryColor(_displayName);
+    final deeperPrimary = ArtworkColorService.instance.computeDeeperTone(
+      resolvedPrimary,
+    );
     final deeperSecondary = ArtworkColorService.instance.computeDeeperTone(
       resolvedSecondary,
     );
+    final mixedAtmosphere =
+        Color.lerp(resolvedPrimary, resolvedSecondary, 0.48) ?? resolvedPrimary;
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Dynamic atmosphere background:
-          // Top ~50% is framed by the hero banner, bottom ~50% layout dissolves into a rich,
-          // deep secondary color tone rather than flat black!
+          // Continuous mixed artwork atmosphere:
+          // Blends fixed extracted artist colors smoothly from top to bottom with an
+          // ambient radial glow so the hero artwork melts without any seam or blur line.
           Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black,
-                    Colors.black.withValues(alpha: 0.85),
-                    Color.lerp(
-                      resolvedPrimary,
-                      deeperSecondary,
-                      0.65,
-                    )!.withValues(alpha: 0.40),
-                    deeperSecondary.withValues(alpha: 0.70),
-                    Colors.black,
-                  ],
-                  stops: const [0.0, 0.38, 0.65, 0.88, 1.0],
+            child: RepaintBoundary(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 420),
+                curve: Curves.easeOutCubic,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      deeperPrimary,
+                      Color.lerp(deeperPrimary, mixedAtmosphere, 0.55)!,
+                      Color.lerp(
+                        resolvedPrimary,
+                        deeperSecondary,
+                        0.58,
+                      )!.withValues(alpha: 0.72),
+                      deeperSecondary.withValues(alpha: 0.85),
+                      const Color(0xFF060608),
+                    ],
+                    stops: const [0.0, 0.28, 0.55, 0.82, 1.0],
+                  ),
+                ),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: const Alignment(0.0, -0.35),
+                      radius: 1.05,
+                      colors: [
+                        mixedAtmosphere.withValues(alpha: 0.42),
+                        resolvedSecondary.withValues(alpha: 0.16),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.52, 1.0],
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
 
-          // Scrollable Hero Artwork: scrolls with the body when scrolling up, stretches when pulling down
-          _buildScrollableHeroHeader(bannerHeight, deeperSecondary),
+          // Scrollable Hero Artwork with seamless alpha ShaderMask dissolve into the backdrop
+          _buildScrollableHeroHeader(
+            bannerHeight,
+            resolvedPrimary,
+            mixedAtmosphere,
+          ),
 
           // Scrollable content starting from artist name downward
           NotificationListener<ScrollNotification>(
@@ -327,32 +391,42 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                 parent: BouncingScrollPhysics(),
               ),
               slivers: [
-                // Spacing to align start of content with the hero gradient
-                SliverToBoxAdapter(child: SizedBox(height: bannerHeight - 70)),
+                // Spacing to overlap bottom dissolve cleanly behind title & glass buttons
+                SliverToBoxAdapter(child: SizedBox(height: bannerHeight - 78)),
 
-                // Main Artist Content Sections (or Rich Shimmer while loading)
+                // Main Artist Content Sections (with smooth shimmer -> content crossfade)
                 SliverToBoxAdapter(
-                  child: _isLoading && _artistDetails == null
-                      ? _buildArtistLoadingContent()
-                      : Padding(
-                          padding: const EdgeInsets.only(bottom: 120),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Artist Metadata & Action Buttons Row
-                              _buildHeroMetadata(isSaved),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    child: (_isLoading && _artistDetails == null)
+                        ? KeyedSubtree(
+                            key: const ValueKey('artist-loading-skeleton'),
+                            child: _buildArtistLoadingContent(),
+                          )
+                        : Padding(
+                            key: const ValueKey('artist-loaded-content'),
+                            padding: const EdgeInsets.only(bottom: 128),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Artist Metadata & Action Buttons Row
+                                _buildHeroMetadata(isSaved, mixedAtmosphere),
 
-                              const SizedBox(height: 16),
+                                const SizedBox(height: 18),
 
-                              // Spotlight Recent Single / Release Card (Screenshot 4)
-                              if (_artistDetails?.recentRelease != null) ...[
-                                _buildRecentReleaseCard(
-                                  _artistDetails!.recentRelease!,
-                                ),
-                                const SizedBox(height: 24),
-                              ],
+                                // Spotlight Recent Single / Release Card
+                                if (_artistDetails?.recentRelease != null) ...[
+                                  _buildRecentReleaseCard(
+                                    _artistDetails!.recentRelease!,
+                                    resolvedPrimary,
+                                    resolvedSecondary,
+                                  ),
+                                  const SizedBox(height: 26),
+                                ],
 
-                              // Top Songs Section (Screenshot 4)
+                                // Top Songs Section
                               _buildTopSongsSection(),
 
                               const SizedBox(height: 28),
@@ -420,18 +494,20 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                             ],
                           ),
                         ),
+                  ),
                 ),
               ],
             ),
           ),
 
-          // Top Progressive Blur & Shader Scrim: smoothly blurs out content only as it scrolls up (AlbumScreen inspired)
+          // Top Progressive Blur & Shader Scrim: smoothly blends with artist artwork colors
           TopStatusBarBlur(
             scrollController: _scrollController,
-            extraHeight: 68.0,
-            maxSigma: 26.0,
+            extraHeight: 84.0,
+            maxSigma: 20.0,
             triggerOffset: 60.0,
-            falloff: 1.2,
+            falloff: 1.6,
+            tintColor: mixedAtmosphere,
           ),
 
           // Floating Top Action Controls: Circular Back button on left, Frosted Share & Account capsule on right
@@ -444,19 +520,24 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
             bottom: 0,
             child: SafeArea(
               top: false,
-              child: LiquidGlassBottomBar(
-                currentIndex: currentTabIndex,
-                isCrawled: _isMiniPlayerCrawled,
-                onTabSelected: (index) {
-                  ref.read(currentTabProvider.notifier).state = index;
-                  Navigator.popUntil(context, (route) => route.isFirst);
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _miniPlayerCrawledNotifier,
+                builder: (context, isCrawled, _) {
+                  return LiquidGlassBottomBar(
+                    currentIndex: currentTabIndex,
+                    isCrawled: isCrawled,
+                    onTabSelected: (index) {
+                      ref.read(currentTabProvider.notifier).state = index;
+                      Navigator.popUntil(context, (route) => route.isFirst);
+                    },
+                    onExpand: () {
+                      _miniPlayerCrawledNotifier.value = false;
+                    },
+                    bottomAccessory: currentSong != null
+                        ? PlayerControls(onTap: () => openPlayerScreen(context))
+                        : null,
+                  );
                 },
-                onExpand: () {
-                  setState(() => _isMiniPlayerCrawled = false);
-                },
-                bottomAccessory: currentSong != null
-                    ? PlayerControls(onTap: () => openPlayerScreen(context))
-                    : null,
               ),
             ),
           ),
@@ -465,14 +546,70 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
     );
   }
 
-  /// Scrollable Hero Banner: moves 1:1 with the scroll offset when scrolling up so it gets away,
-  /// and anchors to top: 0 with bounce stretch when pulling down.
-  Widget _buildScrollableHeroHeader(double bannerHeight, Color secondaryTone) {
+  /// Scrollable Hero Banner: moves 1:1 with the scroll offset when scrolling up, stretches
+  /// when pulling down, and dissolves into the mixed palette canvas via an alpha [ShaderMask]
+  /// so no hard horizontal edge or blur seam appears.
+  Widget _buildScrollableHeroHeader(
+    double bannerHeight,
+    Color primaryTone,
+    Color mixedTone,
+  ) {
     final banner = _heroBannerUrl;
+
+    final heroLayer = RepaintBoundary(
+      child: ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (bounds) => const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white,
+            Color(0xF0FFFFFF),
+            Color(0x78FFFFFF),
+            Colors.transparent,
+          ],
+          stops: [0.0, 0.44, 0.78, 1.0],
+        ).createShader(bounds),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (banner != null && banner.isNotEmpty)
+              WavifyCachedImage(
+                imageUrl: banner,
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
+                errorWidget: _fallbackBanner(),
+                placeholder: _fallbackBanner(),
+              )
+            else
+              _fallbackBanner(),
+            // Subtle color wash mixing the artwork palette over the hero photo
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    stops: const [0.0, 0.35, 0.72, 1.0],
+                    colors: [
+                      Colors.black.withValues(alpha: 0.28),
+                      Colors.transparent,
+                      primaryTone.withValues(alpha: 0.28),
+                      mixedTone.withValues(alpha: 0.65),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
 
     return AnimatedBuilder(
       animation: _scrollController,
-      builder: (context, _) {
+      child: heroLayer,
+      builder: (context, child) {
         final scrollOffset = _scrollController.hasClients
             ? _scrollController.offset
             : 0.0;
@@ -484,42 +621,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
           left: 0,
           right: 0,
           height: bannerHeight + pullDown,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // Background Artwork Image with Bicubic Filtering
-              if (banner != null)
-                Image.network(
-                  banner,
-                  fit: BoxFit.cover,
-                  alignment: Alignment.topCenter,
-                  filterQuality: FilterQuality.medium,
-                  errorBuilder: (context, error, stackTrace) =>
-                      _fallbackBanner(),
-                )
-              else
-                _fallbackBanner(),
-
-              // Multi-stop progressive gradient mask dissolving cleanly into deep secondary tone & OLED black
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      stops: const [0.0, 0.40, 0.75, 1.0],
-                      colors: [
-                        Colors.black.withValues(alpha: 0.25),
-                        Colors.transparent,
-                        secondaryTone.withValues(alpha: 0.45),
-                        Colors.black,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          child: child ?? const SizedBox.shrink(),
         );
       },
     );
@@ -552,16 +654,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
               iconSize: 22,
               shape: GlassIconButtonShape.circle,
               useOwnLayer: true,
-              settings: const LiquidGlassSettings(
-                glassColor: Color(0x18FFFFFF),
-                thickness: 26,
-                blur: 24,
-                refractiveIndex: 1.25,
-                lightIntensity: 0.75,
-                specularSharpness: GlassSpecularSharpness.sharp,
-                fresnelStrength: 1.30,
-                rimLight: 0.45,
-              ),
+              settings: _kArtistGlassSettings,
             ),
 
             // Right Action Pill in Liquid Glass: Share Button + User Avatar Circle
@@ -570,15 +663,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
               shape: const LiquidRoundedSuperellipse(borderRadius: 21),
               color: const Color(0x18FFFFFF),
               useOwnLayer: true,
-              settings: const LiquidGlassSettings(
-                thickness: 26,
-                blur: 24,
-                refractiveIndex: 1.25,
-                lightIntensity: 0.75,
-                specularSharpness: GlassSpecularSharpness.sharp,
-                fresnelStrength: 1.30,
-                rimLight: 0.45,
-              ),
+              settings: _kArtistGlassSettings,
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -623,17 +708,16 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                         ),
                         child: ClipOval(
                           child: account?.avatarUrl != null
-                              ? Image.network(
-                                  account!.avatarUrl!,
+                              ? WavifyCachedImage(
+                                  imageUrl: account!.avatarUrl!,
                                   width: 30,
                                   height: 30,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(
-                                        CupertinoIcons.person_crop_circle,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
+                                  errorWidget: const Icon(
+                                    CupertinoIcons.person_crop_circle,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
                                 )
                               : const Icon(
                                   CupertinoIcons.person_crop_circle,
@@ -654,7 +738,10 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
   }
 
   /// Artist Header Metadata & Centered Action Row (Shuffle, Play, Star)
-  Widget _buildHeroMetadata(bool isSaved) {
+  Widget _buildHeroMetadata(bool isSaved, Color accentTone) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final titleFontSize = screenWidth < 360 ? 31.0 : 35.0;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
@@ -665,16 +752,23 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
             child: Text(
               _displayName,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Colors.white,
-                fontSize: 36,
+                fontSize: titleFontSize,
                 fontWeight: FontWeight.bold,
-                letterSpacing: -0.6,
+                letterSpacing: -0.7,
+                shadows: [
+                  Shadow(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
             ),
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
 
           // Center Liquid Glass Action Row: [Shuffle] [Large Play] [Star]
           Row(
@@ -692,21 +786,12 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                 iconSize: 22,
                 shape: GlassIconButtonShape.circle,
                 useOwnLayer: true,
-                settings: const LiquidGlassSettings(
-                  glassColor: Color(0x18FFFFFF),
-                  thickness: 26,
-                  blur: 24,
-                  refractiveIndex: 1.25,
-                  lightIntensity: 0.75,
-                  specularSharpness: GlassSpecularSharpness.sharp,
-                  fresnelStrength: 1.30,
-                  rimLight: 0.45,
-                ),
+                settings: _kArtistGlassSettings,
               ),
 
               const SizedBox(width: 22),
 
-              // 2. Center Prominent Play Button (74px White Circle)
+              // 2. Center Prominent Play Button (74px White Circle with ambient glow)
               ApplePressable(
                 onTap: _togglePlayArtist,
                 borderRadius: BorderRadius.circular(37),
@@ -718,9 +803,14 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                     color: Colors.white,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        blurRadius: 18,
+                        color: accentTone.withValues(alpha: 0.32),
+                        blurRadius: 24,
                         spreadRadius: 2,
+                      ),
+                      BoxShadow(
+                        color: Colors.white.withValues(alpha: 0.16),
+                        blurRadius: 14,
+                        spreadRadius: 1,
                       ),
                     ],
                   ),
@@ -775,16 +865,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                 iconSize: 22,
                 shape: GlassIconButtonShape.circle,
                 useOwnLayer: true,
-                settings: const LiquidGlassSettings(
-                  glassColor: Color(0x18FFFFFF),
-                  thickness: 26,
-                  blur: 24,
-                  refractiveIndex: 1.25,
-                  lightIntensity: 0.75,
-                  specularSharpness: GlassSpecularSharpness.sharp,
-                  fresnelStrength: 1.30,
-                  rimLight: 0.45,
-                ),
+                settings: _kArtistGlassSettings,
               ),
             ],
           ),
@@ -793,130 +874,198 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
     );
   }
 
-  /// Spotlight Card for Recent Single / Latest Release (matching screenshot)
-  Widget _buildRecentReleaseCard(AlbumItem recent) {
+  /// Dynamic Liquid Glass Spotlight Card for Recent Single / Latest Release
+  Widget _buildRecentReleaseCard(
+    AlbumItem recent,
+    Color artistPrimary,
+    Color artistSecondary,
+  ) {
     final isRecentSaved = ref.watch(
       savedAlbumsProvider.select((list) {
         return list.any((a) => a.id == recent.id);
       }),
     );
 
+    final thumbUrl = recent.thumbnailUrl ?? '';
+    final cardPrimary =
+        _recentPrimaryColor ??
+        ArtworkColorService.instance.getCachedColor(thumbUrl) ??
+        Color.lerp(
+          artistPrimary,
+          ArtworkColorService.instance.getFallbackAttractiveColor(recent.title),
+          0.55,
+        )!;
+    final cardSecondary =
+        _recentSecondaryColor ??
+        ArtworkColorService.instance.getCachedSecondaryColor(thumbUrl) ??
+        artistSecondary;
+    final cardHighlight = Color.lerp(cardPrimary, cardSecondary, 0.45)!;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: ApplePressable(
-        onTap: () => openAlbumScreen(context, recent),
-        borderRadius: BorderRadius.circular(22),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            color: const Color(0xFF1E1E26),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.08),
-              width: 0.5,
-            ),
-          ),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: WavifyCachedImage(
-                  imageUrl: recent.thumbnailUrl,
-                  width: 72,
-                  height: 72,
-                  fit: BoxFit.cover,
-                  borderRadius: BorderRadius.circular(14),
-                  placeholder: const AppShimmer(
-                    child: ShimmerBox(
-                      width: 72,
-                      height: 72,
-                      borderRadius: BorderRadius.all(Radius.circular(14)),
-                    ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 340;
+          final artSize = isCompact ? 68.0 : 80.0;
+
+          return RepaintBoundary(
+            child: ApplePressable(
+              onTap: () => openAlbumScreen(context, recent),
+              borderRadius: BorderRadius.circular(24),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 380),
+                curve: Curves.easeOutCubic,
+                padding: EdgeInsets.all(isCompact ? 13 : 15),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      cardPrimary.withValues(alpha: 0.72),
+                      Color.lerp(
+                        cardHighlight,
+                        const Color(0xFF14141A),
+                        0.45,
+                      )!.withValues(alpha: 0.86),
+                      const Color(0xFF121218).withValues(alpha: 0.90),
+                    ],
+                    stops: const [0.0, 0.55, 1.0],
                   ),
-                  errorWidget: _fallbackSquareArt(72),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.16),
+                    width: 0.8,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: cardHighlight.withValues(alpha: 0.24),
+                      blurRadius: 22,
+                      offset: const Offset(0, 10),
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+                child: Row(
                   children: [
-                    Text(
-                      recent.year != null
-                          ? 'Single • ${recent.year}'
-                          : 'Single',
-                      style: const TextStyle(
-                        color: AppColors.appleSecondaryText,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
+                    SizedBox(
+                      width: artSize,
+                      height: artSize,
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.35),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(14),
+                            child: WavifyCachedImage(
+                              imageUrl: recent.thumbnailUrl,
+                              width: artSize,
+                              height: artSize,
+                              fit: BoxFit.cover,
+                              borderRadius: BorderRadius.circular(14),
+                              placeholder: AppShimmer(
+                                child: ShimmerBox(
+                                  width: artSize,
+                                  height: artSize,
+                                  borderRadius: const BorderRadius.all(
+                                    Radius.circular(14),
+                                  ),
+                                ),
+                              ),
+                              errorWidget: _fallbackSquareArt(artSize),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      recent.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                    SizedBox(width: isCompact ? 12 : 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            recent.year != null
+                                ? 'Single • ${recent.year}'
+                                : 'Single',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.72),
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.1,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            recent.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: -0.4,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Recent Single',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.62),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    // Liquid Glass Circular [+] button
+                    GlassIconButton(
+                      icon: Icon(
+                        isRecentSaved
+                            ? CupertinoIcons.checkmark_alt
+                            : CupertinoIcons.plus,
                         color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: -0.4,
+                        size: 20,
                       ),
-                    ),
-                    const SizedBox(height: 3),
-                    const Text(
-                      'Recent Single',
-                      style: TextStyle(
-                        color: AppColors.appleSecondaryText,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w400,
-                      ),
+                      onPressed: () async {
+                        HapticFeedback.lightImpact();
+                        final added = await ref
+                            .read(savedAlbumsProvider.notifier)
+                            .toggleAlbum(recent);
+                        if (!context.mounted) return;
+                        showWavifySnackBar(
+                          context,
+                          added
+                              ? 'Saved "${recent.title}" to Library'
+                              : 'Removed "${recent.title}" from Library',
+                        );
+                      },
+                      size: 40,
+                      iconSize: 20,
+                      shape: GlassIconButtonShape.circle,
+                      useOwnLayer: true,
+                      settings: _kArtistGlassSettings,
                     ),
                   ],
                 ),
               ),
-              // Liquid Glass Circular [+] button
-              GlassIconButton(
-                icon: Icon(
-                  isRecentSaved
-                      ? CupertinoIcons.checkmark_alt
-                      : CupertinoIcons.plus,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                onPressed: () async {
-                  HapticFeedback.lightImpact();
-                  final added = await ref
-                      .read(savedAlbumsProvider.notifier)
-                      .toggleAlbum(recent);
-                  if (mounted) {
-                    showWavifySnackBar(
-                      context,
-                      added
-                          ? 'Saved "${recent.title}" to Library'
-                          : 'Removed "${recent.title}" from Library',
-                    );
-                  }
-                },
-                size: 40,
-                iconSize: 20,
-                shape: GlassIconButtonShape.circle,
-                useOwnLayer: true,
-                settings: const LiquidGlassSettings(
-                  glassColor: Color(0x18FFFFFF),
-                  thickness: 24,
-                  blur: 20,
-                  refractiveIndex: 1.25,
-                  lightIntensity: 0.70,
-                  specularSharpness: GlassSpecularSharpness.sharp,
-                  fresnelStrength: 1.25,
-                  rimLight: 0.40,
-                ),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -980,20 +1129,23 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                         borderRadius: BorderRadius.circular(8),
                         child: Stack(
                           children: [
-                            song.thumbnailUrl != null
-                                ? Image.network(
-                                    song.thumbnailUrl!,
-                                    width: 48,
-                                    height: 48,
-                                    fit: BoxFit.cover,
-                                    filterQuality: FilterQuality.medium,
-                                    errorBuilder: (
-                                      context,
-                                      error,
-                                      stackTrace,
-                                    ) => _fallbackSquareArt(48),
-                                  )
-                                : _fallbackSquareArt(48),
+                            WavifyCachedImage(
+                              imageUrl: song.thumbnailUrl,
+                              width: 48,
+                              height: 48,
+                              fit: BoxFit.cover,
+                              borderRadius: BorderRadius.circular(8),
+                              placeholder: const AppShimmer(
+                                child: ShimmerBox(
+                                  width: 48,
+                                  height: 48,
+                                  borderRadius: BorderRadius.all(
+                                    Radius.circular(8),
+                                  ),
+                                ),
+                              ),
+                              errorWidget: _fallbackSquareArt(48),
+                            ),
                             if (isCurrent && isPlaying)
                               Positioned.fill(
                                 child: Container(
@@ -1352,20 +1504,26 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Square artist photo with rounded corners (matches Screenshot 1)
+                      // Square artist photo with rounded corners
                       ClipRRect(
                         borderRadius: BorderRadius.circular(14),
-                        child: artist.thumbnailUrl != null
-                            ? Image.network(
-                                artist.thumbnailUrl!,
-                                width: cardWidth,
-                                height: cardWidth,
-                                fit: BoxFit.cover,
-                                filterQuality: FilterQuality.medium,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    _fallbackSquareArt(cardWidth),
-                              )
-                            : _fallbackSquareArt(cardWidth),
+                        child: WavifyCachedImage(
+                          imageUrl: artist.thumbnailUrl,
+                          width: cardWidth,
+                          height: cardWidth,
+                          fit: BoxFit.cover,
+                          borderRadius: BorderRadius.circular(14),
+                          placeholder: AppShimmer(
+                            child: ShimmerBox(
+                              width: cardWidth,
+                              height: cardWidth,
+                              borderRadius: const BorderRadius.all(
+                                Radius.circular(14),
+                              ),
+                            ),
+                          ),
+                          errorWidget: _fallbackSquareArt(cardWidth),
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -1587,17 +1745,21 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: playlist.thumbnailUrl != null
-                  ? Image.network(
-                      playlist.thumbnailUrl!,
-                      width: cardWidth,
-                      height: cardWidth,
-                      fit: BoxFit.cover,
-                      filterQuality: FilterQuality.medium,
-                      errorBuilder: (context, error, stackTrace) =>
-                          _fallbackSquareArt(cardWidth),
-                    )
-                  : _fallbackSquareArt(cardWidth),
+              child: WavifyCachedImage(
+                imageUrl: playlist.thumbnailUrl,
+                width: cardWidth,
+                height: cardWidth,
+                fit: BoxFit.cover,
+                borderRadius: BorderRadius.circular(12),
+                placeholder: const AppShimmer(
+                  child: ShimmerBox(
+                    width: cardWidth,
+                    height: cardWidth,
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                  ),
+                ),
+                errorWidget: _fallbackSquareArt(cardWidth),
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -1721,12 +1883,57 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 36),
+            const SizedBox(height: 18),
+
+            // Recent Release spotlight card placeholder
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  color: Colors.white.withValues(alpha: 0.05),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    width: 0.8,
+                  ),
+                ),
+                child: const Row(
+                  children: [
+                    ShimmerBox(
+                      width: 80,
+                      height: 80,
+                      borderRadius: BorderRadius.all(Radius.circular(14)),
+                    ),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ShimmerBox(width: 82, height: 11),
+                          SizedBox(height: 8),
+                          ShimmerBox(width: 145, height: 16),
+                          SizedBox(height: 8),
+                          ShimmerBox(width: 96, height: 11),
+                        ],
+                      ),
+                    ),
+                    SizedBox(width: 10),
+                    ShimmerBox.circle(size: 40),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 26),
 
             // Top Songs Section header + skeleton
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Text('Top songs', style: AppleTypography.sectionTitle),
+              child: ShimmerBox(
+                width: 112,
+                height: 18,
+                borderRadius: BorderRadius.all(Radius.circular(6)),
+              ),
             ),
             const SizedBox(height: AppleSpacing.sectionHeaderToContent),
             _buildTopSongsSkeleton(),
@@ -1735,7 +1942,11 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
             // Albums Section header + skeleton
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Text('Albums', style: AppleTypography.sectionTitle),
+              child: ShimmerBox(
+                width: 86,
+                height: 18,
+                borderRadius: BorderRadius.all(Radius.circular(6)),
+              ),
             ),
             const SizedBox(height: AppleSpacing.sectionHeaderToContent),
             SizedBox(
@@ -1768,7 +1979,11 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
             // Singles Section header + skeleton
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Text('Singles & EPs', style: AppleTypography.sectionTitle),
+              child: ShimmerBox(
+                width: 126,
+                height: 18,
+                borderRadius: BorderRadius.all(Radius.circular(6)),
+              ),
             ),
             const SizedBox(height: AppleSpacing.sectionHeaderToContent),
             SizedBox(
@@ -1803,88 +2018,39 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
   }
 
   Widget _buildTopSongsSkeleton() {
-    return const AppShimmer(
+    return AppShimmer(
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
-          children: [
-            Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
+          children: List.generate(4, (index) {
+            final titleW = 128.0 + ((index * 19) % 44);
+            final subtitleW = 80.0 + ((index * 13) % 30);
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
               child: Row(
                 children: [
-                  ShimmerBox(width: 48, height: 48),
-                  SizedBox(width: 14),
+                  const ShimmerBox(
+                    width: 48,
+                    height: 48,
+                    borderRadius: BorderRadius.all(Radius.circular(8)),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        ShimmerBox(width: 140, height: 14),
-                        SizedBox(height: 6),
-                        ShimmerBox(width: 90, height: 10),
+                        ShimmerBox(width: titleW, height: 14),
+                        const SizedBox(height: 6),
+                        ShimmerBox(width: subtitleW, height: 11),
                       ],
                     ),
                   ),
+                  const SizedBox(width: 12),
+                  const ShimmerBox.circle(size: 20),
                 ],
               ),
-            ),
-            Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                children: [
-                  ShimmerBox(width: 48, height: 48),
-                  SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ShimmerBox(width: 160, height: 14),
-                        SizedBox(height: 6),
-                        ShimmerBox(width: 100, height: 10),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                children: [
-                  ShimmerBox(width: 48, height: 48),
-                  SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ShimmerBox(width: 130, height: 14),
-                        SizedBox(height: 6),
-                        ShimmerBox(width: 80, height: 10),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                children: [
-                  ShimmerBox(width: 48, height: 48),
-                  SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ShimmerBox(width: 150, height: 14),
-                        SizedBox(height: 6),
-                        ShimmerBox(width: 95, height: 10),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            );
+          }),
         ),
       ),
     );

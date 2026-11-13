@@ -63,7 +63,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   String _sortBy = 'default'; // 'default', 'title', 'duration'
 
   // Crawl / Minimization state for floating mini player and bottom bar
-  bool _isMiniPlayerCrawled = false;
+  final ValueNotifier<bool> _miniPlayerCrawledNotifier = ValueNotifier<bool>(false);
   double _accumulatedScrollDelta = 0.0;
 
   bool _handleScrollNotification(ScrollNotification notification) {
@@ -73,8 +73,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
 
     final pixels = notification.metrics.pixels;
     if (pixels <= 25) {
-      if (_isMiniPlayerCrawled) {
-        setState(() => _isMiniPlayerCrawled = false);
+      if (_miniPlayerCrawledNotifier.value) {
+        _miniPlayerCrawledNotifier.value = false;
       }
       _accumulatedScrollDelta = 0;
       return false;
@@ -82,25 +82,25 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
 
     if (notification is UserScrollNotification) {
       if (notification.direction == ScrollDirection.reverse &&
-          !_isMiniPlayerCrawled) {
-        setState(() => _isMiniPlayerCrawled = true);
+          !_miniPlayerCrawledNotifier.value) {
+        _miniPlayerCrawledNotifier.value = true;
       } else if (notification.direction == ScrollDirection.forward &&
-          _isMiniPlayerCrawled) {
-        setState(() => _isMiniPlayerCrawled = false);
+          _miniPlayerCrawledNotifier.value) {
+        _miniPlayerCrawledNotifier.value = false;
       }
     } else if (notification is ScrollUpdateNotification) {
       final delta = notification.scrollDelta ?? 0.0;
       if (delta > 0) {
         _accumulatedScrollDelta =
             (_accumulatedScrollDelta > 0 ? _accumulatedScrollDelta : 0) + delta;
-        if (_accumulatedScrollDelta > 20 && !_isMiniPlayerCrawled) {
-          setState(() => _isMiniPlayerCrawled = true);
+        if (_accumulatedScrollDelta > 20 && !_miniPlayerCrawledNotifier.value) {
+          _miniPlayerCrawledNotifier.value = true;
         }
       } else if (delta < 0) {
         _accumulatedScrollDelta =
             (_accumulatedScrollDelta < 0 ? _accumulatedScrollDelta : 0) + delta;
-        if (_accumulatedScrollDelta < -12 && _isMiniPlayerCrawled) {
-          setState(() => _isMiniPlayerCrawled = false);
+        if (_accumulatedScrollDelta < -12 && _miniPlayerCrawledNotifier.value) {
+          _miniPlayerCrawledNotifier.value = false;
         }
       }
     }
@@ -140,7 +140,19 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   void dispose() {
     _scrollController.dispose();
     _searchController.dispose();
+    _miniPlayerCrawledNotifier.dispose();
     super.dispose();
+  }
+
+  List<SongItem> _applyCachedDurations(List<SongItem> tracks) {
+    return tracks.map((t) {
+      if (t.durationSeconds != null && t.durationSeconds! > 0) return t;
+      final cached = SongMetricsCacheService.instance.getDuration(t.id);
+      if (cached != null && cached.inSeconds > 0) {
+        return t.copyWith(durationSeconds: cached.inSeconds);
+      }
+      return t;
+    }).toList();
   }
 
   Future<void> _loadAlbumDetails() async {
@@ -250,13 +262,22 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
 
       if (!mounted) return;
 
+      final hydratedTracks = _applyCachedDurations(details.tracks);
+      final computedTotalSec = hydratedTracks.fold<int>(
+        0,
+        (sum, t) => sum + (t.durationSeconds ?? 0),
+      );
+      final effectiveTotalSec = details.totalDurationSeconds > 0
+          ? details.totalDurationSeconds
+          : computedTotalSec;
+
       final previousArtwork = _resolvedArtwork;
       setState(() {
         _album = details.album;
-        if (details.tracks.isNotEmpty || _allTracks.isEmpty) {
-          _allTracks = details.tracks;
-          _filteredTracks = details.tracks;
-          _totalDurationSeconds = details.totalDurationSeconds;
+        if (hydratedTracks.isNotEmpty || _allTracks.isEmpty) {
+          _allTracks = hydratedTracks;
+          _filteredTracks = _applySort(hydratedTracks);
+          _totalDurationSeconds = effectiveTotalSec;
         }
         if (_allTracks.isNotEmpty) {
           _album = _album.copyWith(trackCount: _allTracks.length);
@@ -670,24 +691,21 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   }
 
   String _formatTotalDuration() {
-    if (_totalDurationSeconds <= 0) {
-      if (_allTracks.isNotEmpty) {
-        final total = _allTracks.fold<int>(
-          0,
-          (sum, t) => sum + (t.durationSeconds ?? 180),
-        );
-        final mins = total ~/ 60;
-        return '$mins min';
-      }
-      return '';
+    var totalSeconds = _totalDurationSeconds;
+    if (totalSeconds <= 0 && _allTracks.isNotEmpty) {
+      totalSeconds = _allTracks.fold<int>(
+        0,
+        (sum, t) => sum + (t.durationSeconds ?? 0),
+      );
     }
-    final mins = _totalDurationSeconds ~/ 60;
+    if (totalSeconds <= 0) return '';
+    final mins = totalSeconds ~/ 60;
     if (mins >= 60) {
       final hrs = mins ~/ 60;
       final remMins = mins % 60;
       return '$hrs hr $remMins min';
     }
-    return '$mins min';
+    return '${mins.clamp(1, 99999)} min';
   }
 
   bool _isExplicitTrack(SongItem track) {
@@ -737,21 +755,29 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         ? _allTracks.length
         : (_album.trackCount ?? widget.album.trackCount ?? 0);
     final tracksLabel = trackCount == 1 ? 'Track' : 'Tracks';
-    final metadataString = isLikedMusic
-        ? 'Playlist · $trackCount $tracksLabel · $totalDurationStr'
-        : '${_album.type} · $yearStr · $trackCount $tracksLabel · $totalDurationStr';
+    final metaParts = <String>[
+      if (isLikedMusic) 'Playlist' else _album.type,
+      if (!isLikedMusic && _album.year != null) '${_album.year}',
+      if (trackCount > 0) '$trackCount $tracksLabel',
+      if (totalDurationStr.isNotEmpty) totalDurationStr,
+    ];
+    final metadataString = metaParts.join(' · ');
 
     final cleanArtist = _album.cleanArtist;
     final defaultDescription =
         _album.description ??
         (isLikedMusic
             ? 'All your favorite and liked tracks in one playlist ($trackCount $tracksLabel).'
-            : '${_album.title} is an album by $cleanArtist. Released in $yearStr with $trackCount tracks and a total runtime of $totalDurationStr.');
+            : (trackCount > 0
+                  ? '${_album.title} is an album by $cleanArtist. Released in $yearStr with $trackCount $tracksLabel${totalDurationStr.isNotEmpty ? ' and a total runtime of $totalDurationStr' : ''}.'
+                  : '${_album.title} is a release by $cleanArtist.'));
 
     final resolvedColor =
         _backgroundColor ??
         ArtworkColorService.instance.getCachedColor(_resolvedArtwork ?? '') ??
-        const Color(0xFF16161A);
+        ArtworkColorService.instance.getFallbackAttractiveColor(
+          '${widget.album.title} ${widget.album.artist}',
+        );
     final resolvedSecondary =
         _secondaryColor ??
         ArtworkColorService.instance.getCachedSecondaryColor(_resolvedArtwork ?? '') ??
@@ -872,8 +898,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     child: Column(
                       children: [
                         // Large Crisp Album Artwork
-                        Hero(
-                          tag: 'album_artwork_${_album.id}',
+                        RepaintBoundary(
                           child: Container(
                             width: artworkSize,
                             height: artworkSize,
@@ -937,28 +962,51 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                               context,
                               artistName: cleanArtist,
                             ),
-                            child: Text(
-                              cleanArtist,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w500,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 3,
+                              ),
+                              child: Text(
+                                cleanArtist,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ),
                           ),
                         ],
                         const SizedBox(height: 6),
 
-                        // Album · Year · X Tracks · Y min
-                        Text(
-                          metadataString,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: AppColors.appleSecondaryText,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w400,
-                          ),
+                        // Album · Year · X Tracks · Y min (or shimmer while loading)
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 220),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
+                          child: _isLoading && _allTracks.isEmpty
+                              ? const AppShimmer(
+                                  key: ValueKey('album-meta-shimmer'),
+                                  child: ShimmerBox(
+                                    width: 190,
+                                    height: 14,
+                                    borderRadius: BorderRadius.all(
+                                      Radius.circular(7),
+                                    ),
+                                  ),
+                                )
+                              : Text(
+                                  metadataString,
+                                  key: const ValueKey('album-meta-text'),
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: AppColors.appleSecondaryText,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
                         ),
                         const SizedBox(height: 22),
 
@@ -1115,34 +1163,77 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                 style: AppleTypography.sectionTitle,
                               ),
                               const SizedBox(height: 6),
-                              Text(
-                                defaultDescription,
-                                maxLines: _isDescriptionExpanded ? null : 2,
-                                overflow: _isDescriptionExpanded
-                                    ? TextOverflow.visible
-                                    : TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: AppColors.appleSecondaryText,
-                                  fontSize: 14,
-                                  height: 1.35,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _isDescriptionExpanded =
-                                        !_isDescriptionExpanded;
-                                  });
-                                },
-                                child: Text(
-                                  _isDescriptionExpanded ? 'Less' : 'More',
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.90),
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                  ),
-                                ),
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 220),
+                                child:
+                                    (_isLoading &&
+                                        _allTracks.isEmpty &&
+                                        _album.description == null)
+                                    ? const AppShimmer(
+                                        key: ValueKey('album-desc-shimmer'),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            ShimmerBox(
+                                              width: double.infinity,
+                                              height: 13,
+                                            ),
+                                            SizedBox(height: 6),
+                                            ShimmerBox(width: 220, height: 13),
+                                          ],
+                                        ),
+                                      )
+                                    : Column(
+                                        key: const ValueKey('album-desc-body'),
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          AnimatedSize(
+                                            duration: const Duration(
+                                              milliseconds: 220,
+                                            ),
+                                            curve: Curves.easeOutCubic,
+                                            alignment: Alignment.topLeft,
+                                            child: Text(
+                                              defaultDescription,
+                                              maxLines: _isDescriptionExpanded
+                                                  ? null
+                                                  : 2,
+                                              overflow: _isDescriptionExpanded
+                                                  ? TextOverflow.visible
+                                                  : TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: AppColors
+                                                    .appleSecondaryText,
+                                                fontSize: 14,
+                                                height: 1.35,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          GestureDetector(
+                                            onTap: () {
+                                              setState(() {
+                                                _isDescriptionExpanded =
+                                                    !_isDescriptionExpanded;
+                                              });
+                                            },
+                                            child: Text(
+                                              _isDescriptionExpanded
+                                                  ? 'Less'
+                                                  : 'More',
+                                              style: TextStyle(
+                                                color: Colors.white.withValues(
+                                                  alpha: 0.90,
+                                                ),
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                               ),
                             ],
                           ),
@@ -1155,8 +1246,15 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
 
                 // Loading Shimmer or Empty Notice
                 if (_isLoading)
-                  const SliverToBoxAdapter(
-                    child: TrackListSkeleton(itemCount: 8, showIndex: true),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 140),
+                      child: TrackListSkeleton(
+                        itemCount: 8,
+                        showIndex: !isLikedMusic,
+                        showArtwork: isLikedMusic,
+                      ),
+                    ),
                   )
                 else if (_filteredTracks.isEmpty)
                   const SliverToBoxAdapter(
@@ -1171,139 +1269,152 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     ),
                   )
                 else
-                  // Track List Items (matching screenshots with 1..N indices)
+                  // Track List Items (balanced left/right padding and tabular timestamps)
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 140),
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate((context, index) {
                         final track = _filteredTracks[index];
                         final isCurrentTrack = currentSong?.id == track.id;
                         final isExplicit = _isExplicitTrack(track);
+                        final durationLabel = track.formattedDuration;
 
-                        return ApplePressable(
-                          onTap: () => _onTrackSelected(track),
-                          borderRadius: BorderRadius.circular(10),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 8,
-                            ),
-                            child: Row(
-                              children: [
-                                // In Liked Music: show individual track artwork!
-                                // In regular album: show track number index
-                                if (isLikedMusic) ...[
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: WavifyCachedImage(
-                                      imageUrl: track.thumbnailUrl,
-                                      width: 44,
-                                      height: 44,
-                                      fit: BoxFit.cover,
+                        return RepaintBoundary(
+                          child: ApplePressable(
+                            onTap: () => _onTrackSelected(track),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 10,
+                              ),
+                              child: Row(
+                                children: [
+                                  // In Liked Music: show individual track artwork!
+                                  // In regular album: show track number index
+                                  if (isLikedMusic) ...[
+                                    ClipRRect(
                                       borderRadius: BorderRadius.circular(8),
-                                      placeholder: const AppShimmer(
-                                        child: ShimmerBox(
-                                          width: 44,
-                                          height: 44,
-                                          borderRadius: BorderRadius.all(
-                                            Radius.circular(8),
+                                      child: WavifyCachedImage(
+                                        imageUrl: track.thumbnailUrl,
+                                        width: 44,
+                                        height: 44,
+                                        fit: BoxFit.cover,
+                                        borderRadius: BorderRadius.circular(8),
+                                        placeholder: const AppShimmer(
+                                          child: ShimmerBox(
+                                            width: 44,
+                                            height: 44,
+                                            borderRadius: BorderRadius.all(
+                                              Radius.circular(8),
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                ] else ...[
-                                  SizedBox(
-                                    width: 28,
-                                    child: Text(
-                                      '${index + 1}',
-                                      style: AppleTypography.trackNumber(
-                                        isCurrent: isCurrentTrack,
+                                    const SizedBox(width: 12),
+                                  ] else ...[
+                                    SizedBox(
+                                      width: 28,
+                                      child: Text(
+                                        '${index + 1}',
+                                        textAlign: TextAlign.center,
+                                        style: AppleTypography.trackNumber(
+                                          isCurrent: isCurrentTrack,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                ],
+                                    const SizedBox(width: 12),
+                                  ],
 
-                                // Title, Artist & [E] Explicit Badge
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          if (isExplicit) ...[
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 4,
-                                                    vertical: 1,
-                                                  ),
-                                              margin: const EdgeInsets.only(
-                                                right: 6,
+                                  // Title, Artist & [E] Explicit Badge
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            if (isExplicit) ...[
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 4,
+                                                      vertical: 1,
+                                                    ),
+                                                margin: const EdgeInsets.only(
+                                                  right: 6,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white24,
+                                                  borderRadius:
+                                                      BorderRadius.circular(3),
+                                                ),
+                                                child: const Text(
+                                                  'E',
+                                                  style: AppleTypography
+                                                      .explicitBadge,
+                                                ),
                                               ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.white24,
-                                                borderRadius:
-                                                    BorderRadius.circular(3),
-                                              ),
-                                              child: const Text(
-                                                'E',
-                                                style: AppleTypography
-                                                    .explicitBadge,
+                                            ],
+                                            Expanded(
+                                              child: Text(
+                                                track.title,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style:
+                                                    AppleTypography.songTitle,
                                               ),
                                             ),
                                           ],
-                                          Expanded(
-                                            child: Text(
-                                              track.title,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: AppleTypography.songTitle,
-                                            ),
+                                        ),
+                                        const SizedBox(
+                                          height: AppleSpacing.titleToSubtitle,
+                                        ),
+                                        Text(
+                                          track.artist,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: AppleTypography.songArtist,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  if (durationLabel.isNotEmpty) ...[
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      durationLabel,
+                                      style: AppleTypography.timestamp
+                                          .copyWith(
+                                            fontFeatures: const [
+                                              FontFeature.tabularFigures(),
+                                            ],
                                           ),
-                                        ],
-                                      ),
-                                      const SizedBox(
-                                        height: AppleSpacing.titleToSubtitle,
-                                      ),
-                                      Text(
-                                        track.artist,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: AppleTypography.songArtist,
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                                    ),
+                                  ],
+                                  const SizedBox(width: 6),
 
-                                // Track Duration
-                                Text(
-                                  track.formattedDuration,
-                                  style: AppleTypography.timestamp,
-                                ),
-                                const SizedBox(width: 8),
-
-                                // 3-dots Menu with zero internal padding to perfectly align with right edge
-                                IconButton(
-                                  icon: const AnimatedCupertinoIcon(
-                                    icon: CupertinoIcons.ellipsis_vertical,
-                                    color: AppColors.appleSecondaryText,
-                                    size: 18,
+                                  // 3-dots Menu with balanced right inset
+                                  IconButton(
+                                    icon: const AnimatedCupertinoIcon(
+                                      icon: CupertinoIcons.ellipsis_vertical,
+                                      color: AppColors.appleSecondaryText,
+                                      size: 18,
+                                    ),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(
+                                      minWidth: 28,
+                                      minHeight: 36,
+                                    ),
+                                    onPressed: () => showTrackOptionsModal(
+                                      context,
+                                      ref,
+                                      track,
+                                    ),
                                   ),
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(
-                                    minWidth: 20,
-                                    minHeight: 36,
-                                  ),
-                                  onPressed: () => showTrackOptionsModal(
-                                    context,
-                                    ref,
-                                    track,
-                                  ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         );
@@ -1317,10 +1428,11 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
           // 4. Dynamic Top Progressive Blur & Shader Scrim on Scroll
           TopStatusBarBlur(
             scrollController: _scrollController,
-            extraHeight: 68.0,
-            maxSigma: 26.0,
+            extraHeight: 84.0,
+            maxSigma: 22.0,
             triggerOffset: 60.0,
-            falloff: 1.2,
+            falloff: 1.6,
+            tintColor: resolvedColor,
           ),
 
           // 5. Persistent Floating Top Buttons (Back & Action Dock)
@@ -1435,19 +1547,24 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
             bottom: 0,
             child: SafeArea(
               top: false,
-              child: LiquidGlassBottomBar(
-                currentIndex: currentTabIndex,
-                isCrawled: _isMiniPlayerCrawled,
-                onTabSelected: (index) {
-                  ref.read(currentTabProvider.notifier).state = index;
-                  Navigator.popUntil(context, (route) => route.isFirst);
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _miniPlayerCrawledNotifier,
+                builder: (context, isCrawled, _) {
+                  return LiquidGlassBottomBar(
+                    currentIndex: currentTabIndex,
+                    isCrawled: isCrawled,
+                    onTabSelected: (index) {
+                      ref.read(currentTabProvider.notifier).state = index;
+                      Navigator.popUntil(context, (route) => route.isFirst);
+                    },
+                    onExpand: () {
+                      _miniPlayerCrawledNotifier.value = false;
+                    },
+                    bottomAccessory: currentSong != null
+                        ? PlayerControls(onTap: () => openPlayerScreen(context))
+                        : null,
+                  );
                 },
-                onExpand: () {
-                  setState(() => _isMiniPlayerCrawled = false);
-                },
-                bottomAccessory: currentSong != null
-                    ? PlayerControls(onTap: () => openPlayerScreen(context))
-                    : null,
               ),
             ),
           ),
@@ -1510,20 +1627,38 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       }
     }
 
+    if (_isLoading && (_resolvedArtwork == null || _resolvedArtwork!.isEmpty)) {
+      return _artworkShimmer(artworkSize);
+    }
+
     return WavifyCachedImage(
       imageUrl: _resolvedArtwork,
       width: artworkSize,
       height: artworkSize,
       fit: BoxFit.cover,
       borderRadius: BorderRadius.circular(20),
-      placeholder: AppShimmer(
-        child: ShimmerBox(
-          width: artworkSize,
-          height: artworkSize,
-          borderRadius: BorderRadius.circular(20),
-        ),
-      ),
+      placeholder: _artworkShimmer(artworkSize),
       errorWidget: _fallbackCover(artworkSize),
+    );
+  }
+
+  Widget _artworkShimmer(double size) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        AppShimmer(
+          child: ShimmerBox(
+            width: size,
+            height: size,
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+        Icon(
+          CupertinoIcons.music_albums,
+          color: Colors.white.withValues(alpha: 0.22),
+          size: size * 0.32,
+        ),
+      ],
     );
   }
 

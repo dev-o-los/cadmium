@@ -12,6 +12,7 @@ class TopStatusBarBlur extends StatelessWidget {
   final double maxSigma;
   final double triggerOffset;
   final double falloff;
+  final Color tintColor;
 
   const TopStatusBarBlur({
     super.key,
@@ -21,6 +22,7 @@ class TopStatusBarBlur extends StatelessWidget {
     this.maxSigma = 8.0,
     this.triggerOffset = 32.0,
     this.falloff = 2.0,
+    this.tintColor = Colors.black,
   });
 
   @override
@@ -29,7 +31,7 @@ class TopStatusBarBlur extends StatelessWidget {
     final topBlurHeight = topPadding + extraHeight;
 
     if (fixedProgress != null) {
-      return _buildBlur(context, fixedProgress!, topBlurHeight);
+      return _buildBlur(context, fixedProgress!.clamp(0.0, 1.0), topBlurHeight);
     }
 
     if (scrollController == null) {
@@ -43,48 +45,67 @@ class TopStatusBarBlur extends StatelessWidget {
         final offset = scrollController!.hasClients
             ? scrollController!.offset
             : 0.0;
-        final progress = (offset / triggerOffset).clamp(0.0, 1.0);
-        if (progress <= 0.001) {
+        final rawProgress = (offset / triggerOffset).clamp(0.0, 1.0);
+        if (rawProgress <= 0.001) {
           return const SizedBox.shrink();
         }
+        final easedProgress = Curves.easeOutCubic.transform(rawProgress);
 
-        return _buildBlur(context, progress, topBlurHeight);
+        return _buildBlur(context, easedProgress, topBlurHeight);
       },
     );
   }
 
   Widget _buildBlur(BuildContext context, double progress, double height) {
+    final deepTint = Color.lerp(tintColor, Colors.black, 0.55) ?? Colors.black;
+    final softTint = Color.lerp(tintColor, Colors.black, 0.30) ?? Colors.black;
+
     return Positioned(
       top: 0,
       left: 0,
       right: 0,
       height: height,
       child: IgnorePointer(
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Progressive blur along status bar
-            ProgressiveBlur(
-              maxSigma: maxSigma * progress,
-              direction: ProgressiveBlurDirection.topToBottom,
-              falloff: falloff,
-            ),
-            // Soft darkening gradient dissolve
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.85 * progress),
-                    Colors.black.withValues(alpha: 0.35 * progress),
-                    Colors.transparent,
-                  ],
-                  stops: const [0.0, 0.55, 1.0],
+        child: RepaintBoundary(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Progressive blur along status bar, padded slightly shorter than the
+              // outer gradient veil so the blur terminates smoothly inside the scrim.
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: height * 0.14,
+                child: Opacity(
+                  opacity: progress,
+                  child: ProgressiveBlur(
+                    maxSigma: maxSigma * progress,
+                    direction: ProgressiveBlurDirection.topToBottom,
+                    falloff: falloff,
+                  ),
                 ),
               ),
-            ),
-          ],
+              // Smooth multi-stop gradient dissolve extending past the blur edge to
+              // eliminate any visible horizontal cut-off line.
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      deepTint.withValues(alpha: 0.78 * progress),
+                      deepTint.withValues(alpha: 0.52 * progress),
+                      softTint.withValues(alpha: 0.24 * progress),
+                      softTint.withValues(alpha: 0.06 * progress),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.30, 0.58, 0.84, 1.0],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

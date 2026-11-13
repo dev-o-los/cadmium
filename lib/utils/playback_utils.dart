@@ -147,13 +147,26 @@ void openPlayerScreen(BuildContext context) {
 }
 
 /// Opens the dedicated full-page [AlbumScreen] with ambient artwork blur, metadata, and tracklist.
-void openAlbumScreen(BuildContext context, AlbumItem album) {
+class _SmoothCupertinoPageRoute<T> extends CupertinoPageRoute<T> {
+  _SmoothCupertinoPageRoute({required WidgetBuilder builder})
+    : super(builder: (context) => RepaintBoundary(child: builder(context)));
+
+  @override
+  Duration get transitionDuration => const Duration(milliseconds: 360);
+
+  @override
+  Duration get reverseTransitionDuration => const Duration(milliseconds: 320);
+}
+
+void _pushSmoothRoute(BuildContext context, Widget page) {
   Navigator.push(
     context,
-    CupertinoPageRoute(
-      builder: (context) => AlbumScreen(album: album),
-    ),
+    _SmoothCupertinoPageRoute(builder: (_) => page),
   );
+}
+
+void openAlbumScreen(BuildContext context, AlbumItem album) {
+  _pushSmoothRoute(context, AlbumScreen(album: album));
 }
 
 /// Opens a playlist as a full-page [AlbumScreen] using an [AlbumItem] wrapper,
@@ -171,12 +184,7 @@ void openPlaylistScreen(
     type: 'Playlist',
     isCustom: playlist.isCustom,
   );
-  Navigator.push(
-    context,
-    CupertinoPageRoute(
-      builder: (context) => AlbumScreen(album: album),
-    ),
-  );
+  _pushSmoothRoute(context, AlbumScreen(album: album));
 }
 
 /// Opens the dedicated full-page [ArtistScreen] with ambient hero banner, top songs,
@@ -187,14 +195,12 @@ void openArtistScreen(
   String? artistName,
   String? thumbnailUrl,
 }) {
-  Navigator.push(
+  _pushSmoothRoute(
     context,
-    CupertinoPageRoute(
-      builder: (context) => ArtistScreen(
-        artistId: artistId,
-        artistName: artistName,
-        initialThumbnailUrl: thumbnailUrl,
-      ),
+    ArtistScreen(
+      artistId: artistId,
+      artistName: artistName,
+      initialThumbnailUrl: thumbnailUrl,
     ),
   );
 }

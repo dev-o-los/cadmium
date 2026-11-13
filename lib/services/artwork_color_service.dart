@@ -499,6 +499,13 @@ class ArtworkColorService {
         .toColor();
   }
 
+  /// Returns a deterministic, deeply tuned fallback background color from [seed]
+  /// matching [extractAttractiveColor]'s tonal range so UI doesn't flash bright
+  /// neon colors before async palette extraction completes.
+  Color getFallbackAttractiveColor(String seed) {
+    return _tuneForAlbumBackground(_generateAestheticColorFromSeed(seed));
+  }
+
   /// Computes a deeper companion tone for smooth vertical gradient depth.
   Color computeDeeperTone(Color color) {
     final hsl = HSLColor.fromColor(color);

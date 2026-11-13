@@ -239,50 +239,103 @@ class SearchScreenSkeleton extends StatelessWidget {
   }
 }
 
+/// Proper Skeleton for Album metadata and description while tracks load.
+class AlbumMetadataSkeleton extends StatelessWidget {
+  final bool showArtwork;
+  final bool isLoadingArtwork;
+
+  const AlbumMetadataSkeleton({
+    super.key,
+    this.showArtwork = false,
+    this.isLoadingArtwork = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppShimmer(
+      child: Column(
+        children: [
+          if (showArtwork) ...[
+            ShimmerBox(
+              width: 240,
+              height: 240,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            const SizedBox(height: 18),
+          ],
+          const ShimmerBox(width: 190, height: 13),
+          const SizedBox(height: 8),
+          const ShimmerBox(width: 145, height: 12),
+        ],
+      ),
+    );
+  }
+}
+
 /// Proper Skeleton for Tracklists (Album Screen, Playlist, Library).
 class TrackListSkeleton extends StatelessWidget {
   final int itemCount;
   final bool showIndex;
+  final bool showArtwork;
+  final EdgeInsetsGeometry padding;
 
   const TrackListSkeleton({
     super.key,
     this.itemCount = 8,
     this.showIndex = true,
+    this.showArtwork = false,
+    this.padding = const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
   });
 
   @override
   Widget build(BuildContext context) {
     return AppShimmer(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: padding,
         child: Column(
           children: List.generate(
             itemCount,
-            (index) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                children: [
-                  if (showIndex) ...[
-                    const ShimmerBox(width: 18, height: 14),
-                    const SizedBox(width: 14),
-                  ],
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ShimmerBox(width: 170, height: 14),
-                        SizedBox(height: 6),
-                        ShimmerBox(width: 100, height: 12),
-                      ],
+            (index) {
+              // Subtle deterministic width variation so skeleton rows feel organic
+              final titleWidth = 148.0 + ((index * 23) % 52);
+              final subtitleWidth = 88.0 + ((index * 17) % 38);
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                child: Row(
+                  children: [
+                    if (showArtwork) ...[
+                      const ShimmerBox(
+                        width: 44,
+                        height: 44,
+                        borderRadius: BorderRadius.all(Radius.circular(8)),
+                      ),
+                      const SizedBox(width: 12),
+                    ] else if (showIndex) ...[
+                      const SizedBox(
+                        width: 24,
+                        child: Center(child: ShimmerBox(width: 14, height: 12)),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ShimmerBox(width: titleWidth, height: 14),
+                          const SizedBox(height: 6),
+                          ShimmerBox(width: subtitleWidth, height: 11),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  const ShimmerBox(width: 32, height: 12),
-                  const SizedBox(width: 12),
-                  const ShimmerBox(width: 16, height: 16),
-                ],
-              ),
-            ),
+                    const SizedBox(width: 12),
+                    const ShimmerBox(width: 34, height: 12),
+                    const SizedBox(width: 12),
+                    const ShimmerBox.circle(size: 18),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ),

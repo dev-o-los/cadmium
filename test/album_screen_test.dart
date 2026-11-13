@@ -5,10 +5,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wavify/models/album_item.dart';
+import 'package:wavify/models/song_item.dart';
 import 'package:wavify/providers/library_provider.dart';
+import 'package:wavify/providers/music_service_provider.dart';
 import 'package:wavify/providers/navigation_provider.dart';
 import 'package:wavify/screens/album_screen.dart';
 import 'package:wavify/screens/player_screen.dart';
+import 'package:wavify/services/artwork_color_service.dart';
+import 'package:wavify/services/music_service.dart';
+import 'package:wavify/services/song_metrics_cache_service.dart';
+import 'package:wavify/widgets/app_shimmer.dart';
 import 'package:wavify/widgets/liquid_glass_bottom_bar.dart';
 
 void main() {
@@ -180,4 +186,155 @@ void main() {
     // currentTabProvider is updated to 1
     expect(container.read(currentTabProvider), 1);
   });
+
+  testWidgets('AlbumScreen shows shimmer widgets while loading without broken placeholder text',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    const noArtAlbum = AlbumItem(
+      id: 'loading_album',
+      title: 'Loading Album',
+      artist: 'Test Artist',
+      type: 'Album',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          musicServiceProvider.overrideWithValue(_DelayedAlbumMusicService()),
+        ],
+        child: const MaterialApp(
+          home: AlbumScreen(album: noArtAlbum),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(TrackListSkeleton), findsOneWidget);
+    expect(find.byType(AppShimmer), findsWidgets);
+    expect(find.textContaining('0 Tracks'), findsNothing);
+    expect(find.textContaining('total runtime of .'), findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pump(const Duration(milliseconds: 250));
+  });
+
+  testWidgets('AlbumScreen hydrates missing song durations from SongMetricsCacheService and displays timestamps',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await SongMetricsCacheService.instance.setDuration('track_cached_dur', 222);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          musicServiceProvider.overrideWithValue(_AlbumWithMissingDurMusicService()),
+        ],
+        child: const MaterialApp(
+          home: AlbumScreen(album: testAlbum),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Track One'), findsOneWidget);
+    expect(find.text('Track Two'), findsOneWidget);
+    expect(find.text('3:42'), findsOneWidget);
+    expect(find.text('4:05'), findsOneWidget);
+  });
+
+  test('MusicService duration parsers and ArtworkColorService fallback tone work across edge formats', () {
+    expect(MusicService.parseDurationString('3:42'), 222);
+    expect(MusicService.parseDurationString('1:02:05'), 3725);
+    expect(MusicService.parseDurationString('Song • 4:05'), 245);
+    expect(MusicService.parseDurationString('3 minutes, 42 seconds'), 222);
+    expect(MusicService.parseDurationString('abc:def'), isNull);
+
+    final flexItem = <String, dynamic>{
+      'flexColumns': [
+        {
+          'musicResponsiveListItemFlexColumnRenderer': {
+            'text': {
+              'runs': [
+                {'text': 'Track Title'},
+              ],
+            },
+          },
+        },
+        {
+          'musicResponsiveListItemFlexColumnRenderer': {
+            'text': {
+              'runs': [
+                {'text': 'Artist'},
+                {'text': ' • '},
+                {'text': '3:42'},
+              ],
+            },
+          },
+        },
+      ],
+    };
+    expect(MusicService.extractDurationFromRenderer(flexItem), 222);
+
+    final a11yItem = <String, dynamic>{
+      'fixedColumns': [
+        {
+          'musicResponsiveListItemFixedColumnRenderer': {
+            'text': {
+              'accessibility': {
+                'accessibilityData': {'label': '4 minutes, 5 seconds'},
+              },
+            },
+          },
+        },
+      ],
+    };
+    expect(MusicService.extractDurationFromRenderer(a11yItem), 245);
+
+    final fallbackTone = ArtworkColorService.instance.getFallbackAttractiveColor('SoFaygo');
+    expect(HSLColor.fromColor(fallbackTone).lightness, lessThanOrEqualTo(0.30));
+  });
+}
+
+class _DelayedAlbumMusicService extends MusicService {
+  @override
+  Future<AlbumDetails> getAlbumDetails(
+    AlbumItem initialAlbum, {
+    String? queryFallback,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    return AlbumDetails(album: initialAlbum, tracks: const [], totalDurationSeconds: 0);
+  }
+}
+
+class _AlbumWithMissingDurMusicService extends MusicService {
+  @override
+  Future<AlbumDetails> getAlbumDetails(
+    AlbumItem initialAlbum, {
+    String? queryFallback,
+  }) async {
+    return AlbumDetails(
+      album: initialAlbum.copyWith(trackCount: 2),
+      tracks: const [
+        SongItem(
+          id: 'track_cached_dur',
+          title: 'Track One',
+          artist: 'SoFaygo',
+          durationSeconds: null,
+        ),
+        SongItem(
+          id: 'track_explicit_dur',
+          title: 'Track Two',
+          artist: 'SoFaygo',
+          durationSeconds: 245,
+        ),
+      ],
+      totalDurationSeconds: 467,
+    );
+  }
 }

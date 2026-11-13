@@ -797,20 +797,45 @@ class MusicService {
     return null;
   }
 
-  /// Parses standard duration strings ("MM:SS" or "HH:MM:SS") into total seconds
+  /// Parses standard duration strings ("MM:SS", "HH:MM:SS", embedded durations
+  /// like "Song • 3:42", or accessibility labels like "3 minutes, 42 seconds")
+  /// into total seconds. Returns `null` when no valid duration is found.
   static int? parseDurationString(String? text) {
     if (text == null || text.trim().isEmpty) return null;
-    final parts = text.trim().split(':');
-    if (parts.length == 2) {
-      final m = int.tryParse(parts[0]) ?? 0;
-      final s = int.tryParse(parts[1]) ?? 0;
-      return (m * 60) + s;
-    } else if (parts.length == 3) {
-      final h = int.tryParse(parts[0]) ?? 0;
-      final m = int.tryParse(parts[1]) ?? 0;
-      final s = int.tryParse(parts[2]) ?? 0;
-      return (h * 3600) + (m * 60) + s;
+    final trimmed = text.trim();
+
+    // Match H:MM:SS or M:SS anywhere (handles "3:42", "03:42", "Song • 3:42")
+    final clockMatch = RegExp(
+      r'(?:^|\s|•|·|\()(\d{1,2}):(\d{2})(?::(\d{2}))?(?:$|\s|•|·|\))',
+    ).firstMatch(trimmed);
+    if (clockMatch != null) {
+      final first = int.tryParse(clockMatch.group(1)!);
+      final second = int.tryParse(clockMatch.group(2)!);
+      final third = clockMatch.group(3) != null
+          ? int.tryParse(clockMatch.group(3)!)
+          : null;
+      if (first != null && second != null && second < 60) {
+        if (third != null && third < 60) {
+          return (first * 3600) + (second * 60) + third;
+        }
+        if (clockMatch.group(3) == null) {
+          return (first * 60) + second;
+        }
+      }
     }
+
+    // Match verbose accessibility labels like "3 minutes, 42 seconds" or "1 hour, 2 minutes"
+    final hMatch = RegExp(r'(\d+)\s*hours?').firstMatch(trimmed);
+    final mMatch = RegExp(r'(\d+)\s*minutes?').firstMatch(trimmed);
+    final sMatch = RegExp(r'(\d+)\s*seconds?').firstMatch(trimmed);
+    if (hMatch != null || mMatch != null || sMatch != null) {
+      final h = hMatch != null ? (int.tryParse(hMatch.group(1)!) ?? 0) : 0;
+      final m = mMatch != null ? (int.tryParse(mMatch.group(1)!) ?? 0) : 0;
+      final s = sMatch != null ? (int.tryParse(sMatch.group(1)!) ?? 0) : 0;
+      final total = (h * 3600) + (m * 60) + s;
+      return total > 0 ? total : null;
+    }
+
     return null;
   }
 
@@ -838,6 +863,62 @@ class MusicService {
     if (nextCont.isNotEmpty && nextCont.first['continuation'] != null) {
       return nextCont.first['continuation'].toString();
     }
+    return null;
+  }
+
+  /// Extracts track duration in seconds from any InnerTube list-item renderer
+  /// by inspecting `fixedColumns`, all `flexColumns`, `subtitle`, and accessibility labels.
+  static int? extractDurationFromRenderer(Map<String, dynamic> item) {
+    final fixedCols = item['fixedColumns'] as List? ?? [];
+    for (final col in fixedCols) {
+      if (col is! Map) continue;
+      final fixedText = _extractNodeText(col);
+      final parsed = parseDurationString(fixedText);
+      if (parsed != null && parsed > 0) return parsed;
+
+      final a11yLabel = traverseString(col, [
+        'musicResponsiveListItemFixedColumnRenderer',
+        'text',
+        'accessibility',
+        'accessibilityData',
+        'label',
+      ]);
+      final a11yParsed = parseDurationString(a11yLabel);
+      if (a11yParsed != null && a11yParsed > 0) return a11yParsed;
+    }
+
+    final flexCols = item['flexColumns'] as List? ?? [];
+    for (var i = flexCols.length - 1; i >= 0; i--) {
+      final col = flexCols[i];
+      if (col is! Map) continue;
+      final runs = traverseList(col, [
+        'musicResponsiveListItemFlexColumnRenderer',
+        'text',
+        'runs',
+      ]);
+      for (var rIdx = runs.length - 1; rIdx >= 0; rIdx--) {
+        final run = runs[rIdx];
+        if (run is Map && run['text'] != null) {
+          final parsed = parseDurationString(run['text'].toString());
+          if (parsed != null && parsed > 0) return parsed;
+        }
+      }
+      final colText = _extractNodeText(col);
+      final parsed = parseDurationString(colText);
+      if (parsed != null && parsed > 0) return parsed;
+    }
+
+    final subParsed = parseDurationString(_extractNodeText(item['subtitle']));
+    if (subParsed != null && subParsed > 0) return subParsed;
+
+    final itemA11y = traverseString(item, [
+      'accessibility',
+      'accessibilityData',
+      'label',
+    ]);
+    final itemA11yParsed = parseDurationString(itemA11y);
+    if (itemA11yParsed != null && itemA11yParsed > 0) return itemA11yParsed;
+
     return null;
   }
 
@@ -1005,25 +1086,7 @@ class MusicService {
       }
     }
 
-    int? duration;
-    final fixedCols = item['fixedColumns'] as List? ?? [];
-    if (fixedCols.isNotEmpty) {
-      final durStr = _extractNodeText(fixedCols.first);
-      duration = parseDurationString(durStr);
-    }
-    if (duration == null && flexCols.length > 1) {
-      final runs = traverseList(flexCols[1], [
-        'musicResponsiveListItemFlexColumnRenderer',
-        'text',
-        'runs',
-      ]);
-      if (runs.isNotEmpty) {
-        final lastRun = runs.last;
-        if (lastRun is Map && lastRun['text'] != null) {
-          duration = parseDurationString(lastRun['text'].toString());
-        }
-      }
-    }
+    final int? duration = extractDurationFromRenderer(item);
 
     String? thumb;
     final itemThumbs = traverseList(item, [
@@ -2806,7 +2869,9 @@ class MusicService {
               ? albumFull.artist.name
               : 'Unknown Artist';
 
-          return albumFull.songs.where((s) => s.videoId.isNotEmpty).map((s) {
+          var tracks = albumFull.songs.where((s) => s.videoId.isNotEmpty).map((
+            s,
+          ) {
             final artistName = s.artist.name.isNotEmpty
                 ? s.artist.name
                 : albumArtist;
@@ -2814,15 +2879,24 @@ class MusicService {
                 ? s.thumbnails.last.url
                 : albumThumb;
             final thumb = SongItem.upgradeThumbnail(rawThumb);
+            final cachedDuration = (s.duration != null && s.duration! > 0)
+                ? s.duration
+                : SongMetricsCacheService.instance
+                      .getDuration(s.videoId)
+                      ?.inSeconds;
             return SongItem(
               id: s.videoId,
               title: SongItem.sanitizeTitle(s.name.isNotEmpty ? s.name : 'Untitled'),
               artist: SongItem.sanitizeArtist(artistName),
               thumbnailUrl: thumb,
-              durationSeconds: s.duration,
+              durationSeconds: cachedDuration,
               album: albumFull.name.isNotEmpty ? albumFull.name : null,
             );
           }).toList();
+
+          tracks = await _hydrateMissingAlbumDurations(cleanId, tracks);
+          SongMetricsCacheService.instance.precacheTracks(tracks, this);
+          return tracks;
         }
       } catch (e) {
         debugPrint('getAlbum error: $e, falling back to queryFallback');
@@ -2834,6 +2908,70 @@ class MusicService {
     }
 
     return [];
+  }
+
+  /// Resolves any missing (`null` or `<= 0`) track durations in an album by
+  /// parsing raw InnerTube `browse` renderers (`fixedColumns`, `flexColumns`,
+  /// accessibility labels) when `dart_ytmusic_api` skips them.
+  Future<List<SongItem>> _hydrateMissingAlbumDurations(
+    String browseId,
+    List<SongItem> tracks,
+  ) async {
+    final missingTracks = tracks
+        .where((t) => t.durationSeconds == null || t.durationSeconds! <= 0)
+        .toList();
+    if (missingTracks.isEmpty || browseId.isEmpty) return tracks;
+
+    try {
+      final browseData = await postInnerTube(
+        'browse',
+        bodyExtras: {'browseId': browseId},
+      );
+      if (browseData == null) return tracks;
+
+      final renderers = _collectRenderers(
+        browseData,
+        'musicResponsiveListItemRenderer',
+      );
+      if (renderers.isEmpty) return tracks;
+
+      final durationsById = <String, int>{};
+      final durationsByTitle = <String, int>{};
+      for (final renderer in renderers) {
+        final duration = extractDurationFromRenderer(renderer);
+        if (duration == null || duration <= 0) continue;
+
+        final parsed = parseSongFromRenderer(renderer);
+        if (parsed != null && parsed.id.isNotEmpty) {
+          durationsById[parsed.id] = duration;
+        }
+        final title = (parsed?.title ??
+                _extractNodeText((renderer['flexColumns'] as List?)?.first))
+            .trim()
+            .toLowerCase();
+        if (title.isNotEmpty) {
+          durationsByTitle[title] = duration;
+        }
+      }
+
+      if (durationsById.isEmpty && durationsByTitle.isEmpty) return tracks;
+
+      return tracks.map((track) {
+        if (track.durationSeconds != null && track.durationSeconds! > 0) {
+          return track;
+        }
+        final matched =
+            durationsById[track.id] ??
+            durationsByTitle[track.title.trim().toLowerCase()];
+        if (matched != null && matched > 0) {
+          return track.copyWith(durationSeconds: matched);
+        }
+        return track;
+      }).toList();
+    } catch (e) {
+      debugPrint('_hydrateMissingAlbumDurations error for $browseId: $e');
+      return tracks;
+    }
   }
 
   /// Fetches complete album details including upgraded artwork, all track listings,
