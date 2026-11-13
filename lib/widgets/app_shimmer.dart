@@ -207,7 +207,7 @@ class SearchScreenSkeleton extends StatelessWidget {
   const SearchScreenSkeleton({
     super.key,
     this.itemCount = 8,
-    this.padding = const EdgeInsets.fromLTRB(22, 10, 22, 160),
+    this.padding = const EdgeInsets.fromLTRB(7, 10, 7, 160),
   });
 
   @override

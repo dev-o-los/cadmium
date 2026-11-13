@@ -52,7 +52,9 @@ dependencies:
   shimmer: ^4.0.0
   palette_generator: ^0.3.3+7
   permission_handler: ^13.0.2
-
+  package_info_plus: ^10.2.2
+  url_launcher: ^6.3.3
+  open_filex: ^5.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

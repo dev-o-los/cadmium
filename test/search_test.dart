@@ -536,15 +536,20 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
 
-      // Check title track text style
-      final titleWidget = tester.widget<Text>(find.text('YAH YAH'));
+      // Check song row title track text style
+      final titleWidget = tester.widget<Text>(find.text('India Type Shiz'));
       expect(titleWidget.style?.fontSize, 15.0);
       expect(titleWidget.style?.fontWeight, FontWeight.w500);
 
       // Check artist text style
       final artistWidget = tester.widget<Text>(find.text('Tsumyoki').first);
-      expect(artistWidget.style?.fontSize, 13.0);
+      expect(artistWidget.style?.fontSize, 13.5);
       expect(artistWidget.style?.fontWeight, FontWeight.w400);
+
+      // Verify Top result heading and Play button
+      expect(find.text('Top result'), findsOneWidget);
+      expect(find.text('Play'), findsOneWidget);
+      expect(find.byIcon(CupertinoIcons.play_fill), findsOneWidget);
     });
   });
 }

@@ -1,21 +1,25 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constants/app_colors.dart';
 import '../constants/apple_typography.dart';
 import '../providers/auth_provider.dart';
 import '../providers/navigation_provider.dart';
 import '../providers/player_provider.dart';
+import '../providers/update_provider.dart';
+import '../services/app_update_service.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/apple_pressable.dart';
+import '../widgets/app_update_sheet.dart';
 import '../widgets/liquid_glass_bottom_bar.dart';
 import '../widgets/player_controls.dart';
 import '../widgets/top_status_bar_blur.dart';
 import '../widgets/wavify_cached_image.dart';
 import 'google_signin_screen.dart';
 
-/// The Apple Music-style Settings screen for Wavify.
+/// The Apple Music-style Settings screen for Wavify / Cadmium.
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
@@ -24,15 +28,78 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  static const String _autoUpdateKey = 'settings_auto_check_updates';
+
   bool _highQualityAudio = true;
   bool _wifiOnly = false;
   bool _gaplessPlayback = true;
+  bool _autoCheckUpdates = true;
+  String _appVersion = '1.0.4';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettingsAndVersion();
+  }
+
+  Future<void> _loadSettingsAndVersion() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final autoCheck = prefs.getBool(_autoUpdateKey) ?? true;
+      final fullVersion = await AppUpdateService.instance.getFullVersionString();
+
+      if (mounted) {
+        setState(() {
+          _autoCheckUpdates = autoCheck;
+          _appVersion = fullVersion;
+        });
+
+        // Silently check for updates if enabled and still idle
+        if (autoCheck) {
+          final state = ref.read(updateProvider);
+          if (state.status == UpdateStatus.idle) {
+            ref.read(updateProvider.notifier).checkForUpdate(userInitiated: false);
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveAutoCheckSetting(bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_autoUpdateKey, value);
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
     final account = ref.watch(authProvider);
     final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
     final currentTabIndex = ref.watch(currentTabProvider);
+    final updateState = ref.watch(updateProvider);
+
+    // Listen for manual update checks to surface the modal or a quick feedback toast
+    ref.listen<AppUpdateState>(updateProvider, (previous, next) {
+      if (next.userInitiated) {
+        if (next.hasUpdate && previous?.status != UpdateStatus.updateAvailable) {
+          showAppUpdateSheet(context);
+        } else if (next.isUpToDate && previous?.status == UpdateStatus.checking) {
+          _showCupertinoToast(
+            context,
+            icon: CupertinoIcons.checkmark_alt_circle_fill,
+            message: 'Cadmium is up to date (${next.currentVersion})',
+          );
+        } else if (next.hasError && previous?.status == UpdateStatus.checking) {
+          _showCupertinoToast(
+            context,
+            icon: CupertinoIcons.exclamationmark_circle,
+            message: next.errorMessage ?? 'Failed to check for updates',
+            isError: true,
+          );
+        }
+      }
+    });
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -165,6 +232,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                       const SizedBox(height: AppleSpacing.sectionSpacing),
 
+                      // Software Update Section
+                      _buildSectionHeader('SOFTWARE UPDATE'),
+                      _buildSettingsGroup(
+                        children: [
+                          _buildUpdateTile(updateState),
+                          _buildDivider(),
+                          _buildSwitchTile(
+                            icon: CupertinoIcons.arrow_2_circlepath_circle,
+                            title: 'Automatic Checks',
+                            subtitle: 'Check GitHub releases on startup',
+                            value: _autoCheckUpdates,
+                            onChanged: (val) {
+                              setState(() => _autoCheckUpdates = val);
+                              _saveAutoCheckSetting(val);
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppleSpacing.sectionSpacing),
+
                       // Playback & Audio
                       _buildSectionHeader('PLAYBACK & AUDIO'),
                       _buildSettingsGroup(
@@ -203,13 +290,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           _buildSettingsTile(
                             icon: CupertinoIcons.info_circle,
                             title: 'Version',
-                            trailing: const Text(
-                              '1.0.0',
-                              style: TextStyle(
+                            trailing: Text(
+                              _appVersion,
+                              style: const TextStyle(
                                 color: AppColors.appleSecondaryText,
                                 fontSize: 15,
                               ),
                             ),
+                          ),
+                          _buildDivider(),
+                          _buildSettingsTile(
+                            icon: CupertinoIcons.compass,
+                            title: 'GitHub Releases',
+                            subtitle: 'dev-o-los/cadmium',
+                            onTap: () {
+                              ref.read(updateProvider.notifier).openReleasePage();
+                            },
                           ),
                           if (account != null) ...[
                             _buildDivider(),
@@ -259,6 +355,221 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildUpdateTile(AppUpdateState updateState) {
+    IconData icon;
+    Color iconColor = Colors.white;
+    String subtitle;
+    Widget? trailing;
+
+    if (updateState.isChecking) {
+      icon = CupertinoIcons.arrow_2_circlepath;
+      subtitle = 'Checking GitHub for updates...';
+      trailing = const CupertinoActivityIndicator(radius: 8);
+    } else if (updateState.isDownloading) {
+      icon = CupertinoIcons.arrow_down_to_line;
+      subtitle = 'Downloading APK (${(updateState.progress * 100).toInt()}%)...';
+      trailing = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(
+              value: updateState.progress > 0 ? updateState.progress : null,
+              strokeWidth: 2,
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+              backgroundColor: Colors.white24,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${(updateState.progress * 100).toInt()}%',
+            style: const TextStyle(
+              color: AppColors.appleSecondaryText,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      );
+    } else if (updateState.isReadyToInstall) {
+      icon = CupertinoIcons.arrow_down_doc_fill;
+      subtitle = 'APK ready to install • Tap to complete';
+      trailing = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Text(
+          'INSTALL',
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.2,
+          ),
+        ),
+      );
+    } else if (updateState.hasUpdate) {
+      icon = CupertinoIcons.arrow_down_circle_fill;
+      final tag = updateState.updateInfo?.tagName ?? 'New';
+      subtitle = '$tag available • Tap to view & install';
+      trailing = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Text(
+          'UPDATE',
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.2,
+          ),
+        ),
+      );
+    } else if (updateState.isUpToDate) {
+      icon = CupertinoIcons.checkmark_seal_fill;
+      subtitle = 'Cadmium is up to date';
+      trailing = const Icon(
+        CupertinoIcons.checkmark_alt,
+        color: AppColors.appleSecondaryText,
+        size: 18,
+      );
+    } else if (updateState.hasError) {
+      icon = CupertinoIcons.exclamationmark_triangle_fill;
+      iconColor = Colors.orangeAccent;
+      subtitle = updateState.errorMessage != null
+          ? 'Check failed • Tap to retry'
+          : 'Failed to reach GitHub • Tap to retry';
+      trailing = const Icon(
+        CupertinoIcons.chevron_forward,
+        color: Colors.white38,
+        size: 16,
+      );
+    } else {
+      icon = CupertinoIcons.arrow_2_circlepath;
+      subtitle = 'Check GitHub for newer versions';
+      trailing = const Icon(
+        CupertinoIcons.chevron_forward,
+        color: Colors.white38,
+        size: 16,
+      );
+    }
+
+    return ApplePressable(
+      onTap: () {
+        if (updateState.hasUpdate ||
+            updateState.isDownloading ||
+            updateState.isReadyToInstall ||
+            (updateState.updateInfo != null && updateState.isUpToDate)) {
+          showAppUpdateSheet(context);
+        } else {
+          ref.read(updateProvider.notifier).checkForUpdate(userInitiated: true);
+        }
+      },
+      onLongPress: () {
+        // Long press opens the sheet directly if any release info was retrieved
+        if (updateState.updateInfo != null) {
+          showAppUpdateSheet(context);
+        } else {
+          ref.read(updateProvider.notifier).checkForUpdate(userInitiated: true);
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon, color: iconColor, size: 22),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Software Update',
+                    style: AppleTypography.sheetAction,
+                  ),
+                  const SizedBox(height: AppleSpacing.titleToSubtitle),
+                  Text(
+                    subtitle,
+                    style: AppleTypography.sheetSubtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            trailing,
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCupertinoToast(
+    BuildContext context, {
+    required IconData icon,
+    required String message,
+    bool isError = false,
+  }) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.only(bottom: 90, left: 16, right: 16),
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.appleDarkSurfaceHigh.withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isError
+                  ? Colors.redAccent.withValues(alpha: 0.4)
+                  : Colors.white.withValues(alpha: 0.15),
+              width: 0.8,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                color: isError ? Colors.redAccent : Colors.white,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -393,4 +704,3 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 }
-
