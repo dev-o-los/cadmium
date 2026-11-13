@@ -5410,9 +5410,7 @@ class MusicService {
           h264Adaptive.sort((a, b) {
             final aH = (a['height'] as num?)?.toInt() ?? 0;
             final bH = (b['height'] as num?)?.toInt() ?? 0;
-            // Prefer 720p first for smooth zero-lag playback on mobile screens
-            if (aH == 720 && bH != 720) return -1;
-            if (bH == 720 && aH != 720) return 1;
+            // Always prefer highest definition first (1080p > 720p) for crystal-clear playback
             return bH.compareTo(aH);
           });
           final selected = h264Adaptive.first;
@@ -5552,11 +5550,9 @@ class MusicService {
 
       if (candidates.isEmpty) return null;
 
-      // Prefer hardware-accelerated H.264 (avc1) 720p first (ultra crisp & lag-free on mobile), then 1080p
+      // Prefer hardware-accelerated H.264 (avc1) highest quality (1080p first, then 720p)
       candidates.sort((a, b) {
         if (a.isH264 != b.isH264) return a.isH264 ? -1 : 1;
-        if (a.height == 720 && b.height != 720) return -1;
-        if (b.height == 720 && a.height != 720) return 1;
         return b.height.compareTo(a.height);
       });
 

@@ -770,36 +770,52 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       ),
                     ),
 
-                  // Soft blur veil across video-to-player transition band (44%..68% vertical zone)
+                  // Soft blur veil across video-to-player transition band (smooth and clear without harsh lines)
                   if (modeVal < 0.85)
                     Positioned(
                       left: 0,
                       right: 0,
-                      top: screenHeight * 0.42,
-                      height: screenHeight * 0.28,
+                      top: screenHeight * 0.40,
+                      height: screenHeight * 0.30,
                       child: IgnorePointer(
                         child: Opacity(
                           opacity: (1.0 - (modeVal * 1.3)).clamp(0.0, 1.0),
                           child: ClipRect(
-                            child: BackdropFilter(
-                              filter: ui.ImageFilter.blur(
-                                sigmaX: 20,
-                                sigmaY: 20,
+                            child: ShaderMask(
+                              shaderCallback: (bounds) {
+                                return const LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.black,
+                                    Colors.black,
+                                    Colors.transparent,
+                                  ],
+                                  stops: [0.0, 0.20, 0.80, 1.0],
+                                ).createShader(bounds);
+                              },
+                              blendMode: BlendMode.dstIn,
+                              child: BackdropFilter(
+                                filter: ui.ImageFilter.blur(
+                                  sigmaX: 20,
+                                  sigmaY: 20,
+                                ),
+                                child: const ColoredBox(color: Colors.transparent),
                               ),
-                              child: const ColoredBox(color: Colors.transparent),
                             ),
                           ),
                         ),
                       ),
                     ),
 
-                  // Top status bar scrim for clock & notch icon legibility
-                  if (controlsVal > 0.01)
+                  // Top status bar scrim for clock & notch icon legibility (active in lyrics/queue modes)
+                  if (modeVal > 0.05 && controlsVal > 0.01)
                     Positioned(
                       top: 0,
                       left: 0,
                       right: 0,
-                      height: 112,
+                      height: 128,
                       child: Opacity(
                         opacity: controlsVal,
                         child: const DecoratedBox(
@@ -808,9 +824,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                               colors: [
-                                Color(0x52000000),
+                                Color(0x38000000),
+                                Color(0x16000000),
                                 Colors.transparent,
                               ],
+                              stops: [0.0, 0.50, 1.0],
                             ),
                           ),
                         ),
@@ -845,6 +863,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
 
     const double targetThumbSize = 48.0;
+    final hasVideo = animatedArtworkUrl != null && animatedArtworkUrl.isNotEmpty;
 
     // Build heavy image/video canvas ONCE per song/state change outside AnimatedBuilder
     // so tab/mode transitions run at full frame rate with crisp hardware video rendering.
@@ -863,7 +882,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       ),
     );
 
-    if (animatedArtworkUrl != null && animatedArtworkUrl.isNotEmpty) {
+    if (hasVideo) {
       staticMedia = Stack(
         fit: StackFit.expand,
         children: [
@@ -874,7 +893,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             fallbackImageUrl: song.thumbnailUrl,
             isPlaying: isPlaying,
             fit: BoxFit.cover,
-            alignment: Alignment.topCenter,
+            alignment: Alignment.center,
+            zoomScale: 1.28,
           ),
         ],
       );
@@ -910,7 +930,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           curve: const Cubic(0.16, 1.0, 0.3, 1.0),
         ).value;
 
-        // Fixed 60% artwork/video top height in Now Playing mode -> 48px thumbnail in Lyrics/Queue
+        // 60% artwork/video layout in Now Playing mode -> 48px thumbnail in Lyrics/Queue
         final expandedHeight = screenHeight * 0.60;
         final height = ui.lerpDouble(
           expandedHeight,
@@ -924,8 +944,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final width = ui.lerpDouble(screenWidth, targetThumbSize, modeVal)!;
         final borderRadius = ui.lerpDouble(0.0, 12.0, modeVal)!;
 
-        // Downward alpha dissolve like previous versions so crisp video fades & mixes
-        // organically into the blurred artwork + Apple Music bottom player palette.
+        // Downward alpha dissolve so crisp video / album art fades & mixes
+        // organically into the blurred backdrop and Apple Music bottom player palette.
         final dissolveFactor = (1.0 - (modeVal * 1.15)).clamp(0.0, 1.0);
         Widget heroContent = Container(
           key: ValueKey('player_screen_artwork_${song.id}'),
@@ -945,7 +965,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   Color.lerp(Colors.black, const Color(0x28000000), dissolveFactor)!,
                   Color.lerp(Colors.black, const Color(0x00000000), dissolveFactor)!,
                 ],
-                stops: const [0.0, 0.64, 0.76, 0.88, 0.96, 1.0],
+                stops: const [0.0, 0.65, 0.78, 0.88, 0.96, 1.0],
               ).createShader(bounds);
             },
             blendMode: BlendMode.dstIn,

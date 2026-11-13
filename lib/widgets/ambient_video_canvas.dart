@@ -20,6 +20,7 @@ class AmbientVideoCanvas extends StatefulWidget {
   final bool isPlaying;
   final BoxFit fit;
   final Alignment alignment;
+  final double zoomScale;
 
   const AmbientVideoCanvas({
     super.key,
@@ -29,6 +30,7 @@ class AmbientVideoCanvas extends StatefulWidget {
     required this.isPlaying,
     this.fit = BoxFit.cover,
     this.alignment = Alignment.topCenter,
+    this.zoomScale = 1.0,
   });
 
   /// Determines whether the given URL represents a playable video stream
@@ -152,15 +154,21 @@ class _AmbientVideoCanvasState extends State<AmbientVideoCanvas> {
           opacity: _isInitialized ? 1.0 : 0.0,
           duration: const Duration(milliseconds: 350),
           curve: Curves.easeOutCubic,
-          child: SizedBox.expand(
-            child: FittedBox(
-              fit: widget.fit,
-              alignment: widget.alignment,
-              clipBehavior: Clip.hardEdge,
-              child: SizedBox(
-                width: width,
-                height: height,
-                child: VideoPlayer(_controller!),
+          child: ClipRect(
+            child: SizedBox.expand(
+              child: Transform.scale(
+                scale: widget.zoomScale,
+                alignment: widget.alignment,
+                child: FittedBox(
+                  fit: widget.fit,
+                  alignment: widget.alignment,
+                  clipBehavior: Clip.hardEdge,
+                  child: SizedBox(
+                    width: width,
+                    height: height,
+                    child: VideoPlayer(_controller!),
+                  ),
+                ),
               ),
             ),
           ),
@@ -173,7 +181,7 @@ class _AmbientVideoCanvasState extends State<AmbientVideoCanvas> {
       return const SizedBox.shrink();
     }
 
-    return Image.network(
+    final imageWidget = Image.network(
       widget.mediaUrl,
       fit: widget.fit,
       alignment: widget.alignment,
@@ -191,6 +199,17 @@ class _AmbientVideoCanvasState extends State<AmbientVideoCanvas> {
       },
       errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
     );
+
+    if (widget.zoomScale > 1.01) {
+      return ClipRect(
+        child: Transform.scale(
+          scale: widget.zoomScale,
+          alignment: widget.alignment,
+          child: imageWidget,
+        ),
+      );
+    }
+    return imageWidget;
   }
 }
 
