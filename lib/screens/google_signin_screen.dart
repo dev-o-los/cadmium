@@ -471,12 +471,12 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
       visitorData: visitorData,
     );
 
-    // 4. Persist account and trigger recommendations & liked songs refresh
-    await ref.read(authProvider.notifier).signInWithGoogleAccount(account);
+    // 4. Persist account and trigger seamless all-tabs sync in background
+    ref.read(authProvider.notifier).signInWithGoogleAccount(account);
 
     if (!mounted) return;
 
-    // 5. Navigate straight back to Home screen
+    // 5. Navigate straight back to Home screen immediately
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 

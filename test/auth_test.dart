@@ -242,7 +242,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       expect(find.text('PLAYBACK & AUDIO'), findsOneWidget);
-      expect(find.text('High Quality Streaming'), findsOneWidget);
+      expect(find.text('High Quality Audio'), findsOneWidget);
     });
 
     testWidgets('When not signed in, tapping top-right icon opens dialogue and transfers to GoogleSignInScreen',

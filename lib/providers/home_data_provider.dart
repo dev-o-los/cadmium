@@ -41,13 +41,26 @@ class HomeDataNotifier extends AsyncNotifier<HomeData> {
     });
   }
 
-  /// Forces a fresh fetch from YouTube Music.
+  /// Forces a fresh fetch from YouTube Music seamlessly without blanking the screen.
   Future<void> refresh() async {
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
+    // Preserve existing data while fetching to prevent jarring skeleton flickers
+    if (state.hasValue) {
+      state = AsyncLoading<HomeData>().copyWithPrevious(state);
+    } else {
+      state = const AsyncValue.loading();
+    }
+
+    try {
       final musicService = ref.read(musicServiceProvider);
-      return musicService.getHomeData(refresh: true);
-    });
+      final fresh = await musicService.getHomeData(refresh: true);
+      if (!fresh.isEmpty) {
+        state = AsyncValue.data(fresh);
+      }
+    } catch (e, st) {
+      if (!state.hasValue) {
+        state = AsyncValue.error(e, st);
+      }
+    }
   }
 }
 

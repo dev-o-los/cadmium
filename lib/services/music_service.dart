@@ -272,30 +272,45 @@ class MusicService {
     return computeSapisidHash(sapisid, origin: origin);
   }
 
-  /// Recursively collects all objects named [targetKey] anywhere inside a JSON structure
+  /// High-performance renderer collector with branch pruning for lag-free UI
   static List<Map<String, dynamic>> _collectRenderers(
     dynamic root,
     String targetKey,
   ) {
+    if (root == null) return const [];
     final results = <Map<String, dynamic>>[];
     void search(dynamic node) {
       if (node is List) {
-        for (final item in node) {
-          search(item);
-        }
-      } else if (node is Map<String, dynamic>) {
-        for (final entry in node.entries) {
-          if (entry.key == targetKey && entry.value is Map<String, dynamic>) {
-            results.add(entry.value as Map<String, dynamic>);
+        final len = node.length;
+        for (int i = 0; i < len; i++) {
+          final item = node[i];
+          if (item is Map || item is List) {
+            search(item);
           }
-          search(entry.value);
         }
       } else if (node is Map) {
         for (final entry in node.entries) {
-          if (entry.key == targetKey && entry.value is Map) {
-            results.add(Map<String, dynamic>.from(entry.value as Map));
+          final k = entry.key;
+          // Prune branches that never contain renderers or are heavy metadata/thumbnails
+          if (k == 'thumbnails' ||
+              k == 'trackingParams' ||
+              k == 'accessibility' ||
+              k == 'accessibilityData' ||
+              k == 'commandMetadata' ||
+              k == 'webCommandMetadata') {
+            continue;
           }
-          search(entry.value);
+          final val = entry.value;
+          if (k == targetKey && val is Map) {
+            if (val is Map<String, dynamic>) {
+              results.add(val);
+            } else {
+              results.add(Map<String, dynamic>.from(val));
+            }
+          }
+          if (val is Map || val is List) {
+            search(val);
+          }
         }
       }
     }
@@ -1114,6 +1129,14 @@ class MusicService {
     );
   }
 
+  // Persistent connection-pooled HTTP client with keep-alive
+  HttpClient? _sharedInnerTubeHttpClient;
+  HttpClient get _innerTubeHttpClient =>
+      _sharedInnerTubeHttpClient ??= HttpClient()
+        ..connectionTimeout = const Duration(seconds: 10)
+        ..idleTimeout = const Duration(seconds: 60)
+        ..maxConnectionsPerHost = 15;
+
   /// Sends an authenticated InnerTube POST request using session cookies and SAPISIDHASH
   Future<dynamic> postInnerTube(
     String endpoint, {
@@ -1159,10 +1182,8 @@ class MusicService {
       ...?bodyExtras,
     };
 
-    HttpClient? client;
     try {
-      client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
-      final request = await client.postUrl(uri);
+      final request = await _innerTubeHttpClient.postUrl(uri);
       request.headers.contentType = ContentType.json;
       request.headers.set(
         'User-Agent',
@@ -1204,8 +1225,6 @@ class MusicService {
     } catch (e) {
       debugPrint('postInnerTube error ($endpoint): $e');
       return null;
-    } finally {
-      client?.close(force: true);
     }
   }
 
@@ -1507,59 +1526,53 @@ class MusicService {
 
     try {
       // ═══════════════════════════════════════════════════════════════════
-      // STEP 1 — FEmusic_history: authentic recent listens
+      // STEP 1 & 2 — Fetch FEmusic_history & FEmusic_home concurrently in parallel
       // ═══════════════════════════════════════════════════════════════════
+      dynamic historyJson;
+      dynamic homeJson;
       try {
-        final historyJson = await postInnerTube(
-          'browse',
-          bodyExtras: {'browseId': 'FEmusic_history'},
-        );
-        if (historyJson != null) {
-          for (final r in _collectRenderers(
-            historyJson,
-            'musicResponsiveListItemRenderer',
-          )) {
-            final s = parseSongFromRenderer(r);
-            if (s != null) {
-              addSong(recents, s);
-            }
-          }
-        }
+        final initialResults = await Future.wait([
+          postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_history'}),
+          postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_home'}),
+        ]);
+        historyJson = initialResults[0];
+        homeJson = initialResults[1];
       } catch (e) {
-        debugPrint('_fetchPersonalized: FEmusic_history error: $e');
+        debugPrint('_fetchPersonalized initial browse error: $e');
       }
 
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 2 — FEmusic_home: parse ALL live shelves dynamically (with continuations)
-      // ═══════════════════════════════════════════════════════════════════
+      // Parse authentic recent listens from history
+      if (historyJson != null) {
+        for (final r in _collectRenderers(
+          historyJson,
+          'musicResponsiveListItemRenderer',
+        )) {
+          final s = parseSongFromRenderer(r);
+          if (s != null) {
+            addSong(recents, s);
+          }
+        }
+      }
+
+      // Parse live shelves dynamically
       try {
         final allHomeResponses = <dynamic>[];
-        final homeJson = await postInnerTube(
-          'browse',
-          bodyExtras: {'browseId': 'FEmusic_home'},
-        );
         if (homeJson != null) {
           allHomeResponses.add(homeJson);
-          var continuationToken = extractContinuationToken(homeJson) ??
+          final continuationToken = extractContinuationToken(homeJson) ??
               traverseString(homeJson, ['continuation']);
-          int continuationCount = 0;
-          while (continuationToken != null &&
-              continuationToken.isNotEmpty &&
-              continuationCount < 5) {
-            continuationCount++;
+          // Fetch 1 continuation page if present for instant responsive loading
+          if (continuationToken != null && continuationToken.isNotEmpty) {
             try {
               final nextJson = await postInnerTube(
                 'browse',
                 queryParams: {'continuation': continuationToken},
                 bodyExtras: {'continuation': continuationToken},
               );
-              if (nextJson == null) break;
-              allHomeResponses.add(nextJson);
-              continuationToken = extractContinuationToken(nextJson) ??
-                  traverseString(nextJson, ['continuation']);
-            } catch (_) {
-              break;
-            }
+              if (nextJson != null) {
+                allHomeResponses.add(nextJson);
+              }
+            } catch (_) {}
           }
         }
 
@@ -3190,17 +3203,15 @@ class MusicService {
         if (data != null) {
           addSongs(data);
 
-          // Follow continuation tokens up to 10 pages
-          int pages = 0;
-          String? token = extractContinuationToken(data);
-          while (token != null && token.isNotEmpty && pages < 10) {
-            pages++;
-            final nextData = await browseContinuation(token);
-            if (nextData == null) break;
-            final prevCount = songs.length;
-            addSongs(nextData);
-            if (songs.length == prevCount) break;
-            token = extractContinuationToken(nextData);
+          // Follow 1 continuation token on initial sync for instant response (~100 songs)
+          final token = extractContinuationToken(data);
+          if (token != null && token.isNotEmpty) {
+            try {
+              final nextData = await browseContinuation(token);
+              if (nextData != null) {
+                addSongs(nextData);
+              }
+            } catch (_) {}
           }
 
           if (songs.isNotEmpty) {
@@ -4519,36 +4530,34 @@ class MusicService {
       }
     }
 
-    // 1. Authenticated InnerTube liked & saved playlists
+    // Concurrently fetch liked playlists & library landing items
     try {
-      final likedData = await postInnerTube(
-        'browse',
-        bodyExtras: {'browseId': 'FEmusic_liked_playlists'},
-      );
-      extractPlaylistsFromData(likedData);
+      final results = await Future.wait([
+        postInnerTube(
+          'browse',
+          bodyExtras: {'browseId': 'FEmusic_liked_playlists'},
+        ),
+        postInnerTube(
+          'browse',
+          bodyExtras: {'browseId': 'FEmusic_library_landing'},
+        ),
+      ]);
 
-      String? token = extractContinuationToken(likedData);
-      int p = 0;
-      while (token != null && token.isNotEmpty && p < 5) {
-        p++;
-        final next = await browseContinuation(token);
-        if (next == null) break;
-        extractPlaylistsFromData(next);
-        token = extractContinuationToken(next);
+      extractPlaylistsFromData(results[0]);
+      extractPlaylistsFromData(results[1]);
+
+      // Follow 1 continuation token on initial sync
+      final token = extractContinuationToken(results[0]);
+      if (token != null && token.isNotEmpty) {
+        try {
+          final next = await browseContinuation(token);
+          if (next != null) {
+            extractPlaylistsFromData(next);
+          }
+        } catch (_) {}
       }
     } catch (e) {
-      debugPrint('getUserPlaylists liked playlists error: $e');
-    }
-
-    // 2. Authenticated InnerTube library landing items (shared/saved playlists)
-    try {
-      final landingData = await postInnerTube(
-        'browse',
-        bodyExtras: {'browseId': 'FEmusic_library_landing'},
-      );
-      extractPlaylistsFromData(landingData);
-    } catch (e) {
-      debugPrint('getUserPlaylists landing error: $e');
+      debugPrint('getUserPlaylists error: $e');
     }
 
     return playlists;
@@ -4564,14 +4573,19 @@ class MusicService {
     final albums = <AlbumItem>[];
     final seenIds = <String>{};
 
-    // Authenticated InnerTube library saved & liked albums
+    // Authenticated InnerTube library saved & liked albums fetched in parallel
     try {
       final feedIds = ['FEmusic_liked_albums', 'FEmusic_library_corpus_albums'];
-      for (final feedId in feedIds) {
-        final data = await postInnerTube(
-          'browse',
-          bodyExtras: {'browseId': feedId},
-        );
+      final results = await Future.wait(
+        feedIds.map(
+          (feedId) => postInnerTube(
+            'browse',
+            bodyExtras: {'browseId': feedId},
+          ),
+        ),
+      );
+
+      for (final data in results) {
         if (data != null) {
           final items = _collectRenderers(data, 'musicTwoRowItemRenderer');
           for (final item in items) {
@@ -4618,18 +4632,23 @@ class MusicService {
     final artists = <ArtistItem>[];
     final seenIds = <String>{};
 
-    // Authenticated InnerTube library subscribed artists
+    // Authenticated InnerTube library subscribed artists fetched in parallel
     try {
       final feedIds = [
         'FEmusic_library_corpus_track_artists',
         'FEmusic_library_corpus_artists',
         'FEmusic_library_landing',
       ];
-      for (final feedId in feedIds) {
-        final data = await postInnerTube(
-          'browse',
-          bodyExtras: {'browseId': feedId},
-        );
+      final results = await Future.wait(
+        feedIds.map(
+          (feedId) => postInnerTube(
+            'browse',
+            bodyExtras: {'browseId': feedId},
+          ),
+        ),
+      );
+
+      for (final data in results) {
         if (data != null) {
           final items = _collectRenderers(data, 'musicTwoRowItemRenderer');
           for (final item in items) {

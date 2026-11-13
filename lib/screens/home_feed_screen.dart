@@ -55,10 +55,19 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
   @override
   Widget build(BuildContext context) {
     final homeDataAsync = ref.watch(homeDataProvider);
+    final homeData = homeDataAsync.valueOrNull;
 
-    return homeDataAsync.when(
-      loading: () => const HomeScreenSkeleton(),
-      error: (err, stack) => Center(
+    // Seamless stale-while-revalidate: keep rendering existing content while refreshing in background
+    if (homeData != null && !homeData.isEmpty) {
+      return _buildHomeContent(context, ref, homeData);
+    }
+
+    if (homeDataAsync.isLoading) {
+      return const HomeScreenSkeleton();
+    }
+
+    if (homeDataAsync.hasError) {
+      return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -71,7 +80,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'Failed to load music: $err',
+                'Failed to load music: ${homeDataAsync.error}',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.white, fontSize: 15),
               ),
@@ -90,9 +99,10 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             ],
           ),
         ),
-      ),
-      data: (data) => _buildHomeContent(context, ref, data),
-    );
+      );
+    }
+
+    return const HomeScreenSkeleton();
   }
 
   Widget _buildHomeContent(BuildContext context, WidgetRef ref, HomeData data) {

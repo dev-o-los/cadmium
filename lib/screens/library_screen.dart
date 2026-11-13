@@ -60,9 +60,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final localFavorites = ref.watch(favoritesProvider);
     final ytLikesAsync = ref.watch(youtubeLikedSongsProvider);
 
-    final playlists = playlistsAsync.asData?.value ?? [];
-    final albums = albumsAsync.asData?.value ?? [];
-    final artists = artistsAsync.asData?.value ?? [];
+    final playlists = playlistsAsync.valueOrNull ?? playlistsAsync.asData?.value ?? [];
+    final albums = albumsAsync.valueOrNull ?? albumsAsync.asData?.value ?? [];
+    final artists = artistsAsync.valueOrNull ?? artistsAsync.asData?.value ?? [];
 
     // Liked Music:
     // When logged in: Show ONLY user's YouTube Music account liked tracks merged with local favorites.

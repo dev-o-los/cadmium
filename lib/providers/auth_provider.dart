@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_account.dart';
 import '../services/music_service.dart';
 import 'home_data_provider.dart';
+import 'library_provider.dart';
 import 'music_service_provider.dart';
 
 const String _kGoogleAccountKey = 'ytm_google_account_v1';
@@ -93,7 +94,7 @@ class AuthNotifier extends StateNotifier<UserAccount?> {
     }
   }
 
-  /// Connects a Google Account with YouTube Music credentials
+  /// Connects a Google Account with YouTube Music credentials and syncs all tabs
   Future<void> signInWithGoogleAccount(UserAccount account) async {
     state = account;
     try {
@@ -103,12 +104,30 @@ class AuthNotifier extends StateNotifier<UserAccount?> {
       debugPrint('Failed to save Google account to SharedPreferences: $e');
     }
 
-    // Configure MusicService with user credentials and refresh recommendations feed
+    // Configure MusicService with user credentials
     _ref.read(musicServiceProvider).setAuthAccount(account);
+
+    // Refresh Home, Explore, and Library all at once in parallel seamlessly!
+    syncAllTabs();
+  }
+
+  /// Syncs Home, Explore, and Library all at once in parallel
+  Future<void> syncAllTabs() async {
     try {
-      _ref.read(homeDataProvider.notifier).refresh();
+      await Future.wait([
+        // 1. Home feed and Explore categories & charts
+        _ref.read(homeDataProvider.notifier).refresh(),
+        // 2. Liked songs
+        _ref.read(youtubeLikedSongsProvider.notifier).fetchLikedSongs(),
+        // 3. User Playlists
+        _ref.refresh(userPlaylistsProvider.future),
+        // 4. User Albums
+        _ref.refresh(userAlbumsProvider.future),
+        // 5. User Artists
+        _ref.refresh(userArtistsProvider.future),
+      ]);
     } catch (e) {
-      debugPrint('Error triggering home refresh: $e');
+      debugPrint('Error syncing all tabs: $e');
     }
   }
 
@@ -130,11 +149,7 @@ class AuthNotifier extends StateNotifier<UserAccount?> {
     }
 
     _ref.read(musicServiceProvider).setAuthAccount(null);
-    try {
-      _ref.read(homeDataProvider.notifier).refresh();
-    } catch (e) {
-      debugPrint('Error triggering home refresh on sign out: $e');
-    }
+    syncAllTabs();
   }
 }
 

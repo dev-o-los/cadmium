@@ -347,6 +347,7 @@ class YouTubeLikedSongsNotifier
   }
 
   void addLikedSong(SongItem song) {
+    if (!mounted) return;
     final current = state.value ?? [];
     if (!current.any((s) => s.id == song.id)) {
       state = AsyncValue.data([song, ...current]);
@@ -354,20 +355,25 @@ class YouTubeLikedSongsNotifier
   }
 
   void removeLikedSong(String songId) {
+    if (!mounted) return;
     final current = state.value ?? [];
     state = AsyncValue.data(current.where((s) => s.id != songId).toList());
   }
 
   void setLikedSongs(List<SongItem> songs) {
+    if (!mounted) return;
     state = AsyncValue.data(songs);
   }
 
   Future<void> fetchLikedSongs() async {
+    if (!mounted) return;
     state = const AsyncValue.loading();
     try {
       final songs = await _musicService.getLikedSongs();
+      if (!mounted) return;
       state = AsyncValue.data(songs);
     } catch (e, st) {
+      if (!mounted) return;
       state = AsyncValue.error(e, st);
     }
   }

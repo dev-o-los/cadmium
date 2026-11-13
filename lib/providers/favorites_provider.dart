@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/song_item.dart';
 import '../models/user_account.dart';
@@ -18,38 +17,24 @@ class FavoritesNotifier extends StateNotifier<List<SongItem>> {
   void _init() {
     if (_ref == null) return;
 
-    // Listen to changes in auth state:
-    // When signed in, sync favorites from YouTube Music Liked Songs.
-    // When signed out, clear favorites.
-    _ref.listen<UserAccount?>(authProvider, (previous, next) {
-      if (next != null) {
-        _syncFromYouTubeMusic();
-      } else {
-        state = const [];
-      }
-    });
-
-    // Listen to changes in youtubeLikedSongsProvider
+    // Automatically sync favorites whenever youtubeLikedSongsProvider updates
     _ref.listen<AsyncValue<List<SongItem>>>(youtubeLikedSongsProvider, (previous, next) {
       next.whenData((songs) {
         state = songs;
       });
     });
 
-    // Initial load if already signed in
-    if (_ref.read(authProvider) != null) {
-      _syncFromYouTubeMusic();
-    }
-  }
+    // Clear favorites when signed out
+    _ref.listen<UserAccount?>(authProvider, (previous, next) {
+      if (next == null) {
+        state = const [];
+      }
+    });
 
-  Future<void> _syncFromYouTubeMusic() async {
-    if (_ref == null) return;
-    try {
-      final songs = await _ref.read(musicServiceProvider).getLikedSongs();
-      state = songs;
-      _ref.read(youtubeLikedSongsProvider.notifier).setLikedSongs(songs);
-    } catch (e) {
-      debugPrint('Error syncing favorites from YouTube Music: $e');
+    // Initial value if already loaded
+    final initialLikes = _ref.read(youtubeLikedSongsProvider).valueOrNull;
+    if (initialLikes != null && initialLikes.isNotEmpty) {
+      state = initialLikes;
     }
   }
 
