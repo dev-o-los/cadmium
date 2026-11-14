@@ -153,23 +153,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: IndexedStack(
               index: currentTabIndex,
               children: [
-                HomeFeedScreen(
-                  onNavigateToTab: (index) {
-                    ref.read(currentTabProvider.notifier).state = index;
-                    setState(() {
-                      _isMiniPlayerCrawled = false;
-                    });
-                  },
-                  onSearch: _navigateToSearchWithQuery,
+                RepaintBoundary(
+                  child: HomeFeedScreen(
+                    onNavigateToTab: (index) {
+                      ref.read(currentTabProvider.notifier).state = index;
+                      setState(() {
+                        _isMiniPlayerCrawled = false;
+                      });
+                    },
+                    onSearch: _navigateToSearchWithQuery,
+                  ),
                 ),
-                ExploreScreen(
-                  onSearch: _navigateToSearchWithQuery,
+                RepaintBoundary(
+                  child: ExploreScreen(
+                    onSearch: _navigateToSearchWithQuery,
+                  ),
                 ),
-                const LibraryScreen(),
-                SearchScreen(
-                  key: _searchKey,
-                  searchController: _searchController,
-                  showAvatar: false,
+                const RepaintBoundary(
+                  child: LibraryScreen(),
+                ),
+                RepaintBoundary(
+                  child: SearchScreen(
+                    key: _searchKey,
+                    searchController: _searchController,
+                    showAvatar: false,
+                  ),
                 ),
               ],
             ),
@@ -215,25 +223,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             left: 0,
             right: 0,
             bottom: 0,
-            child: SafeArea(
-              top: false,
-              child: LiquidGlassBottomBar(
-                currentIndex: currentTabIndex,
-                isCrawled: _isMiniPlayerCrawled,
-                onTabSelected: (index) {
-                  ref.read(currentTabProvider.notifier).state = index;
-                  setState(() {
-                    _isMiniPlayerCrawled = false;
-                  });
-                },
-                onExpand: () {
-                  setState(() {
-                    _isMiniPlayerCrawled = false;
-                  });
-                },
-                bottomAccessory: hasCurrentSong
-                    ? PlayerControls(onTap: _openPlayerScreen)
-                    : null,
+            child: RepaintBoundary(
+              child: SafeArea(
+                top: false,
+                child: LiquidGlassBottomBar(
+                  currentIndex: currentTabIndex,
+                  isCrawled: _isMiniPlayerCrawled,
+                  onTabSelected: (index) {
+                    ref.read(currentTabProvider.notifier).state = index;
+                    setState(() {
+                      _isMiniPlayerCrawled = false;
+                    });
+                  },
+                  onExpand: () {
+                    setState(() {
+                      _isMiniPlayerCrawled = false;
+                    });
+                  },
+                  bottomAccessory: hasCurrentSong
+                      ? PlayerControls(onTap: _openPlayerScreen)
+                      : null,
+                ),
               ),
             ),
           ),

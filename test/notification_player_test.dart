@@ -134,6 +134,52 @@ void main() {
         equals(Uri.file('/tmp/notif_rounded_test_song_2.png')),
       );
     });
+
+    test('Notification controls contain exactly 3 clean buttons without stop button', () {
+      final state = handler.playbackState.value;
+      expect(state.controls.length, equals(3));
+      expect(state.controls[0].action, equals(MediaAction.skipToPrevious));
+      expect(state.controls[1].action, equals(MediaAction.play));
+      expect(state.controls[2].action, equals(MediaAction.skipToNext));
+      expect(state.controls.any((c) => c.action == MediaAction.stop), isFalse);
+    });
+
+    test('Repeat and shuffle modes are synced and broadcast to playbackState', () async {
+      expect(handler.repeatMode, equals(AudioServiceRepeatMode.none));
+      expect(handler.shuffleMode, equals(AudioServiceShuffleMode.none));
+
+      // Test repeat mode sync
+      handler.syncRepeatMode(AudioServiceRepeatMode.all);
+      expect(handler.repeatMode, equals(AudioServiceRepeatMode.all));
+      expect(handler.playbackState.value.repeatMode, equals(AudioServiceRepeatMode.all));
+
+      handler.syncRepeatMode(AudioServiceRepeatMode.one);
+      expect(handler.repeatMode, equals(AudioServiceRepeatMode.one));
+      expect(handler.playbackState.value.repeatMode, equals(AudioServiceRepeatMode.one));
+
+      // Test shuffle mode sync
+      handler.syncShuffleMode(AudioServiceShuffleMode.all);
+      expect(handler.shuffleMode, equals(AudioServiceShuffleMode.all));
+      expect(handler.playbackState.value.shuffleMode, equals(AudioServiceShuffleMode.all));
+
+      handler.syncShuffleMode(AudioServiceShuffleMode.none);
+      expect(handler.shuffleMode, equals(AudioServiceShuffleMode.none));
+      expect(handler.playbackState.value.shuffleMode, equals(AudioServiceShuffleMode.none));
+
+      // Test setRepeatMode / setShuffleMode from system
+      AudioServiceRepeatMode? reportedRepeat;
+      AudioServiceShuffleMode? reportedShuffle;
+      handler.onSetRepeatMode = (mode) => reportedRepeat = mode;
+      handler.onSetShuffleMode = (mode) => reportedShuffle = mode;
+
+      await handler.setRepeatMode(AudioServiceRepeatMode.all);
+      expect(reportedRepeat, equals(AudioServiceRepeatMode.all));
+      expect(handler.playbackState.value.repeatMode, equals(AudioServiceRepeatMode.all));
+
+      await handler.setShuffleMode(AudioServiceShuffleMode.all);
+      expect(reportedShuffle, equals(AudioServiceShuffleMode.all));
+      expect(handler.playbackState.value.shuffleMode, equals(AudioServiceShuffleMode.all));
+    });
   });
 
   group('ArtworkCacheService Rounded Corners Tests', () {

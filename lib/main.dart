@@ -33,9 +33,9 @@ void main() async {
     debugPrint('LiquidGlassWidgets.initialize error: $e');
   }
 
-  // Enlarge image cache capacity to eliminate image decoding thrash & stutter during rapid scrolls
-  PaintingBinding.instance.imageCache.maximumSize = 1000;
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 250 << 20; // 250 MB
+  // Optimize image cache capacity to eliminate image decoding thrash while preventing GC memory pressure
+  PaintingBinding.instance.imageCache.maximumSize = 500;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 150 << 20; // 150 MB
 
   // Initialize background audio notification service for lock screen & system status
   final audioHandler = await initCadmiumAudioService();

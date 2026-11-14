@@ -45,6 +45,13 @@ class CadmiumAudioHandler extends BaseAudioHandler with SeekHandler {
   int? _lastDurationMs;
   DateTime _lastBroadcastTime = DateTime.fromMillisecondsSinceEpoch(0);
 
+  // System notification repeat and shuffle mode synchronization
+  AudioServiceRepeatMode _repeatMode = AudioServiceRepeatMode.none;
+  AudioServiceShuffleMode _shuffleMode = AudioServiceShuffleMode.none;
+
+  AudioServiceRepeatMode get repeatMode => _repeatMode;
+  AudioServiceShuffleMode get shuffleMode => _shuffleMode;
+
   CadmiumAudioHandler({AudioPlayer? player}) : _player = player ?? AudioPlayer() {
     _initListeners();
   }
@@ -81,13 +88,15 @@ class CadmiumAudioHandler extends BaseAudioHandler with SeekHandler {
     MediaAction.setShuffleMode,
   };
 
-  /// Constructs the notification control buttons list.
+  /// Constructs the clean notification control buttons list.
+  /// Standard 3-button media player controls: [skipToPrevious, play/pause, skipToNext].
+  /// Removing MediaControl.stop eliminates the awkward wide-box layout and button
+  /// crowding on Android devices, keeping the notification sleek, compact, and centered.
   List<MediaControl> _buildControls({required bool isPlaying}) {
     return [
       MediaControl.skipToPrevious,
       if (isPlaying) MediaControl.pause else MediaControl.play,
       MediaControl.skipToNext,
-      MediaControl.stop,
     ];
   }
 
@@ -115,6 +124,8 @@ class CadmiumAudioHandler extends BaseAudioHandler with SeekHandler {
         bufferedPosition: _player.bufferedPosition,
         speed: playing ? (_player.speed > 0 ? _player.speed : 1.0) : 0.0,
         queueIndex: 0,
+        repeatMode: _repeatMode,
+        shuffleMode: _shuffleMode,
       ),
     );
   }
@@ -176,6 +187,8 @@ class CadmiumAudioHandler extends BaseAudioHandler with SeekHandler {
         bufferedPosition: _player.bufferedPosition,
         speed: isActuallyPlaying ? (_player.speed > 0 ? _player.speed : 1.0) : 0.0,
         queueIndex: 0,
+        repeatMode: _repeatMode,
+        shuffleMode: _shuffleMode,
       ),
     );
   }
@@ -334,14 +347,32 @@ class CadmiumAudioHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
+    _repeatMode = repeatMode;
     onSetRepeatMode?.call(repeatMode);
     _broadcastPlaybackState(force: true);
   }
 
   @override
   Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
+    _shuffleMode = shuffleMode;
     onSetShuffleMode?.call(shuffleMode);
     _broadcastPlaybackState(force: true);
+  }
+
+  /// Synchronizes repeat mode from app player state to system media notification.
+  void syncRepeatMode(AudioServiceRepeatMode repeatMode) {
+    if (_repeatMode != repeatMode) {
+      _repeatMode = repeatMode;
+      _broadcastPlaybackState(force: true);
+    }
+  }
+
+  /// Synchronizes shuffle mode from app player state to system media notification.
+  void syncShuffleMode(AudioServiceShuffleMode shuffleMode) {
+    if (_shuffleMode != shuffleMode) {
+      _shuffleMode = shuffleMode;
+      _broadcastPlaybackState(force: true);
+    }
   }
 
   @override
@@ -390,8 +421,8 @@ Future<CadmiumAudioHandler> initCadmiumAudioService() async {
         androidNotificationChannelName: 'Music Playback',
         androidNotificationChannelDescription:
             'Cadmium high-fidelity background music playback controls',
-        androidNotificationOngoing: false,
-        androidStopForegroundOnPause: false,
+        androidNotificationOngoing: true,
+        androidStopForegroundOnPause: true,
         androidNotificationIcon: 'drawable/ic_notification',
         androidShowNotificationBadge: true,
         androidNotificationClickStartsActivity: true,

@@ -215,15 +215,15 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     _audioHandler.onSeek = (pos) => seek(pos);
     _audioHandler.onSetRepeatMode = (mode) {
       if (mode == AudioServiceRepeatMode.none) {
-        setLoopMode(LoopMode.off);
+        setLoopMode(LoopMode.off, syncHandler: false);
       } else if (mode == AudioServiceRepeatMode.one) {
-        setLoopMode(LoopMode.one);
+        setLoopMode(LoopMode.one, syncHandler: false);
       } else {
-        setLoopMode(LoopMode.all);
+        setLoopMode(LoopMode.all, syncHandler: false);
       }
     };
     _audioHandler.onSetShuffleMode = (mode) {
-      setShuffle(mode != AudioServiceShuffleMode.none);
+      setShuffle(mode != AudioServiceShuffleMode.none, syncHandler: false);
     };
 
     ArtworkCacheService.instance.onArtworkReady = (songId, localPath) {
@@ -1283,20 +1283,42 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     setLoopMode(nextMode);
   }
 
-  void setLoopMode(LoopMode mode) {
+  void setLoopMode(LoopMode mode, {bool syncHandler = true}) {
     // Only configure native player loop when repeating the exact same audio stream (LoopMode.one).
     // For LoopMode.all, Wavify coordinates advancing and cycling across tracks in the queue.
     _audioPlayer.setLoopMode(mode == LoopMode.one ? LoopMode.one : LoopMode.off);
     state = state.copyWith(loopMode: mode);
+
+    if (syncHandler) {
+      final AudioServiceRepeatMode serviceMode;
+      switch (mode) {
+        case LoopMode.off:
+          serviceMode = AudioServiceRepeatMode.none;
+          break;
+        case LoopMode.one:
+          serviceMode = AudioServiceRepeatMode.one;
+          break;
+        case LoopMode.all:
+          serviceMode = AudioServiceRepeatMode.all;
+          break;
+      }
+      _audioHandler.syncRepeatMode(serviceMode);
+    }
   }
 
   void toggleShuffle() {
     setShuffle(!state.isShuffle);
   }
 
-  void setShuffle(bool enabled) {
+  void setShuffle(bool enabled, {bool syncHandler = true}) {
     if (state.isShuffle == enabled) return;
     _audioPlayer.setShuffleModeEnabled(enabled);
+
+    if (syncHandler) {
+      _audioHandler.syncShuffleMode(
+        enabled ? AudioServiceShuffleMode.all : AudioServiceShuffleMode.none,
+      );
+    }
 
     if (enabled) {
       // Shuffling: save original order if needed and shuffle upcoming queue
