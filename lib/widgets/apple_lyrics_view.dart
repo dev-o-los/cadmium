@@ -6,12 +6,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 
 import '../constants/app_colors.dart';
 import '../models/lyric_line.dart';
 import '../services/lyric_clock.dart';
 import '../services/lyrics_service.dart';
 import 'app_shimmer.dart';
+import 'apple_glass_bottom_sheet.dart';
 import 'apple_pressable.dart';
 
 /// Hardware-accelerated scissor clipper for progressive syllable wipes.
@@ -146,6 +148,7 @@ class AppleLyricsView extends StatefulWidget {
   final String? lyricsSource;
   final String? lyricsSongwriters;
   final LyricsProviderType selectedProvider;
+  final List<LyricsProviderType>? availableProviders;
   final ValueChanged<LyricsProviderType>? onProviderChanged;
   final ValueChanged<LyricLine> onSeekToLyric;
   final VoidCallback? onTapBackground;
@@ -160,6 +163,7 @@ class AppleLyricsView extends StatefulWidget {
     this.lyricsSource,
     this.lyricsSongwriters,
     this.selectedProvider = LyricsProviderType.lrcRed,
+    this.availableProviders,
     this.onProviderChanged,
     required this.onSeekToLyric,
     this.onTapBackground,
@@ -547,32 +551,34 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     }
 
     if (widget.lyrics.isEmpty) {
+      final available = widget.availableProviders ?? const [];
       final otherProvider = widget.selectedProvider == LyricsProviderType.lrcRed
           ? LyricsProviderType.youTube
           : LyricsProviderType.lrcRed;
+      final alternativeProviders = LyricsProviderType.values
+          .where((p) => p != widget.selectedProvider)
+          .toList();
 
       return Center(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 72,
-                height: 72,
+                width: 64,
+                height: 64,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.white.withValues(alpha: 0.08),
                 ),
-                child: Icon(
-                  widget.selectedProvider == LyricsProviderType.lrcRed
-                      ? CupertinoIcons.music_mic
-                      : CupertinoIcons.quote_bubble,
+                child: const Icon(
+                  CupertinoIcons.music_mic,
                   color: AppColors.appleSecondaryText,
-                  size: 34,
+                  size: 30,
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
               const Text(
                 'No lyrics available right now',
                 textAlign: TextAlign.center,
@@ -583,20 +589,21 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
                   letterSpacing: -0.4,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
-                widget.selectedProvider == LyricsProviderType.lrcRed
-                    ? 'Synced syllables for this track are not yet available on lrc.red.'
-                    : 'YouTube lyrics for this track haven\'t been published.',
+                'No lyrics found on ${widget.selectedProvider.displayName}. Try switching below:',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.6),
-                  fontSize: 13.5,
+                  fontSize: 13,
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               ApplePressable(
-                onTap: () => widget.onProviderChanged?.call(otherProvider),
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  widget.onProviderChanged?.call(otherProvider);
+                },
                 pressedScale: 0.96,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
@@ -628,6 +635,101 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
                           color: Colors.white,
                           fontSize: 13.5,
                           fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: alternativeProviders.map((provider) {
+                    final isReady = available.contains(provider);
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: ApplePressable(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          widget.onProviderChanged?.call(provider);
+                        },
+                        pressedScale: 0.95,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isReady
+                                  ? const Color(0xFF34C759).withValues(alpha: 0.6)
+                                  : Colors.white.withValues(alpha: 0.12),
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isReady) ...[
+                                Container(
+                                  width: 5.5,
+                                  height: 5.5,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF34C759),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 5),
+                              ],
+                              Text(
+                                provider.displayName,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ApplePressable(
+                onTap: () => _showSourcesSheet(context),
+                pressedScale: 0.96,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        CupertinoIcons.slider_horizontal_3,
+                        color: Colors.white70,
+                        size: 13,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'View All ${LyricsProviderType.values.length} Sources',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -1083,9 +1185,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     final source =
         widget.lyricsSource ?? widget.selectedProvider.attributionName;
     final songwriters = widget.lyricsSongwriters;
-    final otherProvider = widget.selectedProvider == LyricsProviderType.lrcRed
-        ? LyricsProviderType.youTube
-        : LyricsProviderType.lrcRed;
+    final available = widget.availableProviders ?? const [];
 
     return Padding(
       padding: const EdgeInsets.only(top: 36, bottom: 48),
@@ -1119,7 +1219,8 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
               ),
               const SizedBox(width: 8),
               ApplePressable(
-                onTap: () => widget.onProviderChanged?.call(otherProvider),
+                onTap: () => _showSourcesSheet(context),
+                pressedScale: 0.95,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
@@ -1127,25 +1228,23 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
                   ),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
-                    color: Colors.white.withValues(alpha: 0.1),
+                    color: Colors.white.withValues(alpha: 0.12),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.15),
+                      color: Colors.white.withValues(alpha: 0.18),
                       width: 0.6,
                     ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        otherProvider == LyricsProviderType.lrcRed
-                            ? CupertinoIcons.sparkles
-                            : CupertinoIcons.play_rectangle,
+                      const Icon(
+                        CupertinoIcons.slider_horizontal_3,
                         color: Colors.white70,
                         size: 13,
                       ),
                       const SizedBox(width: 5),
                       Text(
-                        otherProvider.displayName,
+                        'Sources${available.length > 1 ? ' (${available.length})' : ''}',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -1160,6 +1259,181 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
           ),
         ],
       ),
+    );
+  }
+
+  void _showSourcesSheet(BuildContext context) {
+    HapticFeedback.mediumImpact();
+    final available = widget.availableProviders ?? const [];
+    showAppleGlassBottomSheet(
+      context: context,
+      builder: (modalContext) {
+        return SizedBox(
+          height: math.min(MediaQuery.sizeOf(context).height * 0.70, 520),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                child: Text(
+                  'Lyrics Sources',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
+                child: Text(
+                  'Choose from ${LyricsProviderType.values.length} providers. Lyrics load automatically from the fastest source.',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.65),
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.only(bottom: 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: LyricsProviderType.values.map((type) {
+                      final isSelected = widget.selectedProvider == type;
+                      final isReady = available.contains(type);
+
+                      return ApplePressable(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          widget.onProviderChanged?.call(type);
+                          Navigator.of(modalContext).pop();
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? Colors.white.withValues(alpha: 0.16)
+                                : Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: isSelected
+                                  ? Colors.white.withValues(alpha: 0.35)
+                                  : Colors.white.withValues(alpha: 0.06),
+                              width: 0.7,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                type == LyricsProviderType.youTube
+                                    ? CupertinoIcons.play_rectangle
+                                    : (type.formatDescription.contains('Word')
+                                        ? CupertinoIcons.sparkles
+                                        : CupertinoIcons.music_mic),
+                                color: isSelected ? Colors.white : Colors.white60,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            type.displayName,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 14.5,
+                                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            type.formatDescription,
+                                            style: TextStyle(
+                                              color: Colors.white.withValues(alpha: 0.8),
+                                              fontSize: 9.5,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      type.attributionName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.55),
+                                        fontSize: 11.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              if (isSelected)
+                                const Icon(
+                                  CupertinoIcons.checkmark_alt_circle_fill,
+                                  color: Colors.white,
+                                  size: 20,
+                                )
+                              else if (isReady)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF34C759).withValues(alpha: 0.20),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: const Color(0xFF34C759).withValues(alpha: 0.5),
+                                      width: 0.6,
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Ready',
+                                    style: TextStyle(
+                                      color: Color(0xFF34C759),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                )
+                              else
+                                Icon(
+                                  CupertinoIcons.chevron_right,
+                                  color: Colors.white.withValues(alpha: 0.3),
+                                  size: 14,
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

@@ -128,6 +128,7 @@ class MusicService {
 
   // Apple Music-style lyrics provider service (binimum/am-lyrics pipeline)
   final LyricsService _lyricsService = LyricsService();
+  LyricsService get lyricsService => _lyricsService;
 
   /// Sets or updates the connected Google account with YouTube Music authorization.
   void setAuthAccount(UserAccount? account) {
@@ -5141,6 +5142,30 @@ class MusicService {
     );
   }
 
+  /// Races all supported providers and returns the fastest available result immediately,
+  /// continuing background resolution for remaining providers.
+  Future<LyricsResult> getFastestLyricsWithMetadata({
+    required String videoId,
+    required String title,
+    required String artist,
+    String? album,
+    String? isrc,
+    int? durationSeconds,
+    LyricsProviderType? preferredProvider,
+    void Function(LyricsProviderType provider, LyricsResult result)? onProviderResult,
+  }) async {
+    return _lyricsService.fetchLyricsFastest(
+      title: title,
+      artist: artist,
+      videoId: videoId,
+      isrc: isrc,
+      durationSeconds: durationSeconds,
+      preferredProvider: preferredProvider,
+      ytFallback: () => _fetchYtMusicLyrics(videoId),
+      onProviderResult: onProviderResult,
+    );
+  }
+
   /// Backward-compatible getLyrics method.
   Future<List<LyricLine>> getLyrics(
     String videoId, {
@@ -5161,6 +5186,8 @@ class MusicService {
     }
     return _fetchYtMusicLyrics(videoId);
   }
+
+  Future<List<LyricLine>> fetchYtMusicLyrics(String videoId) => _fetchYtMusicLyrics(videoId);
 
   Future<List<LyricLine>> _fetchYtMusicLyrics(String videoId) async {
     final trimmedId = videoId.trim();

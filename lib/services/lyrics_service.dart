@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -9,6 +10,17 @@ import '../models/lyric_line.dart';
 enum LyricsProviderType {
   lrcRed,
   youTube,
+  biniLyrics,
+  betterLyrics,
+  paxSenix,
+  lyricsPlus,
+  simpMusic,
+  unison,
+  megalobiz,
+  kuGou,
+  lrcLib,
+  musixmatch,
+  genius,
 }
 
 extension LyricsProviderTypeExt on LyricsProviderType {
@@ -16,6 +28,28 @@ extension LyricsProviderTypeExt on LyricsProviderType {
     switch (this) {
       case LyricsProviderType.lrcRed:
         return 'lrc.red';
+      case LyricsProviderType.biniLyrics:
+        return 'BiniLyrics';
+      case LyricsProviderType.betterLyrics:
+        return 'BetterLyrics';
+      case LyricsProviderType.paxSenix:
+        return 'PaxSenix';
+      case LyricsProviderType.lyricsPlus:
+        return 'LyricsPlus';
+      case LyricsProviderType.simpMusic:
+        return 'SimpMusic';
+      case LyricsProviderType.unison:
+        return 'Unison';
+      case LyricsProviderType.megalobiz:
+        return 'Megalobiz';
+      case LyricsProviderType.kuGou:
+        return 'KuGou';
+      case LyricsProviderType.lrcLib:
+        return 'LRCLIB';
+      case LyricsProviderType.musixmatch:
+        return 'Musixmatch';
+      case LyricsProviderType.genius:
+        return 'Genius';
       case LyricsProviderType.youTube:
         return 'YouTube';
     }
@@ -25,8 +59,84 @@ extension LyricsProviderTypeExt on LyricsProviderType {
     switch (this) {
       case LyricsProviderType.lrcRed:
         return 'Apple Music (via lrc.red)';
+      case LyricsProviderType.biniLyrics:
+        return 'BiniLyrics (binimum)';
+      case LyricsProviderType.betterLyrics:
+        return 'BetterLyrics';
+      case LyricsProviderType.paxSenix:
+        return 'PaxSenix';
+      case LyricsProviderType.lyricsPlus:
+        return 'LyricsPlus (YouLy+)';
+      case LyricsProviderType.simpMusic:
+        return 'SimpMusic';
+      case LyricsProviderType.unison:
+        return 'Unison (BetterLyrics)';
+      case LyricsProviderType.megalobiz:
+        return 'Megalobiz';
+      case LyricsProviderType.kuGou:
+        return 'KuGou (酷狗音乐)';
+      case LyricsProviderType.lrcLib:
+        return 'LRCLIB';
+      case LyricsProviderType.musixmatch:
+        return 'Musixmatch';
+      case LyricsProviderType.genius:
+        return 'Genius';
       case LyricsProviderType.youTube:
         return 'YouTube Music';
+    }
+  }
+
+  String get creditUrl {
+    switch (this) {
+      case LyricsProviderType.lrcRed:
+        return 'https://lrc.red/';
+      case LyricsProviderType.biniLyrics:
+        return 'https://github.com/binimum';
+      case LyricsProviderType.betterLyrics:
+        return 'https://github.com/better-lyrics/better-lyrics';
+      case LyricsProviderType.paxSenix:
+        return 'https://lyrics.paxsenix.org/';
+      case LyricsProviderType.lyricsPlus:
+        return 'https://github.com/ibratabian17/YouLyPlus';
+      case LyricsProviderType.simpMusic:
+        return 'https://github.com/maxrave-dev/SimpMusic';
+      case LyricsProviderType.unison:
+        return 'https://unison.boidu.dev/';
+      case LyricsProviderType.megalobiz:
+        return 'https://www.megalobiz.com/';
+      case LyricsProviderType.kuGou:
+        return 'https://www.kugou.com/';
+      case LyricsProviderType.lrcLib:
+        return 'https://lrclib.net/';
+      case LyricsProviderType.musixmatch:
+        return 'https://www.musixmatch.com/';
+      case LyricsProviderType.genius:
+        return 'https://genius.com/';
+      case LyricsProviderType.youTube:
+        return 'https://music.youtube.com/';
+    }
+  }
+
+  String get formatDescription {
+    switch (this) {
+      case LyricsProviderType.lrcRed:
+      case LyricsProviderType.biniLyrics:
+      case LyricsProviderType.betterLyrics:
+      case LyricsProviderType.unison:
+        return 'TTML • Word-by-Word';
+      case LyricsProviderType.lyricsPlus:
+        return 'Syllables • Word-by-Word';
+      case LyricsProviderType.kuGou:
+      case LyricsProviderType.lrcLib:
+      case LyricsProviderType.megalobiz:
+      case LyricsProviderType.musixmatch:
+        return 'LRC • Line Synced';
+      case LyricsProviderType.genius:
+        return 'Full Text • Plain';
+      case LyricsProviderType.paxSenix:
+      case LyricsProviderType.simpMusic:
+      case LyricsProviderType.youTube:
+        return 'Timed Lyrics';
     }
   }
 }
@@ -61,18 +171,21 @@ class LyricsResult {
   final String source;
   final String? songwriters;
   final bool hasWordSync;
+  final LyricsProviderType provider;
 
   const LyricsResult({
     required this.lines,
     required this.source,
     this.songwriters,
     this.hasWordSync = false,
+    this.provider = LyricsProviderType.lrcRed,
   });
 
   static const empty = LyricsResult(
     lines: [],
     source: 'None',
     hasWordSync: false,
+    provider: LyricsProviderType.lrcRed,
   );
 }
 
@@ -105,14 +218,27 @@ class _TtmlWord {
   });
 }
 
-/// Lyrics Service supporting lrc.red (Apple Music TTML / Word-Synced) and YouTube Music.
+/// Universal Lyrics Service supporting:
+/// - lrc.red (Apple Music TTML / Word-Synced)
+/// - BiniLyrics (binimum)
+/// - BetterLyrics (TTML)
+/// - PaxSenix
+/// - LyricsPlus (YouLy+ syllable synced)
+/// - SimpMusic
+/// - Unison (TTML / LRC)
+/// - Megalobiz (LRC)
+/// - KuGou (酷狗音乐 LRC)
+/// - LRCLIB (LRC / Plain)
+/// - Musixmatch (LRC subtitles)
+/// - Genius (Full text)
+/// - YouTube Music
 class LyricsService {
   final HttpClient _httpClient;
-  final Map<String, LyricsResult> _lrcRedCache = {};
-  final Map<String, LyricsResult> _youTubeCache = {};
+  // Multi-provider memory cache: trackKey -> (provider -> LyricsResult)
+  final Map<String, Map<LyricsProviderType, LyricsResult>> _lyricsMemoryCache = {};
 
   LyricsService({HttpClient? httpClient})
-      : _httpClient = httpClient ?? (HttpClient()..connectionTimeout = const Duration(seconds: 5));
+      : _httpClient = httpClient ?? (HttpClient()..connectionTimeout = const Duration(seconds: 4));
 
   static const String lrcRedBaseUrl = 'https://lrc.red';
   static final RegExp _isrcRegex = RegExp(r'^[A-Z]{2}[A-Z0-9]{3}\d{7}$', caseSensitive: false);
@@ -257,8 +383,15 @@ class LyricsService {
     return (totalSeconds * 1000).round();
   }
 
-  /// Parses a TTML XML string (from lrc.red) into structured LyricLines.
-  static LyricsResult parseTtml(String ttmlContent) {
+  // =========================================================================
+  // PARSERS: TTML, LRC, and SYLLABLE JSON
+  // =========================================================================
+
+  /// Parses a TTML XML string (lrc.red, BetterLyrics, BiniLyrics, Unison) into structured LyricLines.
+  static LyricsResult parseTtml(
+    String ttmlContent, {
+    LyricsProviderType provider = LyricsProviderType.lrcRed,
+  }) {
     try {
       final document = XmlDocument.parse(ttmlContent);
 
@@ -399,12 +532,170 @@ class LyricsService {
 
       return LyricsResult(
         lines: linesWithGaps,
-        source: LyricsProviderType.lrcRed.attributionName,
+        source: provider.attributionName,
         songwriters: songwriters,
         hasWordSync: anyWordSync,
+        provider: provider,
       );
     } catch (e) {
       debugPrint('[LyricsService] Error parsing TTML: $e');
+      return LyricsResult.empty;
+    }
+  }
+
+  /// Parses standard LRC content ([mm:ss.xx] / [mm:ss.xxx]) into sorted LyricLines.
+  static LyricsResult parseLrc(
+    String lrcContent, {
+    required LyricsProviderType provider,
+    String? songwriters,
+  }) {
+    try {
+      final lines = <LyricLine>[];
+      final timeTagRegex = RegExp(r'\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]');
+      final rawLines = lrcContent.split('\n');
+
+      for (final raw in rawLines) {
+        final trimmed = raw.trim();
+        if (trimmed.isEmpty) continue;
+        // Skip metadata tags like [ar: ], [ti: ], [al: ], [by: ], [offset: ]
+        if (RegExp(r'^\[[a-zA-Z_]+:').hasMatch(trimmed)) continue;
+
+        final matches = timeTagRegex.allMatches(trimmed).toList();
+        if (matches.isEmpty) continue;
+
+        final text = trimmed.replaceAll(timeTagRegex, '').trim();
+        if (text.isEmpty) continue;
+
+        final isBg = (text.startsWith('(') && text.endsWith(')')) ||
+                     (text.startsWith('[') && text.endsWith(']'));
+
+        for (final match in matches) {
+          final min = int.tryParse(match.group(1) ?? '0') ?? 0;
+          final sec = int.tryParse(match.group(2) ?? '0') ?? 0;
+          final fracStr = match.group(3) ?? '0';
+          int ms = 0;
+          if (fracStr.length == 1) {
+            ms = (int.tryParse(fracStr) ?? 0) * 100;
+          } else if (fracStr.length == 2) {
+            ms = (int.tryParse(fracStr) ?? 0) * 10;
+          } else {
+            ms = int.tryParse(fracStr) ?? 0;
+          }
+          final totalMs = min * 60000 + sec * 1000 + ms;
+
+          lines.add(LyricLine(
+            text: text,
+            startTimeMs: totalMs,
+            isBackground: isBg,
+            isWordSynced: false,
+          ));
+        }
+      }
+
+      if (lines.isEmpty) return LyricsResult.empty;
+      lines.sort((a, b) => (a.startTimeMs ?? 0).compareTo(b.startTimeMs ?? 0));
+
+      // Calculate endTimeMs for each line based on start of next line
+      for (int i = 0; i < lines.length; i++) {
+        final current = lines[i];
+        final next = i < lines.length - 1 ? lines[i + 1] : null;
+        final start = current.startTimeMs ?? 0;
+        final nextStart = next?.startTimeMs;
+        final end = (nextStart != null && nextStart > start)
+            ? math.min(start + 7000, nextStart)
+            : start + 3500;
+        lines[i] = current.copyWith(endTimeMs: end);
+      }
+
+      final filtered = withInstrumentalGaps(lines);
+      return LyricsResult(
+        lines: filtered,
+        source: provider.attributionName,
+        songwriters: songwriters,
+        hasWordSync: false,
+        provider: provider,
+      );
+    } catch (e) {
+      debugPrint('[LyricsService] Error parsing LRC: $e');
+      return LyricsResult.empty;
+    }
+  }
+
+  /// Parses Syllable JSON formatted lyrics (LyricsPlus / YouLy+).
+  static LyricsResult parseSyllableJson(
+    Map<String, dynamic> json, {
+    required LyricsProviderType provider,
+  }) {
+    try {
+      final lyricsList = json['lyrics'] as List<dynamic>?;
+      if (lyricsList == null || lyricsList.isEmpty) return LyricsResult.empty;
+
+      final metadata = json['metadata'] as Map<String, dynamic>?;
+      final songwritersList = (metadata?['songWriters'] as List<dynamic>?)
+          ?.map((e) => e.toString())
+          .toList();
+      final songwriters = songwritersList?.isNotEmpty == true ? songwritersList!.join(', ') : null;
+
+      final lines = <LyricLine>[];
+      final currentSyllables = <LyricSyllable>[];
+      String currentLineText = '';
+
+      for (final item in lyricsList) {
+        if (item is! Map<String, dynamic>) continue;
+        final text = item['text']?.toString() ?? '';
+        final time = (item['time'] as num?)?.toInt() ?? 0;
+        final duration = (item['duration'] as num?)?.toInt() ?? 0;
+        final isLineEnding = item['isLineEnding'] == 1 || item['isLineEnding'] == true;
+        final singer = (item['element'] as Map<String, dynamic>?)?['singer']?.toString();
+
+        final syl = LyricSyllable(
+          text: text,
+          startTimeMs: time,
+          endTimeMs: time + duration,
+          isPartOfWord: !text.endsWith(' '),
+        );
+        currentSyllables.add(syl);
+        currentLineText += text;
+
+        if (isLineEnding || text.endsWith('\n')) {
+          final trimmed = currentLineText.trim();
+          if (trimmed.isNotEmpty && currentSyllables.isNotEmpty) {
+            final lineStart = currentSyllables.first.startTimeMs;
+            final lineEnd = currentSyllables.last.endTimeMs;
+            lines.add(LyricLine(
+              text: trimmed,
+              startTimeMs: lineStart,
+              endTimeMs: lineEnd,
+              syllables: List.from(currentSyllables),
+              isWordSynced: true,
+              singer: singer,
+            ));
+          }
+          currentSyllables.clear();
+          currentLineText = '';
+        }
+      }
+
+      if (currentLineText.trim().isNotEmpty && currentSyllables.isNotEmpty) {
+        lines.add(LyricLine(
+          text: currentLineText.trim(),
+          startTimeMs: currentSyllables.first.startTimeMs,
+          endTimeMs: currentSyllables.last.endTimeMs,
+          syllables: List.from(currentSyllables),
+          isWordSynced: true,
+        ));
+      }
+
+      lines.sort((a, b) => (a.startTimeMs ?? 0).compareTo(b.startTimeMs ?? 0));
+      return LyricsResult(
+        lines: withInstrumentalGaps(lines),
+        source: provider.attributionName,
+        songwriters: songwriters,
+        hasWordSync: lines.any((l) => l.isWordSynced),
+        provider: provider,
+      );
+    } catch (e) {
+      debugPrint('[LyricsService] Error parsing Syllable JSON: $e');
       return LyricsResult.empty;
     }
   }
@@ -419,15 +710,6 @@ class LyricsService {
   }
 
   /// Computes the exact active lyric line index for [currentMs] within [lyrics].
-  ///
-  /// Features:
-  /// - Automatic 800ms pre-scroll lead-in anticipation so that upcoming lines scroll into
-  ///   top position beneath album art BEFORE vocal delivery begins, eliminating perceived lag.
-  /// - Priority-based matching for overlapping vocals (duets, backing vocals):
-  ///   Lead vocals (!isBackground) are prioritized over background vocals.
-  ///   The line that began most recently (highest startTimeMs <= currentMs) takes precedence.
-  /// - Natural vocal pauses (< 2.5s) keep the preceding lyric active.
-  /// - Returns -1 if playback is in an unvoiced intro or break before any line starts.
   static int computeActiveLyricIndex(int currentMs, List<LyricLine> lyrics, {int leadInMs = 800}) {
     if (lyrics.isEmpty) return -1;
 
@@ -507,8 +789,7 @@ class LyricsService {
     return -1;
   }
 
-  /// Finds the target line to center in view when seeking to [currentMs], even if
-  /// [currentMs] falls in an unvoiced gap where [computeActiveLyricIndex] returns -1.
+  /// Finds the target line to center in view when seeking to [currentMs].
   static int findClosestLineIndex(int currentMs, List<LyricLine> lyrics) {
     if (lyrics.isEmpty) return -1;
 
@@ -626,7 +907,121 @@ class LyricsService {
     return words;
   }
 
-  /// Fetches lyrics for the requested provider (lrc.red or YouTube).
+  // =========================================================================
+  // CACHE ACCESSORS
+  // =========================================================================
+
+  LyricsResult? getCachedLyrics(String trackKey, LyricsProviderType provider) {
+    return _lyricsMemoryCache[trackKey]?[provider];
+  }
+
+  void cacheLyrics(String trackKey, LyricsProviderType provider, LyricsResult result) {
+    _lyricsMemoryCache.putIfAbsent(trackKey, () => {})[provider] = result;
+  }
+
+  List<LyricsProviderType> getAvailableProviders(String trackKey) {
+    final cacheForTrack = _lyricsMemoryCache[trackKey];
+    if (cacheForTrack == null) return [];
+    return cacheForTrack.entries
+        .where((e) => e.value.lines.isNotEmpty)
+        .map((e) => e.key)
+        .toList();
+  }
+
+  // =========================================================================
+  // FASTEST-FIRST MULTI-PROVIDER RACE & BACKGROUND FETCH
+  // =========================================================================
+
+  /// Fetches lyrics across all supported providers concurrently.
+  /// Yields the fastest successful result immediately so the user experiences zero lag,
+  /// while continuing background resolution for all remaining providers so they can be
+  /// switched to instantaneously via the "More" options menu.
+  Future<LyricsResult> fetchLyricsFastest({
+    required String title,
+    required String artist,
+    required String videoId,
+    String? isrc,
+    int? durationSeconds,
+    LyricsProviderType? preferredProvider,
+    Future<List<LyricLine>> Function()? ytFallback,
+    void Function(LyricsProviderType provider, LyricsResult result)? onProviderResult,
+  }) async {
+    final cleanTitle = cleanTrackTitle(title);
+    final cleanArtist = cleanArtistName(artist);
+    final trackKey = '$cleanTitle::$cleanArtist';
+
+    // 1. If preferred provider is already cached with lyrics, return immediately
+    if (preferredProvider != null) {
+      final cached = getCachedLyrics(trackKey, preferredProvider);
+      if (cached != null && cached.lines.isNotEmpty) {
+        return cached;
+      }
+    }
+
+    // 2. If any provider is already cached with lyrics for this track, return it immediately
+    final existingProviders = getAvailableProviders(trackKey);
+    if (existingProviders.isNotEmpty) {
+      final primary = existingProviders.first;
+      return getCachedLyrics(trackKey, primary)!;
+    }
+
+    final completer = Completer<LyricsResult>();
+
+    // Priority ordering: preferred first, then high-probability fast word-sync & LRC APIs
+    final allProviders = <LyricsProviderType>{
+      ?preferredProvider,
+      LyricsProviderType.lrcRed,
+      LyricsProviderType.betterLyrics,
+      LyricsProviderType.lrcLib,
+      LyricsProviderType.lyricsPlus,
+      LyricsProviderType.biniLyrics,
+      LyricsProviderType.unison,
+      LyricsProviderType.kuGou,
+      LyricsProviderType.megalobiz,
+      LyricsProviderType.musixmatch,
+      LyricsProviderType.genius,
+      LyricsProviderType.simpMusic,
+      LyricsProviderType.paxSenix,
+      LyricsProviderType.youTube,
+    }.toList();
+
+    int pendingCount = allProviders.length;
+
+    for (final provider in allProviders) {
+      fetchLyricsForProvider(
+        provider: provider,
+        title: cleanTitle,
+        artist: cleanArtist,
+        videoId: videoId,
+        isrc: isrc,
+        durationSeconds: durationSeconds,
+        ytFallback: ytFallback,
+      ).then((res) {
+        pendingCount--;
+        if (res.lines.isNotEmpty) {
+          cacheLyrics(trackKey, provider, res);
+          onProviderResult?.call(provider, res);
+
+          if (!completer.isCompleted) {
+            completer.complete(res);
+          }
+        } else {
+          if (pendingCount <= 0 && !completer.isCompleted) {
+            completer.complete(LyricsResult.empty);
+          }
+        }
+      }).catchError((_) {
+        pendingCount--;
+        if (pendingCount <= 0 && !completer.isCompleted) {
+          completer.complete(LyricsResult.empty);
+        }
+      });
+    }
+
+    return completer.future;
+  }
+
+  /// Fetches lyrics for a single specific provider.
   Future<LyricsResult> fetchLyricsForProvider({
     required LyricsProviderType provider,
     required String title,
@@ -638,58 +1033,130 @@ class LyricsService {
   }) async {
     final cleanTitle = cleanTrackTitle(title);
     final cleanArtist = cleanArtistName(artist);
-    final lrcCacheKey = '$cleanTitle::$cleanArtist';
-    final ytCacheKey = videoId.trim();
+    final trackKey = '$cleanTitle::$cleanArtist';
 
-    if (provider == LyricsProviderType.lrcRed) {
-      if (_lrcRedCache.containsKey(lrcCacheKey)) {
-        return _lrcRedCache[lrcCacheKey]!;
-      }
+    final cached = getCachedLyrics(trackKey, provider);
+    if (cached != null) return cached;
 
-      try {
-        final result = await _fetchFromLrcRed(
-          title: cleanTitle,
-          artist: cleanArtist,
-          isrc: isrc,
-          durationSeconds: durationSeconds,
-        );
-        if (result != null && result.lines.isNotEmpty) {
-          _lrcRedCache[lrcCacheKey] = result;
-          return result;
-        }
-      } catch (e) {
-        debugPrint('[LyricsService] lrc.red fetch error: $e');
+    LyricsResult result = LyricsResult.empty;
+
+    try {
+      switch (provider) {
+        case LyricsProviderType.lrcRed:
+          result = await _fetchFromLrcRed(
+            title: cleanTitle,
+            artist: cleanArtist,
+            isrc: isrc,
+            durationSeconds: durationSeconds,
+          ) ?? LyricsResult.empty;
+          break;
+
+        case LyricsProviderType.biniLyrics:
+          result = await _fetchFromBiniLyrics(
+            title: cleanTitle,
+            artist: cleanArtist,
+            isrc: isrc,
+          ) ?? LyricsResult.empty;
+          break;
+
+        case LyricsProviderType.betterLyrics:
+          result = await _fetchFromBetterLyrics(
+            title: cleanTitle,
+            artist: cleanArtist,
+          ) ?? LyricsResult.empty;
+          break;
+
+        case LyricsProviderType.lyricsPlus:
+          result = await _fetchFromLyricsPlus(
+            title: cleanTitle,
+            artist: cleanArtist,
+            durationSeconds: durationSeconds,
+          ) ?? LyricsResult.empty;
+          break;
+
+        case LyricsProviderType.unison:
+          result = await _fetchFromUnison(
+            videoId: videoId,
+          ) ?? LyricsResult.empty;
+          break;
+
+        case LyricsProviderType.lrcLib:
+          result = await _fetchFromLrcLib(
+            title: cleanTitle,
+            artist: cleanArtist,
+            durationSeconds: durationSeconds,
+          ) ?? LyricsResult.empty;
+          break;
+
+        case LyricsProviderType.kuGou:
+          result = await _fetchFromKuGou(
+            title: cleanTitle,
+            artist: cleanArtist,
+            durationSeconds: durationSeconds,
+          ) ?? LyricsResult.empty;
+          break;
+
+        case LyricsProviderType.megalobiz:
+          result = await _fetchFromMegalobiz(
+            title: cleanTitle,
+            artist: cleanArtist,
+            durationSeconds: durationSeconds,
+          ) ?? LyricsResult.empty;
+          break;
+
+        case LyricsProviderType.musixmatch:
+          result = await _fetchFromMusixmatch(
+            title: cleanTitle,
+            artist: cleanArtist,
+          ) ?? LyricsResult.empty;
+          break;
+
+        case LyricsProviderType.genius:
+          result = await _fetchFromGenius(
+            title: cleanTitle,
+            artist: cleanArtist,
+          ) ?? LyricsResult.empty;
+          break;
+
+        case LyricsProviderType.simpMusic:
+          result = await _fetchFromSimpMusic(
+            title: cleanTitle,
+            artist: cleanArtist,
+          ) ?? LyricsResult.empty;
+          break;
+
+        case LyricsProviderType.paxSenix:
+          result = await _fetchFromPaxSenix(
+            title: cleanTitle,
+            artist: cleanArtist,
+          ) ?? LyricsResult.empty;
+          break;
+
+        case LyricsProviderType.youTube:
+          if (ytFallback != null) {
+            final ytLines = await ytFallback();
+            if (ytLines.isNotEmpty) {
+              result = LyricsResult(
+                lines: withInstrumentalGaps(ytLines),
+                source: LyricsProviderType.youTube.attributionName,
+                hasWordSync: false,
+                provider: LyricsProviderType.youTube,
+              );
+            }
+          }
+          break;
       }
-      return LyricsResult.empty;
+    } catch (e) {
+      debugPrint('[LyricsService] ${provider.displayName} fetch error: $e');
     }
 
-    // Provider == YouTube
-    if (_youTubeCache.containsKey(ytCacheKey)) {
-      return _youTubeCache[ytCacheKey]!;
+    if (result.lines.isNotEmpty) {
+      cacheLyrics(trackKey, provider, result);
     }
-
-    if (ytFallback != null) {
-      try {
-        final ytLines = await ytFallback();
-        if (ytLines.isNotEmpty) {
-          final processedLines = withInstrumentalGaps(ytLines);
-          final result = LyricsResult(
-            lines: processedLines,
-            source: LyricsProviderType.youTube.attributionName,
-            hasWordSync: false,
-          );
-          _youTubeCache[ytCacheKey] = result;
-          return result;
-        }
-      } catch (e) {
-        debugPrint('[LyricsService] YouTube lyrics error: $e');
-      }
-    }
-
-    return LyricsResult.empty;
+    return result;
   }
 
-  /// Fetches lyrics with primary provider and fallback if primary has no results.
+  /// Backward-compatible fetchLyrics method.
   Future<LyricsResult> fetchLyrics({
     required String title,
     required String artist,
@@ -699,39 +1166,19 @@ class LyricsService {
     LyricsProviderType preferredProvider = LyricsProviderType.lrcRed,
     Future<List<LyricLine>> Function()? ytFallback,
   }) async {
-    // 1. Try preferred provider
-    final primaryResult = await fetchLyricsForProvider(
-      provider: preferredProvider,
+    return fetchLyricsFastest(
       title: title,
       artist: artist,
       videoId: videoId,
       isrc: isrc,
       durationSeconds: durationSeconds,
-      ytFallback: ytFallback,
-    );
-
-    if (primaryResult.lines.isNotEmpty) {
-      return primaryResult;
-    }
-
-    // 2. Fallback to alternative supported provider
-    final fallbackProvider = preferredProvider == LyricsProviderType.lrcRed
-        ? LyricsProviderType.youTube
-        : LyricsProviderType.lrcRed;
-
-    return fetchLyricsForProvider(
-      provider: fallbackProvider,
-      title: title,
-      artist: artist,
-      videoId: videoId,
-      isrc: isrc,
-      durationSeconds: durationSeconds,
+      preferredProvider: preferredProvider,
       ytFallback: ytFallback,
     );
   }
 
   // =========================================================================
-  // lrc.red PROVIDER IMPLEMENTATION
+  // PROVIDER 1: lrc.red (Apple Music TTML / Word-Synced)
   // =========================================================================
 
   Future<LyricsResult?> _fetchFromLrcRed({
@@ -740,17 +1187,15 @@ class LyricsService {
     String? isrc,
     int? durationSeconds,
   }) async {
-    // 1. Direct ISRC lookup if available
     if (isValidIsrc(isrc)) {
       final directUri = Uri.parse('$lrcRedBaseUrl/s/${isrc!.trim().toUpperCase()}.ttml');
       final ttml = await _getString(directUri);
       if (ttml != null && ttml.isNotEmpty) {
-        final result = parseTtml(ttml);
+        final result = parseTtml(ttml, provider: LyricsProviderType.lrcRed);
         if (result.lines.isNotEmpty) return result;
       }
     }
 
-    // 2. Search query lookup: https://lrc.red/search.json?q={title} {artist}
     final searchQuery = '$title $artist'.trim();
     final searchUri = Uri.https('lrc.red', '/search.json', {'q': searchQuery});
     final searchData = await _getJson(searchUri);
@@ -778,8 +1223,423 @@ class LyricsService {
     final ttml = await _getString(hitTtmlUri);
     if (ttml == null || ttml.isEmpty) return null;
 
-    final result = parseTtml(ttml);
+    final result = parseTtml(ttml, provider: LyricsProviderType.lrcRed);
     return result.lines.isNotEmpty ? result : null;
+  }
+
+  // =========================================================================
+  // PROVIDER 2: BiniLyrics (binimum)
+  // =========================================================================
+
+  Future<LyricsResult?> _fetchFromBiniLyrics({
+    required String title,
+    required String artist,
+    String? isrc,
+  }) async {
+    final uri = Uri.https('lyrics-api.binimum.org', '/getLyrics', {
+      'title': title,
+      'artist': artist,
+      if (isValidIsrc(isrc)) 'isrc': isrc!,
+    });
+
+    final data = await _getJson(uri);
+    if (data == null) return null;
+
+    final results = data['results'] as List<dynamic>?;
+    if (results == null || results.isEmpty) return null;
+
+    for (final item in results) {
+      if (item is! Map<String, dynamic>) continue;
+      final lyricsUrl = item['lyricsUrl']?.toString();
+      if (lyricsUrl != null && lyricsUrl.isNotEmpty) {
+        final content = await _getString(Uri.parse(lyricsUrl));
+        if (content != null && content.isNotEmpty) {
+          if (content.contains('<tt') || lyricsUrl.endsWith('.ttml')) {
+            final res = parseTtml(content, provider: LyricsProviderType.biniLyrics);
+            if (res.lines.isNotEmpty) return res;
+          } else {
+            final res = parseLrc(content, provider: LyricsProviderType.biniLyrics);
+            if (res.lines.isNotEmpty) return res;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  // =========================================================================
+  // PROVIDER 3: BetterLyrics (api.betterlyrics.org)
+  // =========================================================================
+
+  Future<LyricsResult?> _fetchFromBetterLyrics({
+    required String title,
+    required String artist,
+  }) async {
+    final uri = Uri.https('api.betterlyrics.org', '/getLyrics', {
+      's': title,
+      'a': artist,
+    });
+
+    final data = await _getJson(uri);
+    if (data == null) return null;
+
+    final ttml = data['ttml']?.toString();
+    if (ttml != null && ttml.isNotEmpty) {
+      final res = parseTtml(ttml, provider: LyricsProviderType.betterLyrics);
+      if (res.lines.isNotEmpty) return res;
+    }
+    return null;
+  }
+
+  // =========================================================================
+  // PROVIDER 4: Unison (unison.betterlyrics.org / unison.boidu.dev)
+  // =========================================================================
+
+  Future<LyricsResult?> _fetchFromUnison({
+    required String videoId,
+  }) async {
+    final trimmedId = videoId.trim();
+    if (trimmedId.isEmpty) return null;
+
+    // Try primary and secondary Unison hosts
+    final hosts = ['unison.betterlyrics.org', 'unison.boidu.dev'];
+    for (final host in hosts) {
+      final uri = Uri.https(host, '/lyrics', {'v': trimmedId});
+      final data = await _getJson(uri);
+      if (data != null && data['success'] == true) {
+        final payload = data['data'] as Map<String, dynamic>?;
+        if (payload != null) {
+          final lyrics = payload['lyrics']?.toString() ?? '';
+          final format = payload['format']?.toString().toLowerCase() ?? '';
+          if (lyrics.isNotEmpty) {
+            if (format == 'ttml' || lyrics.contains('<tt')) {
+              final res = parseTtml(lyrics, provider: LyricsProviderType.unison);
+              if (res.lines.isNotEmpty) return res;
+            } else {
+              final res = parseLrc(lyrics, provider: LyricsProviderType.unison);
+              if (res.lines.isNotEmpty) return res;
+            }
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  // =========================================================================
+  // PROVIDER 5: LyricsPlus (lyricsplus.prjktla.my.id)
+  // =========================================================================
+
+  Future<LyricsResult?> _fetchFromLyricsPlus({
+    required String title,
+    required String artist,
+    int? durationSeconds,
+  }) async {
+    final uri = Uri.https('lyricsplus.prjktla.my.id', '/v1/lyrics/get', {
+      'title': title,
+      'artist': artist,
+      if (durationSeconds != null && durationSeconds > 0)
+        'duration': durationSeconds.toString(),
+    });
+
+    final data = await _getJson(uri);
+    if (data == null) return null;
+
+    if (data['type'] == 'syllable') {
+      final res = parseSyllableJson(data, provider: LyricsProviderType.lyricsPlus);
+      if (res.lines.isNotEmpty) return res;
+    }
+
+    final lyricsList = data['lyrics'] as List<dynamic>?;
+    if (lyricsList != null && lyricsList.isNotEmpty) {
+      final lines = <LyricLine>[];
+      for (final item in lyricsList) {
+        if (item is Map<String, dynamic>) {
+          final text = item['text']?.toString() ?? '';
+          final time = (item['time'] as num?)?.toInt() ?? 0;
+          final dur = (item['duration'] as num?)?.toInt() ?? 3500;
+          if (text.trim().isNotEmpty) {
+            lines.add(LyricLine(
+              text: text.trim(),
+              startTimeMs: time,
+              endTimeMs: time + dur,
+              isWordSynced: false,
+            ));
+          }
+        }
+      }
+      if (lines.isNotEmpty) {
+        return LyricsResult(
+          lines: withInstrumentalGaps(lines),
+          source: LyricsProviderType.lyricsPlus.attributionName,
+          hasWordSync: false,
+          provider: LyricsProviderType.lyricsPlus,
+        );
+      }
+    }
+    return null;
+  }
+
+  // =========================================================================
+  // PROVIDER 6: LRCLIB (lrclib.net)
+  // =========================================================================
+
+  Future<LyricsResult?> _fetchFromLrcLib({
+    required String title,
+    required String artist,
+    int? durationSeconds,
+  }) async {
+    // 1. Direct get endpoint
+    final uri = Uri.https('lrclib.net', '/api/get', {
+      'track_name': title,
+      'artist_name': artist,
+      if (durationSeconds != null && durationSeconds > 0)
+        'duration': durationSeconds.toString(),
+    });
+
+    Map<String, dynamic>? data = await _getJson(uri);
+
+    // 2. Search fallback if direct match failed
+    if (data == null || (data['syncedLyrics'] == null && data['plainLyrics'] == null)) {
+      final searchUri = Uri.https('lrclib.net', '/api/search', {'q': '$title $artist'});
+      final searchList = await _getJsonList(searchUri);
+      if (searchList != null && searchList.isNotEmpty) {
+        data = searchList.first;
+      }
+    }
+
+    if (data == null) return null;
+
+    final syncedLyrics = data['syncedLyrics']?.toString();
+    if (syncedLyrics != null && syncedLyrics.isNotEmpty) {
+      final res = parseLrc(syncedLyrics, provider: LyricsProviderType.lrcLib);
+      if (res.lines.isNotEmpty) return res;
+    }
+
+    final plainLyrics = data['plainLyrics']?.toString();
+    if (plainLyrics != null && plainLyrics.isNotEmpty) {
+      final lines = plainLyrics
+          .split('\n')
+          .map((l) => l.trim())
+          .where((l) => l.isNotEmpty)
+          .map((l) => LyricLine(text: l))
+          .toList();
+      if (lines.isNotEmpty) {
+        return LyricsResult(
+          lines: lines,
+          source: LyricsProviderType.lrcLib.attributionName,
+          hasWordSync: false,
+          provider: LyricsProviderType.lrcLib,
+        );
+      }
+    }
+    return null;
+  }
+
+  // =========================================================================
+  // PROVIDER 7: KuGou (酷狗音乐)
+  // =========================================================================
+
+  Future<LyricsResult?> _fetchFromKuGou({
+    required String title,
+    required String artist,
+    int? durationSeconds,
+  }) async {
+    final durMs = (durationSeconds != null && durationSeconds > 0) ? durationSeconds * 1000 : 0;
+    final searchUri = Uri.http('lyrics.kugou.com', '/search', {
+      'ver': '1',
+      'man': 'yes',
+      'client': 'pc',
+      'keyword': '$title $artist',
+      if (durMs > 0) 'duration': durMs.toString(),
+    });
+
+    final searchData = await _getJson(searchUri);
+    if (searchData == null) return null;
+
+    final candidates = searchData['candidates'] as List<dynamic>?;
+    if (candidates == null || candidates.isEmpty) return null;
+
+    final first = candidates.first as Map<String, dynamic>;
+    final id = first['id']?.toString();
+    final accesskey = first['accesskey']?.toString();
+
+    if (id == null || accesskey == null) return null;
+
+    final downloadUri = Uri.http('lyrics.kugou.com', '/download', {
+      'ver': '1',
+      'client': 'pc',
+      'id': id,
+      'accesskey': accesskey,
+      'fmt': 'lrc',
+      'charset': 'utf8',
+    });
+
+    final downloadData = await _getJson(downloadUri);
+    if (downloadData == null) return null;
+
+    final b64Content = downloadData['content']?.toString();
+    if (b64Content == null || b64Content.isEmpty) return null;
+
+    try {
+      final decodedLrc = utf8.decode(base64.decode(b64Content), allowMalformed: true);
+      final res = parseLrc(decodedLrc, provider: LyricsProviderType.kuGou);
+      if (res.lines.isNotEmpty) return res;
+    } catch (_) {}
+
+    return null;
+  }
+
+  // =========================================================================
+  // PROVIDER 8: Megalobiz (api.megalobiz.com)
+  // =========================================================================
+
+  Future<LyricsResult?> _fetchFromMegalobiz({
+    required String title,
+    required String artist,
+    int? durationSeconds,
+  }) async {
+    final searchUri = Uri.https('api.megalobiz.com', '/api/public/v1/search', {
+      'title': title,
+      'artist': artist,
+      if (durationSeconds != null && durationSeconds > 0)
+        'duration': durationSeconds.toString(),
+      'limit': '5',
+    });
+
+    final searchData = await _getJson(searchUri);
+    if (searchData == null) return null;
+
+    final results = searchData['results'] as List<dynamic>?;
+    if (results == null || results.isEmpty) return null;
+
+    for (final item in results) {
+      if (item is! Map<String, dynamic>) continue;
+      final lrcUrl = item['lrc_url']?.toString();
+      if (lrcUrl != null && lrcUrl.isNotEmpty) {
+        final lrc = await _getString(Uri.parse(lrcUrl));
+        if (lrc != null && lrc.isNotEmpty) {
+          final res = parseLrc(lrc, provider: LyricsProviderType.megalobiz);
+          if (res.lines.isNotEmpty) return res;
+        }
+      }
+    }
+    return null;
+  }
+
+  // =========================================================================
+  // PROVIDER 9: Musixmatch (apic-desktop.musixmatch.com)
+  // =========================================================================
+
+  Future<LyricsResult?> _fetchFromMusixmatch({
+    required String title,
+    required String artist,
+  }) async {
+    final uri = Uri.https('apic-desktop.musixmatch.com', '/ws/1.1/macro.subtitles.get', {
+      'format': 'json',
+      'q_track': title,
+      'q_artist': artist,
+      'user_language': 'en',
+      'namespace': 'lyrics_richsync',
+      'subtitle_format': 'lrc',
+      'app_id': 'web-desktop-app-v1.0',
+    });
+
+    final data = await _getJson(uri);
+    if (data == null) return null;
+
+    final macroCalls = data['message']?['body']?['macro_calls'] as Map<String, dynamic>?;
+    if (macroCalls == null) return null;
+
+    final subList = macroCalls['track.subtitles.get']?['message']?['body']?['subtitle_list'] as List<dynamic>?;
+    if (subList != null && subList.isNotEmpty) {
+      final subBody = subList.first?['subtitle']?['subtitle_body']?.toString();
+      // Drop Musixmatch anti-scraping honeypot text: "Wob gopini den..."
+      if (subBody != null && subBody.isNotEmpty && !subBody.toLowerCase().contains('wob gopini')) {
+        final res = parseLrc(subBody, provider: LyricsProviderType.musixmatch);
+        if (res.lines.isNotEmpty) return res;
+      }
+    }
+    return null;
+  }
+
+  // =========================================================================
+  // PROVIDER 10: Genius (Plain Text Fallback)
+  // =========================================================================
+
+  Future<LyricsResult?> _fetchFromGenius({
+    required String title,
+    required String artist,
+  }) async {
+    final uri = Uri.https('api.lyrics.ovh', '/v1/$artist/$title');
+    final data = await _getJson(uri);
+    if (data == null) return null;
+
+    final lyrics = data['lyrics']?.toString();
+    if (lyrics != null && lyrics.trim().isNotEmpty) {
+      final lines = lyrics
+          .split('\n')
+          .map((l) => l.trim())
+          .where((l) => l.isNotEmpty)
+          .map((l) => LyricLine(text: l))
+          .toList();
+      if (lines.isNotEmpty) {
+        return LyricsResult(
+          lines: lines,
+          source: LyricsProviderType.genius.attributionName,
+          hasWordSync: false,
+          provider: LyricsProviderType.genius,
+        );
+      }
+    }
+    return null;
+  }
+
+  // =========================================================================
+  // PROVIDER 11: SimpMusic (api-lyrics.simpmusic.org)
+  // =========================================================================
+
+  Future<LyricsResult?> _fetchFromSimpMusic({
+    required String title,
+    required String artist,
+  }) async {
+    final uri = Uri.https('api-lyrics.simpmusic.org', '/lyrics', {
+      'title': title,
+      'artist': artist,
+    });
+
+    final data = await _getJson(uri);
+    if (data != null) {
+      final lrc = data['lrc']?.toString() ?? data['syncedLyrics']?.toString();
+      if (lrc != null && lrc.isNotEmpty) {
+        final res = parseLrc(lrc, provider: LyricsProviderType.simpMusic);
+        if (res.lines.isNotEmpty) return res;
+      }
+    }
+    return null;
+  }
+
+  // =========================================================================
+  // PROVIDER 12: PaxSenix (api.paxsenix.org)
+  // =========================================================================
+
+  Future<LyricsResult?> _fetchFromPaxSenix({
+    required String title,
+    required String artist,
+  }) async {
+    final uri = Uri.https('api.paxsenix.org', '/lyrics/search', {
+      'q': '$title $artist',
+    });
+
+    final data = await _getJson(uri);
+    if (data != null && data['ok'] == true) {
+      final lrc = data['lrc']?.toString() ?? data['lyrics']?.toString();
+      if (lrc != null && lrc.isNotEmpty) {
+        final res = parseLrc(lrc, provider: LyricsProviderType.paxSenix);
+        if (res.lines.isNotEmpty) return res;
+      }
+    }
+    return null;
   }
 
   // =========================================================================
@@ -788,11 +1648,11 @@ class LyricsService {
 
   Future<String?> _getString(Uri uri) async {
     try {
-      final request = await _httpClient.getUrl(uri).timeout(const Duration(seconds: 5));
+      final request = await _httpClient.getUrl(uri).timeout(const Duration(seconds: 4));
       request.headers.set('User-Agent', 'Cadmium-Lyrics/1.0 (Flutter; Mobile)');
-      request.headers.set('Accept', 'application/xml, text/xml, */*');
+      request.headers.set('Accept', 'application/xml, text/xml, text/plain, */*');
 
-      final response = await request.close().timeout(const Duration(seconds: 5));
+      final response = await request.close().timeout(const Duration(seconds: 4));
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return await response.transform(utf8.decoder).join();
       }
@@ -804,11 +1664,11 @@ class LyricsService {
 
   Future<Map<String, dynamic>?> _getJson(Uri uri) async {
     try {
-      final request = await _httpClient.getUrl(uri).timeout(const Duration(seconds: 5));
+      final request = await _httpClient.getUrl(uri).timeout(const Duration(seconds: 4));
       request.headers.set('User-Agent', 'Cadmium-Lyrics/1.0 (Flutter; Mobile)');
-      request.headers.set('Accept', 'application/json');
+      request.headers.set('Accept', 'application/json, text/plain, */*');
 
-      final response = await request.close().timeout(const Duration(seconds: 5));
+      final response = await request.close().timeout(const Duration(seconds: 4));
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final body = await response.transform(utf8.decoder).join();
         final decoded = jsonDecode(body);
@@ -822,9 +1682,28 @@ class LyricsService {
     return null;
   }
 
+  Future<List<Map<String, dynamic>>?> _getJsonList(Uri uri) async {
+    try {
+      final request = await _httpClient.getUrl(uri).timeout(const Duration(seconds: 4));
+      request.headers.set('User-Agent', 'Cadmium-Lyrics/1.0 (Flutter; Mobile)');
+      request.headers.set('Accept', 'application/json, text/plain, */*');
+
+      final response = await request.close().timeout(const Duration(seconds: 4));
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final body = await response.transform(utf8.decoder).join();
+        final decoded = jsonDecode(body);
+        if (decoded is List) {
+          return decoded.whereType<Map<String, dynamic>>().toList();
+        }
+      }
+    } catch (_) {
+      // Network or decode failure
+    }
+    return null;
+  }
+
   void dispose() {
-    _lrcRedCache.clear();
-    _youTubeCache.clear();
+    _lyricsMemoryCache.clear();
     _httpClient.close();
   }
 }

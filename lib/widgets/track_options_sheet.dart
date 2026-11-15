@@ -141,56 +141,114 @@ class _TrackMenuCard extends ConsumerWidget {
                     _buildMenuDivider(),
 
                   // Lyrics Provider Selector
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Expanded(
-                          child: Text(
-                            'Lyrics Provider',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                        ),
-                        Consumer(
-                          builder: (context, ref, _) {
-                            final currentProvider = ref.watch(
-                              playerProvider.select((s) => s.selectedLyricsProvider),
-                            );
-                            return Container(
-                              padding: const EdgeInsets.all(2),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.10),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final playerState = ref.watch(playerProvider);
+                      final currentProvider = playerState.selectedLyricsProvider;
+                      final availableProviders = playerState.availableLyricsProviders;
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 18),
                               child: Row(
-                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  _buildProviderPill(
-                                    ref: ref,
-                                    label: 'lrc.red',
-                                    type: LyricsProviderType.lrcRed,
-                                    isSelected: currentProvider == LyricsProviderType.lrcRed,
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Lyrics Provider',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14.5,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 1),
+                                        Text(
+                                          '${currentProvider.attributionName} • ${currentProvider.formatDescription}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: Colors.white.withValues(alpha: 0.60),
+                                            fontSize: 11.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                  _buildProviderPill(
-                                    ref: ref,
-                                    label: 'YouTube',
-                                    type: LyricsProviderType.youTube,
-                                    isSelected: currentProvider == LyricsProviderType.youTube,
+                                  const SizedBox(width: 8),
+                                  ApplePressable(
+                                    onTap: () {
+                                      _showAllSourcesModal(parentContext, ref);
+                                    },
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.10),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: Colors.white.withValues(alpha: 0.12),
+                                          width: 0.5,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            'All (${LyricsProviderType.values.length})',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 3),
+                                          const Icon(
+                                            CupertinoIcons.chevron_right,
+                                            color: Colors.white70,
+                                            size: 10,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
-                            );
-                          },
+                            ),
+                            const SizedBox(height: 8),
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              physics: const BouncingScrollPhysics(),
+                              padding: const EdgeInsets.symmetric(horizontal: 14),
+                              child: Row(
+                                children: LyricsProviderType.values.map((type) {
+                                  final isSelected = currentProvider == type;
+                                  final isAvailable = availableProviders.contains(type);
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                                    child: _buildProviderPill(
+                                      ref: ref,
+                                      type: type,
+                                      isSelected: isSelected,
+                                      isAvailable: isAvailable,
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
 
                   _buildMenuDivider(),
@@ -435,33 +493,238 @@ class _TrackMenuCard extends ConsumerWidget {
 
   Widget _buildProviderPill({
     required WidgetRef ref,
-    required String label,
     required LyricsProviderType type,
     required bool isSelected,
+    bool isAvailable = false,
   }) {
     return ApplePressable(
       onTap: () {
+        HapticFeedback.selectionClick();
         ref.read(playerProvider.notifier).setLyricsProvider(type);
       },
       borderRadius: BorderRadius.circular(14),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
           color: isSelected
               ? Colors.white.withValues(alpha: 0.28)
-              : Colors.transparent,
+              : Colors.white.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(14),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.white : Colors.white60,
-            fontSize: 12,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+          border: Border.all(
+            color: isSelected
+                ? Colors.white.withValues(alpha: 0.45)
+                : Colors.white.withValues(alpha: 0.08),
+            width: 0.6,
           ),
         ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isAvailable && !isSelected) ...[
+              Container(
+                width: 5,
+                height: 5,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF34C759),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 5),
+            ],
+            Text(
+              type.displayName,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.white70,
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  void _showAllSourcesModal(BuildContext context, WidgetRef ref) {
+    HapticFeedback.mediumImpact();
+    showAppleGlassBottomSheet(
+      context: context,
+      builder: (modalContext) {
+        return Consumer(
+          builder: (context, ref, _) {
+            final state = ref.watch(playerProvider);
+            final current = state.selectedLyricsProvider;
+            final available = state.availableLyricsProviders;
+
+            return SizedBox(
+              height: math.min(MediaQuery.sizeOf(context).height * 0.70, 520),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                    child: Text(
+                      'Lyrics Sources',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
+                    child: Text(
+                      'Choose from ${LyricsProviderType.values.length} providers. Lyrics load automatically from the fastest source.',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.65),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.only(bottom: 24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: LyricsProviderType.values.map((type) {
+                          final isSelected = current == type;
+                          final isReady = available.contains(type);
+
+                          return ApplePressable(
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              ref.read(playerProvider.notifier).setLyricsProvider(type);
+                              Navigator.of(modalContext).pop();
+                            },
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? Colors.white.withValues(alpha: 0.16)
+                                    : Colors.white.withValues(alpha: 0.05),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? Colors.white.withValues(alpha: 0.35)
+                                      : Colors.white.withValues(alpha: 0.06),
+                                  width: 0.7,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    type == LyricsProviderType.youTube
+                                        ? CupertinoIcons.play_rectangle
+                                        : (type.formatDescription.contains('Word')
+                                            ? CupertinoIcons.sparkles
+                                            : CupertinoIcons.music_mic),
+                                    color: isSelected ? Colors.white : Colors.white60,
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                type.displayName,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 14.5,
+                                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white.withValues(alpha: 0.12),
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Text(
+                                                type.formatDescription,
+                                                style: TextStyle(
+                                                  color: Colors.white.withValues(alpha: 0.8),
+                                                  fontSize: 9.5,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          type.attributionName,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: Colors.white.withValues(alpha: 0.55),
+                                            fontSize: 11.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  if (isSelected)
+                                    const Icon(
+                                      CupertinoIcons.checkmark_alt_circle_fill,
+                                      color: Colors.white,
+                                      size: 20,
+                                    )
+                                else if (isReady)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF34C759).withValues(alpha: 0.20),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: const Color(0xFF34C759).withValues(alpha: 0.5),
+                                        width: 0.6,
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Ready',
+                                      style: TextStyle(
+                                        color: Color(0xFF34C759),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  Icon(
+                                    CupertinoIcons.chevron_right,
+                                    color: Colors.white.withValues(alpha: 0.3),
+                                    size: 14,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

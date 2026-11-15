@@ -44,6 +44,7 @@ class PlayerStateModel {
   final String? lyricsSongwriters;
   final bool hasWordSyncedLyrics;
   final LyricsProviderType selectedLyricsProvider;
+  final List<LyricsProviderType> availableLyricsProviders;
   final String? animatedArtworkUrl;
   final Map<String, String>? animatedArtworkHeaders;
   final AudioDeviceItem connectedDevice;
@@ -77,6 +78,7 @@ class PlayerStateModel {
     this.lyricsSongwriters,
     this.hasWordSyncedLyrics = false,
     this.selectedLyricsProvider = LyricsProviderType.lrcRed,
+    this.availableLyricsProviders = const [LyricsProviderType.lrcRed],
     this.animatedArtworkUrl,
     this.animatedArtworkHeaders,
     this.connectedDevice = const AudioDeviceItem(
@@ -129,6 +131,7 @@ class PlayerStateModel {
     bool clearLyricsSongwriters = false,
     bool? hasWordSyncedLyrics,
     LyricsProviderType? selectedLyricsProvider,
+    List<LyricsProviderType>? availableLyricsProviders,
     String? animatedArtworkUrl,
     Map<String, String>? animatedArtworkHeaders,
     bool clearAnimatedArtwork = false,
@@ -164,6 +167,7 @@ class PlayerStateModel {
       lyricsSongwriters: clearLyricsSongwriters ? null : (lyricsSongwriters ?? this.lyricsSongwriters),
       hasWordSyncedLyrics: hasWordSyncedLyrics ?? this.hasWordSyncedLyrics,
       selectedLyricsProvider: selectedLyricsProvider ?? this.selectedLyricsProvider,
+      availableLyricsProviders: availableLyricsProviders ?? this.availableLyricsProviders,
       animatedArtworkUrl: clearAnimatedArtwork ? null : (animatedArtworkUrl ?? this.animatedArtworkUrl),
       animatedArtworkHeaders: clearAnimatedArtwork ? null : (animatedArtworkHeaders ?? this.animatedArtworkHeaders),
       connectedDevice: connectedDevice ?? this.connectedDevice,
@@ -766,10 +770,42 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     }
   }
 
-  /// Changes the active lyrics provider (lrc.red or YouTube) and fetches the lyrics.
+  /// Changes the active lyrics provider and fetches or switches to the lyrics seamlessly.
   void setLyricsProvider(LyricsProviderType provider) {
-    if (state.selectedLyricsProvider == provider) return;
+    if (state.selectedLyricsProvider == provider && state.lyrics.isNotEmpty) return;
     _lyricsRequestId++;
+    final song = state.currentSong;
+    if (song == null) {
+      state = state.copyWith(selectedLyricsProvider: provider);
+      return;
+    }
+
+    final cleanTitle = LyricsService.cleanTrackTitle(song.title);
+    final cleanArtist = LyricsService.cleanArtistName(song.artist);
+    final trackKey = '$cleanTitle::$cleanArtist';
+    final musicService = _ref.read(musicServiceProvider);
+
+    // Instant switch if this provider's lyrics are already cached
+    final cached = musicService.lyricsService.getCachedLyrics(trackKey, provider);
+    if (cached != null && cached.lines.isNotEmpty) {
+      final linesWithGaps = LyricsService.withInstrumentalGaps(cached.lines);
+      final currentMs = state.position.inMilliseconds > 0
+          ? state.position.inMilliseconds
+          : _audioPlayer.position.inMilliseconds;
+      final newActiveIdx = LyricsService.computeActiveLyricIndex(currentMs, linesWithGaps);
+      state = state.copyWith(
+        selectedLyricsProvider: provider,
+        lyrics: linesWithGaps,
+        activeLyricIndex: newActiveIdx,
+        lyricsSource: cached.source,
+        lyricsSongwriters: cached.songwriters,
+        hasWordSyncedLyrics: cached.hasWordSync,
+        isLoadingLyrics: false,
+      );
+      return;
+    }
+
+    // Otherwise show loading indicator and fetch this specific provider
     state = state.copyWith(
       selectedLyricsProvider: provider,
       isLoadingLyrics: true,
@@ -779,65 +815,103 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       clearLyricsSongwriters: true,
       hasWordSyncedLyrics: false,
     );
-    final song = state.currentSong;
-    if (song != null) {
-      _fetchLyrics(song, provider: provider);
-    } else {
-      state = state.copyWith(isLoadingLyrics: false);
-    }
+    _fetchLyrics(song, provider: provider);
   }
 
   Future<void> _fetchLyrics(SongItem song, {LyricsProviderType? provider}) async {
-    final targetProvider = provider ?? state.selectedLyricsProvider;
     final requestId = ++_lyricsRequestId;
+    final cleanTitle = LyricsService.cleanTrackTitle(song.title);
+    final cleanArtist = LyricsService.cleanArtistName(song.artist);
+    final trackKey = '$cleanTitle::$cleanArtist';
+    final musicService = _ref.read(musicServiceProvider);
+
     try {
-      state = state.copyWith(isLoadingLyrics: true);
-      final musicService = _ref.read(musicServiceProvider);
       final cachedDur = SongMetricsCacheService.instance.getDuration(song.id);
       final durSec = (song.durationSeconds != null && song.durationSeconds! > 0)
           ? song.durationSeconds
           : (cachedDur?.inSeconds);
 
-      final result = await musicService.getLyricsWithMetadata(
-        videoId: song.id,
-        title: song.title,
-        artist: song.artist,
-        album: song.album,
-        durationSeconds: durSec,
-        provider: targetProvider,
-      );
-      if (!mounted) return;
-      if (requestId == _lyricsRequestId &&
-          state.currentSong?.id == song.id &&
-          state.selectedLyricsProvider == targetProvider) {
+      // Check if user requested a specific provider
+      if (provider != null) {
+        state = state.copyWith(isLoadingLyrics: true, selectedLyricsProvider: provider);
+        final result = await musicService.getLyricsWithMetadata(
+          provider: provider,
+          title: song.title,
+          artist: song.artist,
+          album: song.album,
+          videoId: song.id,
+          durationSeconds: durSec,
+        );
+        if (!mounted || requestId != _lyricsRequestId || state.currentSong?.id != song.id) return;
+
         final linesWithGaps = LyricsService.withInstrumentalGaps(result.lines);
         final currentMs = state.position.inMilliseconds > 0
             ? state.position.inMilliseconds
             : _audioPlayer.position.inMilliseconds;
         final newActiveIdx = LyricsService.computeActiveLyricIndex(currentMs, linesWithGaps);
+        final available = musicService.lyricsService.getAvailableProviders(trackKey);
+
         state = state.copyWith(
           lyrics: linesWithGaps,
           activeLyricIndex: newActiveIdx,
           lyricsSource: result.source,
           lyricsSongwriters: result.songwriters,
           hasWordSyncedLyrics: result.hasWordSync,
+          selectedLyricsProvider: provider,
+          availableLyricsProviders: available.isNotEmpty ? available : [provider],
           isLoadingLyrics: false,
         );
+        return;
       }
+
+      // Fastest-First Race across all providers!
+      state = state.copyWith(isLoadingLyrics: true);
+
+      final fastestResult = await musicService.getFastestLyricsWithMetadata(
+        title: song.title,
+        artist: song.artist,
+        album: song.album,
+        videoId: song.id,
+        durationSeconds: durSec,
+        preferredProvider: state.selectedLyricsProvider,
+        onProviderResult: (p, res) {
+          if (!mounted || requestId != _lyricsRequestId || state.currentSong?.id != song.id) return;
+          final available = musicService.lyricsService.getAvailableProviders(trackKey);
+          if (!listEquals(available, state.availableLyricsProviders)) {
+            state = state.copyWith(availableLyricsProviders: available);
+          }
+        },
+      );
+
+      if (!mounted || requestId != _lyricsRequestId || state.currentSong?.id != song.id) return;
+
+      final linesWithGaps = LyricsService.withInstrumentalGaps(fastestResult.lines);
+      final currentMs = state.position.inMilliseconds > 0
+          ? state.position.inMilliseconds
+          : _audioPlayer.position.inMilliseconds;
+      final newActiveIdx = LyricsService.computeActiveLyricIndex(currentMs, linesWithGaps);
+      final available = musicService.lyricsService.getAvailableProviders(trackKey);
+
+      state = state.copyWith(
+        lyrics: linesWithGaps,
+        activeLyricIndex: newActiveIdx,
+        lyricsSource: fastestResult.source,
+        lyricsSongwriters: fastestResult.songwriters,
+        hasWordSyncedLyrics: fastestResult.hasWordSync,
+        selectedLyricsProvider: fastestResult.lines.isNotEmpty ? fastestResult.provider : state.selectedLyricsProvider,
+        availableLyricsProviders: available.isNotEmpty ? available : [state.selectedLyricsProvider],
+        isLoadingLyrics: false,
+      );
     } catch (e) {
-      if (!mounted) return;
-      if (requestId == _lyricsRequestId &&
-          state.currentSong?.id == song.id &&
-          state.selectedLyricsProvider == targetProvider) {
-        state = state.copyWith(
-          lyrics: const [],
-          activeLyricIndex: -1,
-          clearLyricsSource: true,
-          clearLyricsSongwriters: true,
-          hasWordSyncedLyrics: false,
-          isLoadingLyrics: false,
-        );
-      }
+      if (!mounted || requestId != _lyricsRequestId || state.currentSong?.id != song.id) return;
+      state = state.copyWith(
+        lyrics: const [],
+        activeLyricIndex: -1,
+        clearLyricsSource: true,
+        clearLyricsSongwriters: true,
+        hasWordSyncedLyrics: false,
+        isLoadingLyrics: false,
+      );
     }
   }
 

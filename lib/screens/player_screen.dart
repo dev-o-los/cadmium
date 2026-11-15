@@ -1719,6 +1719,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           lyricsSource: playerState.lyricsSource,
           lyricsSongwriters: playerState.lyricsSongwriters,
           selectedProvider: playerState.selectedLyricsProvider,
+          availableProviders: playerState.availableLyricsProviders,
           onProviderChanged: (provider) {
             ref.read(playerProvider.notifier).setLyricsProvider(provider);
             _resetAutoHideTimer();
