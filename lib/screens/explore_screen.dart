@@ -68,45 +68,44 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             );
           }).toList();
 
+    final screenWidth = MediaQuery.of(context).size.width - 40;
+    final crossAxisCount = screenWidth > 600 ? 3 : 2;
+    final cardWidth = (screenWidth - (crossAxisCount - 1) * 12) / crossAxisCount;
+
     return Stack(
       children: [
-        ListView(
+        CustomScrollView(
           controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(
             parent: BouncingScrollPhysics(),
           ),
-          padding: EdgeInsets.fromLTRB(0, topPadding + 34, 0, 160),
-          children: [
+          slivers: [
             // Body Content Large Title Header (leveled identically with Library)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                'Explore',
-                style: AppleTypography.largeTitle,
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(0, topPadding + 34, 0, 0),
+              sliver: const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    'Explore',
+                    style: AppleTypography.largeTitle,
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
 
-            // 2-Column Grid of Mood & Genre Cards matching InnerTube aesthetic
-            Padding(
+            // 2-Column Grid of Mood & Genre Cards matching InnerTube aesthetic (Lazy Slivers)
+            SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Builder(
-                builder: (context) {
-                  final screenWidth = MediaQuery.of(context).size.width - 40;
-                  final crossAxisCount = screenWidth > 600 ? 3 : 2;
-                  final cardWidth = (screenWidth - (crossAxisCount - 1) * 12) / crossAxisCount;
-
-                  return GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: EdgeInsets.zero,
-                    itemCount: categories.length,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 1.85,
-                    ),
+              sliver: SliverGrid.builder(
+                itemCount: categories.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 1.85,
+                ),
                   itemBuilder: (context, index) {
                     final cat = categories[index];
                     final cardColor = cat.colorValue != null
@@ -213,32 +212,36 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                         ),
                       ),
                     );
-                  },
-                );
-              },
+                },
+              ),
             ),
-          ),
-          const SizedBox(height: 28),
+            const SliverToBoxAdapter(child: SizedBox(height: 28)),
 
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20),
-            child: Text(
-              'Global Hits & Charts',
-              style: AppleTypography.sectionTitle,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              children: trending
-                  .take(15)
-                  .map((track) => _buildSongRow(context, ref, track, trending))
-                  .toList(),
-            ),
-          ),
-        ],
-      ),
+            if (trending.isNotEmpty) ...[
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    'Global Hits & Charts',
+                    style: AppleTypography.sectionTitle,
+                  ),
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 12)),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 160),
+                sliver: SliverList.builder(
+                  itemCount: trending.length > 15 ? 15 : trending.length,
+                  itemBuilder: (context, index) => RepaintBoundary(
+                    child: _buildSongRow(context, ref, trending[index], trending),
+                  ),
+                ),
+              ),
+            ] else ...[
+              const SliverToBoxAdapter(child: SizedBox(height: 160)),
+            ],
+          ],
+        ),
         // Dynamic Apple-style status bar blur & fading dissolve on scroll
         TopStatusBarBlur(scrollController: _scrollController),
       ],

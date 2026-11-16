@@ -104,14 +104,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               count: playlists.length + 1,
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              height: cardHeight,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: playlists.length + 2,
-                separatorBuilder: (context, index) => const SizedBox(width: 14),
-                itemBuilder: (context, index) {
+            RepaintBoundary(
+              child: SizedBox(
+                height: cardHeight,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  itemCount: playlists.length + 2,
+                  separatorBuilder: (context, index) => const SizedBox(width: 14),
+                  itemBuilder: (context, index) {
                   // 0: Liked Music playlist card
                   if (index == 0) {
                     return _buildLikedMusicAlbumCard(
@@ -144,25 +145,27 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 },
               ),
             ),
-            const SizedBox(height: 28),
+          ),
+          const SizedBox(height: 28),
 
-            // 4. Albums Section (Features Liked Music as an album + user's saved albums from YouTube)
-            if (!isLoggedIn || albums.isNotEmpty) ...[
-              _buildLibrarySectionHeader(title: 'Albums', count: albums.length),
-              const SizedBox(height: 12),
-              if (albums.isEmpty && !isLoggedIn)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _buildEmptySectionBanner(
-                    icon: CupertinoIcons.music_albums,
-                    title: 'No Saved Albums Found',
-                    subtitle: 'Tap Add Album below to search and save albums to your library.',
-                    actionButtonText: 'Add Album',
-                    onActionTap: () => _showSearchAlbumSheet(context, ref),
-                  ),
-                )
-              else
-                SizedBox(
+          // 4. Albums Section (Features Liked Music as an album + user's saved albums from YouTube)
+          if (!isLoggedIn || albums.isNotEmpty) ...[
+            _buildLibrarySectionHeader(title: 'Albums', count: albums.length),
+            const SizedBox(height: 12),
+            if (albums.isEmpty && !isLoggedIn)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: _buildEmptySectionBanner(
+                  icon: CupertinoIcons.music_albums,
+                  title: 'No Saved Albums Found',
+                  subtitle: 'Tap Add Album below to search and save albums to your library.',
+                  actionButtonText: 'Add Album',
+                  onActionTap: () => _showSearchAlbumSheet(context, ref),
+                ),
+              )
+            else
+              RepaintBoundary(
+                child: SizedBox(
                   height: cardHeight,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
@@ -211,6 +214,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     },
                   ),
                 ),
+              ),
               const SizedBox(height: 28),
             ],
 
@@ -233,13 +237,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   ),
                 )
               else
-                SizedBox(
-                  height: cardHeight,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: artists.length + 1,
-                    separatorBuilder: (context, index) =>
+                RepaintBoundary(
+                  child: SizedBox(
+                    height: cardHeight,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      itemCount: artists.length + 1,
+                      separatorBuilder: (context, index) =>
                         const SizedBox(width: 14),
                     itemBuilder: (context, index) {
                       if (isLoggedIn) {
@@ -282,6 +287,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     },
                   ),
                 ),
+              ),
               const SizedBox(height: 28),
             ],
           ],

@@ -36,8 +36,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   final GlobalKey<SearchScreenState> _searchKey = GlobalKey<SearchScreenState>();
 
-  // Crawl / Minimization state for floating mini player and bottom bar
-  bool _isMiniPlayerCrawled = false;
+  // Crawl / Minimization state for floating mini player and bottom bar using ValueNotifier
+  // to avoid triggering rebuilds of the entire HomeScreen and active tab during vertical scrolling
+  final ValueNotifier<bool> _miniPlayerCrawledNotifier = ValueNotifier<bool>(false);
   double _accumulatedScrollDelta = 0.0;
 
   // Track loaded tabs lazily so Explore, Library, and Search screens are not mounted on first render
@@ -59,8 +60,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final pixels = notification.metrics.pixels;
     if (pixels <= 25) {
-      if (_isMiniPlayerCrawled) {
-        setState(() => _isMiniPlayerCrawled = false);
+      if (_miniPlayerCrawledNotifier.value) {
+        _miniPlayerCrawledNotifier.value = false;
       }
       _accumulatedScrollDelta = 0;
       return false;
@@ -68,25 +69,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     if (notification is UserScrollNotification) {
       if (notification.direction == ScrollDirection.reverse &&
-          !_isMiniPlayerCrawled) {
-        setState(() => _isMiniPlayerCrawled = true);
+          !_miniPlayerCrawledNotifier.value) {
+        _miniPlayerCrawledNotifier.value = true;
       } else if (notification.direction == ScrollDirection.forward &&
-          _isMiniPlayerCrawled) {
-        setState(() => _isMiniPlayerCrawled = false);
+          _miniPlayerCrawledNotifier.value) {
+        _miniPlayerCrawledNotifier.value = false;
       }
     } else if (notification is ScrollUpdateNotification) {
       final delta = notification.scrollDelta ?? 0.0;
       if (delta > 0) {
         _accumulatedScrollDelta =
             (_accumulatedScrollDelta > 0 ? _accumulatedScrollDelta : 0) + delta;
-        if (_accumulatedScrollDelta > 45 && !_isMiniPlayerCrawled) {
-          setState(() => _isMiniPlayerCrawled = true);
+        if (_accumulatedScrollDelta > 45 && !_miniPlayerCrawledNotifier.value) {
+          _miniPlayerCrawledNotifier.value = true;
         }
       } else if (delta < 0) {
         _accumulatedScrollDelta =
             (_accumulatedScrollDelta < 0 ? _accumulatedScrollDelta : 0) + delta;
-        if (_accumulatedScrollDelta < -25 && _isMiniPlayerCrawled) {
-          setState(() => _isMiniPlayerCrawled = false);
+        if (_accumulatedScrollDelta < -25 && _miniPlayerCrawledNotifier.value) {
+          _miniPlayerCrawledNotifier.value = false;
         }
       }
     }
@@ -97,6 +98,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _miniPlayerCrawledNotifier.dispose();
     super.dispose();
   }
 
@@ -107,9 +109,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   void _navigateToSearchWithQuery(String query) {
     ref.read(currentTabProvider.notifier).state = 3;
-    setState(() {
-      _isMiniPlayerCrawled = false;
-    });
+    _miniPlayerCrawledNotifier.value = false;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _searchKey.currentState?.search(query);
     });
@@ -141,10 +141,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       current,
     ) {
       if (current != null && prev?.id != current.id) {
-        if (_isMiniPlayerCrawled) {
-          setState(() {
-            _isMiniPlayerCrawled = false;
-          });
+        if (_miniPlayerCrawledNotifier.value) {
+          _miniPlayerCrawledNotifier.value = false;
         }
       }
     });
@@ -163,9 +161,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   child: HomeFeedScreen(
                     onNavigateToTab: (index) {
                       ref.read(currentTabProvider.notifier).state = index;
-                      setState(() {
-                        _isMiniPlayerCrawled = false;
-                      });
+                      _miniPlayerCrawledNotifier.value = false;
                     },
                     onSearch: _navigateToSearchWithQuery,
                   ),
@@ -238,23 +234,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: RepaintBoundary(
               child: SafeArea(
                 top: false,
-                child: LiquidGlassBottomBar(
-                  currentIndex: currentTabIndex,
-                  isCrawled: _isMiniPlayerCrawled,
-                  onTabSelected: (index) {
-                    ref.read(currentTabProvider.notifier).state = index;
-                    setState(() {
-                      _isMiniPlayerCrawled = false;
-                    });
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: _miniPlayerCrawledNotifier,
+                  builder: (context, isCrawled, _) {
+                    return LiquidGlassBottomBar(
+                      currentIndex: currentTabIndex,
+                      isCrawled: isCrawled,
+                      onTabSelected: (index) {
+                        ref.read(currentTabProvider.notifier).state = index;
+                        _miniPlayerCrawledNotifier.value = false;
+                      },
+                      onExpand: () {
+                        _miniPlayerCrawledNotifier.value = false;
+                      },
+                      bottomAccessory: hasCurrentSong
+                          ? PlayerControls(onTap: _openPlayerScreen)
+                          : null,
+                    );
                   },
-                  onExpand: () {
-                    setState(() {
-                      _isMiniPlayerCrawled = false;
-                    });
-                  },
-                  bottomAccessory: hasCurrentSong
-                      ? PlayerControls(onTap: _openPlayerScreen)
-                      : null,
                 ),
               ),
             ),

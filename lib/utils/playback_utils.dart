@@ -52,11 +52,13 @@ Widget playerHeroFlightShuttleBuilder(
           ? (8.0 * (1.0 - t)).clamp(0.0, 8.0)
           : (8.0 * t).clamp(0.0, 8.0);
 
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: Material(
-          color: Colors.transparent,
-          child: toHero.child,
+      return RepaintBoundary(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(radius),
+          child: Material(
+            color: Colors.transparent,
+            child: toHero.child,
+          ),
         ),
       );
     },

@@ -86,21 +86,14 @@ class _ApplePressableState extends State<ApplePressable> {
         scale: _isPressed ? widget.pressedScale : 1.0,
         duration: widget.animationDuration,
         curve: Curves.easeOutCubic,
-        child: AnimatedOpacity(
-          opacity: _isPressed ? widget.pressedOpacity : 1.0,
-          duration: widget.animationDuration,
-          curve: Curves.easeOutCubic,
-          child: AnimatedContainer(
-            duration: widget.animationDuration,
-            curve: Curves.easeOutCubic,
-            decoration: BoxDecoration(
-              borderRadius: effectiveRadius,
-              color: _isPressed
-                  ? (widget.pressedColor ?? const Color(0x14FFFFFF))
-                  : const Color(0x00000000),
-            ),
-            child: widget.child,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: effectiveRadius,
+            color: _isPressed
+                ? (widget.pressedColor ?? const Color(0x14FFFFFF))
+                : const Color(0x00000000),
           ),
+          child: widget.child,
         ),
       ),
     );

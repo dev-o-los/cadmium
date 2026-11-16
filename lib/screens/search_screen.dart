@@ -54,6 +54,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
   late final FocusNode _focusNode;
   bool _isInternalController = false;
   Timer? _debounceTimer;
+  final Set<int> _loadedSearchTabs = {0};
 
   @override
   void initState() {
@@ -456,6 +457,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
       searchState.selectedCategory,
     );
     final activeIndex = categoryIndex >= 0 ? categoryIndex : 0;
+    _loadedSearchTabs.add(activeIndex);
 
     return NotificationListener<ScrollNotification>(
       onNotification: (scrollInfo) {
@@ -468,35 +470,47 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
       child: IndexedStack(
         index: activeIndex,
         children: [
-          _buildAllCategoriesGrouped(
-            searchState.results,
-            searchState.isLoadingMore,
-          ),
-          _buildFullCategoryList(
-            items: searchState.results.songs,
-            itemBuilder: (song) => _buildSongRow(song),
-            isLoadingMore: searchState.isLoadingMore,
-          ),
-          _buildFullCategoryList(
-            items: searchState.results.videos,
-            itemBuilder: (video) => _buildVideoRow(video),
-            isLoadingMore: searchState.isLoadingMore,
-          ),
-          _buildFullCategoryList(
-            items: searchState.results.albums,
-            itemBuilder: (album) => _buildAlbumRow(album),
-            isLoadingMore: searchState.isLoadingMore,
-          ),
-          _buildFullCategoryList(
-            items: searchState.results.artists,
-            itemBuilder: (artist) => _buildArtistRow(artist),
-            isLoadingMore: searchState.isLoadingMore,
-          ),
-          _buildFullCategoryList(
-            items: searchState.results.playlists,
-            itemBuilder: (playlist) => _buildPlaylistRow(playlist),
-            isLoadingMore: searchState.isLoadingMore,
-          ),
+          _loadedSearchTabs.contains(0)
+              ? _buildAllCategoriesGrouped(
+                  searchState.results,
+                  searchState.isLoadingMore,
+                )
+              : const SizedBox.shrink(),
+          _loadedSearchTabs.contains(1)
+              ? _buildFullCategoryList(
+                  items: searchState.results.songs,
+                  itemBuilder: (song) => _buildSongRow(song),
+                  isLoadingMore: searchState.isLoadingMore,
+                )
+              : const SizedBox.shrink(),
+          _loadedSearchTabs.contains(2)
+              ? _buildFullCategoryList(
+                  items: searchState.results.videos,
+                  itemBuilder: (video) => _buildVideoRow(video),
+                  isLoadingMore: searchState.isLoadingMore,
+                )
+              : const SizedBox.shrink(),
+          _loadedSearchTabs.contains(3)
+              ? _buildFullCategoryList(
+                  items: searchState.results.albums,
+                  itemBuilder: (album) => _buildAlbumRow(album),
+                  isLoadingMore: searchState.isLoadingMore,
+                )
+              : const SizedBox.shrink(),
+          _loadedSearchTabs.contains(4)
+              ? _buildFullCategoryList(
+                  items: searchState.results.artists,
+                  itemBuilder: (artist) => _buildArtistRow(artist),
+                  isLoadingMore: searchState.isLoadingMore,
+                )
+              : const SizedBox.shrink(),
+          _loadedSearchTabs.contains(5)
+              ? _buildFullCategoryList(
+                  items: searchState.results.playlists,
+                  itemBuilder: (playlist) => _buildPlaylistRow(playlist),
+                  isLoadingMore: searchState.isLoadingMore,
+                )
+              : const SizedBox.shrink(),
         ],
       ),
     );
