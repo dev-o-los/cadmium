@@ -224,16 +224,26 @@ class WavifyCachedImage extends StatelessWidget {
   }
 
   Widget _buildDefaultPlaceholder() {
-    return AppShimmer(
-      baseColor: shimmerBaseColor,
-      highlightColor: shimmerHighlightColor,
-      child: Container(
-        width: width,
-        height: height,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: borderRadius,
+    if (shimmerBaseColor != null || shimmerHighlightColor != null) {
+      return AppShimmer(
+        baseColor: shimmerBaseColor,
+        highlightColor: shimmerHighlightColor,
+        child: Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: borderRadius ?? BorderRadius.circular(8),
+          ),
         ),
+      );
+    }
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: AppColors.appleDarkSurface,
+        borderRadius: borderRadius ?? BorderRadius.circular(8),
       ),
     );
   }

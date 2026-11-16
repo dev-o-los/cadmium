@@ -127,34 +127,51 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             ? recentlyPlayed
             : data.quickPicks.take(8).toList());
 
-    final feedChildren = <Widget>[
+    final sectionBuilders = <WidgetBuilder>[
       // Scrollable Brand Logo Header
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+      (context) => const Padding(
+        padding: EdgeInsets.fromLTRB(16, 14, 16, 20),
         child: Align(
           alignment: Alignment.centerLeft,
-          child: const CadmiumLogo(size: 56),
+          child: CadmiumLogo(size: 56),
         ),
       ),
 
       // Section 1: "Top Picks for You" Hero Cards Carousel (No liked music)
-      _buildTopPicksHeroSection(context, ref, cleanHeroCards),
-      const SizedBox(height: AppleSpacing.sectionSpacing),
+      (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildTopPicksHeroSection(context, ref, cleanHeroCards),
+          const SizedBox(height: AppleSpacing.sectionSpacing),
+        ],
+      ),
 
       // Section 2: "Recents" (Always directly below Top Picks for You)
-      if (effectiveRecents.isNotEmpty) ...[
-        _build4ItemColumnsSection(
-          context: context,
-          ref: ref,
-          title: 'Recents',
-          songs: effectiveRecents,
+      if (effectiveRecents.isNotEmpty)
+        (context) => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _build4ItemColumnsSection(
+              context: context,
+              ref: ref,
+              title: 'Recents',
+              songs: effectiveRecents,
+            ),
+            const SizedBox(height: AppleSpacing.sectionSpacing),
+          ],
         ),
-        const SizedBox(height: AppleSpacing.sectionSpacing),
-      ],
 
       // Section 3: "Find Your Mood"
-      _buildFindYourMoodSection(context, data.moods),
-      const SizedBox(height: AppleSpacing.sectionSpacing),
+      (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildFindYourMoodSection(context, data.moods),
+          const SizedBox(height: AppleSpacing.sectionSpacing),
+        ],
+      ),
     ];
 
     if (data.dynamicSections.isNotEmpty) {
@@ -170,103 +187,172 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
 
         switch (section.layout) {
           case HomeSectionLayout.songColumns:
-            feedChildren.add(
-              _build4ItemColumnsSection(
-                context: context,
-                ref: ref,
-                title: section.title,
-                subtitle: section.subtitle,
-                songs: section.songs,
+            sectionBuilders.add(
+              (context) => Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _build4ItemColumnsSection(
+                    context: context,
+                    ref: ref,
+                    title: section.title,
+                    subtitle: section.subtitle,
+                    songs: section.songs,
+                  ),
+                  const SizedBox(height: AppleSpacing.sectionSpacing),
+                ],
               ),
             );
-            feedChildren.add(const SizedBox(height: AppleSpacing.sectionSpacing));
             break;
 
           case HomeSectionLayout.squareCards:
-            feedChildren.add(
-              _buildSquareCardsSection(
-                context: context,
-                ref: ref,
-                title: section.title,
-                subtitle: section.subtitle,
-                albums: section.albums,
-                playlists: section.playlists,
+            sectionBuilders.add(
+              (context) => Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSquareCardsSection(
+                    context: context,
+                    ref: ref,
+                    title: section.title,
+                    subtitle: section.subtitle,
+                    albums: section.albums,
+                    playlists: section.playlists,
+                  ),
+                  const SizedBox(height: AppleSpacing.sectionSpacing),
+                ],
               ),
             );
-            feedChildren.add(const SizedBox(height: AppleSpacing.sectionSpacing));
             break;
 
           case HomeSectionLayout.videoCards:
-            feedChildren.add(
-              _buildMusicVideosSection(
-                context,
-                ref,
-                section.videos,
-                title: section.title,
-                subtitle: section.subtitle,
+            sectionBuilders.add(
+              (context) => Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildMusicVideosSection(
+                    context,
+                    ref,
+                    section.videos,
+                    title: section.title,
+                    subtitle: section.subtitle,
+                  ),
+                  const SizedBox(height: AppleSpacing.sectionSpacing),
+                ],
               ),
             );
-            feedChildren.add(const SizedBox(height: AppleSpacing.sectionSpacing));
             break;
         }
       }
     } else {
       // Fallback layout (offline, unauthenticated, tests)
-      feedChildren.addAll([
-        _buildAlbumsAndSinglesSection(context, ref, data.albumsAndSingles),
-        const SizedBox(height: AppleSpacing.sectionSpacing),
-        _buildMusicVideosSection(context, ref, data.musicVideos),
-        const SizedBox(height: AppleSpacing.sectionSpacing),
-        _build4ItemColumnsSection(
-          context: context,
-          ref: ref,
-          title: 'Quick picks',
-          songs: data.quickPicks,
+      sectionBuilders.addAll([
+        (context) => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildAlbumsAndSinglesSection(context, ref, data.albumsAndSingles),
+            const SizedBox(height: AppleSpacing.sectionSpacing),
+          ],
         ),
-        const SizedBox(height: AppleSpacing.sectionSpacing),
-        if (data.mixedForYou.isNotEmpty) ...[
-          _buildPlaylistCarousel(
-            context: context,
-            ref: ref,
-            title: 'Mixed for You',
-            playlists: data.mixedForYou,
-          ),
-          const SizedBox(height: AppleSpacing.sectionSpacing),
-        ],
-        if (data.myMixes.isNotEmpty) ...[
-          _buildPlaylistCarousel(
-            context: context,
-            ref: ref,
-            title: 'Your Mixes',
-            playlists: data.myMixes,
-          ),
-          const SizedBox(height: AppleSpacing.sectionSpacing),
-        ],
-        if (data.featuredPlaylists.isNotEmpty) ...[
-          _buildPlaylistCarousel(
-            context: context,
-            ref: ref,
-            title: 'Featured Playlists',
-            playlists: data.featuredPlaylists,
-          ),
-          const SizedBox(height: AppleSpacing.sectionSpacing),
-        ],
-        if (data.featuredArtists.isNotEmpty) ...[
-          _buildFeaturedArtistsSection(context, ref, data.featuredArtists),
-          const SizedBox(height: AppleSpacing.sectionSpacing),
-        ],
-        _buildHorizontalSongCarousel(
-          context: context,
-          ref: ref,
-          title: 'Your daily discover',
-          songs: data.dailyDiscover,
+        (context) => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildMusicVideosSection(context, ref, data.musicVideos),
+            const SizedBox(height: AppleSpacing.sectionSpacing),
+          ],
         ),
-        const SizedBox(height: AppleSpacing.sectionSpacing),
-        _buildHorizontalSongCarousel(
-          context: context,
-          ref: ref,
-          title: 'Trending songs for you',
-          songs: data.trendingSongs,
+        (context) => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _build4ItemColumnsSection(
+              context: context,
+              ref: ref,
+              title: 'Quick picks',
+              songs: data.quickPicks,
+            ),
+            const SizedBox(height: AppleSpacing.sectionSpacing),
+          ],
+        ),
+        if (data.mixedForYou.isNotEmpty)
+          (context) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildPlaylistCarousel(
+                context: context,
+                ref: ref,
+                title: 'Mixed for You',
+                playlists: data.mixedForYou,
+              ),
+              const SizedBox(height: AppleSpacing.sectionSpacing),
+            ],
+          ),
+        if (data.myMixes.isNotEmpty)
+          (context) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildPlaylistCarousel(
+                context: context,
+                ref: ref,
+                title: 'Your Mixes',
+                playlists: data.myMixes,
+              ),
+              const SizedBox(height: AppleSpacing.sectionSpacing),
+            ],
+          ),
+        if (data.featuredPlaylists.isNotEmpty)
+          (context) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildPlaylistCarousel(
+                context: context,
+                ref: ref,
+                title: 'Featured Playlists',
+                playlists: data.featuredPlaylists,
+              ),
+              const SizedBox(height: AppleSpacing.sectionSpacing),
+            ],
+          ),
+        if (data.featuredArtists.isNotEmpty)
+          (context) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildFeaturedArtistsSection(context, ref, data.featuredArtists),
+              const SizedBox(height: AppleSpacing.sectionSpacing),
+            ],
+          ),
+        (context) => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHorizontalSongCarousel(
+              context: context,
+              ref: ref,
+              title: 'Your daily discover',
+              songs: data.dailyDiscover,
+            ),
+            const SizedBox(height: AppleSpacing.sectionSpacing),
+          ],
+        ),
+        (context) => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHorizontalSongCarousel(
+              context: context,
+              ref: ref,
+              title: 'Trending songs for you',
+              songs: data.trendingSongs,
+            ),
+            const SizedBox(height: AppleSpacing.sectionSpacing),
+          ],
         ),
       ]);
     }
@@ -278,13 +364,18 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
           color: Colors.white,
           backgroundColor: AppColors.appleDarkSurface,
           onRefresh: () => ref.read(homeDataProvider.notifier).refresh(),
-          child: ListView(
+          child: ListView.builder(
             controller: _scrollController,
             physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics(),
             ),
             padding: EdgeInsets.fromLTRB(0, topPadding + 6, 0, 160),
-            children: feedChildren,
+            itemCount: sectionBuilders.length,
+            itemBuilder: (context, index) {
+              return RepaintBoundary(
+                child: sectionBuilders[index](context),
+              );
+            },
           ),
         ),
 

@@ -40,6 +40,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _isMiniPlayerCrawled = false;
   double _accumulatedScrollDelta = 0.0;
 
+  // Track loaded tabs lazily so Explore, Library, and Search screens are not mounted on first render
+  final Set<int> _loadedTabs = {0};
+
   @override
   void initState() {
     super.initState();
@@ -118,6 +121,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final currentTabIndex = ref.watch(currentTabProvider);
     final topPadding = MediaQuery.of(context).padding.top;
 
+    // Lazily mark the active tab as loaded
+    _loadedTabs.add(currentTabIndex);
+
     // Listen for audio stream resolution errors
     ref.listen<String?>(playerProvider.select((s) => s.errorMessage), (
       prev,
@@ -164,21 +170,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     onSearch: _navigateToSearchWithQuery,
                   ),
                 ),
-                RepaintBoundary(
-                  child: ExploreScreen(
-                    onSearch: _navigateToSearchWithQuery,
-                  ),
-                ),
-                const RepaintBoundary(
-                  child: LibraryScreen(),
-                ),
-                RepaintBoundary(
-                  child: SearchScreen(
-                    key: _searchKey,
-                    searchController: _searchController,
-                    showAvatar: false,
-                  ),
-                ),
+                _loadedTabs.contains(1)
+                    ? RepaintBoundary(
+                        child: ExploreScreen(
+                          onSearch: _navigateToSearchWithQuery,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+                _loadedTabs.contains(2)
+                    ? const RepaintBoundary(
+                        child: LibraryScreen(),
+                      )
+                    : const SizedBox.shrink(),
+                _loadedTabs.contains(3)
+                    ? RepaintBoundary(
+                        child: SearchScreen(
+                          key: _searchKey,
+                          searchController: _searchController,
+                          showAvatar: false,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
               ],
             ),
           ),

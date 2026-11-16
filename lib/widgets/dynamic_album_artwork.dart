@@ -42,7 +42,9 @@ class _DynamicAlbumArtworkState extends ConsumerState<DynamicAlbumArtwork> {
     } else {
       _resolvedUrl = _sanitizeUrl(widget.album.thumbnailUrl);
       if (_resolvedUrl == null || _resolvedUrl!.isEmpty) {
-        _fetchArtwork();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _fetchArtwork();
+        });
       }
     }
   }
@@ -58,7 +60,9 @@ class _DynamicAlbumArtworkState extends ConsumerState<DynamicAlbumArtwork> {
         _resolvedUrl = _sanitizeUrl(widget.album.thumbnailUrl);
         _hasAttemptedFetch = false;
         if (_resolvedUrl == null || _resolvedUrl!.isEmpty) {
-          _fetchArtwork();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _fetchArtwork();
+          });
         }
       }
     }

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
@@ -113,15 +114,27 @@ class PlayerControls extends ConsumerWidget {
                   flightShuttleBuilder: playerHeroFlightShuttleBuilder,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(6),
-                    child: WavifyCachedImage(
-                      imageUrl: highResArt ?? thumbArt,
-                      placeholderImageUrl: thumbArt,
-                      songId: songId,
-                      width: 31,
-                      height: 31,
-                      fit: BoxFit.cover,
-                      filterQuality: FilterQuality.medium,
-                      errorWidget: _fallbackArtwork(size: 31),
+                    child: Animate(
+                      key: ValueKey('mini_art_inline_$songId'),
+                      effects: const [
+                        FadeEffect(duration: Duration(milliseconds: 300)),
+                        ScaleEffect(
+                          begin: Offset(0.9, 0.9),
+                          end: Offset(1.0, 1.0),
+                          duration: Duration(milliseconds: 350),
+                          curve: Curves.easeOutCubic,
+                        ),
+                      ],
+                      child: WavifyCachedImage(
+                        imageUrl: highResArt ?? thumbArt,
+                        placeholderImageUrl: thumbArt,
+                        songId: songId,
+                        width: 31,
+                        height: 31,
+                        fit: BoxFit.cover,
+                        filterQuality: FilterQuality.medium,
+                        errorWidget: _fallbackArtwork(size: 31),
+                      ),
                     ),
                   ),
                 ),
@@ -243,15 +256,27 @@ class PlayerControls extends ConsumerWidget {
                         flightShuttleBuilder: playerHeroFlightShuttleBuilder,
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(6),
-                          child: WavifyCachedImage(
-                            imageUrl: highResArt ?? thumbArt,
-                            placeholderImageUrl: thumbArt,
-                            songId: songId,
-                            width: 31,
-                            height: 31,
-                            fit: BoxFit.cover,
-                            filterQuality: FilterQuality.medium,
-                            errorWidget: _fallbackArtwork(size: 31),
+                          child: Animate(
+                            key: ValueKey('mini_art_expanded_$songId'),
+                            effects: const [
+                              FadeEffect(duration: Duration(milliseconds: 300)),
+                              ScaleEffect(
+                                begin: Offset(0.9, 0.9),
+                                end: Offset(1.0, 1.0),
+                                duration: Duration(milliseconds: 350),
+                                curve: Curves.easeOutCubic,
+                              ),
+                            ],
+                            child: WavifyCachedImage(
+                              imageUrl: highResArt ?? thumbArt,
+                              placeholderImageUrl: thumbArt,
+                              songId: songId,
+                              width: 31,
+                              height: 31,
+                              fit: BoxFit.cover,
+                              filterQuality: FilterQuality.medium,
+                              errorWidget: _fallbackArtwork(size: 31),
+                            ),
                           ),
                         ),
                       ),

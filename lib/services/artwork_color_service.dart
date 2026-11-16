@@ -101,19 +101,8 @@ class ArtworkColorService {
 
       _paletteCache[cleanUrl] = palette;
 
-      // Extract dominant / most populated color in bottom area connecting with bottom player
-      PaletteGenerator? bottomPalette;
-      try {
-        bottomPalette = await PaletteGenerator.fromImageProvider(
-          imageProvider,
-          size: const Size(64, 64),
-          region: const Rect.fromLTWH(0, 32, 64, 32),
-          maximumColorCount: 16,
-          filters: const [],
-        ).timeout(const Duration(milliseconds: 1500));
-      } catch (_) {}
-
-      final dominant = _pickMostPopulatedColor(bottomPalette ?? palette);
+      // Extract dominant / most populated color
+      final dominant = _pickMostPopulatedColor(palette);
       _dominantCache[cleanUrl] = _tuneForBottomPlayerFoundation(dominant);
 
       // Optimistically compute and populate primary, secondary, and vibrant bloom caches

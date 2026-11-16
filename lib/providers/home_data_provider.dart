@@ -29,7 +29,8 @@ class HomeDataNotifier extends AsyncNotifier<HomeData> {
   }
 
   void _revalidateInBackground(MusicService musicService) {
-    Future.microtask(() async {
+    // Delay background revalidation so app launch and first frame render are 100% fluid
+    Future.delayed(const Duration(milliseconds: 1200), () async {
       try {
         final fresh = await musicService.getHomeData(refresh: true);
         if (!fresh.isEmpty) {
