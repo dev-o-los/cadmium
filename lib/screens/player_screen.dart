@@ -31,18 +31,23 @@ import '../widgets/smooth_player_loader.dart';
 import '../widgets/track_options_sheet.dart';
 import '../widgets/wavify_cached_image.dart';
 
-/// Reactive provider extracting the solid primary color strictly from album artwork via PaletteGenerator.
+/// Reactive provider extracting the solid primary color from album artwork or video thumbnail via PaletteGenerator.
 final currentSongPrimaryColorProvider =
     FutureProvider.autoDispose<Color>((ref) async {
   ref.watch(
-    playerProvider.select((s) => (s.currentSong?.id, s.currentSong?.thumbnailUrl)),
+    playerProvider.select(
+      (s) => (s.currentSong?.id, s.currentSong?.thumbnailUrl),
+    ),
   );
-  final song = ref.read(playerProvider).currentSong;
+  final playerState = ref.read(playerProvider);
+  final song = playerState.currentSong;
   if (song == null) return const Color(0xFF1F2438);
-  final art = ArtworkColorService.extractableArtworkUrl(
+  final art = ArtworkColorService.extractEffectiveColorUrl(
     highResUrl: song.highResThumbnailUrl,
     resolvedUrl: song.resolvedThumbnailUrl,
     thumbnailUrl: song.thumbnailUrl,
+    songId: song.id,
+    preferVideo: false,
   );
   return ArtworkColorService.instance.extractAttractiveColor(
     art,
@@ -50,18 +55,23 @@ final currentSongPrimaryColorProvider =
   );
 });
 
-/// Reactive provider extracting the secondary most important color strictly from album artwork.
+/// Reactive provider extracting the secondary most important color from album artwork.
 final currentSongSecondaryColorProvider =
     FutureProvider.autoDispose<Color>((ref) async {
   ref.watch(
-    playerProvider.select((s) => (s.currentSong?.id, s.currentSong?.thumbnailUrl)),
+    playerProvider.select(
+      (s) => (s.currentSong?.id, s.currentSong?.thumbnailUrl),
+    ),
   );
-  final song = ref.read(playerProvider).currentSong;
+  final playerState = ref.read(playerProvider);
+  final song = playerState.currentSong;
   if (song == null) return const Color(0xFF282034);
-  final art = ArtworkColorService.extractableArtworkUrl(
+  final art = ArtworkColorService.extractEffectiveColorUrl(
     highResUrl: song.highResThumbnailUrl,
     resolvedUrl: song.resolvedThumbnailUrl,
     thumbnailUrl: song.thumbnailUrl,
+    songId: song.id,
+    preferVideo: false,
   );
   return ArtworkColorService.instance.extractSecondaryColor(
     art,
@@ -69,18 +79,23 @@ final currentSongSecondaryColorProvider =
   );
 });
 
-/// Reactive provider extracting the dominant (most populated) color in the bottom area and whole album artwork.
+/// Reactive provider extracting the dominant (most populated) color in the bottom player area.
 final currentSongDominantColorProvider =
     FutureProvider.autoDispose<Color>((ref) async {
   ref.watch(
-    playerProvider.select((s) => (s.currentSong?.id, s.currentSong?.thumbnailUrl)),
+    playerProvider.select(
+      (s) => (s.currentSong?.id, s.currentSong?.thumbnailUrl),
+    ),
   );
-  final song = ref.read(playerProvider).currentSong;
+  final playerState = ref.read(playerProvider);
+  final song = playerState.currentSong;
   if (song == null) return const Color(0xFF141418);
-  final art = ArtworkColorService.extractableArtworkUrl(
+  final art = ArtworkColorService.extractEffectiveColorUrl(
     highResUrl: song.highResThumbnailUrl,
     resolvedUrl: song.resolvedThumbnailUrl,
     thumbnailUrl: song.thumbnailUrl,
+    songId: song.id,
+    preferVideo: false,
   );
   return ArtworkColorService.instance.extractDominantColor(
     art,
@@ -88,18 +103,23 @@ final currentSongDominantColorProvider =
   );
 });
 
-/// Reactive provider extracting the brightest vibrant color strictly from album artwork.
+/// Reactive provider extracting the brightest vibrant color from album artwork.
 final currentSongBestColorProvider =
     FutureProvider.autoDispose<Color>((ref) async {
   ref.watch(
-    playerProvider.select((s) => (s.currentSong?.id, s.currentSong?.thumbnailUrl)),
+    playerProvider.select(
+      (s) => (s.currentSong?.id, s.currentSong?.thumbnailUrl),
+    ),
   );
-  final song = ref.read(playerProvider).currentSong;
+  final playerState = ref.read(playerProvider);
+  final song = playerState.currentSong;
   if (song == null) return const Color(0xFFE10600);
-  final art = ArtworkColorService.extractableArtworkUrl(
+  final art = ArtworkColorService.extractEffectiveColorUrl(
     highResUrl: song.highResThumbnailUrl,
     resolvedUrl: song.resolvedThumbnailUrl,
     thumbnailUrl: song.thumbnailUrl,
+    songId: song.id,
+    preferVideo: false,
   );
   return ArtworkColorService.instance.extractBestVibrantColor(
     art,
@@ -150,7 +170,9 @@ class _PlayerColorsTween extends Tween<_PlayerScreenColors> {
 /// - Clean camera-notch-free top bar with truncated "Playing from Album"
 /// - Lifted transport and dock buttons (38px up from bottom)
 class PlayerScreen extends ConsumerStatefulWidget {
-  const PlayerScreen({super.key});
+  final PlayerViewMode? initialMode;
+
+  const PlayerScreen({super.key, this.initialMode});
 
   @override
   ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
@@ -187,6 +209,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   void initState() {
     super.initState();
+    if (widget.initialMode != null) {
+      _currentMode = widget.initialMode!;
+    }
 
     // Downside player collapse/expand animation controller (starts visible)
     _controlsAnimController = AnimationController(
@@ -509,14 +534,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     Color dominantBottom,
   })
       _computeAtmosphericPalette(SongItem song) {
-    final artworkUrl = ArtworkColorService.extractableArtworkUrl(
+    final artworkUrl = ArtworkColorService.extractEffectiveColorUrl(
       highResUrl: song.highResThumbnailUrl,
       resolvedUrl: song.resolvedThumbnailUrl,
       thumbnailUrl: song.thumbnailUrl,
+      songId: song.id,
+      preferVideo: false,
     );
     final seed = '${song.title} ${song.artist}';
 
-    // The most populated color in that bottom area of the whole album art
+    // The most populated color in that bottom area of the album artwork
     final dominantColor = (artworkUrl != null)
         ? (ref.watch(currentSongDominantColorProvider).asData?.value ??
               ArtworkColorService.instance.getCachedDominantColor(artworkUrl) ??
@@ -608,10 +635,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Widget _buildAmbientBackdrop(SongItem song, double screenHeight) {
-    final artworkUrl = ArtworkColorService.extractableArtworkUrl(
+    final artworkUrl = ArtworkColorService.extractEffectiveColorUrl(
       highResUrl: song.highResThumbnailUrl,
       resolvedUrl: song.resolvedThumbnailUrl,
       thumbnailUrl: song.thumbnailUrl,
+      songId: song.id,
+      preferVideo: false,
     );
 
     final palette = _computeAtmosphericPalette(song);
@@ -849,7 +878,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     required double screenHeight,
     required double headerTop,
   }) {
-    final artworkUrl = song.highResThumbnailUrl ?? song.resolvedThumbnailUrl;
+    final artworkUrl = song.highResThumbnailUrl ?? song.resolvedThumbnailUrl ?? song.thumbnailUrl;
     if (artworkUrl == null || artworkUrl.isEmpty) {
       return Container(color: Colors.black);
     }
@@ -865,42 +894,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     const double targetThumbSize = 48.0;
     final hasVideo = animatedArtworkUrl != null && animatedArtworkUrl.isNotEmpty;
 
-    // Build heavy image/video canvas ONCE per song/state change outside AnimatedBuilder
-    // so tab/mode transitions run at full frame rate with crisp hardware video rendering.
-    Widget staticMedia = WavifyCachedImage(
-      imageUrl: artworkUrl,
-      placeholderImageUrl: song.resolvedThumbnailUrl ?? song.thumbnailUrl,
-      songId: song.id,
-      fit: BoxFit.cover,
-      alignment: Alignment.topCenter,
-      filterQuality: FilterQuality.high,
-      shimmerBaseColor: Colors.white.withValues(alpha: 0.14),
-      shimmerHighlightColor: Colors.white.withValues(alpha: 0.32),
-      errorWidget: _fallbackMiniArt(
-        size: targetThumbSize,
-        borderRadius: 12.0,
-      ),
-    );
-
-    if (hasVideo) {
-      staticMedia = Stack(
-        fit: StackFit.expand,
-        children: [
-          staticMedia,
-          AmbientVideoCanvas(
-            mediaUrl: animatedArtworkUrl,
-            headers: animatedArtworkHeaders,
-            fallbackImageUrl: song.thumbnailUrl,
-            isPlaying: isPlaying,
-            fit: BoxFit.cover,
-            alignment: Alignment.center,
-            zoomScale: 1.28,
-          ),
-        ],
-      );
-    }
-
-    final memoizedArtwork = RepaintBoundary(
+    // Static studio album cover artwork - strictly used in lyrics tab
+    final staticCover = RepaintBoundary(
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 340),
         switchInCurve: Curves.easeOutCubic,
@@ -916,21 +911,64 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         },
         child: KeyedSubtree(
           key: ValueKey('player_art_switch_${song.album ?? song.id}_${song.id}'),
-          child: staticMedia,
+          child: WavifyCachedImage(
+            imageUrl: artworkUrl,
+            placeholderImageUrl: song.resolvedThumbnailUrl ?? song.thumbnailUrl,
+            songId: song.id,
+            fit: BoxFit.cover,
+            alignment: Alignment.topCenter,
+            filterQuality: FilterQuality.high,
+            shimmerBaseColor: Colors.white.withValues(alpha: 0.14),
+            shimmerHighlightColor: Colors.white.withValues(alpha: 0.32),
+            errorWidget: _fallbackMiniArt(
+              size: targetThumbSize,
+              borderRadius: 12.0,
+            ),
+          ),
         ),
       ),
     );
 
+    final videoCanvas = hasVideo
+        ? RepaintBoundary(
+            child: AmbientVideoCanvas(
+              mediaUrl: animatedArtworkUrl,
+              headers: animatedArtworkHeaders,
+              fallbackImageUrl: song.thumbnailUrl,
+              isPlaying: isPlaying && _currentMode != PlayerViewMode.lyrics,
+              fit: BoxFit.cover,
+              alignment: Alignment.center,
+              zoomScale: 1.28,
+            ),
+          )
+        : null;
+
     return AnimatedBuilder(
       animation: _modeAnimController,
-      child: memoizedArtwork,
-      builder: (context, artworkChild) {
+      builder: (context, _) {
         final modeVal = CurvedAnimation(
           parent: _modeAnimController,
           curve: const Cubic(0.16, 1.0, 0.3, 1.0),
         ).value;
 
-        // 60% artwork/video layout in Now Playing mode -> 48px thumbnail in Lyrics/Queue
+        // In lyrics tab, only show album cover (video opacity is 0.0)
+        final videoOpacity = (1.0 - (modeVal * 2.5)).clamp(0.0, 1.0);
+        final isVideoActive = hasVideo && videoCanvas != null && videoOpacity > 0.01;
+
+        final Widget mediaContent = isVideoActive
+            ? Stack(
+                fit: StackFit.expand,
+                children: [
+                  staticCover,
+                  Opacity(
+                    opacity: videoOpacity,
+                    child: videoCanvas,
+                  ),
+                ],
+              )
+            : staticCover;
+
+        // Artwork fixed at 60% layout dissolving organically into the bottom player palette
         final expandedHeight = screenHeight * 0.60;
         final height = ui.lerpDouble(
           expandedHeight,
@@ -938,7 +976,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           modeVal,
         )!;
 
-        // Interpolate rect geometry between Now Playing 60% canvas and Lyrics/Queue 48x48 header thumbnail
+        // Interpolate rect geometry between Now Playing canvas and Lyrics/Queue 48x48 header thumbnail
         final left = ui.lerpDouble(0.0, 24.0, modeVal)!;
         final top = ui.lerpDouble(0.0, headerTop, modeVal)!;
         final width = ui.lerpDouble(screenWidth, targetThumbSize, modeVal)!;
@@ -949,7 +987,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final dissolveFactor = (1.0 - (modeVal * 1.15)).clamp(0.0, 1.0);
         Widget heroContent = Container(
           key: ValueKey('player_screen_artwork_${song.id}'),
-          child: artworkChild,
+          child: mediaContent,
         );
         if (dissolveFactor > 0.02) {
           heroContent = ShaderMask(

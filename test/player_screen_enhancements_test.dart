@@ -236,7 +236,7 @@ void main() {
     );
 
     testWidgets(
-      'Now Playing renders video art at 60% layout zoomed in without top/bottom shades',
+      'Now Playing renders artwork at 60% layout with controls docked',
       (tester) async {
         const screenH = 1000.0;
         const screenW = 450.0;
@@ -273,9 +273,10 @@ void main() {
         final heroFinder = find.byKey(
           const ValueKey('player_screen_artwork_song_anim_60'),
         );
+        // Artwork fixed at 60% layout
         expect(tester.getSize(heroFinder).height, closeTo(screenH * 0.60, 2.0));
 
-        // Tapping artwork in Now Playing keeps video locked at 60% and controls docked
+        // Tapping artwork in Now Playing keeps artwork locked at 60% and controls docked
         await tester.tap(heroFinder);
         await tester.pump(const Duration(milliseconds: 500));
         expect(tester.getSize(heroFinder).height, closeTo(screenH * 0.60, 2.0));

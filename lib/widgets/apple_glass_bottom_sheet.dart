@@ -61,14 +61,14 @@ class AppleGlassBottomSheetContainer extends StatelessWidget {
         child: ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            filter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24),
             child: Container(
               decoration: BoxDecoration(
-                color: const Color(0xFF1C1C22).withValues(alpha: 0.84),
+                color: const Color(0xFF1C1C22).withValues(alpha: 0.80),
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.20),
-                  width: 0.8,
+                  color: Colors.white.withValues(alpha: 0.22),
+                  width: 0.7,
                 ),
               ),
             child: SafeArea(

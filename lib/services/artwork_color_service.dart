@@ -35,14 +35,11 @@ class ArtworkColorService {
   /// Retrieves the cached dominant (most populated) color if already computed for [key].
   Color? getCachedDominantColor(String key) => _dominantCache[key];
 
-  /// Returns true when [url] is empty, a video stream, or a YouTube video frame thumbnail
-  /// (`i.ytimg.com` / `img.youtube.com`) rather than dedicated album artwork.
-  static bool isVideoOrNonArtworkUrl(String? url) {
+  /// Returns true when [url] is a binary video stream or invalid URL rather than an image.
+  static bool isBinaryVideoStream(String? url) {
     if (url == null || url.trim().isEmpty) return true;
     final lower = url.trim().toLowerCase();
-    return lower.contains('i.ytimg.com') ||
-        lower.contains('img.youtube.com') ||
-        lower.contains('googlevideo.com') ||
+    return lower.contains('googlevideo.com') ||
         lower.contains('videoplayback') ||
         lower.contains('an_webp') ||
         lower.contains('.mp4') ||
@@ -50,6 +47,60 @@ class ArtworkColorService {
         lower.contains('.webm') ||
         lower.contains('.mov') ||
         lower.contains('.mkv');
+  }
+
+  /// Returns true when [url] is empty, a video stream, or a YouTube video frame thumbnail
+  /// (`i.ytimg.com` / `img.youtube.com`) rather than dedicated album artwork.
+  static bool isVideoOrNonArtworkUrl(String? url) {
+    if (url == null || url.trim().isEmpty) return true;
+    final lower = url.trim().toLowerCase();
+    return lower.contains('i.ytimg.com') ||
+        lower.contains('img.youtube.com') ||
+        isBinaryVideoStream(url);
+  }
+
+  /// Extracts the effective artwork or YouTube music video color URL.
+  /// When [preferVideo] is true or when studio artwork is unavailable,
+  /// extracts from YouTube video frame thumbnails (`i.ytimg.com`) to match
+  /// the active YouTube Music video colors on the player screen.
+  static String? extractEffectiveColorUrl({
+    String? highResUrl,
+    String? resolvedUrl,
+    String? thumbnailUrl,
+    String? songId,
+    bool preferVideo = false,
+  }) {
+    if (preferVideo) {
+      for (final candidate in [thumbnailUrl, resolvedUrl, highResUrl]) {
+        final trimmed = candidate?.trim() ?? '';
+        if (trimmed.isNotEmpty &&
+            !isBinaryVideoStream(trimmed) &&
+            (trimmed.contains('i.ytimg.com') || trimmed.contains('img.youtube.com'))) {
+          return trimmed;
+        }
+      }
+      if (songId != null && songId.isNotEmpty && !songId.startsWith('http')) {
+        return 'https://i.ytimg.com/vi/$songId/hqdefault.jpg';
+      }
+    }
+
+    final albumArt = extractableArtworkUrl(
+      highResUrl: highResUrl,
+      resolvedUrl: resolvedUrl,
+      thumbnailUrl: thumbnailUrl,
+    );
+    if (albumArt != null) return albumArt;
+
+    for (final candidate in [highResUrl, resolvedUrl, thumbnailUrl]) {
+      final trimmed = candidate?.trim() ?? '';
+      if (trimmed.isNotEmpty && !isBinaryVideoStream(trimmed)) {
+        return trimmed;
+      }
+    }
+    if (songId != null && songId.isNotEmpty && !songId.startsWith('http')) {
+      return 'https://i.ytimg.com/vi/$songId/hqdefault.jpg';
+    }
+    return null;
   }
 
   /// Picks the highest-quality non-video artwork URL suitable for color extraction.
@@ -85,7 +136,7 @@ class ArtworkColorService {
   Future<PaletteGenerator?> _computePalette(String cleanUrl) async {
     final isTest = !kIsWeb && Platform.environment.containsKey('FLUTTER_TEST');
     if (isTest ||
-        isVideoOrNonArtworkUrl(cleanUrl) ||
+        isBinaryVideoStream(cleanUrl) ||
         (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://'))) {
       return null;
     }
@@ -131,7 +182,7 @@ class ArtworkColorService {
     String? fallbackSeed,
   }) async {
     final cleanUrl = imageUrl?.trim() ?? '';
-    final canExtract = cleanUrl.isNotEmpty && !isVideoOrNonArtworkUrl(cleanUrl);
+    final canExtract = cleanUrl.isNotEmpty && !isBinaryVideoStream(cleanUrl);
     final cacheKey = canExtract ? cleanUrl : (fallbackSeed ?? 'default');
 
     if (_dominantCache.containsKey(cacheKey)) {
@@ -169,7 +220,7 @@ class ArtworkColorService {
     String? fallbackSeed,
   }) async {
     final cleanUrl = imageUrl?.trim() ?? '';
-    final canExtract = cleanUrl.isNotEmpty && !isVideoOrNonArtworkUrl(cleanUrl);
+    final canExtract = cleanUrl.isNotEmpty && !isBinaryVideoStream(cleanUrl);
     final cacheKey = canExtract ? cleanUrl : (fallbackSeed ?? 'default');
 
     if (_cache.containsKey(cacheKey)) {
@@ -202,7 +253,7 @@ class ArtworkColorService {
     String? fallbackSeed,
   }) async {
     final cleanUrl = imageUrl?.trim() ?? '';
-    final canExtract = cleanUrl.isNotEmpty && !isVideoOrNonArtworkUrl(cleanUrl);
+    final canExtract = cleanUrl.isNotEmpty && !isBinaryVideoStream(cleanUrl);
     final cacheKey = canExtract ? cleanUrl : (fallbackSeed ?? 'default');
 
     if (_secondaryCache.containsKey(cacheKey)) {
@@ -235,7 +286,7 @@ class ArtworkColorService {
     String? fallbackSeed,
   }) async {
     final cleanUrl = imageUrl?.trim() ?? '';
-    final canExtract = cleanUrl.isNotEmpty && !isVideoOrNonArtworkUrl(cleanUrl);
+    final canExtract = cleanUrl.isNotEmpty && !isBinaryVideoStream(cleanUrl);
     final cacheKey = canExtract ? cleanUrl : (fallbackSeed ?? 'default');
 
     if (_bestColorCache.containsKey(cacheKey)) {

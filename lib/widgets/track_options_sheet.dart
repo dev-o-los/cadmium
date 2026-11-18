@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -35,24 +36,35 @@ void showTrackOptionsModal(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'TrackMenu',
-    barrierColor: Colors.black.withValues(alpha: 0.10),
+    barrierColor: Colors.black.withValues(alpha: 0.35),
     transitionDuration: const Duration(milliseconds: 200),
     pageBuilder: (dialogContext, animation, secondaryAnimation) {
-      return SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-            child: Material(
-              color: Colors.transparent,
-              child: _TrackMenuCard(
-                song: song,
-                isFavorite: isFav,
-                parentContext: context,
-                onDismiss: () => Navigator.pop(dialogContext),
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+              child: const SizedBox.expand(),
+            ),
+          ),
+          SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                child: Material(
+                  color: Colors.transparent,
+                  child: _TrackMenuCard(
+                    song: song,
+                    isFavorite: isFav,
+                    parentContext: context,
+                    onDismiss: () => Navigator.pop(dialogContext),
+                  ),
+                ),
               ),
             ),
           ),
-        ),
+        ],
       );
     },
     transitionBuilder: (context, animation, secondaryAnimation, child) {
@@ -73,17 +85,18 @@ void showTrackOptionsModal(
   );
 }
 
-/// Authentic Liquid Glass preset matching the bottom navigation dock exactly.
+/// Authentic Liquid Glass preset with frosted glass blur matching the bottom navigation dock.
 const kTrackMenuGlassSettings = LiquidGlassSettings(
-  thickness: 30,
-  blur: 3,
-  chromaticAberration: 0.3,
-  lightIntensity: 0.6,
-  refractiveIndex: 1.59,
-  saturation: 0.7,
+  thickness: 28,
+  blur: 24,
+  chromaticAberration: 0.25,
+  lightIntensity: 0.75,
+  refractiveIndex: 1.25,
+  saturation: 0.8,
   ambientStrength: 1,
   lightAngle: 0.75 * math.pi,
-  glassColor: Color(0x3DFFFFFF),
+  glassColor: Color(0x22FFFFFF),
+  specularSharpness: GlassSpecularSharpness.sharp,
 );
 
 class _TrackMenuCard extends ConsumerWidget {
@@ -523,8 +536,8 @@ class _TrackMenuCard extends ConsumerWidget {
     GlassDialog.show(
       context: context,
       barrierDismissible: true,
-      barrierColor: Colors.black.withValues(alpha: 0.10),
-      settings: const LiquidGlassSettings(),
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      settings: kTrackMenuGlassSettings,
       title: 'New Playlist',
       message: 'Enter a title for this playlist.',
       maxWidth: 300,
@@ -589,8 +602,8 @@ class _TrackMenuCard extends ConsumerWidget {
     GlassDialog.show(
       context: context,
       barrierDismissible: true,
-      barrierColor: Colors.black.withValues(alpha: 0.10),
-      settings: const LiquidGlassSettings(),
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      settings: kTrackMenuGlassSettings,
       title: 'Song Info',
       maxWidth: 320,
       content: Padding(

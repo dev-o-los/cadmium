@@ -9,6 +9,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../constants/apple_typography.dart';
 import '../providers/player_provider.dart';
+import '../services/artwork_color_service.dart';
 import '../utils/playback_utils.dart';
 import 'animated_cupertino_icon.dart';
 import 'apple_pressable.dart';
@@ -49,6 +50,25 @@ class PlayerControls extends ConsumerWidget {
     final thumbArt =
         currentSong.resolvedThumbnailUrl ?? currentSong.thumbnailUrl;
 
+    final hasVideo = ref.watch(
+      playerProvider.select(
+        (s) => s.animatedArtworkUrl != null && s.animatedArtworkUrl!.isNotEmpty,
+      ),
+    );
+
+    final colorUrl = ArtworkColorService.extractEffectiveColorUrl(
+      highResUrl: effectiveArt,
+      resolvedUrl: thumbArt,
+      thumbnailUrl: thumbArt,
+      songId: currentSong.id,
+      preferVideo: hasVideo,
+    );
+
+    final dynamicColor = colorUrl != null
+        ? (ArtworkColorService.instance.getCachedBestColor(colorUrl) ??
+            ArtworkColorService.instance.getCachedColor(colorUrl))
+        : null;
+
     // Detect whether we are rendering inline inside minimized GlassTabBar or expanded
     final placement = GlassTabBarAccessoryPlacementScope.of(context);
     final isInline = placement == GlassTabBarAccessoryPlacement.inline;
@@ -64,6 +84,7 @@ class PlayerControls extends ConsumerWidget {
         songId: currentSong.id,
         isPlaying: isPlaying,
         isLoading: isLoading,
+        dynamicColor: dynamicColor,
       );
     }
 
@@ -77,6 +98,7 @@ class PlayerControls extends ConsumerWidget {
       songId: currentSong.id,
       isPlaying: isPlaying,
       isLoading: isLoading,
+      dynamicColor: dynamicColor,
     );
   }
 
@@ -92,13 +114,28 @@ class PlayerControls extends ConsumerWidget {
     required String? songId,
     required bool isPlaying,
     required bool isLoading,
+    Color? dynamicColor,
   }) {
-    return GlassContainer(
-      useOwnLayer: true,
-      margin: const EdgeInsets.symmetric(horizontal: 6.0),
-      height: 52,
-      shape: const LiquidRoundedRectangle(borderRadius: 26),
-      settings: kMiniPlayerGlassSettings,
+    return TweenAnimationBuilder<Color?>(
+      tween: ColorTween(
+        begin: Colors.white.withValues(alpha: 0.08),
+        end: dynamicColor != null
+            ? dynamicColor.withValues(alpha: 0.18)
+            : Colors.white.withValues(alpha: 0.08),
+      ),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
+      builder: (context, animatedColor, child) {
+        return GlassContainer(
+          useOwnLayer: true,
+          margin: const EdgeInsets.symmetric(horizontal: 6.0),
+          height: 52,
+          shape: const LiquidRoundedRectangle(borderRadius: 26),
+          color: animatedColor,
+          settings: kMiniPlayerGlassSettings,
+          child: child!,
+        );
+      },
       child: Padding(
         padding: const EdgeInsets.only(left: 18, right: 12, top: 4, bottom: 4),
         child: Row(
@@ -231,12 +268,27 @@ class PlayerControls extends ConsumerWidget {
     required String? songId,
     required bool isPlaying,
     required bool isLoading,
+    Color? dynamicColor,
   }) {
-    return GlassContainer(
-      useOwnLayer: true,
-      height: 52,
-      shape: const LiquidRoundedRectangle(borderRadius: 26),
-      settings: kMiniPlayerGlassSettings,
+    return TweenAnimationBuilder<Color?>(
+      tween: ColorTween(
+        begin: Colors.white.withValues(alpha: 0.08),
+        end: dynamicColor != null
+            ? dynamicColor.withValues(alpha: 0.18)
+            : Colors.white.withValues(alpha: 0.08),
+      ),
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeOutCubic,
+      builder: (context, animatedColor, child) {
+        return GlassContainer(
+          useOwnLayer: true,
+          height: 52,
+          shape: const LiquidRoundedRectangle(borderRadius: 26),
+          color: animatedColor,
+          settings: kMiniPlayerGlassSettings,
+          child: child!,
+        );
+      },
       child: Padding(
         padding: const EdgeInsets.only(left: 18, right: 10),
         child: Row(

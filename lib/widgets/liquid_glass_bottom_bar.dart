@@ -6,17 +6,18 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import 'animated_cupertino_icon.dart';
 
-/// Standard Apple iOS Liquid Glass preset matching the bottom navigation dock.
+/// Standard Apple iOS Liquid Glass preset with frosted glass blur matching the bottom navigation dock.
 const kLiquidBottomDockGlassSettings = LiquidGlassSettings(
-  thickness: 30,
-  blur: 3,
-  chromaticAberration: 0.3,
-  lightIntensity: 0.6,
-  refractiveIndex: 1.59,
-  saturation: 0.7,
+  thickness: 28,
+  blur: 24,
+  chromaticAberration: 0.25,
+  lightIntensity: 0.75,
+  refractiveIndex: 1.25,
+  saturation: 0.8,
   ambientStrength: 1,
   lightAngle: 0.75 * math.pi,
-  glassColor: Color(0x3DFFFFFF),
+  glassColor: Color(0x22FFFFFF),
+  specularSharpness: GlassSpecularSharpness.sharp,
 );
 
 /// Floating Liquid Glass Bottom Navigation Dock using official [GlassTabBar.minimizable]
