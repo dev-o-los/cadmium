@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wavify/models/lyric_line.dart';
 import 'package:wavify/models/song_item.dart';
-import 'package:wavify/providers/player_provider.dart';
 import 'package:wavify/services/lyrics_service.dart';
 import 'package:wavify/widgets/apple_lyrics_view.dart';
 import 'package:wavify/widgets/apple_pressable.dart';
@@ -134,7 +133,7 @@ void main() {
   });
 
   group('Player Screen & Track Options All Sources UI Tests', () {
-    testWidgets('TrackOptionsSheet renders all 13 providers in scrollable bar', (tester) async {
+    testWidgets('TrackOptionsSheet does not contain lyrics provider and AppleLyricsView opens sources sheet on tapping Lyrics by provider', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 2.5;
       addTearDown(() {
@@ -176,38 +175,53 @@ void main() {
       await tester.tap(find.text('Open Modal'));
       await tester.pumpAndSettle();
 
-      // Check "Lyrics Provider" header and "All (13)" shortcut
-      expect(find.text('Lyrics Provider'), findsOneWidget);
-      expect(find.text('All (13)'), findsOneWidget);
+      // Check "Lyrics Provider" header and "All (13)" shortcut are removed from 3-dots sheet
+      expect(find.text('Lyrics Provider'), findsNothing);
+      expect(find.text('All (13)'), findsNothing);
 
-      // Verify pills are rendered for providers
-      expect(find.text('lrc.red'), findsOneWidget);
-      expect(find.text('YouTube'), findsOneWidget);
+      // Now test AppleLyricsView: tapping "Lyrics by lrc.red" opens sources sheet
+      LyricsProviderType? switchedProvider;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AppleLyricsView(
+              lyrics: const [
+                LyricLine(text: 'Lights will guide you home', startTimeMs: 1000, endTimeMs: 3000),
+              ],
+              activeLyricIndex: 0,
+              currentPositionMs: 1500,
+              isPlaying: false,
+              selectedProvider: LyricsProviderType.lrcRed,
+              onProviderChanged: (p) => switchedProvider = p,
+              onSeekToLyric: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
-      // Tap "All (13)" to open the full sources modal sheet
-      await tester.tap(find.text('All (13)'));
-      await tester.pumpAndSettle();
+      // Verify "Lyrics by lrc.red" is displayed
+      expect(find.text('Lyrics by lrc.red'), findsWidgets);
+
+      // Tap on the top "Lyrics by lrc.red"
+      await tester.tap(find.text('Lyrics by lrc.red').first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
       // Verify all sources modal sheet opened
       expect(find.text('Lyrics Sources'), findsOneWidget);
-      expect(find.text('BiniLyrics'), findsWidgets);
       expect(find.text('BetterLyrics'), findsWidgets);
-      expect(find.text('LRCLIB'), findsWidgets);
-      expect(find.text('KuGou'), findsWidgets);
-      expect(find.text('Megalobiz'), findsWidgets);
-      expect(find.text('LyricsPlus'), findsWidgets);
-      expect(find.text('Musixmatch'), findsWidgets);
-      expect(find.text('Genius'), findsWidgets);
-      expect(find.text('Unison'), findsWidgets);
 
       // Tap on BetterLyrics in the modal sheet
       final betterLyricsTile = find.widgetWithText(ApplePressable, 'BetterLyrics').last;
       expect(betterLyricsTile, findsOneWidget);
       await tester.tap(betterLyricsTile);
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
-      // Verify selected provider switched to BetterLyrics in player state
-      expect(container.read(playerProvider).selectedLyricsProvider, LyricsProviderType.betterLyrics);
+      // Verify switched provider
+      expect(switchedProvider, LyricsProviderType.betterLyrics);
     });
 
     testWidgets('AppleLyricsView empty state shows all sources and allows switching', (tester) async {

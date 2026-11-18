@@ -518,7 +518,32 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     return GestureDetector(
       onTap: widget.onTapBackground,
       behavior: HitTestBehavior.opaque,
-      child: _buildBody(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildTopLyricsHeader(),
+          Expanded(child: _buildBody()),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopLyricsHeader() {
+    return Padding(
+      padding: const EdgeInsets.only(left: 24, right: 24, top: 2, bottom: 6),
+      child: ApplePressable(
+        onTap: () => _showSourcesSheet(context),
+        child: Text(
+          'Lyrics by ${widget.selectedProvider.displayName}',
+          style: const TextStyle(
+            color: AppColors.appleSecondaryText,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            decoration: TextDecoration.underline,
+            decorationColor: AppColors.appleSecondaryText,
+          ),
+        ),
+      ),
     );
   }
 
@@ -587,6 +612,21 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
                   fontSize: 19,
                   fontWeight: FontWeight.bold,
                   letterSpacing: -0.4,
+                ),
+              ),
+              const SizedBox(height: 6),
+              ApplePressable(
+                onTap: () => _showSourcesSheet(context),
+                child: Text(
+                  'Lyrics by ${widget.selectedProvider.displayName}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.appleSecondaryText,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    decoration: TextDecoration.underline,
+                    decorationColor: AppColors.appleSecondaryText,
+                  ),
                 ),
               ),
               const SizedBox(height: 6),
@@ -1182,10 +1222,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
   }
 
   Widget _buildAttributionFooter() {
-    final source =
-        widget.lyricsSource ?? widget.selectedProvider.attributionName;
     final songwriters = widget.lyricsSongwriters;
-    final available = widget.availableProviders ?? const [];
 
     return Padding(
       padding: const EdgeInsets.only(top: 36, bottom: 48),
@@ -1203,59 +1240,20 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
             ),
             const SizedBox(height: 8),
           ],
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Lyrics provided by $source',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.appleSecondaryText,
-                    fontSize: 13,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
+          ApplePressable(
+            onTap: () => _showSourcesSheet(context),
+            child: Text(
+              'Lyrics by ${widget.selectedProvider.displayName}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.appleSecondaryText,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                decoration: TextDecoration.underline,
+                decorationColor: AppColors.appleSecondaryText,
               ),
-              const SizedBox(width: 8),
-              ApplePressable(
-                onTap: () => _showSourcesSheet(context),
-                pressedScale: 0.95,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    color: Colors.white.withValues(alpha: 0.12),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.18),
-                      width: 0.6,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        CupertinoIcons.slider_horizontal_3,
-                        color: Colors.white70,
-                        size: 13,
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        'Sources${available.length > 1 ? ' (${available.length})' : ''}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),

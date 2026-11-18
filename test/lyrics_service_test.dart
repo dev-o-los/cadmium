@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wavify/models/lyric_line.dart';
 import 'package:wavify/models/song_item.dart';
-import 'package:wavify/providers/player_provider.dart';
 import 'package:wavify/services/lyrics_service.dart';
 import 'package:wavify/widgets/apple_lyrics_view.dart';
 import 'package:wavify/widgets/track_options_sheet.dart';
@@ -111,8 +110,8 @@ void main() {
       // Verify background vocal rendered
       expect(find.text("(Can't you hear me?)"), findsOneWidget);
 
-      // Verify attribution footer
-      expect(find.text('Lyrics provided by Apple Music (via lrc.red)'), findsOneWidget);
+      // Verify attribution footer and header show Lyrics by provider
+      expect(find.text('Lyrics by lrc.red'), findsWidgets);
       expect(find.text('Written by Abel Tesfaye, Max Martin'), findsOneWidget);
 
       // Verify tap on second line triggers seek callback
@@ -210,7 +209,7 @@ void main() {
       expect(soughtLine!.startTimeMs, 6000);
     });
 
-    testWidgets('track options sheet renders lyrics provider switcher and allows switching', (tester) async {
+    testWidgets('track options 3-dots sheet no longer contains lyrics provider section', (tester) async {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
@@ -246,20 +245,9 @@ void main() {
       await tester.tap(find.text('Open Menu'));
       await tester.pumpAndSettle();
 
-      // Verify Lyrics Provider title and toggle buttons are present
-      expect(find.text('Lyrics Provider'), findsOneWidget);
-      expect(find.text('lrc.red'), findsOneWidget);
-      expect(find.text('YouTube'), findsOneWidget);
-
-      // Default provider is lrcRed
-      expect(container.read(playerProvider).selectedLyricsProvider, LyricsProviderType.lrcRed);
-
-      // Tap YouTube in the options sheet
-      await tester.tap(find.text('YouTube'));
-      await tester.pumpAndSettle();
-
-      // Verify provider updated in state
-      expect(container.read(playerProvider).selectedLyricsProvider, LyricsProviderType.youTube);
+      // Verify Lyrics Provider title and toggle buttons are removed from 3-dots sheet
+      expect(find.text('Lyrics Provider'), findsNothing);
+      expect(find.text('Add to playlist'), findsOneWidget);
     });
   });
 }
