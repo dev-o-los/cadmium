@@ -619,8 +619,8 @@ void main() {
 
         // Verify Queue header & Now Playing are rendered
         expect(find.text('Queue'), findsOneWidget);
-        expect(find.text('NOW PLAYING'), findsOneWidget);
-        expect(find.text('NEXT IN QUEUE'), findsOneWidget);
+        expect(find.textContaining('Now playing'), findsOneWidget);
+        expect(find.textContaining('Next from:'), findsOneWidget);
         expect(find.text('Starboy'), findsWidgets);
         expect(find.text('Blinding Lights'), findsOneWidget);
 
@@ -631,6 +631,80 @@ void main() {
         // Verify ShaderMask for fading in/out the songs at top and bottom is mounted
         final shaderMasks = find.byType(ShaderMask);
         expect(shaderMasks, findsWidgets);
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        container.dispose();
+      },
+    );
+
+    testWidgets(
+      'Queue scroll interaction: player slides downside on scrolling upside and returns on scroll downside',
+      (tester) async {
+        const screenH = 900.0;
+        const screenW = 430.0;
+        tester.view.physicalSize = const Size(screenW, screenH);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final container = ProviderContainer();
+        final queueTracks = List.generate(
+          12,
+          (i) => SongItem(
+            id: 'track_$i',
+            title: 'Track $i',
+            artist: 'Lil Tecca',
+            thumbnailUrl: 'https://example.com/art$i.jpg',
+          ),
+        );
+
+        container.read(playerProvider.notifier).state = PlayerStateModel(
+          currentSong: testSongA,
+          isPlaying: true,
+          queue: queueTracks,
+        );
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const MaterialApp(
+              home: Scaffold(
+                body: PlayerScreen(initialMode: PlayerViewMode.queue),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        // Verify Queue header & Now Playing are rendered
+        expect(find.text('Queue'), findsOneWidget);
+        expect(find.textContaining('Now playing'), findsOneWidget);
+
+        // Verify initial transport control is docked
+        final forwardIcon = find.byIcon(CupertinoIcons.forward_fill);
+        expect(forwardIcon, findsOneWidget);
+        final initialPos = tester.getCenter(forwardIcon);
+
+        // Scroll upside (drag up) on the Queue CustomScrollView
+        await tester.drag(find.text('Track 0'), const Offset(0, -250));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        // After scrolling upside, player controls translate downside
+        final scrolledPos = tester.getCenter(forwardIcon);
+        expect(scrolledPos.dy, greaterThan(initialPos.dy));
+
+        // Scroll downside (drag down) to return to top
+        await tester.drag(find.text('Track 5'), const Offset(0, 300));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        // Player controls slide back up to original position
+        final returnedPos = tester.getCenter(forwardIcon);
+        expect(returnedPos.dy, closeTo(initialPos.dy, 10.0));
 
         await tester.pumpWidget(const SizedBox.shrink());
         container.dispose();

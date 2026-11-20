@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
@@ -218,6 +219,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _isDraggingSlider = false;
   double _dragSliderValue = 0.0;
 
+  // Queue scroll and progressive blur state
+  final ScrollController _queueScrollController = ScrollController();
+  final ValueNotifier<double> _queueScrollOffset = ValueNotifier<double>(0.0);
+  final ValueNotifier<double> _queueMaxScroll = ValueNotifier<double>(0.0);
+
   @override
   void initState() {
     super.initState();
@@ -419,6 +425,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _controlsAnimController.dispose();
     _modeAnimController.dispose();
     _dragSnapBackController.dispose();
+    _queueScrollController.dispose();
+    _queueScrollOffset.dispose();
+    _queueMaxScroll.dispose();
     super.dispose();
   }
 
@@ -1000,7 +1009,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             shimmerHighlightColor: Colors.white.withValues(alpha: 0.32),
             errorWidget: _fallbackMiniArt(
               size: targetThumbSize,
-              borderRadius: 12.0,
+              borderRadius: 8.0,
             ),
           ),
         ),
@@ -1054,11 +1063,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           modeVal,
         )!;
 
-        // Interpolate rect geometry between Now Playing canvas and Lyrics/Queue 48x48 header thumbnail
-        final left = ui.lerpDouble(0.0, 24.0, modeVal)!;
+        // Interpolate rect geometry between Now Playing canvas and Lyrics/Queue 42x42 header thumbnail
+        final left = ui.lerpDouble(0.0, 16.0, modeVal)!;
         final top = ui.lerpDouble(0.0, headerTop, modeVal)!;
         final width = ui.lerpDouble(screenWidth, targetThumbSize, modeVal)!;
-        final borderRadius = ui.lerpDouble(0.0, 12.0, modeVal)!;
+        final borderRadius = ui.lerpDouble(0.0, 8.0, modeVal)!;
 
         // Downward alpha dissolve so crisp video / album art fades & mixes
         // organically into the blurred backdrop and Apple Music bottom player palette.
@@ -1168,10 +1177,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
             return Stack(
               children: [
-                // 1. Now Playing Top Header: Grab Bar + "Playing from <Album/Artist>" (fades out smoothly with controls)
+                // 1. Top grab bar pill centered at top across all modes
+                Positioned(
+                  top: headerTop - 16,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Container(
+                      width: 36,
+                      height: 4.5,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.38),
+                        borderRadius: BorderRadius.circular(2.25),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 2. Now Playing Top Header: "Playing from <Album/Artist>" (fades out smoothly with controls)
                 if (modeVal < 0.95)
                   Positioned(
-                    top: headerTop - 14,
+                    top: headerTop - 4,
                     left: 36,
                     right: 36,
                     child: IgnorePointer(
@@ -1181,43 +1207,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         child: GestureDetector(
                           onTap: () => Navigator.of(context).pop(),
                           behavior: HitTestBehavior.opaque,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 36,
-                                height: 4.5,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.38),
-                                  borderRadius: BorderRadius.circular(2.25),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                playingFromText,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.70),
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w500,
-                                  letterSpacing: -0.2,
-                                ),
-                              ),
-                            ],
+                          child: Text(
+                            playingFromText,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.70),
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: -0.2,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
 
-                // 2. Lyrics / Queue Top Header Metadata (beside 48x48 thumbnail: title, artist, star, 3-dots)
+                // 3. Lyrics / Queue Top Header Metadata (beside 48x48 thumbnail: title, artist, star, 3-dots)
                 if (modeVal > 0.05)
                   Positioned(
                     top: headerTop,
-                    left: 86,
-                    right: 20,
+                    left: 74,
+                    right: 16,
                     height: 48,
                     child: Opacity(
                       opacity: ((modeVal - 0.25) / 0.75).clamp(0.0, 1.0),
@@ -1329,7 +1341,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 bottomPadding + 304.0,
                 controlsVal,
               )!
-            : (math.max(bottomPadding, 16.0) + 348.0);
+            : ui.lerpDouble(
+                math.max(bottomPadding, 16.0) + 16.0,
+                bottomPadding + 348.0,
+                controlsVal,
+              )!;
 
         return Positioned(
           top: headerTop + 54,
@@ -1428,13 +1444,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final gapScrubberToTransport = 36.0;
         final gapTransportToActionDock = 36.0;
 
+        // In Queue mode, slide entire bottom controls downside when user scrolls upside
+        final double queueSlideDown = _currentMode == PlayerViewMode.queue
+            ? (1.0 - controlsVal) * 340.0
+            : 0.0;
+
         return Positioned(
           left: 0,
           right: 0,
           bottom: bottomOffset,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 26),
-            child: Column(
+          child: Transform.translate(
+            offset: Offset(0, queueSlideDown),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 26),
+              child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -1663,10 +1686,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ],
             ),
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   /// Reusable circular Liquid Glass button for actions like favourite and ellipsis.
   /// Uses authentic GlassContainer from liquid_glass_widgets with LiquidOval shape,
@@ -1864,420 +1888,504 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           playerProvider.select((s) => s.isLoadingAutoplay),
         );
         final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
-        final palette = _computeAtmosphericPalette(song);
 
         return RepaintBoundary(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Queue', style: AppleTypography.sectionTitle),
-                const SizedBox(height: AppleSpacing.sectionHeaderToContent),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Dynamic dissolve mask that gently fades the edge only when content is scrolled underneath
+              ValueListenableBuilder<double>(
+                valueListenable: _queueScrollOffset,
+                builder: (context, offset, child) {
+                  final maxScroll = _queueMaxScroll.value;
+                  final topDissolve = (offset / 24.0).clamp(0.0, 1.0);
+                  final bottomDissolve = maxScroll <= 0
+                      ? 0.0
+                      : ((maxScroll - offset) / 28.0).clamp(0.0, 1.0);
 
-                // Now Playing Item
-                const Text('NOW PLAYING', style: AppleTypography.eyebrow),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.07),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.10),
-                      width: 0.8,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            WavifyCachedImage(
-                              imageUrl:
-                                  song.highResThumbnailUrl ??
-                                  song.resolvedThumbnailUrl,
-                              placeholderImageUrl:
-                                  song.resolvedThumbnailUrl ?? song.thumbnailUrl,
-                              songId: song.id,
-                              width: 48,
-                              height: 48,
-                              fit: BoxFit.cover,
-                              filterQuality: FilterQuality.medium,
-                              shimmerBaseColor: Colors.white.withValues(alpha: 0.14),
-                              shimmerHighlightColor: Colors.white.withValues(alpha: 0.34),
-                              errorWidget: _fallbackMiniArt(
-                                size: 48,
-                                borderRadius: 8,
-                              ),
-                            ),
-                            if (isPlaying)
-                              Container(
-                                width: 48,
-                                height: 48,
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.55),
-                                  borderRadius: BorderRadius.circular(8),
+                  return ShaderMask(
+                    shaderCallback: (Rect bounds) {
+                      return LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: const [
+                          Colors.transparent,
+                          Colors.black,
+                          Colors.black,
+                          Colors.transparent,
+                        ],
+                        stops: [
+                          0.0,
+                          0.035 * topDissolve,
+                          1.0 - (0.045 * bottomDissolve),
+                          1.0,
+                        ],
+                      ).createShader(bounds);
+                    },
+                    blendMode: BlendMode.dstIn,
+                    child: child!,
+                  );
+                },
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: (notification) {
+                    if (notification is UserScrollNotification) {
+                      if (notification.direction == ScrollDirection.reverse) {
+                        // User scrolled upside: make player go downside
+                        if (_controlsAnimController.value > 0.0 &&
+                            !_controlsAnimController.isAnimating) {
+                          _controlsAnimController.reverse();
+                        }
+                      } else if (notification.direction == ScrollDirection.forward) {
+                        // User scrolled downside: make player come back up
+                        if (_controlsAnimController.value < 1.0 &&
+                            !_controlsAnimController.isAnimating) {
+                          _controlsAnimController.forward();
+                        }
+                      }
+                    } else if (notification is ScrollUpdateNotification) {
+                      final pixels = notification.metrics.pixels;
+                      if (pixels <= 12.0 &&
+                          _controlsAnimController.value < 1.0 &&
+                          !_controlsAnimController.isAnimating) {
+                        _controlsAnimController.forward();
+                      }
+                      _queueScrollOffset.value = pixels;
+                      _queueMaxScroll.value = notification.metrics.maxScrollExtent;
+                    }
+                    return false;
+                  },
+                  child: CustomScrollView(
+                    controller: _queueScrollController,
+                    physics: const BouncingScrollPhysics(),
+                    slivers: [
+                      // Header Section: "Queue", "Now playing", and current song row inside scrollview
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        sliver: SliverToBoxAdapter(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 6),
+                              // Queue title - compact, elegant Apple Music size
+                              const Text(
+                                'Queue',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: -0.4,
                                 ),
-                                child: const Center(
-                                  child: AnimatedEqualizerBars(
-                                    isPlaying: true,
-                                    size: 16,
-                                    color: Colors.white,
-                                  ),
-                                ),
                               ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              children: [
-                                if (_isExplicit(song.title, song.album))
-                                  _buildExplicitBadge(),
-                                Expanded(
-                                  child: Text(
-                                    song.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AppleTypography.songTitle,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: AppleSpacing.titleToSubtitle),
-                            GestureDetector(
-                              onTap: () => openArtistScreen(
-                                context,
-                                artistName: song.artist,
-                              ),
-                              child: Text(
-                                song.artist,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppleTypography.songArtist,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ApplePressable(
-                        onTap: () {
-                          ref.read(playerProvider.notifier).removeCurrentSong();
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.all(4),
-                          child: Icon(
-                            CupertinoIcons.xmark,
-                            color: Colors.white.withValues(alpha: 0.45),
-                            size: 16,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
+                              const SizedBox(height: 12),
 
-                // Lazy sliver-backed Queue & AutoPlay tracklist with top & bottom blurriness and smooth fading
-                Expanded(
-                  child: Theme(
-                    data: Theme.of(context).copyWith(
-                      canvasColor: Colors.transparent,
-                      shadowColor: Colors.transparent,
-                    ),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        // Scrolling tracklist with top and bottom fading dissolve
-                        ShaderMask(
-                          shaderCallback: (Rect bounds) {
-                            return const LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.transparent,
-                                Colors.black,
-                                Colors.black,
-                                Colors.transparent,
-                              ],
-                              stops: [0.0, 0.07, 0.90, 1.0],
-                            ).createShader(bounds);
-                          },
-                          blendMode: BlendMode.dstIn,
-                          child: CustomScrollView(
-                            physics: const BouncingScrollPhysics(),
-                            slivers: [
-                              const SliverToBoxAdapter(
-                                child: SizedBox(height: 8),
+                              // Now playing eyebrow
+                              Text(
+                                'Now playing',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.60),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  letterSpacing: -0.1,
+                                ),
                               ),
-                              if (queue.isNotEmpty) ...[
-                                const SliverToBoxAdapter(
-                                  child: Padding(
-                                    padding: EdgeInsets.only(bottom: 8),
-                                    child: Text(
-                                      'NEXT IN QUEUE',
-                                      style: AppleTypography.eyebrow,
+                              const SizedBox(height: 8),
+
+                              // Now playing current track row
+                              Row(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: Stack(
+                                      alignment: Alignment.center,
+                                      children: [
+                                        WavifyCachedImage(
+                                          imageUrl:
+                                              song.highResThumbnailUrl ??
+                                              song.resolvedThumbnailUrl,
+                                          placeholderImageUrl:
+                                              song.resolvedThumbnailUrl ?? song.thumbnailUrl,
+                                          songId: song.id,
+                                          width: 40,
+                                          height: 40,
+                                          fit: BoxFit.cover,
+                                          filterQuality: FilterQuality.medium,
+                                          shimmerBaseColor: Colors.white.withValues(alpha: 0.14),
+                                          shimmerHighlightColor: Colors.white.withValues(alpha: 0.34),
+                                          errorWidget: _fallbackMiniArt(
+                                            size: 40,
+                                            borderRadius: 6,
+                                          ),
+                                        ),
+                                        if (isPlaying)
+                                          Container(
+                                            width: 40,
+                                            height: 40,
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withValues(alpha: 0.45),
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: const Center(
+                                              child: AnimatedEqualizerBars(
+                                                isPlaying: true,
+                                                size: 14,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                   ),
-                                ),
-                                SliverReorderableList(
-                                  itemCount: queue.length,
-                                  onReorderItem: (oldIndex, newIndex) {
-                                    final adjustedIndex =
-                                        newIndex > oldIndex ? newIndex + 1 : newIndex;
-                                    ref
-                                        .read(playerProvider.notifier)
-                                        .reorderQueue(oldIndex, adjustedIndex);
-                                  },
-                                  itemBuilder: (context, index) {
-                                    final item = queue[index];
-                                    return _buildQueueItemRow(
-                                      key: ValueKey('manual_q_${item.id}_$index'),
-                                      index: index,
-                                      item: item,
-                                      onRemove: () {
-                                        ref
-                                            .read(playerProvider.notifier)
-                                            .removeFromQueue(index);
-                                      },
-                                    );
-                                  },
-                                ),
-                                const SliverToBoxAdapter(child: SizedBox(height: 16)),
-                              ],
-
-                              if (isAutoplay) ...[
-                                SliverToBoxAdapter(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Row(
-                                        children: [
-                                          Icon(
-                                            CupertinoIcons.infinite,
-                                            color: Colors.white,
-                                            size: 18,
-                                          ),
-                                          SizedBox(width: 8),
-                                          Text(
-                                            'AutoPlay',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 17,
-                                              fontWeight: FontWeight.bold,
-                                              letterSpacing: -0.3,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'Similar music, selected to play next',
-                                        style: TextStyle(
-                                          color: Colors.white.withValues(alpha: 0.60),
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                    ],
-                                  ),
-                                ),
-                                if (autoplayQueue.isEmpty && isLoadingAutoplay)
-                                  SliverToBoxAdapter(child: _buildQueueAutoplayShimmer())
-                                else if (autoplayQueue.isEmpty)
-                                  SliverToBoxAdapter(
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(vertical: 16),
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              'No similar tracks loaded yet.',
-                                              style: TextStyle(
-                                                color: Colors.white.withValues(alpha: 0.60),
-                                                fontSize: 13,
-                                              ),
-                                            ),
-                                          ),
-                                          ApplePressable(
-                                            onTap: () => ref
-                                                .read(playerProvider.notifier)
-                                                .fetchAutoplayQueueForCurrentSong(),
-                                            child: Container(
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 12,
-                                                vertical: 6,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.white.withValues(alpha: 0.16),
-                                                borderRadius: BorderRadius.circular(14),
-                                              ),
-                                              child: const Text(
-                                                'Retry',
-                                                style: TextStyle(
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            if (_isExplicit(song.title, song.album))
+                                              _buildExplicitBadge(),
+                                            Expanded(
+                                              child: Text(
+                                                song.title,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
                                                   color: Colors.white,
-                                                  fontSize: 12.5,
+                                                  fontSize: 14.5,
                                                   fontWeight: FontWeight.w600,
+                                                  letterSpacing: -0.2,
                                                 ),
                                               ),
                                             ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  )
-                                else
-                                  SliverReorderableList(
-                                    itemCount: autoplayQueue.length,
-                                    onReorderItem: (oldIndex, newIndex) {
-                                      final adjustedIndex = newIndex > oldIndex
-                                          ? newIndex + 1
-                                          : newIndex;
-                                      ref
-                                          .read(playerProvider.notifier)
-                                          .reorderAutoplayQueue(oldIndex, adjustedIndex);
-                                    },
-                                    itemBuilder: (context, index) {
-                                      final item = autoplayQueue[index];
-                                      return _buildQueueItemRow(
-                                        key: ValueKey('autoplay_q_${item.id}_$index'),
-                                        index: index,
-                                        item: item,
-                                        onRemove: () {
-                                          ref
-                                              .read(playerProvider.notifier)
-                                              .removeFromAutoplayQueue(index);
-                                        },
-                                      );
-                                    },
-                                  ),
-                              ] else if (queue.isEmpty)
-                                SliverToBoxAdapter(
-                                  child: Center(
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(top: 32),
-                                      child: Text(
-                                        'Queue is empty. Turn on AutoPlay for similar tracks.',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          color: Colors.white.withValues(alpha: 0.50),
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
+                                          ],
                                         ),
+                                        const SizedBox(height: 2),
+                                        GestureDetector(
+                                          onTap: () => openArtistScreen(
+                                            context,
+                                            artistName: song.artist,
+                                          ),
+                                          child: Text(
+                                            song.artist,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: Colors.white.withValues(alpha: 0.65),
+                                              fontSize: 12.5,
+                                              letterSpacing: -0.1,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (isPlaying)
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(horizontal: 6),
+                                      child: AnimatedEqualizerBars(
+                                        isPlaying: true,
+                                        size: 14,
+                                        color: Colors.white,
                                       ),
                                     ),
+                                  ApplePressable(
+                                    onTap: () {
+                                      ref.read(playerProvider.notifier).removeCurrentSong();
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(6),
+                                      child: Icon(
+                                        CupertinoIcons.xmark,
+                                        color: Colors.white.withValues(alpha: 0.40),
+                                        size: 14,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 18),
+
+                              // "Next from: ..." Header (when queue is not empty)
+                              if (queue.isNotEmpty) ...[
+                                Text(
+                                  (song.artist.trim().isNotEmpty)
+                                      ? 'Next from: ${song.artist.trim()}'
+                                      : ((song.album != null && song.album!.trim().isNotEmpty)
+                                          ? 'Next from: ${song.album!.trim()}'
+                                          : 'Next in queue'),
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.60),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    letterSpacing: -0.1,
                                   ),
                                 ),
-                              const SliverToBoxAdapter(child: SizedBox(height: 36)),
+                                const SizedBox(height: 4),
+                              ],
                             ],
                           ),
                         ),
+                      ),
 
-                        // Top progressive blur & delicate scrim dissolving songs seamlessly at the top
-                        Positioned(
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          height: 48,
-                          child: IgnorePointer(
-                            child: ClipRect(
-                              child: ShaderMask(
-                                shaderCallback: (bounds) {
-                                  return const LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      Colors.black,
-                                      Color(0x99000000),
-                                      Colors.transparent,
-                                    ],
-                                    stops: [0.0, 0.45, 1.0],
-                                  ).createShader(bounds);
+                      // Manual Queue Items
+                      if (queue.isNotEmpty) ...[
+                        SliverPadding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          sliver: SliverReorderableList(
+                            itemCount: queue.length,
+                            onReorderItem: (oldIndex, newIndex) {
+                              final adjustedIndex =
+                                  newIndex > oldIndex ? newIndex + 1 : newIndex;
+                              ref
+                                  .read(playerProvider.notifier)
+                                  .reorderQueue(oldIndex, adjustedIndex);
+                            },
+                            itemBuilder: (context, index) {
+                              final item = queue[index];
+                              return _buildQueueItemRow(
+                                key: ValueKey('manual_q_${item.id}_$index'),
+                                index: index,
+                                item: item,
+                                onRemove: () {
+                                  ref
+                                      .read(playerProvider.notifier)
+                                      .removeFromQueue(index);
                                 },
-                                blendMode: BlendMode.dstIn,
-                                child: BackdropFilter(
-                                  filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                        colors: [
-                                          palette.bottomAnchor.withValues(alpha: 0.38),
-                                          palette.bottomAnchor.withValues(alpha: 0.08),
-                                          Colors.transparent,
-                                        ],
-                                        stops: const [0.0, 0.55, 1.0],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
+                              );
+                            },
                           ),
                         ),
-
-                        // Bottom progressive blur & delicate scrim dissolving songs seamlessly at the bottom
-                        Positioned(
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          height: 52,
-                          child: IgnorePointer(
-                            child: ClipRect(
-                              child: ShaderMask(
-                                shaderCallback: (bounds) {
-                                  return const LinearGradient(
-                                    begin: Alignment.bottomCenter,
-                                    end: Alignment.topCenter,
-                                    colors: [
-                                      Colors.black,
-                                      Color(0x99000000),
-                                      Colors.transparent,
-                                    ],
-                                    stops: [0.0, 0.45, 1.0],
-                                  ).createShader(bounds);
-                                },
-                                blendMode: BlendMode.dstIn,
-                                child: BackdropFilter(
-                                  filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.bottomCenter,
-                                        end: Alignment.topCenter,
-                                        colors: [
-                                          palette.bottomAnchor.withValues(alpha: 0.45),
-                                          palette.bottomAnchor.withValues(alpha: 0.12),
-                                          Colors.transparent,
-                                        ],
-                                        stops: const [0.0, 0.55, 1.0],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+                        const SliverToBoxAdapter(child: SizedBox(height: 14)),
                       ],
-                    ),
+
+                      // AutoPlay Section
+                      if (isAutoplay) ...[
+                        SliverPadding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          sliver: SliverToBoxAdapter(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  children: [
+                                    Icon(
+                                      CupertinoIcons.infinite,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'AutoPlay',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: -0.3,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Similar music, selected to play next',
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.60),
+                                    fontSize: 12.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+                            ),
+                          ),
+                        ),
+                        if (autoplayQueue.isEmpty && isLoadingAutoplay)
+                          SliverPadding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            sliver: SliverToBoxAdapter(child: _buildQueueAutoplayShimmer()),
+                          )
+                        else if (autoplayQueue.isEmpty)
+                          SliverPadding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            sliver: SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        'No similar tracks loaded yet.',
+                                        style: TextStyle(
+                                          color: Colors.white.withValues(alpha: 0.60),
+                                          fontSize: 12.5,
+                                        ),
+                                      ),
+                                    ),
+                                    ApplePressable(
+                                      onTap: () => ref
+                                          .read(playerProvider.notifier)
+                                          .fetchAutoplayQueueForCurrentSong(),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(alpha: 0.16),
+                                          borderRadius: BorderRadius.circular(14),
+                                        ),
+                                        child: const Text(
+                                          'Retry',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          )
+                        else
+                          SliverPadding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            sliver: SliverReorderableList(
+                              itemCount: autoplayQueue.length,
+                              onReorderItem: (oldIndex, newIndex) {
+                                final adjustedIndex = newIndex > oldIndex
+                                    ? newIndex + 1
+                                    : newIndex;
+                                ref
+                                    .read(playerProvider.notifier)
+                                    .reorderAutoplayQueue(oldIndex, adjustedIndex);
+                              },
+                              itemBuilder: (context, index) {
+                                final item = autoplayQueue[index];
+                                return _buildQueueItemRow(
+                                  key: ValueKey('autoplay_q_${item.id}_$index'),
+                                  index: index,
+                                  item: item,
+                                  onRemove: () {
+                                    ref
+                                        .read(playerProvider.notifier)
+                                        .removeFromAutoplayQueue(index);
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                      ] else if (queue.isEmpty)
+                        SliverPadding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          sliver: SliverToBoxAdapter(
+                            child: Center(
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 32),
+                                child: Text(
+                                  'Queue is empty. Turn on AutoPlay for similar tracks.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.50),
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      const SliverToBoxAdapter(child: SizedBox(height: 36)),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+
+              // Top optical blur overlay: dissolves content smoothly as it scrolls under top bar
+              ValueListenableBuilder<double>(
+                valueListenable: _queueScrollOffset,
+                builder: (context, offset, _) {
+                  final topProgress = (offset / 24.0).clamp(0.0, 1.0);
+                  return Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 48,
+                    child: IgnorePointer(
+                      child: Opacity(
+                        opacity: topProgress,
+                        child: ClipRect(
+                          child: ShaderMask(
+                            shaderCallback: (bounds) {
+                              return const LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.black,
+                                  Color(0x99000000),
+                                  Colors.transparent,
+                                ],
+                                stops: [0.0, 0.45, 1.0],
+                              ).createShader(bounds);
+                            },
+                            blendMode: BlendMode.dstIn,
+                            child: BackdropFilter(
+                              filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                              child: const SizedBox.expand(),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              // Bottom optical blur overlay: dissolves content smoothly near bottom player controls
+              ValueListenableBuilder<double>(
+                valueListenable: _queueScrollOffset,
+                builder: (context, offset, _) {
+                  final maxScroll = _queueMaxScroll.value;
+                  final bottomProgress = maxScroll <= 0
+                      ? 0.85
+                      : ((maxScroll - offset) / 32.0).clamp(0.0, 1.0);
+                  return Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: 52,
+                    child: IgnorePointer(
+                      child: Opacity(
+                        opacity: bottomProgress,
+                        child: ClipRect(
+                          child: ShaderMask(
+                            shaderCallback: (bounds) {
+                              return const LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [
+                                  Colors.black,
+                                  Color(0x99000000),
+                                  Colors.transparent,
+                                ],
+                                stops: [0.0, 0.45, 1.0],
+                              ).createShader(bounds);
+                            },
+                            blendMode: BlendMode.dstIn,
+                            child: BackdropFilter(
+                              filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                              child: const SizedBox.expand(),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
         );
       },
@@ -2291,15 +2399,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       child: Column(
         children: List.generate(4, (index) {
           return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
+            padding: const EdgeInsets.symmetric(vertical: 5),
             child: Row(
               children: [
                 ShimmerBox(
-                  width: 44,
-                  height: 44,
-                  borderRadius: BorderRadius.circular(8),
+                  width: 40,
+                  height: 40,
+                  borderRadius: BorderRadius.circular(6),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2307,13 +2415,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       ShimmerBox(
                         height: 13,
                         width: index.isEven ? 185 : 155,
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(5),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 5),
                       ShimmerBox(
                         height: 11,
                         width: 105,
-                        borderRadius: BorderRadius.circular(5),
+                        borderRadius: BorderRadius.circular(4),
                       ),
                     ],
                   ),
@@ -2334,43 +2442,60 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }) {
     return Container(
       key: key,
-      padding: const EdgeInsets.symmetric(vertical: 6.5),
+      padding: const EdgeInsets.symmetric(vertical: 5.0),
       child: Row(
         children: [
           ReorderableDragStartListener(
             index: index,
             child: Container(
               padding: const EdgeInsets.only(
-                right: 12,
+                right: 10,
                 top: 8,
                 bottom: 8,
               ),
               color: Colors.transparent,
-              child: Icon(
-                Icons.drag_handle_rounded,
-                color: Colors.white.withValues(alpha: 0.40),
-                size: 20,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 14,
+                    height: 1.8,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.40),
+                      borderRadius: BorderRadius.circular(1),
+                    ),
+                  ),
+                  const SizedBox(height: 3.5),
+                  Container(
+                    width: 14,
+                    height: 1.8,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.40),
+                      borderRadius: BorderRadius.circular(1),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(6),
             child: WavifyCachedImage(
               imageUrl:
                   item.highResThumbnailUrl ?? item.resolvedThumbnailUrl,
               placeholderImageUrl:
                   item.resolvedThumbnailUrl ?? item.thumbnailUrl,
               songId: item.id,
-              width: 44,
-              height: 44,
+              width: 40,
+              height: 40,
               fit: BoxFit.cover,
               filterQuality: FilterQuality.medium,
               shimmerBaseColor: Colors.white.withValues(alpha: 0.14),
               shimmerHighlightColor: Colors.white.withValues(alpha: 0.34),
-              errorWidget: _fallbackMiniArt(size: 44, borderRadius: 8),
+              errorWidget: _fallbackMiniArt(size: 40, borderRadius: 6),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: ApplePressable(
               onTap: () {
@@ -2379,7 +2504,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     .playSong(item, forceReload: true);
               },
               pressedScale: 0.98,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(6),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -2393,31 +2518,40 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           item.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: AppleTypography.songTitle,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.2,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: AppleSpacing.titleToSubtitle),
+                  const SizedBox(height: 2),
                   Text(
                     item.artist,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppleTypography.songArtist,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.65),
+                      fontSize: 12.5,
+                      letterSpacing: -0.1,
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           ApplePressable(
             onTap: onRemove,
             child: Padding(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               child: Icon(
                 CupertinoIcons.xmark,
-                color: Colors.white.withValues(alpha: 0.45),
-                size: 16,
+                color: Colors.white.withValues(alpha: 0.40),
+                size: 14,
               ),
             ),
           ),
