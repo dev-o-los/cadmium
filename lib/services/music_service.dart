@@ -2612,23 +2612,19 @@ class MusicService {
     return null;
   }
 
-  /// Resolves animated looping artwork (short moving WebP/GIF thumbnail) for the song or its album from YouTube.
-  /// 1. If song already specifies an animated image URL (GIF/WebP), returns it (ignoring full video streams).
-  /// 2. Searches YouTube for the official moving WebP thumbnail (richThumbnail/movingThumbnailRenderer).
-  /// 3. Falls back to album search for a moving WebP thumbnail.
-  /// 4. Does not stream full music videos; returns null to fall back to high-res album cover.
+  /// Resolves animated looping artwork or video stream for the song or its album from YouTube.
+  /// 1. If song already specifies an animated artwork URL, returns it with its stream type.
+  /// 2. Searches YouTube for the official moving WebP thumbnail or video stream.
+  /// 3. Falls back to direct video resolution from the track ID so colors and visuals match the live video.
   Future<AnimatedArtworkData?> getAnimatedArtworkData(SongItem song) async {
-    // If song already has an animated artwork URL specified, use it ONLY if it is an animated image (GIF/WebP)
+    // If song already has an animated artwork URL specified, return it
     if (song.animatedArtworkUrl != null &&
         song.animatedArtworkUrl!.isNotEmpty) {
       final isVideo = isVideoMediaUrl(song.animatedArtworkUrl);
-      if (!isVideo) {
-        return AnimatedArtworkData(
-          url: song.animatedArtworkUrl!,
-          isVideo: false,
-        );
-      }
-      // If it is a video stream URL, skip it so we don't play full music video
+      return AnimatedArtworkData(
+        url: song.animatedArtworkUrl!,
+        isVideo: isVideo,
+      );
     }
 
     final cacheKey = song.id.isNotEmpty
@@ -2639,18 +2635,35 @@ class MusicService {
     }
 
     try {
-      // 1. Search YouTube for official moving thumbnail / GIF preview first
+      // 1. Search YouTube for official HD video first
       final searchResult = await _searchOfficialVideoOrThumbnail(
         '${song.title} ${song.artist}',
       );
-      if (searchResult != null && searchResult.thumbnailUrl != null) {
-        final data = AnimatedArtworkData(
-          url: searchResult.thumbnailUrl!,
-          isVideo: false,
-        );
-        _animatedArtworkDataCache[cacheKey] = data;
-        _animatedArtworkCache[cacheKey] = data.url;
-        return data;
+      if (searchResult != null) {
+        if (searchResult.videoId != null) {
+          final officialVideo = await resolveVideoStream(searchResult.videoId!);
+          if (officialVideo != null && officialVideo.height >= 480) {
+            final data = AnimatedArtworkData(
+              url: officialVideo.url,
+              headers: officialVideo.headers,
+              isVideo: true,
+              width: officialVideo.width,
+              height: officialVideo.height,
+            );
+            _animatedArtworkDataCache[cacheKey] = data;
+            _animatedArtworkCache[cacheKey] = data.url;
+            return data;
+          }
+        }
+        if (searchResult.thumbnailUrl != null) {
+          final data = AnimatedArtworkData(
+            url: searchResult.thumbnailUrl!,
+            isVideo: false,
+          );
+          _animatedArtworkDataCache[cacheKey] = data;
+          _animatedArtworkCache[cacheKey] = data.url;
+          return data;
+        }
       }
 
       // 2. Fallback to album search if song belongs to an album
@@ -2660,10 +2673,46 @@ class MusicService {
         final albumResult = await _searchOfficialVideoOrThumbnail(
           '${song.album} ${song.artist}',
         );
-        if (albumResult != null && albumResult.thumbnailUrl != null) {
+        if (albumResult != null) {
+          if (albumResult.videoId != null) {
+            final officialVideo = await resolveVideoStream(
+              albumResult.videoId!,
+            );
+            if (officialVideo != null && officialVideo.height >= 480) {
+              final data = AnimatedArtworkData(
+                url: officialVideo.url,
+                headers: officialVideo.headers,
+                isVideo: true,
+                width: officialVideo.width,
+                height: officialVideo.height,
+              );
+              _animatedArtworkDataCache[cacheKey] = data;
+              _animatedArtworkCache[cacheKey] = data.url;
+              return data;
+            }
+          }
+          if (albumResult.thumbnailUrl != null) {
+            final data = AnimatedArtworkData(
+              url: albumResult.thumbnailUrl!,
+              isVideo: false,
+            );
+            _animatedArtworkDataCache[cacheKey] = data;
+            _animatedArtworkCache[cacheKey] = data.url;
+            return data;
+          }
+        }
+      }
+
+      // 3. Direct video resolution from track ID as final fallback
+      if (song.id.isNotEmpty && !song.id.startsWith('http')) {
+        final directVideo = await resolveVideoStream(song.id);
+        if (directVideo != null && directVideo.height >= 480) {
           final data = AnimatedArtworkData(
-            url: albumResult.thumbnailUrl!,
-            isVideo: false,
+            url: directVideo.url,
+            headers: directVideo.headers,
+            isVideo: true,
+            width: directVideo.width,
+            height: directVideo.height,
           );
           _animatedArtworkDataCache[cacheKey] = data;
           _animatedArtworkCache[cacheKey] = data.url;
@@ -2671,7 +2720,6 @@ class MusicService {
         }
       }
 
-      // No moving thumbnail found; return null to strictly use the high-res studio album cover
       _animatedArtworkDataCache[cacheKey] = null;
       _animatedArtworkCache[cacheKey] = null;
       return null;

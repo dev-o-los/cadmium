@@ -41,7 +41,6 @@ class ArtworkColorService {
     final lower = url.trim().toLowerCase();
     return lower.contains('googlevideo.com') ||
         lower.contains('videoplayback') ||
-        lower.contains('an_webp') ||
         lower.contains('.mp4') ||
         lower.contains('.m3u8') ||
         lower.contains('.webm') ||
@@ -67,10 +66,16 @@ class ArtworkColorService {
     String? highResUrl,
     String? resolvedUrl,
     String? thumbnailUrl,
+    String? animatedArtworkUrl,
     String? songId,
     bool preferVideo = false,
   }) {
     if (preferVideo) {
+      if (animatedArtworkUrl != null &&
+          animatedArtworkUrl.trim().isNotEmpty &&
+          !isBinaryVideoStream(animatedArtworkUrl)) {
+        return animatedArtworkUrl.trim();
+      }
       for (final candidate in [thumbnailUrl, resolvedUrl, highResUrl]) {
         final trimmed = candidate?.trim() ?? '';
         if (trimmed.isNotEmpty &&

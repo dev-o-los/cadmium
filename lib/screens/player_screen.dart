@@ -36,18 +36,21 @@ final currentSongPrimaryColorProvider =
     FutureProvider.autoDispose<Color>((ref) async {
   ref.watch(
     playerProvider.select(
-      (s) => (s.currentSong?.id, s.currentSong?.thumbnailUrl),
+      (s) => (s.currentSong?.id, s.currentSong?.thumbnailUrl, s.animatedArtworkUrl),
     ),
   );
   final playerState = ref.read(playerProvider);
   final song = playerState.currentSong;
   if (song == null) return const Color(0xFF1F2438);
+  final hasVideo = playerState.animatedArtworkUrl != null &&
+      playerState.animatedArtworkUrl!.isNotEmpty;
   final art = ArtworkColorService.extractEffectiveColorUrl(
     highResUrl: song.highResThumbnailUrl,
     resolvedUrl: song.resolvedThumbnailUrl,
     thumbnailUrl: song.thumbnailUrl,
+    animatedArtworkUrl: playerState.animatedArtworkUrl,
     songId: song.id,
-    preferVideo: false,
+    preferVideo: hasVideo,
   );
   return ArtworkColorService.instance.extractAttractiveColor(
     art,
@@ -55,23 +58,26 @@ final currentSongPrimaryColorProvider =
   );
 });
 
-/// Reactive provider extracting the secondary most important color from album artwork.
+/// Reactive provider extracting the secondary most important color from album artwork or video thumbnail.
 final currentSongSecondaryColorProvider =
     FutureProvider.autoDispose<Color>((ref) async {
   ref.watch(
     playerProvider.select(
-      (s) => (s.currentSong?.id, s.currentSong?.thumbnailUrl),
+      (s) => (s.currentSong?.id, s.currentSong?.thumbnailUrl, s.animatedArtworkUrl),
     ),
   );
   final playerState = ref.read(playerProvider);
   final song = playerState.currentSong;
   if (song == null) return const Color(0xFF282034);
+  final hasVideo = playerState.animatedArtworkUrl != null &&
+      playerState.animatedArtworkUrl!.isNotEmpty;
   final art = ArtworkColorService.extractEffectiveColorUrl(
     highResUrl: song.highResThumbnailUrl,
     resolvedUrl: song.resolvedThumbnailUrl,
     thumbnailUrl: song.thumbnailUrl,
+    animatedArtworkUrl: playerState.animatedArtworkUrl,
     songId: song.id,
-    preferVideo: false,
+    preferVideo: hasVideo,
   );
   return ArtworkColorService.instance.extractSecondaryColor(
     art,
@@ -84,18 +90,21 @@ final currentSongDominantColorProvider =
     FutureProvider.autoDispose<Color>((ref) async {
   ref.watch(
     playerProvider.select(
-      (s) => (s.currentSong?.id, s.currentSong?.thumbnailUrl),
+      (s) => (s.currentSong?.id, s.currentSong?.thumbnailUrl, s.animatedArtworkUrl),
     ),
   );
   final playerState = ref.read(playerProvider);
   final song = playerState.currentSong;
   if (song == null) return const Color(0xFF141418);
+  final hasVideo = playerState.animatedArtworkUrl != null &&
+      playerState.animatedArtworkUrl!.isNotEmpty;
   final art = ArtworkColorService.extractEffectiveColorUrl(
     highResUrl: song.highResThumbnailUrl,
     resolvedUrl: song.resolvedThumbnailUrl,
     thumbnailUrl: song.thumbnailUrl,
+    animatedArtworkUrl: playerState.animatedArtworkUrl,
     songId: song.id,
-    preferVideo: false,
+    preferVideo: hasVideo,
   );
   return ArtworkColorService.instance.extractDominantColor(
     art,
@@ -103,23 +112,26 @@ final currentSongDominantColorProvider =
   );
 });
 
-/// Reactive provider extracting the brightest vibrant color from album artwork.
+/// Reactive provider extracting the brightest vibrant color from album artwork or video thumbnail.
 final currentSongBestColorProvider =
     FutureProvider.autoDispose<Color>((ref) async {
   ref.watch(
     playerProvider.select(
-      (s) => (s.currentSong?.id, s.currentSong?.thumbnailUrl),
+      (s) => (s.currentSong?.id, s.currentSong?.thumbnailUrl, s.animatedArtworkUrl),
     ),
   );
   final playerState = ref.read(playerProvider);
   final song = playerState.currentSong;
   if (song == null) return const Color(0xFFE10600);
+  final hasVideo = playerState.animatedArtworkUrl != null &&
+      playerState.animatedArtworkUrl!.isNotEmpty;
   final art = ArtworkColorService.extractEffectiveColorUrl(
     highResUrl: song.highResThumbnailUrl,
     resolvedUrl: song.resolvedThumbnailUrl,
     thumbnailUrl: song.thumbnailUrl,
+    animatedArtworkUrl: playerState.animatedArtworkUrl,
     songId: song.id,
-    preferVideo: false,
+    preferVideo: hasVideo,
   );
   return ArtworkColorService.instance.extractBestVibrantColor(
     art,
@@ -534,16 +546,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     Color dominantBottom,
   })
       _computeAtmosphericPalette(SongItem song) {
+    final hasVideo = ref.watch(
+      playerProvider.select(
+        (s) => s.animatedArtworkUrl != null && s.animatedArtworkUrl!.isNotEmpty,
+      ),
+    );
+    final animatedArtworkUrl = ref.watch(
+      playerProvider.select((s) => s.animatedArtworkUrl),
+    );
     final artworkUrl = ArtworkColorService.extractEffectiveColorUrl(
       highResUrl: song.highResThumbnailUrl,
       resolvedUrl: song.resolvedThumbnailUrl,
       thumbnailUrl: song.thumbnailUrl,
+      animatedArtworkUrl: animatedArtworkUrl,
       songId: song.id,
-      preferVideo: false,
+      preferVideo: hasVideo,
     );
     final seed = '${song.title} ${song.artist}';
 
-    // The most populated color in that bottom area of the album artwork
+    // The most populated color in that bottom area of the album artwork / video
     final dominantColor = (artworkUrl != null)
         ? (ref.watch(currentSongDominantColorProvider).asData?.value ??
               ArtworkColorService.instance.getCachedDominantColor(artworkUrl) ??
@@ -635,12 +656,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Widget _buildAmbientBackdrop(SongItem song, double screenHeight) {
+    final animatedArtworkUrl = ref.watch(
+      playerProvider.select((s) => s.animatedArtworkUrl),
+    );
+    final animatedArtworkHeaders = ref.watch(
+      playerProvider.select((s) => s.animatedArtworkHeaders),
+    );
+    final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
+    final hasVideo = animatedArtworkUrl != null && animatedArtworkUrl.isNotEmpty;
+
     final artworkUrl = ArtworkColorService.extractEffectiveColorUrl(
       highResUrl: song.highResThumbnailUrl,
       resolvedUrl: song.resolvedThumbnailUrl,
       thumbnailUrl: song.thumbnailUrl,
+      animatedArtworkUrl: animatedArtworkUrl,
       songId: song.id,
-      preferVideo: false,
+      preferVideo: hasVideo,
     );
 
     final palette = _computeAtmosphericPalette(song);
@@ -651,27 +682,55 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       dominant: palette.dominantBottom,
     );
 
-    final Widget staticBlurLayer = (artworkUrl != null)
-        ? RepaintBoundary(
-            child: Opacity(
-              opacity: 0.46,
-              child: ImageFiltered(
-                imageFilter: ui.ImageFilter.blur(
-                  sigmaX: 60,
-                  sigmaY: 60,
-                  tileMode: TileMode.mirror,
-                ),
-                child: WavifyCachedImage(
-                  imageUrl: artworkUrl,
-                  placeholderImageUrl: song.resolvedThumbnailUrl ?? song.thumbnailUrl,
-                  songId: song.id,
-                  fit: BoxFit.cover,
-                  filterQuality: FilterQuality.low,
-                ),
-              ),
-            ),
-          )
-        : const SizedBox.shrink();
+    // Dynamic media source inside the blur:
+    // When video is playing and not in lyrics mode, the live video is rendered
+    // directly inside the blur layer so its colors dynamically shift in real-time!
+    final Widget dynamicMediaSource;
+    if (hasVideo && _currentMode != PlayerViewMode.lyrics) {
+      if (AmbientVideoCanvas.isVideoUrl(animatedArtworkUrl)) {
+        dynamicMediaSource = AmbientVideoCanvas(
+          mediaUrl: animatedArtworkUrl,
+          headers: animatedArtworkHeaders,
+          fallbackImageUrl: song.thumbnailUrl,
+          isPlaying: isPlaying,
+          fit: BoxFit.cover,
+          alignment: Alignment.center,
+          zoomScale: 1.28,
+        );
+      } else {
+        dynamicMediaSource = WavifyCachedImage(
+          imageUrl: animatedArtworkUrl,
+          placeholderImageUrl: song.resolvedThumbnailUrl ?? song.thumbnailUrl,
+          songId: song.id,
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.low,
+        );
+      }
+    } else if (artworkUrl != null) {
+      dynamicMediaSource = WavifyCachedImage(
+        imageUrl: artworkUrl,
+        placeholderImageUrl: song.resolvedThumbnailUrl ?? song.thumbnailUrl,
+        songId: song.id,
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.low,
+      );
+    } else {
+      dynamicMediaSource = const SizedBox.shrink();
+    }
+
+    final Widget dynamicBlurLayer = RepaintBoundary(
+      child: Opacity(
+        opacity: hasVideo ? 0.72 : 0.46,
+        child: ImageFiltered(
+          imageFilter: ui.ImageFilter.blur(
+            sigmaX: 60,
+            sigmaY: 60,
+            tileMode: TileMode.mirror,
+          ),
+          child: dynamicMediaSource,
+        ),
+      ),
+    );
 
     return Positioned.fill(
       child: TweenAnimationBuilder<_PlayerScreenColors>(
@@ -680,7 +739,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         curve: Curves.easeOutCubic,
         child: KeyedSubtree(
           key: ValueKey('player_screen_ambient_${song.id}'),
-          child: staticBlurLayer,
+          child: dynamicBlurLayer,
         ),
         builder: (context, animColors, blurChild) {
           return AnimatedBuilder(
@@ -700,8 +759,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               return Stack(
                 fit: StackFit.expand,
                 children: [
-                  // 1. Rich album-tinted foundation rooted in the most populated color of artwork
-                  ColoredBox(color: palette.bottomAnchor),
+                  // 1. Rich foundation
+                  ColoredBox(
+                    color: hasVideo
+                        ? palette.bottomAnchor.withValues(alpha: 0.50)
+                        : palette.bottomAnchor,
+                  ),
                   if (innerChild != null) Positioned.fill(child: innerChild),
 
                   // 2. Apple Music-style dynamic floating accent bloom (subtly shifts & breathes)
@@ -716,10 +779,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           radius: 1.10 + 0.15 * flowSin,
                           colors: [
                             palette.accentBloom.withValues(
-                              alpha: 0.36 + 0.10 * flowSin,
+                              alpha: hasVideo ? 0.45 : (0.36 + 0.10 * flowSin),
                             ),
                             animColors.secondary.withValues(
-                              alpha: 0.20 + 0.06 * flowCos,
+                              alpha: hasVideo ? 0.35 : (0.20 + 0.06 * flowCos),
                             ),
                             Colors.transparent,
                           ],
@@ -740,8 +803,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           ),
                           radius: 0.95 + 0.10 * flowCos,
                           colors: [
-                            animColors.dominant.withValues(alpha: 0.48),
-                            animColors.deeper.withValues(alpha: 0.20),
+                            animColors.dominant.withValues(alpha: hasVideo ? 0.55 : 0.48),
+                            animColors.deeper.withValues(alpha: hasVideo ? 0.35 : 0.20),
                             Colors.transparent,
                           ],
                           stops: const [0.0, 0.50, 1.0],
@@ -758,11 +821,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            animColors.primary.withValues(alpha: 0.38),
-                            animColors.secondary.withValues(alpha: 0.62),
-                            animColors.deeper.withValues(alpha: 0.78),
-                            animColors.dominant.withValues(alpha: 0.90),
-                            palette.bottomAnchor.withValues(alpha: 0.96),
+                            animColors.primary.withValues(alpha: hasVideo ? 0.22 : 0.38),
+                            animColors.secondary.withValues(alpha: hasVideo ? 0.34 : 0.62),
+                            animColors.deeper.withValues(alpha: hasVideo ? 0.44 : 0.78),
+                            animColors.dominant.withValues(alpha: hasVideo ? 0.52 : 0.90),
+                            palette.bottomAnchor.withValues(alpha: hasVideo ? 0.58 : 0.96),
                           ],
                           stops: [
                             0.0,
@@ -786,12 +849,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             gradient: LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
-                              colors: [
-                                palette.lyricsGlow.withValues(alpha: 0.76),
-                                animColors.secondary.withValues(alpha: 0.86),
-                                animColors.deeper.withValues(alpha: 0.92),
-                                palette.bottomAnchor.withValues(alpha: 0.96),
-                              ],
+                              colors: _currentMode == PlayerViewMode.queue
+                                  ? [
+                                      palette.lyricsGlow.withValues(
+                                        alpha: hasVideo ? 0.28 : 0.42,
+                                      ),
+                                      animColors.secondary.withValues(
+                                        alpha: hasVideo ? 0.36 : 0.54,
+                                      ),
+                                      animColors.deeper.withValues(
+                                        alpha: hasVideo ? 0.44 : 0.64,
+                                      ),
+                                      palette.bottomAnchor.withValues(
+                                        alpha: hasVideo ? 0.52 : 0.72,
+                                      ),
+                                    ]
+                                  : [
+                                      palette.lyricsGlow.withValues(alpha: 0.76),
+                                      animColors.secondary.withValues(alpha: 0.86),
+                                      animColors.deeper.withValues(alpha: 0.92),
+                                      palette.bottomAnchor.withValues(alpha: 0.96),
+                                    ],
                               stops: const [0.0, 0.36, 0.74, 1.0],
                             ),
                           ),
@@ -1800,101 +1878,115 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 // Now Playing Item
                 const Text('NOW PLAYING', style: AppleTypography.eyebrow),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          WavifyCachedImage(
-                            imageUrl:
-                                song.highResThumbnailUrl ??
-                                song.resolvedThumbnailUrl,
-                            placeholderImageUrl:
-                                song.resolvedThumbnailUrl ?? song.thumbnailUrl,
-                            songId: song.id,
-                            width: 48,
-                            height: 48,
-                            fit: BoxFit.cover,
-                            filterQuality: FilterQuality.medium,
-                            shimmerBaseColor: Colors.white.withValues(alpha: 0.14),
-                            shimmerHighlightColor: Colors.white.withValues(alpha: 0.34),
-                            errorWidget: _fallbackMiniArt(
-                              size: 48,
-                              borderRadius: 8,
-                            ),
-                          ),
-                          if (isPlaying)
-                            Container(
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.07),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.10),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            WavifyCachedImage(
+                              imageUrl:
+                                  song.highResThumbnailUrl ??
+                                  song.resolvedThumbnailUrl,
+                              placeholderImageUrl:
+                                  song.resolvedThumbnailUrl ?? song.thumbnailUrl,
+                              songId: song.id,
                               width: 48,
                               height: 48,
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.55),
-                                borderRadius: BorderRadius.circular(8),
+                              fit: BoxFit.cover,
+                              filterQuality: FilterQuality.medium,
+                              shimmerBaseColor: Colors.white.withValues(alpha: 0.14),
+                              shimmerHighlightColor: Colors.white.withValues(alpha: 0.34),
+                              errorWidget: _fallbackMiniArt(
+                                size: 48,
+                                borderRadius: 8,
                               ),
-                              child: const Center(
-                                child: AnimatedEqualizerBars(
-                                  isPlaying: true,
-                                  size: 16,
-                                  color: Colors.white,
+                            ),
+                            if (isPlaying)
+                              Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.55),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Center(
+                                  child: AnimatedEqualizerBars(
+                                    isPlaying: true,
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            children: [
-                              if (_isExplicit(song.title, song.album))
-                                _buildExplicitBadge(),
-                              Expanded(
-                                child: Text(
-                                  song.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: AppleTypography.songTitle,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: AppleSpacing.titleToSubtitle),
-                          GestureDetector(
-                            onTap: () => openArtistScreen(
-                              context,
-                              artistName: song.artist,
-                            ),
-                            child: Text(
-                              song.artist,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppleTypography.songArtist,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    ApplePressable(
-                      onTap: () {
-                        ref.read(playerProvider.notifier).removeCurrentSong();
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          CupertinoIcons.xmark,
-                          color: Colors.white.withValues(alpha: 0.45),
-                          size: 16,
+                          ],
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              children: [
+                                if (_isExplicit(song.title, song.album))
+                                  _buildExplicitBadge(),
+                                Expanded(
+                                  child: Text(
+                                    song.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppleTypography.songTitle,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: AppleSpacing.titleToSubtitle),
+                            GestureDetector(
+                              onTap: () => openArtistScreen(
+                                context,
+                                artistName: song.artist,
+                              ),
+                              child: Text(
+                                song.artist,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppleTypography.songArtist,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ApplePressable(
+                        onTap: () {
+                          ref.read(playerProvider.notifier).removeCurrentSong();
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Icon(
+                            CupertinoIcons.xmark,
+                            color: Colors.white.withValues(alpha: 0.45),
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 16),
 
@@ -1920,7 +2012,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                 Colors.black,
                                 Colors.transparent,
                               ],
-                              stops: [0.0, 0.05, 0.92, 1.0],
+                              stops: [0.0, 0.07, 0.90, 1.0],
                             ).createShader(bounds);
                           },
                           blendMode: BlendMode.dstIn,
@@ -2093,27 +2185,42 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           ),
                         ),
 
-                        // Top progressive blur & delicate scrim dissolving songs at the top
+                        // Top progressive blur & delicate scrim dissolving songs seamlessly at the top
                         Positioned(
                           top: 0,
                           left: 0,
                           right: 0,
-                          height: 30,
+                          height: 48,
                           child: IgnorePointer(
                             child: ClipRect(
-                              child: BackdropFilter(
-                                filter: ui.ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        palette.bottomAnchor.withValues(alpha: 0.65),
-                                        palette.bottomAnchor.withValues(alpha: 0.15),
-                                        Colors.transparent,
-                                      ],
-                                      stops: const [0.0, 0.55, 1.0],
+                              child: ShaderMask(
+                                shaderCallback: (bounds) {
+                                  return const LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.black,
+                                      Color(0x99000000),
+                                      Colors.transparent,
+                                    ],
+                                    stops: [0.0, 0.45, 1.0],
+                                  ).createShader(bounds);
+                                },
+                                blendMode: BlendMode.dstIn,
+                                child: BackdropFilter(
+                                  filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          palette.bottomAnchor.withValues(alpha: 0.38),
+                                          palette.bottomAnchor.withValues(alpha: 0.08),
+                                          Colors.transparent,
+                                        ],
+                                        stops: const [0.0, 0.55, 1.0],
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -2122,27 +2229,42 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           ),
                         ),
 
-                        // Bottom progressive blur & delicate scrim dissolving songs at the bottom
+                        // Bottom progressive blur & delicate scrim dissolving songs seamlessly at the bottom
                         Positioned(
                           bottom: 0,
                           left: 0,
                           right: 0,
-                          height: 36,
+                          height: 52,
                           child: IgnorePointer(
                             child: ClipRect(
-                              child: BackdropFilter(
-                                filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.bottomCenter,
-                                      end: Alignment.topCenter,
-                                      colors: [
-                                        palette.bottomAnchor.withValues(alpha: 0.82),
-                                        palette.bottomAnchor.withValues(alpha: 0.25),
-                                        Colors.transparent,
-                                      ],
-                                      stops: const [0.0, 0.60, 1.0],
+                              child: ShaderMask(
+                                shaderCallback: (bounds) {
+                                  return const LinearGradient(
+                                    begin: Alignment.bottomCenter,
+                                    end: Alignment.topCenter,
+                                    colors: [
+                                      Colors.black,
+                                      Color(0x99000000),
+                                      Colors.transparent,
+                                    ],
+                                    stops: [0.0, 0.45, 1.0],
+                                  ).createShader(bounds);
+                                },
+                                blendMode: BlendMode.dstIn,
+                                child: BackdropFilter(
+                                  filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.bottomCenter,
+                                        end: Alignment.topCenter,
+                                        colors: [
+                                          palette.bottomAnchor.withValues(alpha: 0.45),
+                                          palette.bottomAnchor.withValues(alpha: 0.12),
+                                          Colors.transparent,
+                                        ],
+                                        stops: const [0.0, 0.55, 1.0],
+                                      ),
                                     ),
                                   ),
                                 ),

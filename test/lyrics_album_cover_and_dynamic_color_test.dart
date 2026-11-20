@@ -125,11 +125,11 @@ void main() {
       expect(kTrackMenuGlassSettings.blur, equals(24));
     });
 
-    test('MusicService.getAnimatedArtworkData filters out full video files and keeps short moving GIFs/WebPs', () async {
+    test('MusicService.getAnimatedArtworkData resolves animated artwork and video stream data', () async {
       final musicService = MusicService();
       addTearDown(musicService.dispose);
 
-      // Video media URL should be filtered out to prevent streaming full videos
+      // Video media URL returns AnimatedArtworkData with isVideo: true
       const songWithMp4 = SongItem(
         id: 'test_mp4_song',
         title: 'Video Song',
@@ -137,8 +137,9 @@ void main() {
         animatedArtworkUrl: 'https://example.com/stream.mp4',
       );
       final videoResult = await musicService.getAnimatedArtworkData(songWithMp4);
-      // Because example.com/stream.mp4 is a full video, it is ignored
-      expect(videoResult, isNull);
+      expect(videoResult, isNotNull);
+      expect(videoResult!.isVideo, isTrue);
+      expect(videoResult.url, equals('https://example.com/stream.mp4'));
 
       // Animated WebP / GIF thumbnail is preserved as short looping moving image
       const songWithWebp = SongItem(

@@ -9,6 +9,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../constants/apple_typography.dart';
 import '../providers/player_provider.dart';
+import '../screens/player_screen.dart' show currentSongBestColorProvider;
 import '../services/artwork_color_service.dart';
 import '../utils/playback_utils.dart';
 import 'animated_cupertino_icon.dart';
@@ -55,19 +56,25 @@ class PlayerControls extends ConsumerWidget {
         (s) => s.animatedArtworkUrl != null && s.animatedArtworkUrl!.isNotEmpty,
       ),
     );
+    final animatedArtworkUrl = ref.watch(
+      playerProvider.select((s) => s.animatedArtworkUrl),
+    );
 
     final colorUrl = ArtworkColorService.extractEffectiveColorUrl(
       highResUrl: effectiveArt,
       resolvedUrl: thumbArt,
       thumbnailUrl: thumbArt,
+      animatedArtworkUrl: animatedArtworkUrl,
       songId: currentSong.id,
       preferVideo: hasVideo,
     );
 
-    final dynamicColor = colorUrl != null
-        ? (ArtworkColorService.instance.getCachedBestColor(colorUrl) ??
-            ArtworkColorService.instance.getCachedColor(colorUrl))
-        : null;
+    final bestColorAsync = ref.watch(currentSongBestColorProvider);
+    final dynamicColor = bestColorAsync.asData?.value ??
+        (colorUrl != null
+            ? (ArtworkColorService.instance.getCachedBestColor(colorUrl) ??
+                ArtworkColorService.instance.getCachedColor(colorUrl))
+            : null);
 
     // Detect whether we are rendering inline inside minimized GlassTabBar or expanded
     final placement = GlassTabBarAccessoryPlacementScope.of(context);
