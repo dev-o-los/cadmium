@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.example.wavify"
-    compileSdk = 37
+    compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

@@ -51,7 +51,7 @@ dependencies:
   xml: ^7.1.0
   shimmer: ^4.0.0
   palette_generator: ^0.3.3+7
-  permission_handler: ^13.0.2
+  permission_handler: ^11.3.1
   package_info_plus: ^10.2.2
   url_launcher: ^6.3.3
   open_filex: ^5.0.0
