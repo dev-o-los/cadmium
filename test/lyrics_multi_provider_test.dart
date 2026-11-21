@@ -210,7 +210,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
 
       // Verify all sources modal sheet opened
-      expect(find.text('Lyrics Sources'), findsOneWidget);
+      expect(find.text('Lyrics Provider'), findsOneWidget);
       expect(find.text('BetterLyrics'), findsWidgets);
 
       // Tap on BetterLyrics in the modal sheet
@@ -264,7 +264,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.text('Lyrics Sources'), findsOneWidget);
+      expect(find.text('Lyrics Provider'), findsOneWidget);
 
       final biniTile = find.widgetWithText(ApplePressable, 'BiniLyrics').last;
       expect(biniTile, findsOneWidget);

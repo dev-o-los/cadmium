@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import '../constants/app_colors.dart';
 import '../models/lyric_line.dart';
@@ -528,6 +529,37 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
     );
   }
 
+  FaIconData _getProviderIcon(LyricsProviderType type) {
+    switch (type) {
+      case LyricsProviderType.youTube:
+        return FontAwesomeIcons.youtube;
+      case LyricsProviderType.musixmatch:
+        return FontAwesomeIcons.music;
+      case LyricsProviderType.genius:
+        return FontAwesomeIcons.brain;
+      case LyricsProviderType.lrcRed:
+        return FontAwesomeIcons.wandMagicSparkles;
+      case LyricsProviderType.betterLyrics:
+        return FontAwesomeIcons.bolt;
+      case LyricsProviderType.paxSenix:
+        return FontAwesomeIcons.recordVinyl;
+      case LyricsProviderType.lyricsPlus:
+        return FontAwesomeIcons.plus;
+      case LyricsProviderType.simpMusic:
+        return FontAwesomeIcons.circlePlay;
+      case LyricsProviderType.unison:
+        return FontAwesomeIcons.headphones;
+      case LyricsProviderType.megalobiz:
+        return FontAwesomeIcons.globe;
+      case LyricsProviderType.kuGou:
+        return FontAwesomeIcons.compactDisc;
+      case LyricsProviderType.lrcLib:
+        return FontAwesomeIcons.bookOpen;
+      case LyricsProviderType.biniLyrics:
+        return FontAwesomeIcons.microphoneLines;
+    }
+  }
+
   Widget _buildTopLyricsHeader() {
     return Padding(
       padding: const EdgeInsets.only(left: 20, right: 20, top: 2, bottom: 6),
@@ -547,9 +579,9 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                CupertinoIcons.music_mic,
-                size: 12,
+              FaIcon(
+                _getProviderIcon(widget.selectedProvider),
+                size: 11,
                 color: Colors.white.withValues(alpha: 0.8),
               ),
               const SizedBox(width: 5),
@@ -689,11 +721,9 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        otherProvider == LyricsProviderType.lrcRed
-                            ? CupertinoIcons.sparkles
-                            : CupertinoIcons.play_rectangle,
-                        size: 14,
+                      FaIcon(
+                        _getProviderIcon(otherProvider),
+                        size: 13,
                         color: Colors.white,
                       ),
                       const SizedBox(width: 8),
@@ -729,10 +759,10 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        CupertinoIcons.slider_horizontal_3,
+                      const FaIcon(
+                        FontAwesomeIcons.sliders,
                         color: Colors.white70,
-                        size: 13,
+                        size: 12,
                       ),
                       const SizedBox(width: 7),
                       Text(
@@ -1244,24 +1274,14 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Padding(
-                padding: EdgeInsets.fromLTRB(4, 2, 4, 4),
+                padding: EdgeInsets.fromLTRB(4, 2, 4, 12),
                 child: Text(
-                  'Lyrics Sources',
+                  'Lyrics Provider',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     letterSpacing: -0.3,
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
-                child: Text(
-                  'Choose from ${LyricsProviderType.values.length} providers. Lyrics load automatically from the fastest source.',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.60),
-                    fontSize: 13,
                   ),
                 ),
               ),
@@ -1302,7 +1322,7 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
                                       : Colors.transparent,
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 14,
-                                    vertical: 11,
+                                    vertical: 12,
                                   ),
                                   child: Row(
                                     children: [
@@ -1316,45 +1336,26 @@ class _AppleLyricsViewState extends State<AppleLyricsView>
                                           ),
                                         ),
                                         child: Center(
-                                          child: Icon(
-                                            type == LyricsProviderType.youTube
-                                                ? CupertinoIcons.play_rectangle
-                                                : (type.formatDescription.contains('Word')
-                                                    ? CupertinoIcons.sparkles
-                                                    : CupertinoIcons.music_mic),
+                                          child: FaIcon(
+                                            _getProviderIcon(type),
                                             color: isSelected ? Colors.white : Colors.white70,
-                                            size: 15,
+                                            size: 14,
                                           ),
                                         ),
                                       ),
                                       const SizedBox(width: 12),
                                       Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              type.displayName,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 14.5,
-                                                fontWeight: isSelected
-                                                    ? FontWeight.w700
-                                                    : FontWeight.w500,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 1.5),
-                                            Text(
-                                              type.formatDescription,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                color: Colors.white.withValues(alpha: 0.50),
-                                                fontSize: 11.5,
-                                              ),
-                                            ),
-                                          ],
+                                        child: Text(
+                                          type.displayName,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 15,
+                                            fontWeight: isSelected
+                                                ? FontWeight.w700
+                                                : FontWeight.w500,
+                                          ),
                                         ),
                                       ),
                                       if (isSelected)

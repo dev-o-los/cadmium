@@ -1277,9 +1277,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     ),
                   )
                 else
-                  // Track List Items (balanced left/right padding and tabular timestamps)
+                  // Track List Items (expanded width, animated equalizer on active track, and white separators)
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 140),
+                    padding: const EdgeInsets.fromLTRB(4, 0, 4, 140),
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate((context, index) {
                         final track = _filteredTracks[index];
@@ -1288,54 +1288,93 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                         final durationLabel = track.formattedDuration;
 
                         return RepaintBoundary(
-                          child: ApplePressable(
-                            onTap: () => _onTrackSelected(track),
-                            borderRadius: BorderRadius.circular(12),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 10,
-                              ),
-                              child: Row(
-                                children: [
-                                  // In Liked Music: show individual track artwork!
-                                  // In regular album: show track number index
-                                  if (isLikedMusic) ...[
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: WavifyCachedImage(
-                                        imageUrl: track.thumbnailUrl,
-                                        width: 44,
-                                        height: 44,
-                                        fit: BoxFit.cover,
-                                        borderRadius: BorderRadius.circular(8),
-                                        placeholder: const AppShimmer(
-                                          baseColor: Color(0x22FFFFFF),
-                                          highlightColor: Color(0x44FFFFFF),
-                                          child: ShimmerBox(
-                                            width: 44,
-                                            height: 44,
-                                            borderRadius: BorderRadius.all(
-                                              Radius.circular(8),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ApplePressable(
+                                onTap: () => _onTrackSelected(track),
+                                borderRadius: BorderRadius.circular(10),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 9,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      // In Liked Music: show individual track artwork with equalizer overlay when active
+                                      // In regular album: show animated equalizer when playing, else track number index
+                                      if (isLikedMusic) ...[
+                                        Stack(
+                                          alignment: Alignment.center,
+                                          children: [
+                                            ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              child: WavifyCachedImage(
+                                                imageUrl: track.thumbnailUrl,
+                                                width: 44,
+                                                height: 44,
+                                                fit: BoxFit.cover,
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                placeholder: const AppShimmer(
+                                                  baseColor: Color(0x22FFFFFF),
+                                                  highlightColor:
+                                                      Color(0x44FFFFFF),
+                                                  child: ShimmerBox(
+                                                    width: 44,
+                                                    height: 44,
+                                                    borderRadius:
+                                                        BorderRadius.all(
+                                                      Radius.circular(8),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
                                             ),
-                                          ),
+                                            if (isCurrentTrack)
+                                              Container(
+                                                width: 44,
+                                                height: 44,
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black
+                                                      .withValues(alpha: 0.45),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: Center(
+                                                  child: AnimatedEqualizerBars(
+                                                    size: 16,
+                                                    color: Colors.white,
+                                                    isPlaying: isPlaying,
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
                                         ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                  ] else ...[
-                                    SizedBox(
-                                      width: 28,
-                                      child: Text(
-                                        '${index + 1}',
-                                        textAlign: TextAlign.center,
-                                        style: AppleTypography.trackNumber(
-                                          isCurrent: isCurrentTrack,
+                                        const SizedBox(width: 10),
+                                      ] else ...[
+                                        SizedBox(
+                                          width: 28,
+                                          child: isCurrentTrack
+                                              ? Center(
+                                                  child: AnimatedEqualizerBars(
+                                                    size: 15,
+                                                    color: Colors.white,
+                                                    isPlaying: isPlaying,
+                                                  ),
+                                                )
+                                              : Text(
+                                                  '${index + 1}',
+                                                  textAlign: TextAlign.center,
+                                                  style: AppleTypography
+                                                      .trackNumber(
+                                                    isCurrent: false,
+                                                  ),
+                                                ),
                                         ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                  ],
+                                        const SizedBox(width: 10),
+                                      ],
 
                                   // Title, Artist & [E] Explicit Badge
                                   Expanded(
@@ -1427,7 +1466,17 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                               ),
                             ),
                           ),
-                        );
+                          // Subtle white separator below each track
+                          Divider(
+                            height: 1,
+                            thickness: 0.5,
+                            color: Colors.white.withValues(alpha: 0.12),
+                            indent: isLikedMusic ? 62 : 46,
+                            endIndent: 8,
+                          ),
+                        ],
+                      ),
+                    );
                       }, childCount: _filteredTracks.length),
                     ),
                   ),
