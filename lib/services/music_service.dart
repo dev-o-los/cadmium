@@ -1150,7 +1150,10 @@ class MusicService {
       }
     }
     if (!isExplicit) {
-      isExplicit = RegExp(r'\b(explicit|dirty)\b', caseSensitive: false).hasMatch(title);
+      isExplicit = RegExp(
+        r'\b(explicit|dirty)\b',
+        caseSensitive: false,
+      ).hasMatch(title);
     }
 
     return SongItem(
@@ -3280,6 +3283,43 @@ class MusicService {
     }
 
     if (cleanId.isNotEmpty) {
+      // 1. Direct InnerTube browse to preserve badges (including MUSIC_EXPLICIT_BADGE)
+      try {
+        final data = await _ytMusic.constructRequest(
+          'browse',
+          body: {'browseId': cleanId},
+        );
+        if (data is Map) {
+          final renderers = traverseList(data, [
+            'musicResponsiveListItemRenderer',
+          ]);
+          if (renderers.isNotEmpty) {
+            final tracks = <SongItem>[];
+            for (final r in renderers) {
+              if (r is Map) {
+                final song = parseSongFromRenderer(
+                  Map<String, dynamic>.from(r),
+                );
+                if (song != null && song.id.isNotEmpty) {
+                  tracks.add(song);
+                }
+              }
+            }
+            if (tracks.isNotEmpty) {
+              final hydrated = await _hydrateMissingAlbumDurations(
+                cleanId,
+                tracks,
+              );
+              SongMetricsCacheService.instance.precacheTracks(hydrated, this);
+              return hydrated;
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('getAlbumSongs direct browse error for $cleanId: $e');
+      }
+
+      // 2. Secondary fallback via _ytMusic.getAlbum
       try {
         final albumFull = await _ytMusic.getAlbum(cleanId);
         if (albumFull.songs.isNotEmpty) {
@@ -3305,6 +3345,10 @@ class MusicService {
                 : SongMetricsCacheService.instance
                       .getDuration(s.videoId)
                       ?.inSeconds;
+            final isExplicit = RegExp(
+              r'\b(explicit|dirty|parental|uncensored)\b',
+              caseSensitive: false,
+            ).hasMatch('${s.name} ${albumFull.name}');
             return SongItem(
               id: s.videoId,
               title: SongItem.sanitizeTitle(
@@ -3314,6 +3358,7 @@ class MusicService {
               thumbnailUrl: thumb,
               durationSeconds: cachedDuration,
               album: albumFull.name.isNotEmpty ? albumFull.name : null,
+              isExplicit: isExplicit,
             );
           }).toList();
 
@@ -3513,36 +3558,45 @@ class MusicService {
     }
 
     if (cleanId.isNotEmpty) {
-      // 1. Try InnerTube browse for personal/shared/special playlists
-      if (_currentAccount != null) {
-        try {
-          final browseId = cleanId.startsWith('VL')
-              ? cleanId
-              : (cleanId.startsWith('PL') ? 'VL$cleanId' : cleanId);
-          final data = await postInnerTube(
+      final browseId = cleanId.startsWith('VL')
+          ? cleanId
+          : (cleanId.startsWith('PL') ? 'VL$cleanId' : cleanId);
+
+      // 1. Try InnerTube browse to preserve badges (including explicit)
+      try {
+        dynamic data;
+        if (_currentAccount != null) {
+          data = await postInnerTube(
             'browse',
             bodyExtras: {'browseId': browseId},
           );
-          if (data != null) {
-            final renderers = _collectRenderers(
-              data,
-              'musicResponsiveListItemRenderer',
-            );
+        }
+        data ??= await _ytMusic.constructRequest(
+          'browse',
+          body: {'browseId': browseId},
+        );
+        if (data is Map) {
+          final renderers = traverseList(data, [
+            'musicResponsiveListItemRenderer',
+          ]);
+          if (renderers.isNotEmpty) {
             final parsed = <SongItem>[];
             for (final r in renderers) {
-              final song = parseSongFromRenderer(r);
-              if (song != null) parsed.add(song);
+              if (r is Map) {
+                final song = parseSongFromRenderer(
+                  Map<String, dynamic>.from(r),
+                );
+                if (song != null && song.id.isNotEmpty) parsed.add(song);
+              }
             }
             if (parsed.isNotEmpty) return parsed;
           }
-        } catch (e) {
-          debugPrint(
-            'getPlaylistTracks InnerTube browse error for $cleanId: $e',
-          );
         }
+      } catch (e) {
+        debugPrint('getPlaylistTracks browse error for $cleanId: $e');
       }
 
-      // 2. Try _ytMusic.getPlaylistVideos
+      // 2. Try _ytMusic.getPlaylistVideos fallback
       try {
         final videos = await _ytMusic.getPlaylistVideos(cleanId);
         if (videos.isNotEmpty) {
@@ -3553,12 +3607,17 @@ class MusicService {
             final artistName = v.artist.name.isNotEmpty
                 ? v.artist.name
                 : 'Unknown Artist';
+            final isExplicit = RegExp(
+              r'\b(explicit|dirty|parental|uncensored)\b',
+              caseSensitive: false,
+            ).hasMatch(v.name);
             return SongItem(
               id: v.videoId,
               title: v.name.isNotEmpty ? v.name : 'Untitled',
               artist: artistName,
               thumbnailUrl: thumb,
               durationSeconds: v.duration,
+              isExplicit: isExplicit,
             );
           }).toList();
         }
@@ -3941,6 +4000,34 @@ class MusicService {
     }
 
     if (cleanId.isNotEmpty) {
+      // 1. Direct InnerTube browse to preserve explicit badges
+      try {
+        final data = await _ytMusic.constructRequest(
+          'browse',
+          body: {'browseId': cleanId},
+        );
+        if (data is Map) {
+          final renderers = traverseList(data, [
+            'musicResponsiveListItemRenderer',
+          ]);
+          if (renderers.isNotEmpty) {
+            final songs = <SongItem>[];
+            for (final r in renderers) {
+              if (r is Map) {
+                final song = parseSongFromRenderer(
+                  Map<String, dynamic>.from(r),
+                );
+                if (song != null && song.id.isNotEmpty) songs.add(song);
+              }
+            }
+            if (songs.isNotEmpty) return songs;
+          }
+        }
+      } catch (e) {
+        debugPrint('getArtistSongs browse error for $cleanId: $e');
+      }
+
+      // 2. Secondary fallback via _ytMusic.getArtistSongs
       try {
         final songs = await _ytMusic.getArtistSongs(cleanId);
         if (songs.isNotEmpty) {
@@ -3951,6 +4038,10 @@ class MusicService {
             final name = s.artist.name.isNotEmpty
                 ? s.artist.name
                 : (artistName ?? 'Artist');
+            final isExplicit = RegExp(
+              r'\b(explicit|dirty|parental|uncensored)\b',
+              caseSensitive: false,
+            ).hasMatch('${s.name} ${s.album?.name ?? ''}');
             return SongItem(
               id: s.videoId,
               title: s.name.isNotEmpty ? s.name : 'Untitled',
@@ -3958,6 +4049,7 @@ class MusicService {
               thumbnailUrl: thumb,
               durationSeconds: s.duration,
               album: s.album?.name,
+              isExplicit: isExplicit,
             );
           }).toList();
         }
@@ -4191,15 +4283,22 @@ class MusicService {
                     );
                   }
 
-                  topSongs.add(
-                    SongItem(
-                      id: vId,
-                      title: title,
-                      artist: artist,
-                      thumbnailUrl: thumb,
-                      album: album,
-                    ),
+                  final parsedSong = parseSongFromRenderer(
+                    Map<String, dynamic>.from(item),
                   );
+                  if (parsedSong != null && parsedSong.id.isNotEmpty) {
+                    topSongs.add(parsedSong);
+                  } else {
+                    topSongs.add(
+                      SongItem(
+                        id: vId,
+                        title: title,
+                        artist: artist,
+                        thumbnailUrl: thumb,
+                        album: album,
+                      ),
+                    );
+                  }
                 }
               }
             }
@@ -5685,27 +5784,66 @@ class MusicService {
       await initialize();
     }
 
-    final results = await _ytMusic.searchSongs(trimmedQuery);
+    List<SongItem> songs = [];
 
-    final songs = results.where((song) => song.videoId.isNotEmpty).map((song) {
-      final artistName = song.artist.name.isNotEmpty
-          ? song.artist.name
-          : 'Unknown Artist';
-
-      String? thumbUrl;
-      if (song.thumbnails.isNotEmpty) {
-        thumbUrl = song.thumbnails.last.url;
-      }
-
-      return SongItem(
-        id: song.videoId,
-        title: song.name.isNotEmpty ? song.name : 'Untitled Track',
-        artist: artistName,
-        album: song.album?.name,
-        thumbnailUrl: SongItem.upgradeThumbnail(thumbUrl),
-        durationSeconds: song.duration,
+    // 1. Direct InnerTube search request to preserve badges (including MUSIC_EXPLICIT_BADGE)
+    try {
+      final searchRes = await _ytMusic.constructRequest(
+        'search',
+        body: {
+          'query': trimmedQuery,
+          'params': 'Eg-KAQwIARAAGAAgACgAMABqChAEEAMQCRAFEAo%3D',
+        },
       );
-    }).toList();
+      if (searchRes is Map) {
+        final renderers = traverseList(searchRes, [
+          'musicResponsiveListItemRenderer',
+        ]);
+        for (final r in renderers) {
+          if (r is Map) {
+            try {
+              final song = parseSongFromRenderer(Map<String, dynamic>.from(r));
+              if (song != null && song.id.isNotEmpty) {
+                songs.add(song);
+              }
+            } catch (_) {}
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[MusicService] Direct InnerTube searchSongs error: $e');
+    }
+
+    // 2. Secondary fallback via _ytMusic.searchSongs
+    if (songs.isEmpty) {
+      final results = await _ytMusic.searchSongs(trimmedQuery);
+
+      songs = results.where((song) => song.videoId.isNotEmpty).map((song) {
+        final artistName = song.artist.name.isNotEmpty
+            ? song.artist.name
+            : 'Unknown Artist';
+
+        String? thumbUrl;
+        if (song.thumbnails.isNotEmpty) {
+          thumbUrl = song.thumbnails.last.url;
+        }
+
+        final isExplicit = RegExp(
+          r'\b(explicit|dirty|parental|uncensored)\b',
+          caseSensitive: false,
+        ).hasMatch('${song.name} ${song.album?.name ?? ''}');
+
+        return SongItem(
+          id: song.videoId,
+          title: song.name.isNotEmpty ? song.name : 'Untitled Track',
+          artist: artistName,
+          album: song.album?.name,
+          thumbnailUrl: SongItem.upgradeThumbnail(thumbUrl),
+          durationSeconds: song.duration,
+          isExplicit: isExplicit,
+        );
+      }).toList();
+    }
 
     for (final song in songs) {
       if (song.durationSeconds != null && song.durationSeconds! > 0) {

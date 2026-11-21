@@ -71,10 +71,11 @@ class PlayerControls extends ConsumerWidget {
     );
 
     final bestColorAsync = ref.watch(currentSongBestColorProvider);
-    final dynamicColor = bestColorAsync.asData?.value ??
+    final dynamicColor =
+        bestColorAsync.asData?.value ??
         (colorUrl != null
             ? (ArtworkColorService.instance.getCachedBestColor(colorUrl) ??
-                ArtworkColorService.instance.getCachedColor(colorUrl))
+                  ArtworkColorService.instance.getCachedColor(colorUrl))
             : null);
 
     // Detect whether we are rendering inline inside minimized GlassTabBar or expanded
@@ -93,7 +94,7 @@ class PlayerControls extends ConsumerWidget {
         isPlaying: isPlaying,
         isLoading: isLoading,
         dynamicColor: dynamicColor,
-        isExplicit: currentSong.hasExplicitContent,
+        isExplicit: currentSong.isExplicit || currentSong.hasExplicitContent,
       );
     }
 
@@ -108,7 +109,7 @@ class PlayerControls extends ConsumerWidget {
       isPlaying: isPlaying,
       isLoading: isLoading,
       dynamicColor: dynamicColor,
-      isExplicit: currentSong.hasExplicitContent,
+      isExplicit: currentSong.isExplicit || currentSong.hasExplicitContent,
     );
   }
 
@@ -201,7 +202,10 @@ class PlayerControls extends ConsumerWidget {
                     Row(
                       children: [
                         if (isExplicit)
-                          const ExplicitBadge(size: 11, margin: EdgeInsets.only(right: 4)),
+                          const ExplicitBadge(
+                            size: 11,
+                            margin: EdgeInsets.only(right: 4),
+                          ),
                         Expanded(
                           child: Text(
                             title,
@@ -363,7 +367,10 @@ class PlayerControls extends ConsumerWidget {
                           Row(
                             children: [
                               if (isExplicit)
-                                const ExplicitBadge(size: 11, margin: EdgeInsets.only(right: 4)),
+                                const ExplicitBadge(
+                                  size: 11,
+                                  margin: EdgeInsets.only(right: 4),
+                                ),
                               Expanded(
                                 child: Text(
                                   title,

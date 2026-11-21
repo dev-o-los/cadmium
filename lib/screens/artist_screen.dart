@@ -1174,8 +1174,8 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                             Row(
                               children: [
                                 // Explicit Badge [E]
-                                _buildExplicitBadge(),
-                                const SizedBox(width: 6),
+                                if (song.isExplicit || song.hasExplicitContent)
+                                  _buildExplicitBadge(),
                                 Expanded(
                                   child: Text(
                                     song.title,

@@ -1243,7 +1243,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                               children: [
                                 Row(
                                   children: [
-                                    if (_isExplicit(song.title, song.album))
+                                    if (_isExplicit(song.title, song.album, song.isExplicit || song.hasExplicitContent))
                                       _buildExplicitBadge(),
                                     Expanded(
                                       child: Text(
@@ -1726,13 +1726,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
-  bool _isExplicit(String title, [String? album]) {
-    final lower = (title + (album ?? '')).toLowerCase();
+  bool _isExplicit(String title, [String? album, bool isExplicit = false]) {
+    if (isExplicit) return true;
+    final lower = '$title ${album ?? ''}'.toLowerCase();
     return lower.contains('(explicit') ||
         lower.contains('[explicit') ||
-        lower.contains('explicit version') ||
-        lower.contains('dirty version') ||
-        lower.contains('explicit');
+        lower.contains('explicit') ||
+        lower.contains('dirty') ||
+        lower.contains('parental') ||
+        lower.contains('uncensored');
   }
 
   Widget _buildExplicitBadge() {
@@ -1759,7 +1761,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               children: [
                 Row(
                   children: [
-                    if (_isExplicit(song.title, song.album))
+                    if (_isExplicit(song.title, song.album, song.isExplicit || song.hasExplicitContent))
                       _buildExplicitBadge(),
                     Expanded(
                       child: Text(
@@ -2025,7 +2027,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                       children: [
                                         Row(
                                           children: [
-                                            if (_isExplicit(song.title, song.album))
+                                            if (_isExplicit(song.title, song.album, song.isExplicit || song.hasExplicitContent))
                                               _buildExplicitBadge(),
                                             Expanded(
                                               child: Text(
@@ -2481,7 +2483,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 children: [
                   Row(
                     children: [
-                      if (_isExplicit(item.title, item.album))
+                      if (_isExplicit(item.title, item.album, item.isExplicit || item.hasExplicitContent))
                         _buildExplicitBadge(),
                       Expanded(
                         child: Text(

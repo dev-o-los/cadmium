@@ -185,7 +185,8 @@ class SongItem {
   /// or detected from title/album metadata.
   bool get hasExplicitContent =>
       isExplicit ||
-      RegExp(r'\b(explicit|dirty)\b', caseSensitive: false).hasMatch(title);
+      RegExp(r'\b(explicit|dirty|parental|uncensored)\b', caseSensitive: false)
+          .hasMatch('$title ${album ?? ''}');
 
   Map<String, dynamic> toJson() => {
         'id': id,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wavify/models/song_item.dart';
 import 'package:wavify/widgets/explicit_badge.dart';
 
 void main() {
@@ -22,7 +23,7 @@ void main() {
         expect(textWidget.style?.color, Colors.black);
         expect(textWidget.style?.fontWeight, FontWeight.w800);
 
-        // Verify container has white background
+        // Verify Container has white background
         final containerFinder = find.descendant(
           of: find.byType(ExplicitBadge),
           matching: find.byType(Container),
@@ -65,9 +66,34 @@ void main() {
         matching: find.byType(Container),
       );
       final containerWidget = tester.widget<Container>(containerFinder);
-      final constraints = containerWidget.constraints;
-      expect(constraints?.minWidth, 18.0);
-      expect(constraints?.minHeight, 18.0);
+      expect(containerWidget.constraints?.minWidth, 18.0);
+      expect(containerWidget.constraints?.minHeight, 18.0);
+    });
+
+    test('SongItem correctly detects explicit metadata and flags', () {
+      const explicitTrack = SongItem(
+        id: '123',
+        title: 'Not Like Us',
+        artist: 'Kendrick Lamar',
+        isExplicit: true,
+      );
+      expect(explicitTrack.isExplicit, isTrue);
+      expect(explicitTrack.hasExplicitContent, isTrue);
+
+      const titleExplicitTrack = SongItem(
+        id: '456',
+        title: 'Explicit Track (Explicit)',
+        artist: 'Artist',
+      );
+      expect(titleExplicitTrack.hasExplicitContent, isTrue);
+
+      const cleanTrack = SongItem(
+        id: '789',
+        title: 'Clean Track',
+        artist: 'Artist',
+      );
+      expect(cleanTrack.isExplicit, isFalse);
+      expect(cleanTrack.hasExplicitContent, isFalse);
     });
   });
 }

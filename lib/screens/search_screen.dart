@@ -178,8 +178,10 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
     final lower = '$title ${album ?? ''}'.toLowerCase();
     return lower.contains('(explicit') ||
         lower.contains('[explicit') ||
-        lower.contains('explicit version') ||
-        lower.contains('dirty version');
+        lower.contains('explicit') ||
+        lower.contains('dirty') ||
+        lower.contains('parental') ||
+        lower.contains('uncensored');
   }
 
   String _cleanTitle(String title) {
@@ -828,7 +830,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
     final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
     final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
     final isSelected = currentSong?.id == song.id;
-    final explicit = _isExplicit(song.title, song.album);
+    final explicit = song.isExplicit || song.hasExplicitContent || _isExplicit(song.title, song.album);
     final displayTitle = _cleanTitle(song.title);
 
     return ApplePressable(
@@ -1172,7 +1174,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
     final currentSong = ref.watch(playerProvider.select((s) => s.currentSong));
     final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
     final isSelected = currentSong?.id == song.id;
-    final explicit = _isExplicit(song.title, song.album);
+    final explicit = song.isExplicit || song.hasExplicitContent || _isExplicit(song.title, song.album);
     final displayTitle = _cleanTitle(song.title);
 
     return ApplePressable(

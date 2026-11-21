@@ -633,8 +633,8 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
 
                 // 4. Simple blur at the bottom of the artwork that fades away upward into the album
                 if (hero.style == 'fullBleed' ||
-                    (hero.style != 'mixWithBadge' &&
-                        hero.style != 'similarArtists' &&
+                    hero.style == 'mixWithBadge' ||
+                    (hero.style != 'similarArtists' &&
                         hero.style != 'userStation' &&
                         hero.style != 'discoveryStation' &&
                         hero.style != 'moodForYou' &&
@@ -804,19 +804,19 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             children: [
               // 1. Large top-left circular avatar (Dominant main artist)
               Positioned(
-                top: 12,
-                left: 10,
+                top: 16,
+                left: 12,
                 child: _buildAvatarCircle(
                   avatarUrl: hero.artistAvatars.isNotEmpty
                       ? hero.artistAvatars[0]
                       : hdUrl,
-                  size: cardWidth * 0.52,
+                  size: cardWidth * 0.56,
                 ),
               ),
-              // 2. Medium right circular avatar (Snug & close to circle 1)
+              // 2. Medium right circular avatar (Snug & close to circle 1, non-overlapping)
               Positioned(
-                top: 12 + cardWidth * 0.52 * 0.44,
-                right: 10,
+                top: 92,
+                right: 12,
                 child: _buildAvatarCircle(
                   avatarUrl: hero.artistAvatars.length > 1
                       ? hero.artistAvatars[1]
@@ -826,17 +826,17 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                   size: cardWidth * 0.36,
                 ),
               ),
-              // 3. Small circular avatar nestled close directly beneath circle 1
+              // 3. Small-medium circular avatar nestled close beneath circle 1 & left of circle 2 (non-overlapping)
               Positioned(
-                top: 12 + cardWidth * 0.52 + 5,
-                left: cardWidth * 0.28,
+                top: 144,
+                left: cardWidth * 0.29,
                 child: _buildAvatarCircle(
                   avatarUrl: hero.artistAvatars.length > 2
                       ? hero.artistAvatars[2]
                       : (hero.artistAvatars.isNotEmpty
                             ? hero.artistAvatars[0]
                             : null),
-                  size: cardWidth * 0.28,
+                  size: cardWidth * 0.32,
                 ),
               ),
             ],
@@ -917,14 +917,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                     fontWeight: FontWeight.w800,
                     height: 0.94,
                     letterSpacing: -0.8,
-                    color: Colors.white.withValues(alpha: 0.95),
-                    shadows: [
-                      Shadow(
-                        color: Colors.black.withValues(alpha: 0.55),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+                    color: Colors.white,
                   ),
                 ),
               ),
@@ -1237,7 +1230,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                   children: [
                     Row(
                       children: [
-                        if (song.hasExplicitContent)
+                        if (song.isExplicit || song.hasExplicitContent)
                           const ExplicitBadge(),
                         Expanded(
                           child: Text(
