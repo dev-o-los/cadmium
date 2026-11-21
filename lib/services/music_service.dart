@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
@@ -1456,16 +1457,54 @@ class MusicService {
   }
 
   /// Parses an ArtistItem from a musicTwoRowItemRenderer node.
+  /// Strictly rejects playlists (VL/PL/RD), albums (MPREb), and non-artist items.
   static ArtistItem? _parseTwoRowArtist(Map<String, dynamic> twoRow) {
     final title = _extractNodeText(twoRow['title']).trim();
     if (title.isEmpty) return null;
-    final fullSubtitle = _extractFullSubtitle(twoRow);
-    final thumb = _extractNodePhoto(twoRow);
+
+    final pageType = traverseString(twoRow, [
+      'navigationEndpoint',
+      'browseEndpoint',
+      'browseEndpointContextSupportedConfigs',
+      'browseEndpointContextMusicConfig',
+      'pageType',
+    ]);
     final browseId = traverseString(twoRow, [
       'navigationEndpoint',
       'browseEndpoint',
       'browseId',
     ]);
+
+    // Reject playlists, albums, and mixes explicitly
+    if (pageType == 'MUSIC_PAGE_TYPE_PLAYLIST' ||
+        pageType == 'MUSIC_PAGE_TYPE_ALBUM') {
+      return null;
+    }
+    if (browseId != null) {
+      if (browseId.startsWith('VL') ||
+          browseId.startsWith('PL') ||
+          browseId.startsWith('RD') ||
+          browseId.startsWith('MPREb') ||
+          browseId.startsWith('FEmusic')) {
+        return null;
+      }
+    }
+
+    final fullSubtitle = _extractFullSubtitle(twoRow);
+    final subLower = fullSubtitle.toLowerCase();
+
+    // Must be verified artist pageType, UC... channel ID, or subtitle indicating artist/subscribers
+    final isExplicitArtist = pageType == 'MUSIC_PAGE_TYPE_ARTIST' ||
+        (browseId != null && browseId.startsWith('UC'));
+    final isArtistSubtitle = subLower.contains('artist') ||
+        subLower.contains('subscriber') ||
+        subLower.contains('monthly listener');
+
+    if (!isExplicitArtist && !isArtistSubtitle) {
+      return null;
+    }
+
+    final thumb = _extractNodePhoto(twoRow);
     final id = browseId ?? 'artist_${title.hashCode}';
 
     return ArtistItem(
@@ -1531,13 +1570,16 @@ class MusicService {
       // ═══════════════════════════════════════════════════════════════════
       dynamic historyJson;
       dynamic homeJson;
+      List<ArtistItem> localArtists = [];
       try {
         final initialResults = await Future.wait([
           postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_history'}),
           postInnerTube('browse', bodyExtras: {'browseId': 'FEmusic_home'}),
+          getUserArtists().catchError((_) => <ArtistItem>[]),
         ]);
         historyJson = initialResults[0];
         homeJson = initialResults[1];
+        localArtists = (initialResults[2] as List<ArtistItem>?) ?? <ArtistItem>[];
       } catch (e) {
         debugPrint('_fetchPersonalized initial browse error: $e');
       }
@@ -1840,9 +1882,8 @@ class MusicService {
       }
 
       // ═══════════════════════════════════════════════════════════════════
-      // STEP 4 — Compose the exact 8 Top Picks Hero Cards (matching video)
+      // STEP 4 — BitChord Top Picks Architecture
       // ═══════════════════════════════════════════════════════════════════
-      final orderedHeroCards = <HeroCardItem>[];
       final cleanFollowed = followedArtistNewReleases
           .where((a) => !a.title.toLowerCase().contains('liked music'))
           .toList();
@@ -1850,125 +1891,83 @@ class MusicService {
           .where((a) => !a.title.toLowerCase().contains('liked music'))
           .toList();
 
-      // 1. New from followed artist (Single / Album)
-      final followedRel = cleanFollowed.isNotEmpty
-          ? cleanFollowed.first
-          : (cleanAlbums.isNotEmpty ? cleanAlbums.first : null);
-      if (followedRel != null) {
-        orderedHeroCards.add(HeroCardItem(
-          id: 'hero_new_${followedRel.id}',
-          title: followedRel.title,
-          subtitle: 'New from ${followedRel.artist}',
-          caption:
-              '${followedRel.type} • ${followedRel.year ?? DateTime.now().year}',
-          imageUrl: followedRel.thumbnailUrl,
-          primaryColor: 0xFF141414,
-          style: 'fullBleed',
-          album: followedRel,
-        ));
-      }
+      // 1. Rank artists by listening history + subscribed local taste
+      final rankedArtists = _rankArtists(recents, localArtists);
 
-      // 2. Featuring [Artist Name]
-      final primaryArtist = featuredArtists.isNotEmpty
-          ? featuredArtists.first
-          : (recents.isNotEmpty
-              ? ArtistItem(
-                  id: 'art_${recents.first.artist}',
-                  name: recents.first.artist,
-                  thumbnailUrl: recents.first.thumbnailUrl,
-                  subscribers: 'Monthly audience',
-                )
-              : null);
-      if (primaryArtist != null) {
-        orderedHeroCards.add(HeroCardItem(
-          id: 'hero_featuring_${primaryArtist.id}',
-          title: primaryArtist.name,
-          subtitle: 'Featuring ${primaryArtist.name}',
-          caption: primaryArtist.subscribers ?? '197K monthly audience',
-          imageUrl: primaryArtist.thumbnailUrl,
-          primaryColor: 0xFF1A1A24,
-          style: 'artistPortrait',
-          artist: primaryArtist,
-        ));
-      }
+      // 2. Weighted sampling: pick 3 artists from top 10 pool
+      final pool = rankedArtists.isNotEmpty
+          ? rankedArtists.take(10).toList()
+          : featuredArtists.take(10).toList();
+      final sampled = _weightedSample(pool, 3);
 
-      // 3. Made for You / Discovery Station (Radial pattern + 3-wave logo)
-      orderedHeroCards.add(HeroCardItem(
-        id: 'hero_discovery_station',
-        title: 'Discovery Station',
-        subtitle: 'Made for You',
-        caption: 'YouTube Music • Mix',
-        primaryColor: 0xFF2A1B6D,
-        style: 'discoveryStation',
-        playTrack:
-            discoveryStation ?? (recents.isNotEmpty ? recents.first : null),
-      ));
-
-      // 4. Featuring [Artist] & Similar Artists (3 circular avatars on magenta background)
-      final similarAvatars = <String>[];
-      for (final a in featuredArtists.take(3)) {
-        if (a.thumbnailUrl != null) similarAvatars.add(a.thumbnailUrl!);
-      }
-      if (similarAvatars.isEmpty) {
-        for (final s in recents.take(3)) {
-          if (s.thumbnailUrl != null) similarAvatars.add(s.thumbnailUrl!);
+      // 3. Fetch artist landing details in parallel
+      final artistPages = <ArtistDetails>[];
+      if (sampled.isNotEmpty) {
+        final fetched = await Future.wait(
+          sampled.map((artist) async {
+            try {
+              if (artist.id.startsWith('UC') && !artist.id.startsWith('UC_')) {
+                return await getArtistDetails(artist.id);
+              }
+              final searchRes = await searchArtists(artist.name);
+              if (searchRes.isNotEmpty && searchRes.first.id.startsWith('UC')) {
+                return await getArtistDetails(searchRes.first.id);
+              }
+              return ArtistDetails(
+                id: artist.id,
+                name: artist.name,
+                thumbnailUrl: artist.thumbnailUrl,
+                subscribers: artist.subscribers,
+              );
+            } catch (e) {
+              debugPrint('BitChord artist page error for ${artist.name}: $e');
+              return null;
+            }
+          }),
+        );
+        for (final p in fetched) {
+          if (p != null) artistPages.add(p);
         }
       }
-      final leadSimilarArtist = featuredArtists.length > 1
-          ? featuredArtists[1].name
-          : (recents.isNotEmpty ? recents.first.artist : 'Your Favorites');
-      orderedHeroCards.add(HeroCardItem(
-        id: 'hero_similar_1',
-        title: '$leadSimilarArtist & Similar Artists',
-        subtitle: 'Featuring $leadSimilarArtist',
-        caption: 'YouTube Music • Radio',
-        primaryColor: 0xFFD81B60, // vibrant magenta
-        style: 'similarArtists',
-        artistAvatars: similarAvatars,
-        artist: featuredArtists.isNotEmpty ? featuredArtists.first : null,
-        playTrack: recents.isNotEmpty ? recents.first : null,
-      ));
 
-      // 5. A Mood for You (Neon green with lightning bolt)
-      orderedHeroCards.add(HeroCardItem(
-        id: 'hero_mood_energy',
-        title: 'Energy',
-        subtitle: 'A Mood for You',
-        caption: 'For $userName',
-        primaryColor: 0xFF00D26A, // neon green
-        style: 'moodForYou',
-        iconType: 'lightning',
-      ));
+      // 4. Lead Card: Latest Single or Album from subscribed artists / taste
+      final leadRelease = _findLatestRelease(
+        artistPages,
+        cleanFollowed.isNotEmpty ? cleanFollowed : cleanAlbums,
+      );
 
-      // 6. Another Featuring [Artist] & Similar Artists (Orange background)
-      final secondSimilarArtist = featuredArtists.length > 2
-          ? featuredArtists[2].name
-          : (recents.length > 3 ? recents[3].artist : 'Featured');
-      final secondAvatars = <String>[];
-      for (final a in featuredArtists.skip(2).take(3)) {
-        if (a.thumbnailUrl != null) secondAvatars.add(a.thumbnailUrl!);
+      // 5. Featuring Artist Card: Single artist & their similar artists (3 circular avatars)
+      HeroCardItem? featuringCard;
+      if (artistPages.isNotEmpty) {
+        featuringCard = _buildFeaturingCard(
+          artistPages.first,
+          artistPages.skip(1).toList(),
+          recents,
+        );
+      } else if (featuredArtists.isNotEmpty) {
+        final art = featuredArtists.first;
+        final avs = featuredArtists
+            .map((a) => a.thumbnailUrl)
+            .whereType<String>()
+            .take(3)
+            .toList();
+        featuringCard = HeroCardItem(
+          id: 'hero_featuring_${art.id}',
+          title: '${art.name} & Similar Artists',
+          subtitle: 'Featuring ${art.name}',
+          caption: 'YouTube Music • Radio',
+          primaryColor: 0xFFD81B60,
+          style: 'similarArtists',
+          artistAvatars: avs,
+          artist: art,
+          playTrack: recents.isNotEmpty ? recents.first : null,
+        );
       }
-      if (secondAvatars.isEmpty && recents.length > 3) {
-        for (final s in recents.skip(3).take(3)) {
-          if (s.thumbnailUrl != null) secondAvatars.add(s.thumbnailUrl!);
-        }
-      }
-      orderedHeroCards.add(HeroCardItem(
-        id: 'hero_similar_2',
-        title: '$secondSimilarArtist & Similar Artists',
-        subtitle: 'Featuring $secondSimilarArtist',
-        caption: 'YouTube Music • Radio',
-        primaryColor: 0xFFFF6D00, // vibrant deep orange
-        style: 'similarArtists',
-        artistAvatars: secondAvatars,
-        artist: featuredArtists.length > 2 ? featuredArtists[2] : null,
-        playTrack: recents.length > 3 ? recents[3] : null,
-      ));
 
-      // 7. Made for You / New Release Mix
+      // 6. New Release Mix
       final releaseMixSubtitle =
           recents.take(4).map((e) => e.artist).toSet().join(', ');
-      orderedHeroCards.add(HeroCardItem(
+      final newReleaseMixCard = HeroCardItem(
         id: 'hero_new_release_mix',
         title: 'New Release Mix',
         subtitle: 'Made for You',
@@ -1980,24 +1979,49 @@ class MusicService {
                 ? releaseMixSubtitle
                 : 'New releases you\'ll love'),
         imageUrl: newReleaseMix?.thumbnailUrl ??
-            (albumsAndSingles.isNotEmpty
-                ? albumsAndSingles.first.thumbnailUrl
-                : null),
+            (cleanAlbums.isNotEmpty ? cleanAlbums.first.thumbnailUrl : null),
         primaryColor: 0xFFC2185B,
         style: 'mixWithBadge',
         playlist: newReleaseMix,
-      ));
+      );
 
-      // 8. Made for You / [UserName]'s Station (Radiant pink-orange gradient)
-      orderedHeroCards.add(HeroCardItem(
+      // 7. Made for You / [UserName]'s Station
+      final userStationCard = HeroCardItem(
         id: 'hero_user_station',
         title: '$userName\'s Station',
         subtitle: 'Made for You',
         caption: 'Your personal station',
-        primaryColor: 0xFFFF5722, // coral-pink gradient
+        primaryColor: 0xFFFF5722,
         style: 'userStation',
         playTrack: recents.isNotEmpty ? recents.first : null,
-      ));
+      );
+
+      // 8. Discovery Station
+      final discoveryStationCard = HeroCardItem(
+        id: 'hero_discovery_station',
+        title: 'Discovery Station',
+        subtitle: 'Made for You',
+        caption: 'YouTube Music • Mix',
+        primaryColor: 0xFF2A1B6D,
+        style: 'discoveryStation',
+        playTrack: discoveryStation ??
+            (recents.length > 1
+                ? recents[1]
+                : (recents.isNotEmpty ? recents.first : null)),
+      );
+
+      // Assemble EXACTLY the 5 requested Top Picks cards:
+      // Lead (Latest Release) + Single Artist & Similar + New Release Mix + User Station + Discovery Station
+      final orderedHeroCards = <HeroCardItem>[];
+      if (leadRelease != null) {
+        orderedHeroCards.add(leadRelease);
+      }
+      if (featuringCard != null) {
+        orderedHeroCards.add(featuringCard);
+      }
+      orderedHeroCards.add(newReleaseMixCard);
+      orderedHeroCards.add(userStationCard);
+      orderedHeroCards.add(discoveryStationCard);
 
       // Never show "Liked Music" in Top Picks for You
       orderedHeroCards.removeWhere((c) {
@@ -2163,6 +2187,249 @@ class MusicService {
       }
     }
     return list;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // BITCHORD TOP PICKS HELPERS
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// BitChord ranking: The listener's top artists, best first.
+  /// Each history row counts once, with extra weight for recency.
+  /// Subscribed/library artists add a share by position.
+  List<ArtistItem> _rankArtists(
+    List<SongItem> history,
+    List<ArtistItem> localArtists,
+  ) {
+    final scores = <String, MapEntry<String, double>>{};
+
+    void credit(String? id, String name, double weight) {
+      if (id == null || id.isEmpty || name.trim().isEmpty) return;
+      if (name.trim().toLowerCase() == 'various artists') return;
+      if (id.startsWith('VL') ||
+          id.startsWith('PL') ||
+          id.startsWith('RD') ||
+          id.startsWith('MPRE')) {
+        return;
+      }
+      final existing = scores[id];
+      final currentScore = existing?.value ?? 0.0;
+      scores[id] = MapEntry(name.trim(), currentScore + weight);
+    }
+
+    // 1. YouTube history recency: 1.0 + recency * 0.5
+    for (int i = 0; i < history.length; i++) {
+      final song = history[i];
+      final recency = 1.0 - (i.toDouble() / history.length.clamp(1, 999999));
+      final weight = 1.0 + (recency * 0.5);
+
+      String? artistId;
+      final matchedLocal = localArtists.firstWhere(
+        (a) => a.name.toLowerCase() == song.artist.toLowerCase(),
+        orElse: () => const ArtistItem(id: '', name: ''),
+      );
+      if (matchedLocal.id.isNotEmpty) {
+        artistId = matchedLocal.id;
+      } else {
+        artistId = 'UC_${song.artist.hashCode}';
+      }
+      credit(artistId, song.artist, weight);
+    }
+
+    // 2. Local subscribed artists: (local.length - i) * 0.5
+    for (int i = 0; i < localArtists.length; i++) {
+      final a = localArtists[i];
+      final weight = (localArtists.length - i).toDouble() * 0.5;
+      credit(a.id, a.name, weight);
+    }
+
+    final sortedEntries = scores.entries.toList()
+      ..sort((a, b) => b.value.value.compareTo(a.value.value));
+
+    return sortedEntries.map((e) {
+      final local = localArtists.firstWhere(
+        (a) => a.id == e.key,
+        orElse: () => const ArtistItem(id: '', name: ''),
+      );
+      return ArtistItem(
+        id: e.key,
+        name: e.value.key,
+        thumbnailUrl: local.thumbnailUrl,
+        subscribers: local.subscribers,
+      );
+    }).toList();
+  }
+
+  /// BitChord weighted sampling: picks [count] items at random from [ranked].
+  List<T> _weightedSample<T>(List<T> ranked, int count) {
+    if (ranked.isEmpty) return [];
+    if (ranked.length <= count) return List<T>.from(ranked);
+
+    final pool = ranked.asMap().entries.toList();
+    final picked = <T>[];
+    final random = Random();
+
+    while (picked.length < count && pool.isNotEmpty) {
+      final totalWeight = pool.fold<double>(
+        0.0,
+        (sum, entry) => sum + (ranked.length - entry.key).toDouble(),
+      );
+      double roll = random.nextDouble() * totalWeight;
+      int chosenIndex = 0;
+      for (int i = 0; i < pool.length; i++) {
+        roll -= (ranked.length - pool[i].key).toDouble();
+        if (roll <= 0) {
+          chosenIndex = i;
+          break;
+        }
+      }
+      picked.add(pool.removeAt(chosenIndex).value);
+    }
+    return picked;
+  }
+
+  /// BitChord latestRelease: scans candidate albums/singles across top artists and
+  /// followed releases. Newest year first; within same year single wins.
+  HeroCardItem? _findLatestRelease(
+    List<ArtistDetails> artistPages,
+    List<AlbumItem> followedReleases,
+  ) {
+    final yearRegex = RegExp(r'\b(19|20)\d{2}\b');
+    final candidates = <Map<String, dynamic>>[];
+
+    for (int i = 0; i < followedReleases.length; i++) {
+      final alb = followedReleases[i];
+      final isSingle = alb.type.toLowerCase().contains('single') ||
+          alb.type.toLowerCase().contains('ep');
+      final yearMatch =
+          yearRegex.firstMatch(alb.year?.toString() ?? alb.description ?? '');
+      final year = alb.year ??
+          int.tryParse(yearMatch?.group(0) ?? '') ??
+          0;
+      candidates.add({
+        'album': alb,
+        'artistName': alb.artist,
+        'year': year,
+        'isSingle': isSingle,
+        'rank': i,
+      });
+    }
+
+    for (int rank = 0; rank < artistPages.length; rank++) {
+      final page = artistPages[rank];
+      for (final s in page.singles.take(2)) {
+        final yearMatch =
+            yearRegex.firstMatch(s.year?.toString() ?? s.description ?? '');
+        final year = s.year ??
+            int.tryParse(yearMatch?.group(0) ?? '') ??
+            0;
+        candidates.add({
+          'album': s,
+          'artistName': page.name,
+          'year': year,
+          'isSingle': true,
+          'rank': rank + 10,
+        });
+      }
+      for (final a in page.albums.take(2)) {
+        final yearMatch =
+            yearRegex.firstMatch(a.year?.toString() ?? a.description ?? '');
+        final year = a.year ??
+            int.tryParse(yearMatch?.group(0) ?? '') ??
+            0;
+        candidates.add({
+          'album': a,
+          'artistName': page.name,
+          'year': year,
+          'isSingle': false,
+          'rank': rank + 10,
+        });
+      }
+    }
+
+    if (candidates.isEmpty) return null;
+
+    candidates.sort((a, b) {
+      final yB = b['year'] as int;
+      final yA = a['year'] as int;
+      if (yB != yA) return yB.compareTo(yA);
+      final sB = (b['isSingle'] as bool) ? 1 : 0;
+      final sA = (a['isSingle'] as bool) ? 1 : 0;
+      if (sB != sA) return sB.compareTo(sA);
+      return (a['rank'] as int).compareTo(b['rank'] as int);
+    });
+
+    final best = candidates.first;
+    final bestAlbum = best['album'] as AlbumItem;
+    final bestArtistName = best['artistName'] as String;
+    final bestYear = best['year'] as int;
+
+    return HeroCardItem(
+      id: 'hero_release_${bestAlbum.id}',
+      title: bestAlbum.title,
+      subtitle: 'New from $bestArtistName',
+      caption: '${bestAlbum.type} • ${bestYear > 0 ? bestYear : DateTime.now().year}',
+      imageUrl: bestAlbum.thumbnailUrl,
+      primaryColor: 0xFF141414,
+      style: 'fullBleed',
+      album: bestAlbum,
+    );
+  }
+
+  /// BitChord andSimilar: exactly one featuring card with the primary artist and
+  /// their similar artists (3 circular avatars). Strictly artist avatars, never playlists!
+  HeroCardItem? _buildFeaturingCard(
+    ArtistDetails primaryPage,
+    List<ArtistDetails> otherPages,
+    List<SongItem> recents,
+  ) {
+    final avatars = <String>[];
+    if (primaryPage.thumbnailUrl != null &&
+        primaryPage.thumbnailUrl!.isNotEmpty) {
+      avatars.add(primaryPage.thumbnailUrl!);
+    }
+
+    // Related artists from "Fans might also like"
+    for (final sim in primaryPage.similarArtists) {
+      if (sim.thumbnailUrl != null &&
+          sim.thumbnailUrl!.isNotEmpty &&
+          !avatars.contains(sim.thumbnailUrl)) {
+        avatars.add(sim.thumbnailUrl!);
+      }
+      if (avatars.length >= 3) break;
+    }
+
+    // Supplement from other artist pages if needed
+    if (avatars.length < 3) {
+      for (final other in otherPages) {
+        if (other.thumbnailUrl != null &&
+            other.thumbnailUrl!.isNotEmpty &&
+            !avatars.contains(other.thumbnailUrl)) {
+          avatars.add(other.thumbnailUrl!);
+        }
+        if (avatars.length >= 3) break;
+      }
+    }
+
+    final topSong = primaryPage.topSongs.isNotEmpty
+        ? primaryPage.topSongs.first
+        : (recents.isNotEmpty ? recents.first : null);
+
+    return HeroCardItem(
+      id: 'hero_featuring_${primaryPage.id}',
+      title: '${primaryPage.name} & Similar Artists',
+      subtitle: 'Featuring ${primaryPage.name}',
+      caption: 'YouTube Music • Radio',
+      primaryColor: 0xFFD81B60,
+      style: 'similarArtists',
+      artistAvatars: avatars,
+      artist: ArtistItem(
+        id: primaryPage.id,
+        name: primaryPage.name,
+        thumbnailUrl: primaryPage.thumbnailUrl,
+        subscribers: primaryPage.subscribers ?? primaryPage.monthlyListeners,
+      ),
+      playTrack: topSong,
+    );
   }
 
   /// Fetches raw home feed sections from YouTube Music API without any hardcoded data.
@@ -2348,52 +2615,93 @@ class MusicService {
       }
     }
 
-    // 3. Assemble dynamic Top Picks Hero Cards (New releases, featuring artists, and mixes)
-    for (final album in albums.take(3)) {
+    // 3. Assemble dynamic Top Picks Hero Cards (BitChord 5-widget structure)
+    if (albums.isNotEmpty) {
+      final leadAlb = albums.first;
       heroCards.add(
         HeroCardItem(
-          id: 'hero_album_${album.id}',
-          title: album.title,
-          subtitle: 'New from ${album.artist}',
-          caption: '${album.type} • ${album.year ?? DateTime.now().year}',
-          imageUrl: album.thumbnailUrl,
+          id: 'hero_album_${leadAlb.id}',
+          title: leadAlb.title,
+          subtitle: 'New from ${leadAlb.artist}',
+          caption: '${leadAlb.type} • ${leadAlb.year ?? DateTime.now().year}',
+          imageUrl: leadAlb.thumbnailUrl,
           primaryColor: 0xFF141414,
-          album: album,
+          style: 'fullBleed',
+          album: leadAlb,
         ),
       );
     }
-    for (final song in trendingSongs.take(2)) {
+
+    if (trendingSongs.isNotEmpty) {
+      final leadArtist = trendingSongs.first;
+      final avs = trendingSongs
+          .map((s) => s.thumbnailUrl)
+          .whereType<String>()
+          .take(3)
+          .toList();
       heroCards.add(
         HeroCardItem(
-          id: 'hero_artist_${song.id}',
-          title: '${song.artist} & Similar Artists',
-          subtitle: 'Featuring ${song.artist}',
+          id: 'hero_artist_${leadArtist.id}',
+          title: '${leadArtist.artist} & Similar Artists',
+          subtitle: 'Featuring ${leadArtist.artist}',
           caption: 'YouTube Music • Radio',
-          imageUrl: song.thumbnailUrl,
-          primaryColor: 0xFF141414,
-          playTrack: song,
+          primaryColor: 0xFFD81B60,
+          style: 'similarArtists',
+          artistAvatars: avs,
+          playTrack: leadArtist,
           artist: ArtistItem(
-            id: 'art_${song.artist}',
-            name: song.artist,
-            thumbnailUrl: song.thumbnailUrl,
+            id: 'art_${leadArtist.artist}',
+            name: leadArtist.artist,
+            thumbnailUrl: leadArtist.thumbnailUrl,
           ),
         ),
       );
     }
-    if (dailyDiscover.isNotEmpty && heroCards.length < 5) {
-      final lead = dailyDiscover.first;
-      heroCards.add(
-        HeroCardItem(
-          id: 'hero_station_${lead.id}',
-          title: 'Discovery Station',
-          subtitle: 'Made for You',
-          caption: 'YouTube Music • Mix',
-          imageUrl: lead.thumbnailUrl,
-          primaryColor: 0xFF141414,
-          playTrack: lead,
-        ),
-      );
-    }
+
+    // New Release Mix
+    heroCards.add(
+      HeroCardItem(
+        id: 'hero_new_release_mix',
+        title: 'New Release Mix',
+        subtitle: 'Made for You',
+        caption: trendingSongs.isNotEmpty
+            ? trendingSongs.take(3).map((e) => e.artist).toSet().join(', ')
+            : 'New releases you\'ll love',
+        imageUrl: albums.isNotEmpty ? albums.first.thumbnailUrl : null,
+        primaryColor: 0xFFC2185B,
+        style: 'mixWithBadge',
+      ),
+    );
+
+    // User Station
+    heroCards.add(
+      HeroCardItem(
+        id: 'hero_user_station',
+        title: 'Your Station',
+        subtitle: 'Made for You',
+        caption: 'Your personal station',
+        primaryColor: 0xFFFF5722,
+        style: 'userStation',
+        playTrack: recents.isNotEmpty
+            ? recents.first
+            : (quickPicks.isNotEmpty ? quickPicks.first : null),
+      ),
+    );
+
+    // Discovery Station
+    heroCards.add(
+      HeroCardItem(
+        id: 'hero_discovery_station',
+        title: 'Discovery Station',
+        subtitle: 'Made for You',
+        caption: 'YouTube Music • Mix',
+        primaryColor: 0xFF2A1B6D,
+        style: 'discoveryStation',
+        playTrack: dailyDiscover.isNotEmpty
+            ? dailyDiscover.first
+            : (trendingSongs.isNotEmpty ? trendingSongs.first : null),
+      ),
+    );
 
     // 2. Fetch real moods and genres from YouTube Music browse API
     final categories = await _fetchMoodsAndGenres();

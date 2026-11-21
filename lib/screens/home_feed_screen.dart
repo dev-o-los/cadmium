@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -532,10 +533,6 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             } else {
               openAlbumScreen(context, hero.album!);
             }
-          } else if (hero.playTrack != null) {
-            playSong(context, ref, hero.playTrack!, forceReload: true, autoOpenPlayer: true);
-          } else if (hero.playlist != null) {
-            openPlaylistScreen(context, ref, hero.playlist!);
           } else if (hero.artist != null) {
             openArtistScreen(
               context,
@@ -543,6 +540,10 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
               artistName: hero.artist!.name,
               thumbnailUrl: hero.artist!.thumbnailUrl,
             );
+          } else if (hero.playlist != null) {
+            openPlaylistScreen(context, ref, hero.playlist!);
+          } else if (hero.playTrack != null) {
+            playSong(context, ref, hero.playTrack!, forceReload: true, autoOpenPlayer: true);
           } else {
             playHero(context, ref, hero);
           }
@@ -601,24 +602,46 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                     child: WavifyLogo(size: 20),
                   ),
 
-                // 4. High-contrast OLED gradient scrim for crystal clear typography on full bleed cards
-                if (hero.style != 'mixWithBadge' &&
-                    hero.style != 'similarArtists' &&
-                    hero.style != 'userStation' &&
-                    hero.style != 'discoveryStation')
-                  Positioned.fill(
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.transparent,
-                            Color(0x66000000),
-                            Color(0xF0000000),
-                          ],
-                          stops: [0.0, 0.40, 0.70, 1.0],
+                // 4. Frosted glass bottom blur for artwork cards (~30% height)
+                // When it's a solid colour (similarArtists, userStation, discoveryStation, moodForYou):
+                // NO blur! Solid colour remains intact with crisp white text.
+                if (hero.style == 'fullBleed' ||
+                    (hero.style != 'mixWithBadge' &&
+                        hero.style != 'similarArtists' &&
+                        hero.style != 'userStation' &&
+                        hero.style != 'discoveryStation' &&
+                        hero.style != 'moodForYou' &&
+                        (hero.hdImageUrl != null || hero.imageUrl != null)))
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: cardHeight * 0.30,
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(18),
+                        bottomRight: Radius.circular(18),
+                      ),
+                      child: BackdropFilter(
+                        filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.28),
+                            border: Border(
+                              top: BorderSide(
+                                color: Colors.white.withValues(alpha: 0.16),
+                                width: 0.7,
+                              ),
+                            ),
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.white.withValues(alpha: 0.08),
+                                Colors.black.withValues(alpha: 0.32),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -628,7 +651,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                 Positioned(
                   left: 14,
                   right: 14,
-                  bottom: 14,
+                  bottom: 12,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
@@ -640,8 +663,15 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
-                          color: Colors.white.withValues(alpha: 0.82),
+                          color: Colors.white.withValues(alpha: 0.88),
                           letterSpacing: 0.1,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -649,11 +679,18 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                         hero.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                           color: Colors.white,
                           letterSpacing: -0.2,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withValues(alpha: 0.7),
+                              blurRadius: 6,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                         ),
                       ),
                       if (hero.caption.isNotEmpty &&
@@ -665,9 +702,9 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 11,
                             fontWeight: FontWeight.w400,
-                            color: Colors.white.withValues(alpha: 0.68),
+                            color: Colors.white.withValues(alpha: 0.75),
                           ),
                         ),
                       ],
@@ -710,21 +747,20 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
           ),
           child: Stack(
             children: [
-              // 1. Large top circular avatar (Image 1 & 4)
+              // 1. Large top-left circular avatar (Image 1 & 4)
               Positioned(
-                top: 18,
-                left: 16,
+                top: 16,
+                left: 14,
                 child: _buildAvatarCircle(
                   avatarUrl: hero.artistAvatars.isNotEmpty
                       ? hero.artistAvatars[0]
                       : hdUrl,
-                  size: cardWidth * 0.50, // ~115
-                  borderWidth: 0,
+                  size: cardWidth * 0.52,
                 ),
               ),
               // 2. Medium right circular avatar (Image 1 & 4)
               Positioned(
-                top: 85,
+                top: 60,
                 right: 14,
                 child: _buildAvatarCircle(
                   avatarUrl: hero.artistAvatars.length > 1
@@ -732,22 +768,20 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                       : (hero.artistAvatars.isNotEmpty
                           ? hero.artistAvatars[0]
                           : null),
-                  size: cardWidth * 0.35, // ~80
-                  borderWidth: 0,
+                  size: cardWidth * 0.38,
                 ),
               ),
               // 3. Small bottom circular avatar (Image 1 & 4)
               Positioned(
-                top: 135,
-                left: cardWidth * 0.30, // ~70
+                top: 136,
+                left: cardWidth * 0.36,
                 child: _buildAvatarCircle(
                   avatarUrl: hero.artistAvatars.length > 2
                       ? hero.artistAvatars[2]
                       : (hero.artistAvatars.isNotEmpty
                           ? hero.artistAvatars[0]
                           : null),
-                  size: cardWidth * 0.30, // ~70
-                  borderWidth: 0,
+                  size: cardWidth * 0.28,
                 ),
               ),
             ],
@@ -950,7 +984,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
   Widget _buildAvatarCircle({
     required String? avatarUrl,
     required double size,
-    double borderWidth = 0,
+    double borderWidth = 2.0,
   }) {
     final hdAvatar = avatarUrl != null
         ? (SongItem.upgradeThumbnail(avatarUrl, size: 500, quality: 95) ?? avatarUrl)
@@ -961,17 +995,21 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: borderWidth > 0
-            ? Border.all(
-                color: Colors.white.withValues(alpha: 0.9),
-                width: borderWidth,
-              )
-            : null,
+        // Chromium steel metallic ring border
+        border: Border.all(
+          color: const Color(0xFFD6DCE5).withValues(alpha: 0.82),
+          width: borderWidth,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.40),
-            blurRadius: 12,
+            color: Colors.black.withValues(alpha: 0.45),
+            blurRadius: 10,
             offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: Colors.white.withValues(alpha: 0.15),
+            blurRadius: 2,
+            spreadRadius: 0.5,
           ),
         ],
       ),

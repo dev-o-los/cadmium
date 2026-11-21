@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wavify/models/album_item.dart';
+import 'package:wavify/models/artist_item.dart';
 import 'package:wavify/models/hero_card_item.dart';
 import 'package:wavify/models/home_data.dart';
 import 'package:wavify/models/song_item.dart';
@@ -150,6 +151,79 @@ void main() {
 
       // Must open AlbumScreen for the exact album
       expect(find.byType(AlbumScreen), findsOneWidget);
+    });
+
+    testWidgets('Top Picks Hero Card with similarArtists style renders 3 circular avatars and opens ArtistScreen on tap',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      const artist = ArtistItem(
+        id: 'UC_lil_tecca',
+        name: 'Lil Tecca',
+        thumbnailUrl: 'https://example.com/lil_tecca.jpg',
+      );
+
+      const heroSimilar = HeroCardItem(
+        id: 'hero_similar_tecca',
+        title: 'Lil Tecca & Similar Artists',
+        subtitle: 'Featuring Lil Tecca',
+        caption: 'YouTube Music • Radio',
+        primaryColor: 0xFFD81B60,
+        style: 'similarArtists',
+        artistAvatars: [
+          'https://example.com/tecca.jpg',
+          'https://example.com/artist2.jpg',
+          'https://example.com/artist3.jpg',
+        ],
+        artist: artist,
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            homeDataProvider.overrideWith(
+              () => _MockHomeDataNotifier(
+                const HomeData(
+                  heroCards: [heroSimilar],
+                  recents: [],
+                  quickPicks: [],
+                  moods: [],
+                  albumsAndSingles: [],
+                  musicVideos: [],
+                  dailyDiscover: [],
+                  trendingSongs: [],
+                ),
+              ),
+            ),
+          ],
+          child: const MaterialApp(
+            home: HomeScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Lil Tecca & Similar Artists'), findsOneWidget);
+      expect(find.text('Featuring Lil Tecca'), findsOneWidget);
+      // 3 circular avatars rendered in Top Picks hero card
+      expect(
+        find.descendant(
+          of: find.byType(ListView).first,
+          matching: find.byType(ClipOval),
+        ),
+        findsNWidgets(3),
+      );
+
+      // Tap hero card
+      await tester.tap(find.text('Lil Tecca & Similar Artists'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Opens ArtistScreen
+      expect(find.byType(ArtistScreen), findsOneWidget);
     });
 
     test('HomeCacheService sanitizes and preserves all dynamic and personalized sections', () async {
