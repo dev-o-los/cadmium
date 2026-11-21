@@ -28,11 +28,11 @@ class AppUpdateService {
       _cachedPackageInfo ??= await PackageInfo.fromPlatform();
       return _cachedPackageInfo!.version;
     } catch (_) {
-      return '1.0.5';
+      return '1.0.6';
     }
   }
 
-  /// Retrieves full version string with build number (e.g. "1.0.5+6").
+  /// Retrieves full version string with build number (e.g. "1.0.6+7").
   Future<String> getFullVersionString() async {
     try {
       _cachedPackageInfo ??= await PackageInfo.fromPlatform();
@@ -43,7 +43,7 @@ class AppUpdateService {
       }
       return version;
     } catch (_) {
-      return '1.0.5';
+      return '1.0.6';
     }
   }
 
