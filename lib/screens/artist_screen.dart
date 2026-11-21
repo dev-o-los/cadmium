@@ -27,6 +27,7 @@ import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_glass_bottom_sheet.dart';
 import '../widgets/apple_pressable.dart';
+import '../widgets/explicit_badge.dart';
 import '../widgets/liquid_glass_bottom_bar.dart';
 import '../widgets/player_controls.dart';
 import '../widgets/track_options_sheet.dart';
@@ -1823,22 +1824,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
   }
 
   Widget _buildExplicitBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-      decoration: BoxDecoration(
-        color: AppColors.appleSecondaryText,
-        borderRadius: BorderRadius.circular(2.5),
-      ),
-      child: const Text(
-        'E',
-        style: TextStyle(
-          color: Colors.black,
-          fontSize: 9,
-          fontWeight: FontWeight.bold,
-          height: 1.0,
-        ),
-      ),
-    );
+    return const ExplicitBadge();
   }
 
   Widget _buildArtistLoadingContent() {

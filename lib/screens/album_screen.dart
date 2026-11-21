@@ -19,6 +19,7 @@ import '../utils/playback_utils.dart';
 import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_pressable.dart';
+import '../widgets/explicit_badge.dart';
 import '../widgets/apple_glass_bottom_sheet.dart';
 import '../widgets/liquid_glass_bottom_bar.dart';
 import '../widgets/player_controls.dart';
@@ -711,6 +712,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   }
 
   bool _isExplicitTrack(SongItem track) {
+    if (track.hasExplicitContent) return true;
     final title = track.title.toLowerCase();
     return title.contains('feat') ||
         title.contains('explicit') ||
@@ -1384,28 +1386,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                       children: [
                                         Row(
                                           children: [
-                                            if (isExplicit) ...[
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 4,
-                                                      vertical: 1,
-                                                    ),
-                                                margin: const EdgeInsets.only(
-                                                  right: 6,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.white24,
-                                                  borderRadius:
-                                                      BorderRadius.circular(3),
-                                                ),
-                                                child: const Text(
-                                                  'E',
-                                                  style: AppleTypography
-                                                      .explicitBadge,
-                                                ),
-                                              ),
-                                            ],
+                                            if (isExplicit)
+                                              const ExplicitBadge(),
                                             Expanded(
                                               child: Text(
                                                 track.title,

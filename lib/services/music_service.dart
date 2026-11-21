@@ -1120,6 +1120,39 @@ class MusicService {
     final sanitizedArtist = SongItem.sanitizeArtist(artist);
     final sanitizedTitle = SongItem.sanitizeTitle(title, sanitizedArtist);
 
+    bool isExplicit = false;
+    final badgeList = [
+      ...traverseList(item, ['badges']),
+      ...traverseList(item, ['subtitleBadges']),
+    ];
+    for (final b in badgeList) {
+      if (b is Map) {
+        final icon =
+            traverseString(b, [
+              'musicInlineBadgeRenderer',
+              'icon',
+              'iconType',
+            ]) ??
+            '';
+        final label =
+            traverseString(b, [
+              'musicInlineBadgeRenderer',
+              'accessibilityData',
+              'accessibilityData',
+              'label',
+            ]) ??
+            '';
+        if (icon == 'MUSIC_EXPLICIT_BADGE' ||
+            label.toLowerCase().contains('explicit')) {
+          isExplicit = true;
+          break;
+        }
+      }
+    }
+    if (!isExplicit) {
+      isExplicit = RegExp(r'\b(explicit|dirty)\b', caseSensitive: false).hasMatch(title);
+    }
+
     return SongItem(
       id: videoId,
       title: sanitizedTitle,
@@ -1127,6 +1160,7 @@ class MusicService {
       thumbnailUrl: thumb,
       album: album,
       durationSeconds: duration,
+      isExplicit: isExplicit,
     );
   }
 

@@ -28,6 +28,7 @@ import '../widgets/apple_glass_bottom_sheet.dart';
 import '../widgets/apple_music_slider.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/apple_lyrics_view.dart';
+import '../widgets/explicit_badge.dart';
 import '../widgets/smooth_player_loader.dart';
 import '../widgets/track_options_sheet.dart';
 import '../widgets/wavify_cached_image.dart';
@@ -1730,19 +1731,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     return lower.contains('(explicit') ||
         lower.contains('[explicit') ||
         lower.contains('explicit version') ||
+        lower.contains('dirty version') ||
         lower.contains('explicit');
   }
 
   Widget _buildExplicitBadge() {
-    return Container(
-      margin: const EdgeInsets.only(right: 5),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.22),
-        borderRadius: BorderRadius.circular(3),
-      ),
-      child: const Text('E', style: AppleTypography.explicitBadge),
-    );
+    return const ExplicitBadge();
   }
 
   /// Metadata Row: Song Title + Artist on Left (tight padding), Liquid Glass Star & 3-dots on Right

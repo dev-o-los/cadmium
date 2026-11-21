@@ -149,11 +149,11 @@ abstract final class AppleTypography {
     height: 1.0,
   );
 
-  /// Explicit 'E' Badge (10pt, Bold, 0.0 tracking)
+  /// Explicit 'E' Badge (10pt, Bold black text on white background)
   static const TextStyle explicitBadge = TextStyle(
-    color: Colors.white,
-    fontSize: 10,
-    fontWeight: FontWeight.w700,
+    color: Colors.black,
+    fontSize: 9.5,
+    fontWeight: FontWeight.w800,
     height: 1.0,
   );
 

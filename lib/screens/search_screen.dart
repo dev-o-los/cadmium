@@ -20,6 +20,7 @@ import '../utils/playback_utils.dart';
 import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_pressable.dart';
+import '../widgets/explicit_badge.dart';
 import '../widgets/sliding_pill_segmented_bar.dart';
 import '../widgets/top_status_bar_blur.dart';
 import '../widgets/top_profile_avatar_button.dart';
@@ -1635,18 +1636,7 @@ class SearchScreenState extends ConsumerState<SearchScreen> {
 
   /// Explicit [E] badge widget.
   Widget _buildExplicitBadge() {
-    return Container(
-      margin: const EdgeInsets.only(right: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 4.5, vertical: 1.5),
-      decoration: BoxDecoration(
-        color: const Color(0xFF636366),
-        borderRadius: BorderRadius.circular(3),
-      ),
-      child: const Text(
-        'E',
-        style: AppleTypography.explicitBadge,
-      ),
-    );
+    return const ExplicitBadge();
   }
 
   Widget _fallbackSquareArt({

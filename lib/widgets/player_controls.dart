@@ -14,6 +14,7 @@ import '../services/artwork_color_service.dart';
 import '../utils/playback_utils.dart';
 import 'animated_cupertino_icon.dart';
 import 'apple_pressable.dart';
+import 'explicit_badge.dart';
 import 'liquid_glass_bottom_bar.dart';
 import 'smooth_player_loader.dart';
 import 'wavify_cached_image.dart';
@@ -92,6 +93,7 @@ class PlayerControls extends ConsumerWidget {
         isPlaying: isPlaying,
         isLoading: isLoading,
         dynamicColor: dynamicColor,
+        isExplicit: currentSong.hasExplicitContent,
       );
     }
 
@@ -106,6 +108,7 @@ class PlayerControls extends ConsumerWidget {
       isPlaying: isPlaying,
       isLoading: isLoading,
       dynamicColor: dynamicColor,
+      isExplicit: currentSong.hasExplicitContent,
     );
   }
 
@@ -122,6 +125,7 @@ class PlayerControls extends ConsumerWidget {
     required bool isPlaying,
     required bool isLoading,
     Color? dynamicColor,
+    bool isExplicit = false,
   }) {
     return TweenAnimationBuilder<Color?>(
       tween: ColorTween(
@@ -194,11 +198,19 @@ class PlayerControls extends ConsumerWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppleTypography.miniPlayerInlineTitle,
+                    Row(
+                      children: [
+                        if (isExplicit)
+                          const ExplicitBadge(size: 11, margin: EdgeInsets.only(right: 4)),
+                        Expanded(
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppleTypography.miniPlayerInlineTitle,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: AppleSpacing.titleToSubtitle),
                     Text(
@@ -276,6 +288,7 @@ class PlayerControls extends ConsumerWidget {
     required bool isPlaying,
     required bool isLoading,
     Color? dynamicColor,
+    bool isExplicit = false,
   }) {
     return TweenAnimationBuilder<Color?>(
       tween: ColorTween(
@@ -347,11 +360,19 @@ class PlayerControls extends ConsumerWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppleTypography.miniPlayerTitle,
+                          Row(
+                            children: [
+                              if (isExplicit)
+                                const ExplicitBadge(size: 11, margin: EdgeInsets.only(right: 4)),
+                              Expanded(
+                                child: Text(
+                                  title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppleTypography.miniPlayerTitle,
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: AppleSpacing.titleToSubtitle),
                           Text(

@@ -8,6 +8,7 @@ class SongItem {
   final String? thumbnailUrl;
   final int? durationSeconds;
   final String? animatedArtworkUrl;
+  final bool isExplicit;
 
   const SongItem({
     required this.id,
@@ -17,6 +18,7 @@ class SongItem {
     this.thumbnailUrl,
     this.durationSeconds,
     this.animatedArtworkUrl,
+    this.isExplicit = false,
   });
 
   /// Sanitizes raw artist strings (e.g. "Hold Up by Kunwarr", "by Kunwarr", "Song • Kunwarr • 10M views", "Kunwarr - Topic")
@@ -179,6 +181,12 @@ class SongItem {
     return upgradeThumbnail(base, size: 800, quality: 95);
   }
 
+  /// Returns whether this song contains explicit content, either marked by flag
+  /// or detected from title/album metadata.
+  bool get hasExplicitContent =>
+      isExplicit ||
+      RegExp(r'\b(explicit|dirty)\b', caseSensitive: false).hasMatch(title);
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,
@@ -187,6 +195,7 @@ class SongItem {
         'thumbnailUrl': thumbnailUrl,
         'durationSeconds': durationSeconds,
         'animatedArtworkUrl': animatedArtworkUrl,
+        'isExplicit': isExplicit,
       };
 
   factory SongItem.fromJson(Map<String, dynamic> json) => SongItem(
@@ -197,6 +206,7 @@ class SongItem {
         thumbnailUrl: json['thumbnailUrl'] as String?,
         durationSeconds: json['durationSeconds'] as int?,
         animatedArtworkUrl: json['animatedArtworkUrl'] as String?,
+        isExplicit: json['isExplicit'] as bool? ?? false,
       );
 
   SongItem copyWith({
@@ -207,6 +217,7 @@ class SongItem {
     String? thumbnailUrl,
     int? durationSeconds,
     String? animatedArtworkUrl,
+    bool? isExplicit,
   }) {
     return SongItem(
       id: id ?? this.id,
@@ -216,6 +227,7 @@ class SongItem {
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
       durationSeconds: durationSeconds ?? this.durationSeconds,
       animatedArtworkUrl: animatedArtworkUrl ?? this.animatedArtworkUrl,
+      isExplicit: isExplicit ?? this.isExplicit,
     );
   }
 

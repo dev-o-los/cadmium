@@ -22,6 +22,7 @@ import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/animated_equalizer_bars.dart';
 import '../widgets/apple_pressable.dart';
 import '../widgets/dynamic_album_artwork.dart';
+import '../widgets/explicit_badge.dart';
 import '../widgets/top_status_bar_blur.dart';
 import '../widgets/app_shimmer.dart';
 import '../widgets/track_options_sheet.dart';
@@ -1234,11 +1235,19 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppleTypography.songTitle,
+                    Row(
+                      children: [
+                        if (song.hasExplicitContent)
+                          const ExplicitBadge(),
+                        Expanded(
+                          child: Text(
+                            song.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppleTypography.songTitle,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: AppleSpacing.titleToSubtitle),
                     ApplePressable(
