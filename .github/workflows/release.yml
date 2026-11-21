@@ -43,24 +43,34 @@ jobs:
         continue-on-error: true
 
       - name: Build Android Release APK
-        run: flutter build apk --release --verbose
+        run: flutter build apk --release --android-skip-build-dependency-validation --no-tree-shake-icons
+
+      - name: Resolve Release Tag
+        id: vars
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG="${{ github.ref_name }}"
+          else
+            VERSION=$(grep '^version:' pubspec.yaml | head -n1 | awk '{print $2}' | cut -d'+' -f1)
+            TAG="v${VERSION}"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Building Cadmium release for tag: ${TAG}"
 
       - name: Prepare Artifact
         run: |
-          TAG_NAME="${GITHUB_REF_NAME:-v1.0.0}"
-          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "main" ]; then
-            TAG_NAME="v1.0.6"
-          fi
-          cp build/app/outputs/flutter-apk/app-release.apk "cadmium-${TAG_NAME}.apk"
+          TAG="${{ steps.vars.outputs.tag }}"
+          cp build/app/outputs/flutter-apk/app-release.apk "cadmium-${TAG}.apk"
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
         with:
           files: cadmium-*.apk
-          name: Cadmium ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
+          name: Cadmium ${{ steps.vars.outputs.tag }}
+          tag_name: ${{ steps.vars.outputs.tag }}
           generate_release_notes: true
           draft: false
           prerelease: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
