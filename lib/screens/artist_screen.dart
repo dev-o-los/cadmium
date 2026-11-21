@@ -1174,7 +1174,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                             Row(
                               children: [
                                 // Explicit Badge [E]
-                                if (song.isExplicit || song.hasExplicitContent)
+                                if (_isExplicitSong(song))
                                   _buildExplicitBadge(),
                                 Expanded(
                                   child: Text(
@@ -1821,6 +1821,17 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
         ],
       ),
     );
+  }
+
+  bool _isExplicitSong(SongItem song) {
+    if (song.isExplicit || song.hasExplicitContent) return true;
+    final lower = '${song.title} ${song.artist} ${song.album ?? ''}'.toLowerCase();
+    return lower.contains('explicit') ||
+        lower.contains('dirty') ||
+        lower.contains('parental') ||
+        lower.contains('uncensored') ||
+        lower.contains('feat') ||
+        lower.contains('hell yeah');
   }
 
   Widget _buildExplicitBadge() {
