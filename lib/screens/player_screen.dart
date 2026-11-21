@@ -1343,7 +1343,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               )!
             : ui.lerpDouble(
                 math.max(bottomPadding, 16.0) + 16.0,
-                bottomPadding + 348.0,
+                bottomPadding + 280.0,
                 controlsVal,
               )!;
 
@@ -1462,15 +1462,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // 1. Metadata Row: Track Title & Artist on Left, Star & 3-dots on Right
-                if (modeVal < 0.95)
+                if (modeVal < 0.95) ...[
                   Opacity(
                     opacity: (1.0 - (modeVal * 2.2)).clamp(0.0, 1.0),
                     child: _buildMetadataRow(song, isFavorite),
                   ),
-
-                if (_currentMode != PlayerViewMode.lyrics)
-                  SizedBox(height: gapMetadataToLyrics)
-                else
+                  SizedBox(height: gapMetadataToLyrics),
+                ] else if (_currentMode == PlayerViewMode.lyrics)
                   const SizedBox(height: 8),
 
                 // 2. Lyrics Hook Preview Banner (visible in Now Playing and Queue modes)
@@ -1897,11 +1895,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ValueListenableBuilder<double>(
                 valueListenable: _queueScrollOffset,
                 builder: (context, offset, child) {
-                  final maxScroll = _queueMaxScroll.value;
                   final topDissolve = (offset / 24.0).clamp(0.0, 1.0);
-                  final bottomDissolve = maxScroll <= 0
-                      ? 0.0
-                      : ((maxScroll - offset) / 28.0).clamp(0.0, 1.0);
 
                   return ShaderMask(
                     shaderCallback: (Rect bounds) {
@@ -1917,7 +1911,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         stops: [
                           0.0,
                           0.035 * topDissolve,
-                          1.0 - (0.045 * bottomDissolve),
+                          0.965,
                           1.0,
                         ],
                       ).createShader(bounds);
@@ -2297,7 +2291,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             ),
                           ),
                         ),
-                      const SliverToBoxAdapter(child: SizedBox(height: 36)),
+                      const SliverToBoxAdapter(child: SizedBox(height: 12)),
                     ],
                   ),
                 ),
@@ -2343,47 +2337,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 },
               ),
 
-              // Bottom optical blur overlay: dissolves content smoothly near bottom player controls
-              ValueListenableBuilder<double>(
-                valueListenable: _queueScrollOffset,
-                builder: (context, offset, _) {
-                  final maxScroll = _queueMaxScroll.value;
-                  final bottomProgress = maxScroll <= 0
-                      ? 0.85
-                      : ((maxScroll - offset) / 32.0).clamp(0.0, 1.0);
-                  return Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    height: 52,
-                    child: IgnorePointer(
-                      child: Opacity(
-                        opacity: bottomProgress,
-                        child: ClipRect(
-                          child: ShaderMask(
-                            shaderCallback: (bounds) {
-                              return const LinearGradient(
-                                begin: Alignment.bottomCenter,
-                                end: Alignment.topCenter,
-                                colors: [
-                                  Colors.black,
-                                  Color(0x99000000),
-                                  Colors.transparent,
-                                ],
-                                stops: [0.0, 0.45, 1.0],
-                              ).createShader(bounds);
-                            },
-                            blendMode: BlendMode.dstIn,
-                            child: BackdropFilter(
-                              filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                              child: const SizedBox.expand(),
-                            ),
-                          ),
-                        ),
+              // Bottom optical blur overlay: dissolves content smoothly just above the text above the slider bar
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: 38,
+                child: IgnorePointer(
+                  child: ClipRect(
+                    child: ShaderMask(
+                      shaderCallback: (bounds) {
+                        return const LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [
+                            Colors.black,
+                            Color(0x99000000),
+                            Colors.transparent,
+                          ],
+                          stops: [0.0, 0.45, 1.0],
+                        ).createShader(bounds);
+                      },
+                      blendMode: BlendMode.dstIn,
+                      child: BackdropFilter(
+                        filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                        child: const SizedBox.expand(),
                       ),
                     ),
-                  );
-                },
+                  ),
+                ),
               ),
             ],
           ),
