@@ -1,4 +1,7 @@
 import 'song_item.dart';
+import 'album_item.dart';
+import 'artist_item.dart';
+import 'playlist_item.dart';
 
 class HeroCardItem {
   final String id;
@@ -9,6 +12,9 @@ class HeroCardItem {
   final int? primaryColor;
   final String? secondaryImageUrl;
   final SongItem? playTrack;
+  final AlbumItem? album;
+  final ArtistItem? artist;
+  final PlaylistItem? playlist;
   final String? style; // 'fullBleed', 'artistPortrait', 'similarArtists', 'discoveryStation', 'userStation', 'moodForYou', 'mixWithBadge'
   final List<String> artistAvatars;
   final String? iconType;
@@ -28,6 +34,9 @@ class HeroCardItem {
     this.primaryColor,
     this.secondaryImageUrl,
     this.playTrack,
+    this.album,
+    this.artist,
+    this.playlist,
     this.style,
     this.artistAvatars = const [],
     this.iconType,
@@ -42,6 +51,9 @@ class HeroCardItem {
         'primaryColor': primaryColor,
         'secondaryImageUrl': secondaryImageUrl,
         'playTrack': playTrack?.toJson(),
+        'album': album?.toJson(),
+        'artist': artist?.toJson(),
+        'playlist': playlist?.toJson(),
         'style': style,
         'artistAvatars': artistAvatars,
         'iconType': iconType,
@@ -57,6 +69,15 @@ class HeroCardItem {
         secondaryImageUrl: json['secondaryImageUrl'] as String?,
         playTrack: json['playTrack'] != null
             ? SongItem.fromJson(json['playTrack'] as Map<String, dynamic>)
+            : null,
+        album: json['album'] != null
+            ? AlbumItem.fromJson(json['album'] as Map<String, dynamic>)
+            : null,
+        artist: json['artist'] != null
+            ? ArtistItem.fromJson(json['artist'] as Map<String, dynamic>)
+            : null,
+        playlist: json['playlist'] != null
+            ? PlaylistItem.fromJson(json['playlist'] as Map<String, dynamic>)
             : null,
         style: json['style'] as String?,
         artistAvatars: (json['artistAvatars'] as List<dynamic>?)

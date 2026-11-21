@@ -1864,6 +1864,7 @@ class MusicService {
           imageUrl: followedRel.thumbnailUrl,
           primaryColor: 0xFF141414,
           style: 'fullBleed',
+          album: followedRel,
         ));
       }
 
@@ -1887,6 +1888,7 @@ class MusicService {
           imageUrl: primaryArtist.thumbnailUrl,
           primaryColor: 0xFF1A1A24,
           style: 'artistPortrait',
+          artist: primaryArtist,
         ));
       }
 
@@ -1923,6 +1925,7 @@ class MusicService {
         primaryColor: 0xFFD81B60, // vibrant magenta
         style: 'similarArtists',
         artistAvatars: similarAvatars,
+        artist: featuredArtists.isNotEmpty ? featuredArtists.first : null,
         playTrack: recents.isNotEmpty ? recents.first : null,
       ));
 
@@ -1958,6 +1961,7 @@ class MusicService {
         primaryColor: 0xFFFF6D00, // vibrant deep orange
         style: 'similarArtists',
         artistAvatars: secondAvatars,
+        artist: featuredArtists.length > 2 ? featuredArtists[2] : null,
         playTrack: recents.length > 3 ? recents[3] : null,
       ));
 
@@ -1981,6 +1985,7 @@ class MusicService {
                 : null),
         primaryColor: 0xFFC2185B,
         style: 'mixWithBadge',
+        playlist: newReleaseMix,
       ));
 
       // 8. Made for You / [UserName]'s Station (Radiant pink-orange gradient)
@@ -2353,6 +2358,7 @@ class MusicService {
           caption: '${album.type} • ${album.year ?? DateTime.now().year}',
           imageUrl: album.thumbnailUrl,
           primaryColor: 0xFF141414,
+          album: album,
         ),
       );
     }
@@ -2366,6 +2372,11 @@ class MusicService {
           imageUrl: song.thumbnailUrl,
           primaryColor: 0xFF141414,
           playTrack: song,
+          artist: ArtistItem(
+            id: 'art_${song.artist}',
+            name: song.artist,
+            thumbnailUrl: song.thumbnailUrl,
+          ),
         ),
       );
     }

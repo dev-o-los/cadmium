@@ -266,6 +266,14 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   Future<void> _restorePersistedPlayback() async {
     await PlayerHistoryCacheService.instance.init();
     if (!mounted) return;
+    final cachedHistory = PlayerHistoryCacheService.instance.recentlyPlayed;
+    final cachedQueue = PlayerHistoryCacheService.instance.lastQueue;
+    if (state.recentlyPlayed.isEmpty && cachedHistory.isNotEmpty) {
+      state = state.copyWith(recentlyPlayed: cachedHistory);
+    }
+    if (state.queue.isEmpty && cachedQueue.isNotEmpty) {
+      state = state.copyWith(queue: cachedQueue);
+    }
     if (state.currentSong == null) {
       final cachedSong = PlayerHistoryCacheService.instance.lastPlayedSong;
       if (cachedSong != null) {
@@ -277,8 +285,8 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
           currentSong: cachedSong,
           duration: initialDuration,
           position: Duration(milliseconds: PlayerHistoryCacheService.instance.lastPositionMs),
-          recentlyPlayed: PlayerHistoryCacheService.instance.recentlyPlayed,
-          queue: PlayerHistoryCacheService.instance.lastQueue,
+          recentlyPlayed: cachedHistory.isNotEmpty ? cachedHistory : state.recentlyPlayed,
+          queue: cachedQueue.isNotEmpty ? cachedQueue : state.queue,
           isPlaying: false,
           isBuffering: false,
           isResolvingStream: false,
@@ -542,6 +550,18 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     // If user clicked the song currently loaded and not resolving:
     // If paused, immediately start playing. If already playing, continue playing.
     if (state.currentSong?.id == song.id && !forceReload) {
+      if (state.recentlyPlayed.isEmpty || state.recentlyPlayed.first.id != song.id) {
+        final reordered = List<SongItem>.from(state.recentlyPlayed);
+        reordered.removeWhere((s) => s.id == song.id);
+        reordered.insert(0, song);
+        if (reordered.length > 50) reordered.removeLast();
+        state = state.copyWith(recentlyPlayed: reordered);
+        unawaited(PlayerHistoryCacheService.instance.saveLastPlayedSong(
+          song,
+          history: reordered,
+          queue: state.queue,
+        ));
+      }
       if (_audioPlayer.audioSource != null && !state.isResolvingStream) {
         if (!state.isPlaying) {
           play();
@@ -569,11 +589,10 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     } catch (_) {}
 
     final updatedRecentlyPlayed = List<SongItem>.from(state.recentlyPlayed);
-    if (!updatedRecentlyPlayed.any((s) => s.id == song.id)) {
-      updatedRecentlyPlayed.insert(0, song);
-      if (updatedRecentlyPlayed.length > 30) {
-        updatedRecentlyPlayed.removeLast();
-      }
+    updatedRecentlyPlayed.removeWhere((s) => s.id == song.id);
+    updatedRecentlyPlayed.insert(0, song);
+    if (updatedRecentlyPlayed.length > 50) {
+      updatedRecentlyPlayed.removeLast();
     }
 
     List<SongItem> updatedQueue = state.queue;

@@ -66,6 +66,15 @@ class HomeCacheService {
           .toList(),
       dailyDiscover: data.dailyDiscover.where(isValidSong).toList(),
       trendingSongs: data.trendingSongs.where(isValidSong).toList(),
+      dynamicSections: data.dynamicSections,
+      featuredPlaylists: data.featuredPlaylists,
+      mixedForYou: data.mixedForYou,
+      myMixes: data.myMixes,
+      followedArtistNewReleases: data.followedArtistNewReleases,
+      featuredArtists: data.featuredArtists,
+      userStation: data.userStation,
+      newReleaseMix: data.newReleaseMix,
+      discoveryStation: data.discoveryStation,
     );
   }
 

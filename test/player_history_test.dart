@@ -13,6 +13,7 @@ void main() {
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
+    PlayerHistoryCacheService.instance.resetForTesting();
   });
 
   group('PlayerHistoryCacheService Tests', () {

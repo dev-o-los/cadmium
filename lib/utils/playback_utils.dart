@@ -282,6 +282,41 @@ Future<void> playHero(
   WidgetRef ref,
   HeroCardItem hero,
 ) async {
+  // 1. If hero points to an album / single, navigate to the dedicated album/single screen
+  if (hero.album != null) {
+    final isSingle = hero.album!.type.toLowerCase() == 'single';
+    if (isSingle && hero.playTrack != null) {
+      playSong(context, ref, hero.playTrack!, forceReload: true, autoOpenPlayer: true);
+      return;
+    }
+    openAlbumScreen(context, hero.album!);
+    return;
+  }
+
+  // 2. If hero points directly to an accurate track, play it with player screen open
+  if (hero.playTrack != null) {
+    playSong(context, ref, hero.playTrack!, forceReload: true, autoOpenPlayer: true);
+    return;
+  }
+
+  // 3. If hero points to an artist, open dedicated artist screen
+  if (hero.artist != null) {
+    openArtistScreen(
+      context,
+      artistId: hero.artist!.id,
+      artistName: hero.artist!.name,
+      thumbnailUrl: hero.artist!.thumbnailUrl,
+    );
+    return;
+  }
+
+  // 4. If hero points to a playlist, open playlist screen
+  if (hero.playlist != null) {
+    openPlaylistScreen(context, ref, hero.playlist!);
+    return;
+  }
+
+  // 5. Fallback for generic stations/mixes: prepare and search accurate songs
   openPlayerScreen(context);
 
   final placeholder = SongItem(

@@ -12,6 +12,7 @@ import 'package:wavify/screens/player_screen.dart';
 import 'package:wavify/providers/player_provider.dart';
 import 'package:wavify/widgets/liquid_glass_bottom_bar.dart';
 import 'package:wavify/widgets/player_controls.dart';
+import 'package:wavify/services/player_history_cache_service.dart';
 
 class _MockHomeDataNotifier extends HomeDataNotifier {
   final HomeData mockData;
@@ -22,6 +23,9 @@ class _MockHomeDataNotifier extends HomeDataNotifier {
 }
 
 void main() {
+  setUp(() {
+    PlayerHistoryCacheService.instance.resetForTesting();
+  });
   testWidgets('WavifyApp Liquid Glass Navigation Bar UI smoke test', (WidgetTester tester) async {
     await tester.pumpWidget(
       const ProviderScope(

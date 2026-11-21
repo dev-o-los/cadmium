@@ -120,12 +120,15 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
           !cap.contains('liked music');
     }).toList();
 
-    // Prepare authentic Recents: API recents take precedence, falling back to local history or quickPicks
-    final effectiveRecents = data.recents.isNotEmpty
-        ? data.recents
-        : (recentlyPlayed.isNotEmpty
-            ? recentlyPlayed
-            : data.quickPicks.take(8).toList());
+    // Prepare authentic Recents: whatever we listen to on music should immediately be in recents at top,
+    // merged with remote recents or quickPicks fallback
+    final effectiveRecents = <SongItem>[
+      ...recentlyPlayed,
+      ...data.recents.where((r) => !recentlyPlayed.any((p) => p.id == r.id)),
+    ];
+    if (effectiveRecents.isEmpty) {
+      effectiveRecents.addAll(data.quickPicks.take(8));
+    }
 
     final sectionBuilders = <WidgetBuilder>[
       // Scrollable Brand Logo Header
@@ -244,6 +247,89 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             );
             break;
         }
+      }
+
+      // Check for any core sections not covered in dynamicSections so ALL sections always load
+      final hasAlbumsShelf = data.dynamicSections.any((s) => s.albums.isNotEmpty);
+      final hasVideosShelf = data.dynamicSections.any((s) => s.layout == HomeSectionLayout.videoCards || s.videos.isNotEmpty);
+      final hasQuickPicksShelf = data.dynamicSections.any((s) => s.title.toLowerCase().contains('quick pick'));
+      final hasDiscoverShelf = data.dynamicSections.any((s) => s.title.toLowerCase().contains('discover'));
+      final hasTrendingShelf = data.dynamicSections.any((s) => s.title.toLowerCase().contains('trend') || s.title.toLowerCase().contains('chart'));
+
+      if (data.albumsAndSingles.isNotEmpty && !hasAlbumsShelf) {
+        sectionBuilders.add(
+          (context) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildAlbumsAndSinglesSection(context, ref, data.albumsAndSingles),
+              const SizedBox(height: AppleSpacing.sectionSpacing),
+            ],
+          ),
+        );
+      }
+      if (data.musicVideos.isNotEmpty && !hasVideosShelf) {
+        sectionBuilders.add(
+          (context) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildMusicVideosSection(context, ref, data.musicVideos),
+              const SizedBox(height: AppleSpacing.sectionSpacing),
+            ],
+          ),
+        );
+      }
+      if (data.quickPicks.isNotEmpty && !hasQuickPicksShelf) {
+        sectionBuilders.add(
+          (context) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _build4ItemColumnsSection(
+                context: context,
+                ref: ref,
+                title: 'Quick picks',
+                songs: data.quickPicks,
+              ),
+              const SizedBox(height: AppleSpacing.sectionSpacing),
+            ],
+          ),
+        );
+      }
+      if (data.dailyDiscover.isNotEmpty && !hasDiscoverShelf) {
+        sectionBuilders.add(
+          (context) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHorizontalSongCarousel(
+                context: context,
+                ref: ref,
+                title: 'Your daily discover',
+                songs: data.dailyDiscover,
+              ),
+              const SizedBox(height: AppleSpacing.sectionSpacing),
+            ],
+          ),
+        );
+      }
+      if (data.trendingSongs.isNotEmpty && !hasTrendingShelf) {
+        sectionBuilders.add(
+          (context) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHorizontalSongCarousel(
+                context: context,
+                ref: ref,
+                title: 'Trending songs for you',
+                songs: data.trendingSongs,
+              ),
+              const SizedBox(height: AppleSpacing.sectionSpacing),
+            ],
+          ),
+        );
       }
     } else {
       // Fallback layout (offline, unauthenticated, tests)
@@ -439,8 +525,24 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
     return RepaintBoundary(
       child: ApplePressable(
         onTap: () {
-          if (hero.playTrack != null) {
-            playSong(context, ref, hero.playTrack!, forceReload: true);
+          if (hero.album != null) {
+            final isSingle = hero.album!.type.toLowerCase() == 'single';
+            if (isSingle && hero.playTrack != null) {
+              playSong(context, ref, hero.playTrack!, forceReload: true, autoOpenPlayer: true);
+            } else {
+              openAlbumScreen(context, hero.album!);
+            }
+          } else if (hero.playTrack != null) {
+            playSong(context, ref, hero.playTrack!, forceReload: true, autoOpenPlayer: true);
+          } else if (hero.playlist != null) {
+            openPlaylistScreen(context, ref, hero.playlist!);
+          } else if (hero.artist != null) {
+            openArtistScreen(
+              context,
+              artistId: hero.artist!.id,
+              artistName: hero.artist!.name,
+              thumbnailUrl: hero.artist!.thumbnailUrl,
+            );
           } else {
             playHero(context, ref, hero);
           }
@@ -968,11 +1070,15 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
           ),
         ),
         const SizedBox(height: AppleSpacing.sectionHeaderToContent),
-        _Snapping4ItemColumns(
-          chunked: chunked,
-          totalHeight: totalHeight,
-          rowBuilder: (ctx, song) =>
-              _build4ItemRow(ctx, ref, song, contextQueue: validSongs),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+          child: _Snapping4ItemColumns(
+            chunked: chunked,
+            totalHeight: totalHeight,
+            rowBuilder: (ctx, song) =>
+                _build4ItemRow(ctx, ref, song, contextQueue: validSongs),
+          ),
         ),
       ],
     );
@@ -989,6 +1095,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
     final isSelected = currentSong?.id == song.id;
 
     return SizedBox(
+      key: ValueKey('row_${song.id}'),
       height: 64,
       child: ApplePressable(
         onTap: () {
@@ -2059,7 +2166,10 @@ class _Snapping4ItemColumnsState extends State<_Snapping4ItemColumns> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: columnSongs
-                  .map((song) => widget.rowBuilder(context, song))
+                  .map((song) => KeyedSubtree(
+                        key: ValueKey('song_col_${song.id}'),
+                        child: widget.rowBuilder(context, song),
+                      ))
                   .toList(),
             ),
           );

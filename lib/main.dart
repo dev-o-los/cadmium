@@ -44,8 +44,8 @@ void main() async {
   ArtworkCacheService.instance.init();
   AudioCacheService.instance.init();
   SongMetricsCacheService.instance.init();
-  PlayerHistoryCacheService.instance.init();
-  HomeCacheService.instance.loadHomeData();
+  await PlayerHistoryCacheService.instance.init();
+  await HomeCacheService.instance.loadHomeData();
 
   runApp(
     LiquidGlassWidgets.wrap(

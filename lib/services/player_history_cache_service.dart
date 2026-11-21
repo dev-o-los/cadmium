@@ -40,6 +40,16 @@ class PlayerHistoryCacheService {
     }
   }
 
+  /// Resets in-memory state for testing isolation
+  @visibleForTesting
+  void resetForTesting() {
+    _lastPlayedSong = null;
+    _recentlyPlayed = [];
+    _lastQueue = [];
+    _lastPositionMs = 0;
+    _isInitialized = false;
+  }
+
   /// Initializes and preloads playback history and the last active song from disk.
   Future<void> init() async {
     if (_isInitialized) return;
