@@ -12,9 +12,9 @@ import '../models/song_item.dart';
 /// the Home screen displays rich content instantly (under 5 milliseconds)
 /// without waiting for network requests.
 class HomeCacheService {
-  static const String _prefKeyTime = 'wavify_home_cache_timestamp';
-  static const String _prefKeyData = 'wavify_home_cache_json';
-  static const String _fileName = 'home_data_cache.json';
+  static const String _prefKeyTime = 'wavify_home_cache_v3_timestamp';
+  static const String _prefKeyData = 'wavify_home_cache_v3_json';
+  static const String _fileName = 'home_data_cache_v3.json';
 
   static final HomeCacheService _instance = HomeCacheService._internal();
   static HomeCacheService get instance => _instance;

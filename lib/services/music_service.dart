@@ -21,7 +21,8 @@ import '../models/user_account.dart';
 import '../models/playlist_item.dart';
 import '../models/artist_details.dart';
 import '../models/artist_item.dart';
-import '../models/search_result_set.dart';import 'artwork_cache_service.dart';
+import '../models/search_result_set.dart';
+import 'artwork_cache_service.dart';
 import 'home_cache_service.dart';
 import 'lyrics_service.dart';
 import 'song_metrics_cache_service.dart';
@@ -443,17 +444,18 @@ class MusicService {
     if (badges is List) {
       for (final b in badges) {
         if (b is Map) {
-          final label = traverseString(b, [
-            'musicInlineBadgeRenderer',
-            'accessibilityData',
-            'accessibilityData',
-            'label',
-          ]) ??
-          traverseString(b, [
-            'accessibilityData',
-            'accessibilityData',
-            'label',
-          ]);
+          final label =
+              traverseString(b, [
+                'musicInlineBadgeRenderer',
+                'accessibilityData',
+                'accessibilityData',
+                'label',
+              ]) ??
+              traverseString(b, [
+                'accessibilityData',
+                'accessibilityData',
+                'label',
+              ]);
           if (label != null && label.trim().isNotEmpty) {
             addText(label);
           }
@@ -462,16 +464,13 @@ class MusicService {
     }
 
     // Inspect accessibility label for extra metadata like episodes or likes
-    final a11yLabel = traverseString(node, [
-      'accessibility',
-      'accessibilityData',
-      'label',
-    ]) ??
-    traverseString(node, [
-      'accessibilityData',
-      'accessibilityData',
-      'label',
-    ]);
+    final a11yLabel =
+        traverseString(node, ['accessibility', 'accessibilityData', 'label']) ??
+        traverseString(node, [
+          'accessibilityData',
+          'accessibilityData',
+          'label',
+        ]);
     if (a11yLabel != null && a11yLabel.trim().isNotEmpty) {
       final episodeMatch = RegExp(
         r'\b\d[\d,\.]*\s*(?:episodes?|eps?)\b',
@@ -1363,8 +1362,10 @@ class MusicService {
     if (browseId == null || browseId.isEmpty) return null;
 
     int? trackCount;
-    final trackMatch = RegExp(r'\b(\d+)\s*(?:songs?|tracks?)\b', caseSensitive: false)
-        .firstMatch(fullSubtitle);
+    final trackMatch = RegExp(
+      r'\b(\d+)\s*(?:songs?|tracks?)\b',
+      caseSensitive: false,
+    ).firstMatch(fullSubtitle);
     if (trackMatch != null) {
       trackCount = int.tryParse(trackMatch.group(1)!);
     }
@@ -1416,8 +1417,10 @@ class MusicService {
 
     // Extract track count if present (e.g. "12 tracks" or "48 episodes")
     int? trackCount;
-    final trackMatch = RegExp(r'\b(\d+)\s*(?:songs?|tracks?|episodes?|eps?)\b', caseSensitive: false)
-        .firstMatch(fullSubtitle);
+    final trackMatch = RegExp(
+      r'\b(\d+)\s*(?:songs?|tracks?|episodes?|eps?)\b',
+      caseSensitive: false,
+    ).firstMatch(fullSubtitle);
     if (trackMatch != null) {
       trackCount = int.tryParse(trackMatch.group(1)!);
     }
@@ -1435,7 +1438,12 @@ class MusicService {
         continue;
       }
       if (RegExp(r'^\d{4}$').hasMatch(p)) continue;
-      if (RegExp(r'^\d+\s*(?:episodes?|songs?|tracks?|likes?)', caseSensitive: false).hasMatch(p)) continue;
+      if (RegExp(
+        r'^\d+\s*(?:episodes?|songs?|tracks?|likes?)',
+        caseSensitive: false,
+      ).hasMatch(p)) {
+        continue;
+      }
       artistName = p;
       break;
     }
@@ -1494,9 +1502,11 @@ class MusicService {
     final subLower = fullSubtitle.toLowerCase();
 
     // Must be verified artist pageType, UC... channel ID, or subtitle indicating artist/subscribers
-    final isExplicitArtist = pageType == 'MUSIC_PAGE_TYPE_ARTIST' ||
+    final isExplicitArtist =
+        pageType == 'MUSIC_PAGE_TYPE_ARTIST' ||
         (browseId != null && browseId.startsWith('UC'));
-    final isArtistSubtitle = subLower.contains('artist') ||
+    final isArtistSubtitle =
+        subLower.contains('artist') ||
         subLower.contains('subscriber') ||
         subLower.contains('monthly listener');
 
@@ -1579,7 +1589,8 @@ class MusicService {
         ]);
         historyJson = initialResults[0];
         homeJson = initialResults[1];
-        localArtists = (initialResults[2] as List<ArtistItem>?) ?? <ArtistItem>[];
+        localArtists =
+            (initialResults[2] as List<ArtistItem>?) ?? <ArtistItem>[];
       } catch (e) {
         debugPrint('_fetchPersonalized initial browse error: $e');
       }
@@ -1602,7 +1613,8 @@ class MusicService {
         final allHomeResponses = <dynamic>[];
         if (homeJson != null) {
           allHomeResponses.add(homeJson);
-          final continuationToken = extractContinuationToken(homeJson) ??
+          final continuationToken =
+              extractContinuationToken(homeJson) ??
               traverseString(homeJson, ['continuation']);
           // Fetch 1 continuation page if present for instant responsive loading
           if (continuationToken != null && continuationToken.isNotEmpty) {
@@ -1631,7 +1643,8 @@ class MusicService {
           String rawTitle = '';
           String rawSubtitle = '';
 
-          if (shelf['header']?['musicCarouselShelfBasicHeaderRenderer'] is Map) {
+          if (shelf['header']?['musicCarouselShelfBasicHeaderRenderer']
+              is Map) {
             final header =
                 shelf['header']['musicCarouselShelfBasicHeaderRenderer'];
             rawTitle = _extractNodeText(header['title']).trim();
@@ -1654,163 +1667,173 @@ class MusicService {
           if (rawTitle.isEmpty) continue;
           final titleLower = rawTitle.toLowerCase();
           if (!seenShelfTitles.add(titleLower)) continue;
-            final items = (shelf['contents'] as List?) ?? const [];
+          final items = (shelf['contents'] as List?) ?? const [];
 
-            final shelfSongsList = <SongItem>[];
-            final shelfAlbumsList = <AlbumItem>[];
-            final shelfPlaylistsList = <PlaylistItem>[];
-            final shelfVideosList = <VideoItem>[];
+          final shelfSongsList = <SongItem>[];
+          final shelfAlbumsList = <AlbumItem>[];
+          final shelfPlaylistsList = <PlaylistItem>[];
+          final shelfVideosList = <VideoItem>[];
 
-            for (final it in items) {
-              if (it is! Map) continue;
-              if (it['musicResponsiveListItemRenderer'] is Map) {
-                final s = parseSongFromRenderer(
-                  it['musicResponsiveListItemRenderer'] as Map<String, dynamic>,
-                );
-                if (s != null) {
-                  shelfSongsList.add(s);
-                }
-              } else if (it['musicTwoRowItemRenderer'] is Map) {
-                final twoRow =
-                    it['musicTwoRowItemRenderer'] as Map<String, dynamic>;
-                final videoId = traverseString(
-                  twoRow,
-                  ['navigationEndpoint', 'watchEndpoint', 'videoId'],
-                );
-                final browseId = traverseString(
-                  twoRow,
-                  ['navigationEndpoint', 'browseEndpoint', 'browseId'],
-                );
-                final itemTitle = _extractNodeText(twoRow['title']).trim();
-                final itemSubtitle =
-                    _extractNodeText(twoRow['subtitle']).trim();
-                final thumb = _extractNodePhoto(twoRow);
+          for (final it in items) {
+            if (it is! Map) continue;
+            if (it['musicResponsiveListItemRenderer'] is Map) {
+              final s = parseSongFromRenderer(
+                it['musicResponsiveListItemRenderer'] as Map<String, dynamic>,
+              );
+              if (s != null) {
+                shelfSongsList.add(s);
+              }
+            } else if (it['musicTwoRowItemRenderer'] is Map) {
+              final twoRow =
+                  it['musicTwoRowItemRenderer'] as Map<String, dynamic>;
+              final videoId = traverseString(twoRow, [
+                'navigationEndpoint',
+                'watchEndpoint',
+                'videoId',
+              ]);
+              final browseId = traverseString(twoRow, [
+                'navigationEndpoint',
+                'browseEndpoint',
+                'browseId',
+              ]);
+              final itemTitle = _extractNodeText(twoRow['title']).trim();
+              final itemSubtitle = _extractNodeText(twoRow['subtitle']).trim();
+              final thumb = _extractNodePhoto(twoRow);
 
-                final isVideo = titleLower.contains('video') ||
-                    titleLower.contains('performance') ||
-                    (videoId != null && videoId.isNotEmpty && browseId == null);
+              final isVideo =
+                  titleLower.contains('video') ||
+                  titleLower.contains('performance') ||
+                  (videoId != null && videoId.isNotEmpty && browseId == null);
 
-                if (isVideo &&
-                    videoId != null &&
-                    videoId.isNotEmpty &&
-                    itemTitle.isNotEmpty) {
-                  shelfVideosList.add(VideoItem(
+              if (isVideo &&
+                  videoId != null &&
+                  videoId.isNotEmpty &&
+                  itemTitle.isNotEmpty) {
+                shelfVideosList.add(
+                  VideoItem(
                     id: videoId,
                     title: itemTitle,
                     artist: itemSubtitle.isNotEmpty
                         ? itemSubtitle
                         : 'Unknown Artist',
                     thumbnailUrl: thumb,
-                  ));
-                } else if (browseId != null && browseId.isNotEmpty) {
-                  if (browseId.startsWith('MPREb') ||
-                      browseId.contains('album') ||
-                      titleLower.contains('album') ||
-                      titleLower.contains('single') ||
-                      titleLower.contains('release')) {
-                    final alb = _parseTwoRowAlbum(twoRow);
-                    if (alb != null) {
-                      shelfAlbumsList.add(alb);
-                    }
-                  } else {
-                    final pl = _parseTwoRowPlaylist(twoRow);
-                    if (pl != null) {
-                      shelfPlaylistsList.add(pl);
-                    }
+                  ),
+                );
+              } else if (browseId != null && browseId.isNotEmpty) {
+                if (browseId.startsWith('MPREb') ||
+                    browseId.contains('album') ||
+                    titleLower.contains('album') ||
+                    titleLower.contains('single') ||
+                    titleLower.contains('release')) {
+                  final alb = _parseTwoRowAlbum(twoRow);
+                  if (alb != null) {
+                    shelfAlbumsList.add(alb);
                   }
-                } else if (videoId != null &&
-                    videoId.isNotEmpty &&
-                    itemTitle.isNotEmpty) {
-                  final cleanArt = SongItem.sanitizeArtist(itemSubtitle);
-                  final s = SongItem(
-                    id: videoId,
-                    title: SongItem.sanitizeTitle(itemTitle, cleanArt),
-                    artist: cleanArt.isNotEmpty ? cleanArt : 'YouTube Music',
-                    thumbnailUrl: thumb,
-                  );
-                  shelfSongsList.add(s);
+                } else {
+                  final pl = _parseTwoRowPlaylist(twoRow);
+                  if (pl != null) {
+                    shelfPlaylistsList.add(pl);
+                  }
                 }
+              } else if (videoId != null &&
+                  videoId.isNotEmpty &&
+                  itemTitle.isNotEmpty) {
+                final cleanArt = SongItem.sanitizeArtist(itemSubtitle);
+                final s = SongItem(
+                  id: videoId,
+                  title: SongItem.sanitizeTitle(itemTitle, cleanArt),
+                  artist: cleanArt.isNotEmpty ? cleanArt : 'YouTube Music',
+                  thumbnailUrl: thumb,
+                );
+                shelfSongsList.add(s);
+              }
 
-                // Also inspect artist cards
-                final artist = _parseTwoRowArtist(twoRow);
-                if (artist != null &&
-                    !featuredArtists.any((a) => a.id == artist.id)) {
-                  featuredArtists.add(artist);
-                }
+              // Also inspect artist cards
+              final artist = _parseTwoRowArtist(twoRow);
+              if (artist != null &&
+                  !featuredArtists.any((a) => a.id == artist.id)) {
+                featuredArtists.add(artist);
               }
             }
+          }
 
-            // Route items into section layouts
-            if (shelfSongsList.isNotEmpty) {
-              dynamicSections.add(HomeSectionData(
+          // Route items into section layouts
+          if (shelfSongsList.isNotEmpty) {
+            dynamicSections.add(
+              HomeSectionData(
                 id: 'shelf_${dynamicSections.length}',
                 title: rawTitle,
                 subtitle: rawSubtitle.isNotEmpty ? rawSubtitle : null,
                 layout: HomeSectionLayout.songColumns,
                 songs: shelfSongsList,
-              ));
+              ),
+            );
 
-              for (final s in shelfSongsList) {
-                if (titleLower.contains('recent') ||
-                    titleLower.contains('listen again')) {
-                  addSong(recents, s);
-                } else if (titleLower.contains('trend')) {
-                  addSong(trendingSongs, s);
-                } else if (titleLower.contains('discover') ||
-                    titleLower.contains('community')) {
-                  addSong(dailyDiscover, s);
-                  discoveryStation ??= s;
-                } else {
-                  addSong(quickPicks, s);
-                }
+            for (final s in shelfSongsList) {
+              if (titleLower.contains('recent') ||
+                  titleLower.contains('listen again')) {
+                addSong(recents, s);
+              } else if (titleLower.contains('trend')) {
+                addSong(trendingSongs, s);
+              } else if (titleLower.contains('discover') ||
+                  titleLower.contains('community')) {
+                addSong(dailyDiscover, s);
+                discoveryStation ??= s;
+              } else {
+                addSong(quickPicks, s);
               }
-            } else if (shelfVideosList.isNotEmpty) {
-              dynamicSections.add(HomeSectionData(
+            }
+          } else if (shelfVideosList.isNotEmpty) {
+            dynamicSections.add(
+              HomeSectionData(
                 id: 'shelf_${dynamicSections.length}',
                 title: rawTitle,
                 subtitle: rawSubtitle.isNotEmpty ? rawSubtitle : null,
                 layout: HomeSectionLayout.videoCards,
                 videos: shelfVideosList,
-              ));
-              musicVideos.addAll(shelfVideosList);
-            } else if (shelfAlbumsList.isNotEmpty ||
-                shelfPlaylistsList.isNotEmpty) {
-              dynamicSections.add(HomeSectionData(
+              ),
+            );
+            musicVideos.addAll(shelfVideosList);
+          } else if (shelfAlbumsList.isNotEmpty ||
+              shelfPlaylistsList.isNotEmpty) {
+            dynamicSections.add(
+              HomeSectionData(
                 id: 'shelf_${dynamicSections.length}',
                 title: rawTitle,
                 subtitle: rawSubtitle.isNotEmpty ? rawSubtitle : null,
                 layout: HomeSectionLayout.squareCards,
                 albums: shelfAlbumsList,
                 playlists: shelfPlaylistsList,
-              ));
-              albumsAndSingles.addAll(shelfAlbumsList);
-              if (titleLower.contains('new from') ||
-                  titleLower.contains('new release') ||
-                  titleLower.contains('new album') ||
-                  titleLower.contains('new single')) {
-                followedArtistNewReleases.addAll(shelfAlbumsList);
-              }
-              if (titleLower.contains('supermix') ||
-                  titleLower.contains('mixed for you')) {
-                mixedForYou.addAll(shelfPlaylistsList);
-              } else if (titleLower.contains('my mix')) {
-                myMixes.addAll(shelfPlaylistsList);
-              } else if (titleLower.contains('featured playlist')) {
-                featuredPlaylists.addAll(shelfPlaylistsList);
-              }
+              ),
+            );
+            albumsAndSingles.addAll(shelfAlbumsList);
+            if (titleLower.contains('new from') ||
+                titleLower.contains('new release') ||
+                titleLower.contains('new album') ||
+                titleLower.contains('new single')) {
+              followedArtistNewReleases.addAll(shelfAlbumsList);
+            }
+            if (titleLower.contains('supermix') ||
+                titleLower.contains('mixed for you')) {
+              mixedForYou.addAll(shelfPlaylistsList);
+            } else if (titleLower.contains('my mix')) {
+              myMixes.addAll(shelfPlaylistsList);
+            } else if (titleLower.contains('featured playlist')) {
+              featuredPlaylists.addAll(shelfPlaylistsList);
+            }
 
-              for (final pl in shelfPlaylistsList) {
-                final plLower = pl.title.toLowerCase();
-                if (plLower.contains('new release mix')) {
-                  newReleaseMix ??= pl;
-                } else if (plLower.contains('station') &&
-                    !plLower.contains('discover')) {
-                  userStation ??= pl;
-                }
+            for (final pl in shelfPlaylistsList) {
+              final plLower = pl.title.toLowerCase();
+              if (plLower.contains('new release mix')) {
+                newReleaseMix ??= pl;
+              } else if (plLower.contains('station') &&
+                  !plLower.contains('discover')) {
+                userStation ??= pl;
               }
             }
           }
-        } catch (e) {
+        }
+      } catch (e) {
         debugPrint('_fetchPersonalized: FEmusic_home error: $e');
       }
 
@@ -1847,31 +1870,37 @@ class MusicService {
             final pls = _extractPlaylistsFromHomeSection(section);
 
             if (songs.isNotEmpty) {
-              dynamicSections.add(HomeSectionData(
-                id: 'shelf_fallback_${dynamicSections.length}',
-                title: title,
-                layout: HomeSectionLayout.songColumns,
-                songs: songs,
-              ));
+              dynamicSections.add(
+                HomeSectionData(
+                  id: 'shelf_fallback_${dynamicSections.length}',
+                  title: title,
+                  layout: HomeSectionLayout.songColumns,
+                  songs: songs,
+                ),
+              );
               for (final s in songs) {
                 addSong(quickPicks, s);
               }
             } else if (vids.isNotEmpty) {
-              dynamicSections.add(HomeSectionData(
-                id: 'shelf_fallback_${dynamicSections.length}',
-                title: title,
-                layout: HomeSectionLayout.videoCards,
-                videos: vids,
-              ));
+              dynamicSections.add(
+                HomeSectionData(
+                  id: 'shelf_fallback_${dynamicSections.length}',
+                  title: title,
+                  layout: HomeSectionLayout.videoCards,
+                  videos: vids,
+                ),
+              );
               musicVideos.addAll(vids);
             } else if (albs.isNotEmpty || pls.isNotEmpty) {
-              dynamicSections.add(HomeSectionData(
-                id: 'shelf_fallback_${dynamicSections.length}',
-                title: title,
-                layout: HomeSectionLayout.squareCards,
-                albums: albs,
-                playlists: pls,
-              ));
+              dynamicSections.add(
+                HomeSectionData(
+                  id: 'shelf_fallback_${dynamicSections.length}',
+                  title: title,
+                  layout: HomeSectionLayout.squareCards,
+                  albums: albs,
+                  playlists: pls,
+                ),
+              );
               albumsAndSingles.addAll(albs);
               featuredPlaylists.addAll(pls);
             }
@@ -1965,20 +1994,25 @@ class MusicService {
       }
 
       // 6. New Release Mix
-      final releaseMixSubtitle =
-          recents.take(4).map((e) => e.artist).toSet().join(', ');
+      final releaseMixSubtitle = recents
+          .take(4)
+          .map((e) => e.artist)
+          .toSet()
+          .join(', ');
       final newReleaseMixCard = HeroCardItem(
         id: 'hero_new_release_mix',
         title: 'New Release Mix',
         subtitle: 'Made for You',
-        caption: (newReleaseMix != null &&
+        caption:
+            (newReleaseMix != null &&
                 newReleaseMix.author.isNotEmpty &&
                 newReleaseMix.author != 'YouTube Music')
             ? newReleaseMix.author
             : (releaseMixSubtitle.isNotEmpty
-                ? releaseMixSubtitle
-                : 'New releases you\'ll love'),
-        imageUrl: newReleaseMix?.thumbnailUrl ??
+                  ? releaseMixSubtitle
+                  : 'New releases you\'ll love'),
+        imageUrl:
+            newReleaseMix?.thumbnailUrl ??
             (cleanAlbums.isNotEmpty ? cleanAlbums.first.thumbnailUrl : null),
         primaryColor: 0xFFC2185B,
         style: 'mixWithBadge',
@@ -2004,7 +2038,8 @@ class MusicService {
         caption: 'YouTube Music • Mix',
         primaryColor: 0xFF2A1B6D,
         style: 'discoveryStation',
-        playTrack: discoveryStation ??
+        playTrack:
+            discoveryStation ??
             (recents.length > 1
                 ? recents[1]
                 : (recents.isNotEmpty ? recents.first : null)),
@@ -2138,28 +2173,32 @@ class MusicService {
         if (item.thumbnails.isNotEmpty) {
           thumb = SongItem.upgradeThumbnail(item.thumbnails.last.url);
         }
-        list.add(PlaylistItem(
-          id: item.playlistId,
-          title: item.name.isNotEmpty ? item.name : 'Mix',
-          author: item.artist.name.isNotEmpty
-              ? item.artist.name
-              : 'YouTube Music',
-          thumbnailUrl: thumb,
-        ));
+        list.add(
+          PlaylistItem(
+            id: item.playlistId,
+            title: item.name.isNotEmpty ? item.name : 'Mix',
+            author: item.artist.name.isNotEmpty
+                ? item.artist.name
+                : 'YouTube Music',
+            thumbnailUrl: thumb,
+          ),
+        );
       } else if (item is AlbumDetailed && item.albumId.isNotEmpty) {
         // Some mixes surface as albums — wrap them as playlists
         String? thumb;
         if (item.thumbnails.isNotEmpty) {
           thumb = SongItem.upgradeThumbnail(item.thumbnails.last.url);
         }
-        list.add(PlaylistItem(
-          id: item.albumId,
-          title: item.name.isNotEmpty ? item.name : 'Mix',
-          author: item.artist.name.isNotEmpty
-              ? item.artist.name
-              : 'YouTube Music',
-          thumbnailUrl: thumb,
-        ));
+        list.add(
+          PlaylistItem(
+            id: item.albumId,
+            title: item.name.isNotEmpty ? item.name : 'Mix',
+            author: item.artist.name.isNotEmpty
+                ? item.artist.name
+                : 'YouTube Music',
+            thumbnailUrl: thumb,
+          ),
+        );
       }
     }
     return list;
@@ -2298,13 +2337,13 @@ class MusicService {
 
     for (int i = 0; i < followedReleases.length; i++) {
       final alb = followedReleases[i];
-      final isSingle = alb.type.toLowerCase().contains('single') ||
+      final isSingle =
+          alb.type.toLowerCase().contains('single') ||
           alb.type.toLowerCase().contains('ep');
-      final yearMatch =
-          yearRegex.firstMatch(alb.year?.toString() ?? alb.description ?? '');
-      final year = alb.year ??
-          int.tryParse(yearMatch?.group(0) ?? '') ??
-          0;
+      final yearMatch = yearRegex.firstMatch(
+        alb.year?.toString() ?? alb.description ?? '',
+      );
+      final year = alb.year ?? int.tryParse(yearMatch?.group(0) ?? '') ?? 0;
       candidates.add({
         'album': alb,
         'artistName': alb.artist,
@@ -2317,11 +2356,10 @@ class MusicService {
     for (int rank = 0; rank < artistPages.length; rank++) {
       final page = artistPages[rank];
       for (final s in page.singles.take(2)) {
-        final yearMatch =
-            yearRegex.firstMatch(s.year?.toString() ?? s.description ?? '');
-        final year = s.year ??
-            int.tryParse(yearMatch?.group(0) ?? '') ??
-            0;
+        final yearMatch = yearRegex.firstMatch(
+          s.year?.toString() ?? s.description ?? '',
+        );
+        final year = s.year ?? int.tryParse(yearMatch?.group(0) ?? '') ?? 0;
         candidates.add({
           'album': s,
           'artistName': page.name,
@@ -2331,11 +2369,10 @@ class MusicService {
         });
       }
       for (final a in page.albums.take(2)) {
-        final yearMatch =
-            yearRegex.firstMatch(a.year?.toString() ?? a.description ?? '');
-        final year = a.year ??
-            int.tryParse(yearMatch?.group(0) ?? '') ??
-            0;
+        final yearMatch = yearRegex.firstMatch(
+          a.year?.toString() ?? a.description ?? '',
+        );
+        final year = a.year ?? int.tryParse(yearMatch?.group(0) ?? '') ?? 0;
         candidates.add({
           'album': a,
           'artistName': page.name,
@@ -2367,7 +2404,8 @@ class MusicService {
       id: 'hero_release_${bestAlbum.id}',
       title: bestAlbum.title,
       subtitle: 'New from $bestArtistName',
-      caption: '${bestAlbum.type} • ${bestYear > 0 ? bestYear : DateTime.now().year}',
+      caption:
+          '${bestAlbum.type} • ${bestYear > 0 ? bestYear : DateTime.now().year}',
       imageUrl: bestAlbum.thumbnailUrl,
       primaryColor: 0xFF141414,
       style: 'fullBleed',
@@ -2516,11 +2554,16 @@ class MusicService {
                         songTitle.toLowerCase() != 'untitled' &&
                         songTitle.toLowerCase() != 'track') {
                       final cleanArt = SongItem.sanitizeArtist(subtitle);
-                      final cleanTit = SongItem.sanitizeTitle(songTitle, cleanArt);
+                      final cleanTit = SongItem.sanitizeTitle(
+                        songTitle,
+                        cleanArt,
+                      );
                       final song = SongItem(
                         id: videoId,
                         title: cleanTit,
-                        artist: cleanArt.isNotEmpty ? cleanArt : 'YouTube Music',
+                        artist: cleanArt.isNotEmpty
+                            ? cleanArt
+                            : 'YouTube Music',
                         thumbnailUrl: thumb,
                       );
                       songs.add(song);
@@ -2536,16 +2579,21 @@ class MusicService {
                       }
                     }
                   } else if (browseId != null && browseId.isNotEmpty) {
-                    final alb = _parseTwoRowAlbum(
+                    final alb =
+                        _parseTwoRowAlbum(
                           twoRow,
-                          type: titleLower.contains('single') ? 'Single' : 'Album',
+                          type: titleLower.contains('single')
+                              ? 'Single'
+                              : 'Album',
                         ) ??
                         AlbumItem(
                           id: browseId,
                           title: title.isNotEmpty ? title : 'Album',
                           artist: subtitle.isNotEmpty ? subtitle : 'Artist',
                           thumbnailUrl: thumb,
-                          type: titleLower.contains('single') ? 'Single' : 'Album',
+                          type: titleLower.contains('single')
+                              ? 'Single'
+                              : 'Album',
                           description: _extractFullSubtitle(twoRow),
                           isCustom: false,
                         );
@@ -2738,16 +2786,23 @@ class MusicService {
       try {
         final tasteArtists = <String>{};
         for (final song in [...recents, ...quickPicks]) {
-          if (song.artist.isNotEmpty && !song.artist.toLowerCase().contains('various')) {
+          if (song.artist.isNotEmpty &&
+              !song.artist.toLowerCase().contains('various')) {
             final artist = song.artist.split(RegExp(r'[,&•/]')).first.trim();
-            if (artist.isNotEmpty && artist.length > 2) tasteArtists.add(artist);
+            if (artist.isNotEmpty && artist.length > 2) {
+              tasteArtists.add(artist);
+            }
           }
         }
         for (final artist in tasteArtists.take(3)) {
           try {
             final artistAlbums = await searchAlbums(artist);
             for (final alb in artistAlbums) {
-              if (!albums.any((existing) => existing.id == alb.id || existing.title.toLowerCase() == alb.title.toLowerCase())) {
+              if (!albums.any(
+                (existing) =>
+                    existing.id == alb.id ||
+                    existing.title.toLowerCase() == alb.title.toLowerCase(),
+              )) {
                 albums.add(alb);
               }
             }
@@ -3218,7 +3273,9 @@ class MusicService {
                       ?.inSeconds;
             return SongItem(
               id: s.videoId,
-              title: SongItem.sanitizeTitle(s.name.isNotEmpty ? s.name : 'Untitled'),
+              title: SongItem.sanitizeTitle(
+                s.name.isNotEmpty ? s.name : 'Untitled',
+              ),
               artist: SongItem.sanitizeArtist(artistName),
               thumbnailUrl: thumb,
               durationSeconds: cachedDuration,
@@ -3277,10 +3334,11 @@ class MusicService {
         if (parsed != null && parsed.id.isNotEmpty) {
           durationsById[parsed.id] = duration;
         }
-        final title = (parsed?.title ??
-                _extractNodeText((renderer['flexColumns'] as List?)?.first))
-            .trim()
-            .toLowerCase();
+        final title =
+            (parsed?.title ??
+                    _extractNodeText((renderer['flexColumns'] as List?)?.first))
+                .trim()
+                .toLowerCase();
         if (title.isNotEmpty) {
           durationsByTitle[title] = duration;
         }
@@ -3645,7 +3703,11 @@ class MusicService {
   }
 
   /// Creates a playlist on YouTube Music via InnerTube.
-  Future<String?> createPlaylist(String title, {String? description, String? firstVideoId}) async {
+  Future<String?> createPlaylist(
+    String title, {
+    String? description,
+    String? firstVideoId,
+  }) async {
     final trimmedTitle = title.trim();
     if (trimmedTitle.isEmpty) return null;
     if (_currentAccount == null) return null;
@@ -3654,12 +3716,16 @@ class MusicService {
         'playlist/create',
         bodyExtras: {
           'title': trimmedTitle,
-          if (description != null && description.isNotEmpty) 'description': description,
-          if (firstVideoId != null && firstVideoId.isNotEmpty) 'videoIds': [firstVideoId],
+          if (description != null && description.isNotEmpty)
+            'description': description,
+          if (firstVideoId != null && firstVideoId.isNotEmpty)
+            'videoIds': [firstVideoId],
         },
       );
       final playlistId = res?['playlistId']?.toString();
-      debugPrint('[MusicService] Created playlist "$trimmedTitle" with ID: $playlistId');
+      debugPrint(
+        '[MusicService] Created playlist "$trimmedTitle" with ID: $playlistId',
+      );
       return playlistId;
     } catch (e) {
       debugPrint('[MusicService] createPlaylist error: $e');
@@ -3679,15 +3745,14 @@ class MusicService {
         bodyExtras: {
           'playlistId': cleanPlaylistId,
           'actions': [
-            {
-              'action': 'ACTION_ADD_VIDEO',
-              'addedVideoId': cleanVideoId,
-            }
+            {'action': 'ACTION_ADD_VIDEO', 'addedVideoId': cleanVideoId},
           ],
         },
       );
       final success = res != null;
-      debugPrint('[MusicService] addSongToPlaylist ($cleanVideoId -> $cleanPlaylistId): $success');
+      debugPrint(
+        '[MusicService] addSongToPlaylist ($cleanVideoId -> $cleanPlaylistId): $success',
+      );
       return success;
     } catch (e) {
       debugPrint('[MusicService] addSongToPlaylist error: $e');
@@ -3712,7 +3777,9 @@ class MusicService {
         final upNexts = await _ytMusic.getUpNexts(cleanId);
         if (upNexts.isNotEmpty) {
           final results = upNexts
-              .where((item) => item.videoId.isNotEmpty && item.videoId != cleanId)
+              .where(
+                (item) => item.videoId.isNotEmpty && item.videoId != cleanId,
+              )
               .map((item) {
                 final thumb = item.thumbnails.isNotEmpty
                     ? SongItem.upgradeThumbnail(item.thumbnails.last.url)
@@ -3736,16 +3803,17 @@ class MusicService {
 
     // 2. Secondary: InnerTube "next" request with radio playlist "RDAMVM$cleanId"
     try {
-      final data = await _ytMusic.constructRequest('next', body: {
-        'videoId': cleanId,
-        'playlistId': 'RDAMVM$cleanId',
-        'isAudioOnly': true,
-      });
+      final data = await _ytMusic.constructRequest(
+        'next',
+        body: {
+          'videoId': cleanId,
+          'playlistId': 'RDAMVM$cleanId',
+          'isAudioOnly': true,
+        },
+      );
 
-      final tabs = data?['contents']?['singleColumnMusicWatchNextResultsRenderer']
-                  ?['tabbedRenderer']?['watchNextTabbedResultsRenderer']?['tabs']
-              ?[0]?['tabRenderer']?['content']?['musicQueueRenderer']?['content']
-          ?['playlistPanelRenderer']?['contents'];
+      final tabs =
+          data?['contents']?['singleColumnMusicWatchNextResultsRenderer']?['tabbedRenderer']?['watchNextTabbedResultsRenderer']?['tabs']?[0]?['tabRenderer']?['content']?['musicQueueRenderer']?['content']?['playlistPanelRenderer']?['contents'];
 
       if (tabs is List && tabs.isNotEmpty) {
         final List<SongItem> songs = [];
@@ -3754,10 +3822,12 @@ class MusicService {
           if (renderer == null) continue;
           final vidId = renderer['videoId']?.toString() ?? '';
           if (vidId.isEmpty || vidId == cleanId) continue;
-          final songTitle = renderer['title']?['runs']?[0]?['text']?.toString() ?? '';
+          final songTitle =
+              renderer['title']?['runs']?[0]?['text']?.toString() ?? '';
           final longBylineRuns = renderer['longBylineText']?['runs'];
           final artistName = longBylineRuns?[0]?['text']?.toString() ?? '';
-          final albumName = (longBylineRuns is List && longBylineRuns.length > 2)
+          final albumName =
+              (longBylineRuns is List && longBylineRuns.length > 2)
               ? longBylineRuns[2]['text']?.toString()
               : null;
           final thumbs = renderer['thumbnail']?['thumbnails'];
@@ -4786,7 +4856,10 @@ class MusicService {
             PlaylistItem(
               id: browseId,
               title: title.isNotEmpty ? title : 'Playlist',
-              author: author.isNotEmpty && author.toLowerCase() != 'youtube music' ? author : '',
+              author:
+                  author.isNotEmpty && author.toLowerCase() != 'youtube music'
+                  ? author
+                  : '',
               thumbnailUrl: thumb,
               isCustom: false,
             ),
@@ -4840,7 +4913,10 @@ class MusicService {
             PlaylistItem(
               id: browseId,
               title: title,
-              author: author.isNotEmpty && author.toLowerCase() != 'youtube music' ? author : '',
+              author:
+                  author.isNotEmpty && author.toLowerCase() != 'youtube music'
+                  ? author
+                  : '',
               thumbnailUrl: thumb,
               isCustom: false,
             ),
@@ -4897,10 +4973,7 @@ class MusicService {
       final feedIds = ['FEmusic_liked_albums', 'FEmusic_library_corpus_albums'];
       final results = await Future.wait(
         feedIds.map(
-          (feedId) => postInnerTube(
-            'browse',
-            bodyExtras: {'browseId': feedId},
-          ),
+          (feedId) => postInnerTube('browse', bodyExtras: {'browseId': feedId}),
         ),
       );
 
@@ -4960,10 +5033,7 @@ class MusicService {
       ];
       final results = await Future.wait(
         feedIds.map(
-          (feedId) => postInnerTube(
-            'browse',
-            bodyExtras: {'browseId': feedId},
-          ),
+          (feedId) => postInnerTube('browse', bodyExtras: {'browseId': feedId}),
         ),
       );
 
@@ -5205,7 +5275,11 @@ class MusicService {
   }
 
   /// Curated InnerTube mood & genre categories with high-resolution imagery and playlist subtitles
-  static const Map<String, ({String subtitle, String imageUrl, int color, String params})> curatedMoodMetadata = {
+  static const Map<
+    String,
+    ({String subtitle, String imageUrl, int color, String params})
+  >
+  curatedMoodMetadata = {
     'Chill': (
       subtitle: 'Coffee Shop Blend',
       imageUrl: 'https://yt3.googleusercontent.com/CDt4RjHDGr0YiX6WxARTBFkdb9k9VsAIm88sJXZ7B3O1yMoS53kLS_dy8ZIKRrFRHHCB6OJePWU1GbY=w544-h544-l90-rj',
@@ -5370,7 +5444,8 @@ class MusicService {
                 ? textRuns.first['text'] as String? ?? ''
                 : '';
             final color = (btn['solid']?['leftStripeColor'] as num?)?.toInt();
-            final params = btn['clickCommand']?['browseEndpoint']?['params'] as String?;
+            final params =
+                btn['clickCommand']?['browseEndpoint']?['params'] as String?;
 
             if (text.isNotEmpty) {
               final curated = curatedMoodMetadata[text];
@@ -5401,7 +5476,8 @@ class MusicService {
             final btn = buttons[i];
             final text = _extractNodeText(btn['buttonText']).trim();
             final color = (btn['solid']?['leftStripeColor'] as num?)?.toInt();
-            final params = btn['clickCommand']?['browseEndpoint']?['params'] as String?;
+            final params =
+                btn['clickCommand']?['browseEndpoint']?['params'] as String?;
             if (text.isNotEmpty) {
               final curated = curatedMoodMetadata[text];
               final cat = MusicCategory(
@@ -5426,13 +5502,15 @@ class MusicService {
 
     if (parsedMoods.isEmpty && parsedGenres.isEmpty) {
       curatedMoodMetadata.forEach((name, data) {
-        parsedMoods.add(MusicCategory(
-          title: name,
-          colorValue: data.color,
-          params: data.params,
-          imageUrl: data.imageUrl,
-          subtitle: data.subtitle,
-        ));
+        parsedMoods.add(
+          MusicCategory(
+            title: name,
+            colorValue: data.color,
+            params: data.params,
+            imageUrl: data.imageUrl,
+            subtitle: data.subtitle,
+          ),
+        );
       });
     }
 
@@ -5470,7 +5548,8 @@ class MusicService {
     String? isrc,
     int? durationSeconds,
     LyricsProviderType? preferredProvider,
-    void Function(LyricsProviderType provider, LyricsResult result)? onProviderResult,
+    void Function(LyricsProviderType provider, LyricsResult result)?
+    onProviderResult,
   }) async {
     return _lyricsService.fetchLyricsFastest(
       title: title,
@@ -5505,7 +5584,8 @@ class MusicService {
     return _fetchYtMusicLyrics(videoId);
   }
 
-  Future<List<LyricLine>> fetchYtMusicLyrics(String videoId) => _fetchYtMusicLyrics(videoId);
+  Future<List<LyricLine>> fetchYtMusicLyrics(String videoId) =>
+      _fetchYtMusicLyrics(videoId);
 
   Future<List<LyricLine>> _fetchYtMusicLyrics(String videoId) async {
     final trimmedId = videoId.trim();
@@ -5761,7 +5841,8 @@ class MusicService {
         if (hlsUrl != null && hlsUrl.isNotEmpty) {
           final headers = {'User-Agent': client.userAgent};
           final lockedVariant = await _pickCrispHlsVariant(hlsUrl, headers);
-          final info = lockedVariant ??
+          final info =
+              lockedVariant ??
               VideoStreamInfo(
                 url: hlsUrl,
                 headers: headers,
@@ -5923,7 +6004,9 @@ class MusicService {
         final h = int.tryParse(match.group(2) ?? '') ?? 0;
         if (h < 720 || h > 1080) continue;
 
-        final isH264 = line.contains('avc1') || !line.contains('vp09') && !line.contains('av01');
+        final isH264 =
+            line.contains('avc1') ||
+            !line.contains('vp09') && !line.contains('av01');
         final resolvedUrl = uri.resolve(nextLine).toString();
         candidates.add((url: resolvedUrl, width: w, height: h, isH264: isH264));
       }

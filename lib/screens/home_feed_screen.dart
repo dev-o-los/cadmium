@@ -1,4 +1,5 @@
 import 'dart:ui' as ui;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -87,8 +88,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
               ),
               const SizedBox(height: 16),
               FilledButton.tonal(
-                onPressed: () =>
-                    ref.read(homeDataProvider.notifier).refresh(),
+                onPressed: () => ref.read(homeDataProvider.notifier).refresh(),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.appleDarkSurfaceHigh,
                 ),
@@ -107,7 +107,9 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
   }
 
   Widget _buildHomeContent(BuildContext context, WidgetRef ref, HomeData data) {
-    final recentlyPlayed = ref.watch(playerProvider.select((s) => s.recentlyPlayed));
+    final recentlyPlayed = ref.watch(
+      playerProvider.select((s) => s.recentlyPlayed),
+    );
     final topPadding = MediaQuery.of(context).padding.top;
 
     // Filter out any "Liked Music" that might appear in hero cards
@@ -251,11 +253,23 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
       }
 
       // Check for any core sections not covered in dynamicSections so ALL sections always load
-      final hasAlbumsShelf = data.dynamicSections.any((s) => s.albums.isNotEmpty);
-      final hasVideosShelf = data.dynamicSections.any((s) => s.layout == HomeSectionLayout.videoCards || s.videos.isNotEmpty);
-      final hasQuickPicksShelf = data.dynamicSections.any((s) => s.title.toLowerCase().contains('quick pick'));
-      final hasDiscoverShelf = data.dynamicSections.any((s) => s.title.toLowerCase().contains('discover'));
-      final hasTrendingShelf = data.dynamicSections.any((s) => s.title.toLowerCase().contains('trend') || s.title.toLowerCase().contains('chart'));
+      final hasAlbumsShelf = data.dynamicSections.any(
+        (s) => s.albums.isNotEmpty,
+      );
+      final hasVideosShelf = data.dynamicSections.any(
+        (s) => s.layout == HomeSectionLayout.videoCards || s.videos.isNotEmpty,
+      );
+      final hasQuickPicksShelf = data.dynamicSections.any(
+        (s) => s.title.toLowerCase().contains('quick pick'),
+      );
+      final hasDiscoverShelf = data.dynamicSections.any(
+        (s) => s.title.toLowerCase().contains('discover'),
+      );
+      final hasTrendingShelf = data.dynamicSections.any(
+        (s) =>
+            s.title.toLowerCase().contains('trend') ||
+            s.title.toLowerCase().contains('chart'),
+      );
 
       if (data.albumsAndSingles.isNotEmpty && !hasAlbumsShelf) {
         sectionBuilders.add(
@@ -263,7 +277,11 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildAlbumsAndSinglesSection(context, ref, data.albumsAndSingles),
+              _buildAlbumsAndSinglesSection(
+                context,
+                ref,
+                data.albumsAndSingles,
+              ),
               const SizedBox(height: AppleSpacing.sectionSpacing),
             ],
           ),
@@ -459,9 +477,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             padding: EdgeInsets.fromLTRB(0, topPadding + 6, 0, 160),
             itemCount: sectionBuilders.length,
             itemBuilder: (context, index) {
-              return RepaintBoundary(
-                child: sectionBuilders[index](context),
-              );
+              return RepaintBoundary(child: sectionBuilders[index](context));
             },
           ),
         ),
@@ -492,11 +508,10 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
-          padding: EdgeInsets.symmetric(horizontal: AppleSpacing.horizontalPadding),
-          child: Text(
-            'Top Picks for You',
-            style: AppleTypography.sectionTitle,
+          padding: EdgeInsets.symmetric(
+            horizontal: AppleSpacing.horizontalPadding,
           ),
+          child: Text('Top Picks for You', style: AppleTypography.sectionTitle),
         ),
         const SizedBox(height: AppleSpacing.sectionHeaderToContent),
         SizedBox(
@@ -529,7 +544,13 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
           if (hero.album != null) {
             final isSingle = hero.album!.type.toLowerCase() == 'single';
             if (isSingle && hero.playTrack != null) {
-              playSong(context, ref, hero.playTrack!, forceReload: true, autoOpenPlayer: true);
+              playSong(
+                context,
+                ref,
+                hero.playTrack!,
+                forceReload: true,
+                autoOpenPlayer: true,
+              );
             } else {
               openAlbumScreen(context, hero.album!);
             }
@@ -543,7 +564,13 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
           } else if (hero.playlist != null) {
             openPlaylistScreen(context, ref, hero.playlist!);
           } else if (hero.playTrack != null) {
-            playSong(context, ref, hero.playTrack!, forceReload: true, autoOpenPlayer: true);
+            playSong(
+              context,
+              ref,
+              hero.playTrack!,
+              forceReload: true,
+              autoOpenPlayer: true,
+            );
           } else {
             playHero(context, ref, hero);
           }
@@ -602,7 +629,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                     child: WavifyLogo(size: 20),
                   ),
 
-                // 4. Frosted glass bottom blur for artwork cards (~30% height)
+                // 4. Light frosted bottom blur (seamlessly starts without any straight line, lighter tint)
                 // When it's a solid colour (similarArtists, userStation, discoveryStation, moodForYou):
                 // NO blur! Solid colour remains intact with crisp white text.
                 if (hero.style == 'fullBleed' ||
@@ -616,30 +643,42 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    height: cardHeight * 0.30,
+                    height: cardHeight * 0.42,
                     child: ClipRRect(
                       borderRadius: const BorderRadius.only(
                         bottomLeft: Radius.circular(18),
                         bottomRight: Radius.circular(18),
                       ),
-                      child: BackdropFilter(
-                        filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.28),
-                            border: Border(
-                              top: BorderSide(
-                                color: Colors.white.withValues(alpha: 0.16),
-                                width: 0.7,
+                      child: ShaderMask(
+                        shaderCallback: (bounds) {
+                          return const LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Color(0x08000000), // near-invisible start
+                              Color(0x28000000), // very faint
+                              Color(0x72000000), // building
+                              Colors.black,      // fully visible at base
+                            ],
+                            stops: [0.0, 0.25, 0.48, 0.72, 1.0],
+                          ).createShader(bounds);
+                        },
+                        blendMode: BlendMode.dstIn,
+                        child: BackdropFilter(
+                          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withValues(alpha: 0.06),
+                                  Colors.black.withValues(alpha: 0.14),
+                                ],
+                                stops: const [0.0, 0.55, 1.0],
                               ),
-                            ),
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.white.withValues(alpha: 0.08),
-                                Colors.black.withValues(alpha: 0.32),
-                              ],
                             ),
                           ),
                         ),
@@ -649,9 +688,9 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
 
                 // 5. White Typography floating at bottom matching reference images
                 Positioned(
-                  left: 14,
-                  right: 14,
-                  bottom: 12,
+                  left: 16,
+                  right: 16,
+                  bottom: 16,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
@@ -661,41 +700,54 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           fontWeight: FontWeight.w500,
-                          color: Colors.white.withValues(alpha: 0.88),
+                          color: Colors.white.withValues(alpha: 0.82),
                           letterSpacing: 0.1,
-                          shadows: [
-                            Shadow(
-                              color: Colors.black.withValues(alpha: 0.6),
-                              blurRadius: 4,
-                              offset: const Offset(0, 1),
-                            ),
-                          ],
+                          shadows: hero.style == 'similarArtists' ||
+                                  hero.style == 'userStation' ||
+                                  hero.style == 'discoveryStation' ||
+                                  hero.style == 'moodForYou'
+                              ? null
+                              : [
+                                  Shadow(
+                                    color: Colors.black.withValues(alpha: 0.6),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ],
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 3),
                       Text(
                         hero.title,
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 17,
                           fontWeight: FontWeight.w700,
                           color: Colors.white,
                           letterSpacing: -0.2,
-                          shadows: [
-                            Shadow(
-                              color: Colors.black.withValues(alpha: 0.7),
-                              blurRadius: 6,
-                              offset: const Offset(0, 1),
-                            ),
-                          ],
+                          height: 1.15,
+                          shadows: hero.style == 'similarArtists' ||
+                                  hero.style == 'userStation' ||
+                                  hero.style == 'discoveryStation' ||
+                                  hero.style == 'moodForYou'
+                              ? null
+                              : [
+                                  Shadow(
+                                    color: Colors.black.withValues(alpha: 0.7),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ],
                         ),
                       ),
                       if (hero.caption.isNotEmpty &&
                           hero.style != 'similarArtists' &&
-                          hero.style != 'userStation') ...[
+                          hero.style != 'userStation' &&
+                          hero.style != 'discoveryStation' &&
+                          hero.style != 'moodForYou') ...[
                         const SizedBox(height: 2),
                         Text(
                           hero.caption,
@@ -728,8 +780,21 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
   ) {
     switch (hero.style) {
       case 'similarArtists':
-        // Warm copper/amber gradient matching Image 1 and Image 4
-        final baseColor = Color(hero.primaryColor ?? 0xFFC04B02);
+        // Warm amber / burnt-orange gradient matching the Apple Music reference image
+        final Color topColor;
+        final Color botColor;
+        if (hero.primaryColor != null &&
+            hero.primaryColor != 0xFFD81B60 &&
+            hero.primaryColor != 0xFFC04B02) {
+          final c = Color(hero.primaryColor!);
+          topColor = Color.lerp(c, Colors.black, 0.25)!;
+          botColor = Color.lerp(c, Colors.orange, 0.40)!;
+        } else {
+          // Exact colors extracted from Apple Music reference image
+          topColor = const Color(0xFF904100);
+          botColor = const Color(0xFFFC690F);
+        }
+
         final hdUrl = hero.hdImageUrl ?? hero.imageUrl;
         return Container(
           decoration: BoxDecoration(
@@ -737,51 +802,51 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                baseColor,
-                baseColor.withValues(alpha: 0.90),
-                const Color(0xFF702800),
-                const Color(0xFF3E1400),
+                topColor,
+                Color.lerp(topColor, botColor, 0.35)!,
+                Color.lerp(topColor, botColor, 0.70)!,
+                botColor,
               ],
-              stops: const [0.0, 0.45, 0.80, 1.0],
+              stops: const [0.0, 0.35, 0.70, 1.0],
             ),
           ),
           child: Stack(
             children: [
-              // 1. Large top-left circular avatar (Image 1 & 4)
+              // 2. Medium right circular avatar (rendered behind Circle 1)
               Positioned(
-                top: 16,
-                left: 14,
-                child: _buildAvatarCircle(
-                  avatarUrl: hero.artistAvatars.isNotEmpty
-                      ? hero.artistAvatars[0]
-                      : hdUrl,
-                  size: cardWidth * 0.52,
-                ),
-              ),
-              // 2. Medium right circular avatar (Image 1 & 4)
-              Positioned(
-                top: 60,
+                top: cardHeight * 0.28,
                 right: 14,
                 child: _buildAvatarCircle(
                   avatarUrl: hero.artistAvatars.length > 1
                       ? hero.artistAvatars[1]
                       : (hero.artistAvatars.isNotEmpty
-                          ? hero.artistAvatars[0]
-                          : null),
+                            ? hero.artistAvatars[0]
+                            : null),
                   size: cardWidth * 0.38,
                 ),
               ),
-              // 3. Small bottom circular avatar (Image 1 & 4)
+              // 1. Large top-left circular avatar (in front, dominant, matching Apple Music reference)
               Positioned(
-                top: 136,
-                left: cardWidth * 0.36,
+                top: 14,
+                left: 14,
+                child: _buildAvatarCircle(
+                  avatarUrl: hero.artistAvatars.isNotEmpty
+                      ? hero.artistAvatars[0]
+                      : hdUrl,
+                  size: cardWidth * 0.56,
+                ),
+              ),
+              // 3. Small circular avatar nestled below circle 1's bottom-right curve
+              Positioned(
+                top: cardHeight * 0.45,
+                left: cardWidth * 0.34,
                 child: _buildAvatarCircle(
                   avatarUrl: hero.artistAvatars.length > 2
                       ? hero.artistAvatars[2]
                       : (hero.artistAvatars.isNotEmpty
-                          ? hero.artistAvatars[0]
-                          : null),
-                  size: cardWidth * 0.28,
+                            ? hero.artistAvatars[0]
+                            : null),
+                  size: cardWidth * 0.29,
                 ),
               ),
             ],
@@ -796,11 +861,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFF5A1435),
-                Color(0xFF380C20),
-                Color(0xFF1C0510),
-              ],
+              colors: [Color(0xFF5A1435), Color(0xFF380C20), Color(0xFF1C0510)],
               stops: [0.0, 0.60, 1.0],
             ),
           ),
@@ -984,35 +1045,15 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
   Widget _buildAvatarCircle({
     required String? avatarUrl,
     required double size,
-    double borderWidth = 2.0,
   }) {
     final hdAvatar = avatarUrl != null
-        ? (SongItem.upgradeThumbnail(avatarUrl, size: 500, quality: 95) ?? avatarUrl)
+        ? (SongItem.upgradeThumbnail(avatarUrl, size: 500, quality: 95) ??
+              avatarUrl)
         : null;
 
-    return Container(
+    return SizedBox(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        // Chromium steel metallic ring border
-        border: Border.all(
-          color: const Color(0xFFD6DCE5).withValues(alpha: 0.82),
-          width: borderWidth,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.45),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-          BoxShadow(
-            color: Colors.white.withValues(alpha: 0.15),
-            blurRadius: 2,
-            spreadRadius: 0.5,
-          ),
-        ],
-      ),
       child: ClipOval(
         child: hdAvatar != null
             ? WavifyCachedImage(
@@ -1063,10 +1104,12 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
     required List<SongItem> songs,
   }) {
     final validSongs = songs
-        .where((s) =>
-            s.title.trim().isNotEmpty &&
-            s.title.trim().toLowerCase() != 'untitled' &&
-            s.title.trim().toLowerCase() != 'track')
+        .where(
+          (s) =>
+              s.title.trim().isNotEmpty &&
+              s.title.trim().toLowerCase() != 'untitled' &&
+              s.title.trim().toLowerCase() != 'track',
+        )
         .toList();
     if (validSongs.isEmpty) return const SizedBox.shrink();
 
@@ -1089,21 +1132,17 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppleSpacing.horizontalPadding),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppleSpacing.horizontalPadding,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (subtitle != null) ...[
-                Text(
-                  subtitle.toUpperCase(),
-                  style: AppleTypography.eyebrow,
-                ),
+                Text(subtitle.toUpperCase(), style: AppleTypography.eyebrow),
                 const SizedBox(height: 3),
               ],
-              Text(
-                title,
-                style: AppleTypography.sectionTitle,
-              ),
+              Text(title, style: AppleTypography.sectionTitle),
             ],
           ),
         ),
@@ -1141,7 +1180,9 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
           List<SongItem>? history;
           if (contextQueue != null && contextQueue.isNotEmpty) {
             final idx = contextQueue.indexWhere((s) => s.id == song.id);
-            history = idx > 0 ? contextQueue.sublist(0, idx) : const <SongItem>[];
+            history = idx > 0
+                ? contextQueue.sublist(0, idx)
+                : const <SongItem>[];
             queue = (idx >= 0 && idx < contextQueue.length - 1)
                 ? contextQueue.sublist(idx + 1)
                 : const <SongItem>[];
@@ -1169,7 +1210,8 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                   children: [
                     WavifyCachedImage(
                       imageUrl: song.thumbnailUrl ?? song.resolvedThumbnailUrl,
-                      placeholderImageUrl: song.resolvedThumbnailUrl ?? song.thumbnailUrl,
+                      placeholderImageUrl:
+                          song.resolvedThumbnailUrl ?? song.thumbnailUrl,
                       songId: song.id,
                       width: 48,
                       height: 48,
@@ -1265,10 +1307,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Find Your Mood',
-                style: AppleTypography.sectionTitle,
-              ),
+              const Text('Find Your Mood', style: AppleTypography.sectionTitle),
               GestureDetector(
                 onTap: () {
                   widget.onNavigateToTab?.call(1); // Switch to Explore Tab
@@ -1386,12 +1425,18 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
     if (albums.isEmpty) return const SizedBox.shrink();
 
     // Filter and prioritize albums matching user's taste (from recently played & authentic listening history)
-    final recentSongs = ref.watch(playerProvider.select((s) => s.recentlyPlayed));
+    final recentSongs = ref.watch(
+      playerProvider.select((s) => s.recentlyPlayed),
+    );
     final listenedArtists = <String>{};
     for (final s in recentSongs) {
       if (s.artist.trim().isNotEmpty) {
         listenedArtists.add(s.artist.toLowerCase().trim());
-        final primary = s.artist.split(RegExp(r'[,&•/]')).first.toLowerCase().trim();
+        final primary = s.artist
+            .split(RegExp(r'[,&•/]'))
+            .first
+            .toLowerCase()
+            .trim();
         if (primary.isNotEmpty) listenedArtists.add(primary);
       }
     }
@@ -1404,8 +1449,12 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
         final bSub = b.subtitle.toLowerCase();
         final bTitle = b.title.toLowerCase();
 
-        final aMatch = listenedArtists.any((la) => aSub.contains(la) || aTitle.contains(la));
-        final bMatch = listenedArtists.any((la) => bSub.contains(la) || bTitle.contains(la));
+        final aMatch = listenedArtists.any(
+          (la) => aSub.contains(la) || aTitle.contains(la),
+        );
+        final bMatch = listenedArtists.any(
+          (la) => bSub.contains(la) || bTitle.contains(la),
+        );
 
         if (aMatch && !bMatch) return -1;
         if (!aMatch && bMatch) return 1;
@@ -1421,11 +1470,10 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
-          padding: EdgeInsets.symmetric(horizontal: AppleSpacing.horizontalPadding),
-          child: Text(
-            'Albums & singles',
-            style: AppleTypography.sectionTitle,
+          padding: EdgeInsets.symmetric(
+            horizontal: AppleSpacing.horizontalPadding,
           ),
+          child: Text('Albums & singles', style: AppleTypography.sectionTitle),
         ),
         const SizedBox(height: AppleSpacing.sectionHeaderToContent),
         SizedBox(
@@ -1437,12 +1485,11 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             separatorBuilder: (context, index) => const SizedBox(width: 14),
             itemBuilder: (context, index) {
               final album = displayAlbums[index];
-              final displaySubtitle = (album.description != null &&
+              final displaySubtitle =
+                  (album.description != null &&
                       album.description!.trim().isNotEmpty)
                   ? album.description!.trim()
-                  : (album.subtitle.isNotEmpty
-                      ? album.subtitle
-                      : album.artist);
+                  : (album.subtitle.isNotEmpty ? album.subtitle : album.artist);
               return RepaintBoundary(
                 child: ApplePressable(
                   onTap: () => openAlbumScreen(context, album),
@@ -1527,21 +1574,17 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppleSpacing.horizontalPadding),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppleSpacing.horizontalPadding,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (subtitle != null && subtitle.trim().isNotEmpty) ...[
-                Text(
-                  subtitle,
-                  style: AppleTypography.eyebrow,
-                ),
+                Text(subtitle, style: AppleTypography.eyebrow),
                 const SizedBox(height: 2),
               ],
-              Text(
-                title,
-                style: AppleTypography.sectionTitle,
-              ),
+              Text(title, style: AppleTypography.sectionTitle),
             ],
           ),
         ),
@@ -1606,23 +1649,24 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                                     ),
                                   )
                                 : item.album != null
-                                    ? DynamicAlbumArtwork(
-                                        album: item.album!,
-                                        size: cardWidth,
-                                      )
-                                    : (item.imageUrl != null
-                                        ? WavifyCachedImage(
-                                            imageUrl: item.imageUrl!,
-                                            fit: BoxFit.cover,
-                                            errorWidget: _fallbackSquareArt(
-                                              size: cardWidth,
-                                              icon: CupertinoIcons.music_note_list,
-                                            ),
-                                          )
-                                        : _fallbackSquareArt(
+                                ? DynamicAlbumArtwork(
+                                    album: item.album!,
+                                    size: cardWidth,
+                                  )
+                                : (item.imageUrl != null
+                                      ? WavifyCachedImage(
+                                          imageUrl: item.imageUrl!,
+                                          fit: BoxFit.cover,
+                                          errorWidget: _fallbackSquareArt(
                                             size: cardWidth,
-                                            icon: CupertinoIcons.music_note_list,
-                                          )),
+                                            icon:
+                                                CupertinoIcons.music_note_list,
+                                          ),
+                                        )
+                                      : _fallbackSquareArt(
+                                          size: cardWidth,
+                                          icon: CupertinoIcons.music_note_list,
+                                        )),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -1673,21 +1717,17 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppleSpacing.horizontalPadding),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppleSpacing.horizontalPadding,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (subtitle != null && subtitle.trim().isNotEmpty) ...[
-                Text(
-                  subtitle.toUpperCase(),
-                  style: AppleTypography.eyebrow,
-                ),
+                Text(subtitle.toUpperCase(), style: AppleTypography.eyebrow),
                 const SizedBox(height: 2),
               ],
-              Text(
-                title,
-                style: AppleTypography.sectionTitle,
-              ),
+              Text(title, style: AppleTypography.sectionTitle),
             ],
           ),
         ),
@@ -1820,11 +1860,10 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppleSpacing.horizontalPadding),
-          child: Text(
-            title,
-            style: AppleTypography.sectionTitle,
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppleSpacing.horizontalPadding,
           ),
+          child: Text(title, style: AppleTypography.sectionTitle),
         ),
         const SizedBox(height: AppleSpacing.sectionHeaderToContent),
         SizedBox(
@@ -1841,7 +1880,9 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
               return RepaintBoundary(
                 child: ApplePressable(
                   onTap: () {
-                    final history = index > 0 ? songs.sublist(0, index) : const <SongItem>[];
+                    final history = index > 0
+                        ? songs.sublist(0, index)
+                        : const <SongItem>[];
                     final queue = (index < songs.length - 1)
                         ? songs.sublist(index + 1)
                         : const <SongItem>[];
@@ -1888,7 +1929,9 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                                     color: Colors.black.withValues(alpha: 0.75),
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.2),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.2,
+                                      ),
                                       width: 0.8,
                                     ),
                                   ),
@@ -1911,8 +1954,10 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                         ),
                         const SizedBox(height: AppleSpacing.titleToSubtitle),
                         ApplePressable(
-                          onTap: () =>
-                              openArtistScreen(context, artistName: song.artist),
+                          onTap: () => openArtistScreen(
+                            context,
+                            artistName: song.artist,
+                          ),
                           child: Text(
                             song.artist,
                             maxLines: 1,
@@ -1968,13 +2013,13 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
             separatorBuilder: (context, index) => const SizedBox(width: 14),
             itemBuilder: (context, index) {
               final playlist = playlists[index];
-              final displaySubtitle = (playlist.author.isNotEmpty &&
-                      playlist.author.toLowerCase() !=
-                          'youtube music')
+              final displaySubtitle =
+                  (playlist.author.isNotEmpty &&
+                      playlist.author.toLowerCase() != 'youtube music')
                   ? playlist.author
                   : (playlist.subtitle.isNotEmpty
-                      ? playlist.subtitle
-                      : 'Playlist');
+                        ? playlist.subtitle
+                        : 'Playlist');
               return RepaintBoundary(
                 child: ApplePressable(
                   onTap: () => openPlaylistScreen(context, ref, playlist),
@@ -2204,10 +2249,12 @@ class _Snapping4ItemColumnsState extends State<_Snapping4ItemColumns> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: columnSongs
-                  .map((song) => KeyedSubtree(
-                        key: ValueKey('song_col_${song.id}'),
-                        child: widget.rowBuilder(context, song),
-                      ))
+                  .map(
+                    (song) => KeyedSubtree(
+                      key: ValueKey('song_col_${song.id}'),
+                      child: widget.rowBuilder(context, song),
+                    ),
+                  )
                   .toList(),
             ),
           );
@@ -2248,7 +2295,8 @@ class _SquareItem {
   }
 
   factory _SquareItem.playlist(PlaylistItem playlist) {
-    final isLiked = playlist.id == 'LM' ||
+    final isLiked =
+        playlist.id == 'LM' ||
         playlist.title.trim().toLowerCase() == 'liked music' ||
         playlist.title.trim().toLowerCase() == 'your likes';
     String subtitle = playlist.author.trim();
@@ -2366,7 +2414,9 @@ class _ConcentricRingsPainter extends CustomPainter {
     ];
 
     for (int i = 0; i < radii.length; i++) {
-      paint.color = ringColor.withValues(alpha: (0.35 - i * 0.05).clamp(0.12, 0.40));
+      paint.color = ringColor.withValues(
+        alpha: (0.35 - i * 0.05).clamp(0.12, 0.40),
+      );
       canvas.drawCircle(center, radii[i], paint);
     }
   }

@@ -18,7 +18,7 @@ class HomeDataNotifier extends AsyncNotifier<HomeData> {
     if (cached != null && !cached.isEmpty) {
       // Revalidate in background if stale and not running inside test harness
       final isTest = !kIsWeb && Platform.environment.containsKey('FLUTTER_TEST');
-      if (!isTest && !HomeCacheService.instance.isFresh()) {
+      if (!isTest) {
         _revalidateInBackground(musicService);
       }
       return cached;
