@@ -1335,17 +1335,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
         // Exact bottom clearance matching rendered height of _buildBottomControls
         // so neither Lyrics nor Queue ever overflows behind scrubber/transport/dock.
-        final double bottomInset = _currentMode == PlayerViewMode.lyrics
-            ? ui.lerpDouble(
-                math.max(bottomPadding, 16.0) + 16.0,
-                bottomPadding + 304.0,
-                controlsVal,
-              )!
-            : ui.lerpDouble(
-                math.max(bottomPadding, 16.0) + 16.0,
-                bottomPadding + 280.0,
-                controlsVal,
-              )!;
+        final double bottomInset = ui.lerpDouble(
+          math.max(bottomPadding, 16.0) + 16.0,
+          bottomPadding + 304.0,
+          controlsVal,
+        )!;
 
         return Positioned(
           top: headerTop + 54,
@@ -2337,12 +2331,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 },
               ),
 
-              // Bottom optical blur overlay: dissolves content smoothly just above the text above the slider bar
+              // Bottom optical blur overlay: dissolves content smoothly just above the lyric text over the slider
               Positioned(
                 bottom: 0,
                 left: 0,
                 right: 0,
-                height: 38,
+                height: 32,
                 child: IgnorePointer(
                   child: ClipRect(
                     child: ShaderMask(
