@@ -41,7 +41,7 @@ class UserAccount {
     return jar['SAPISID'] ?? jar['__Secure-3PAPISID'] ?? jar['__Secure-1PAPISID'];
   }
 
-  /// Normalizes DATASYNC_ID as in BitChord (handling account||delegated forms)
+  /// Normalizes DATASYNC_ID (handling account||delegated forms)
   static String? normalizeDataSyncId(String? raw) {
     if (raw == null || raw.trim().isEmpty) return null;
     final value = raw.trim();

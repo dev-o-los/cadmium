@@ -147,7 +147,7 @@ class PlayerControls extends ConsumerWidget {
         padding: const EdgeInsets.only(left: 18, right: 12, top: 4, bottom: 4),
         child: Row(
           children: [
-            // Album Artwork (BitChord spec: 31x31 with 6px rounded corners)
+            // Album Artwork (Apple Music spec: 31x31 with 6px rounded corners)
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(
@@ -307,7 +307,7 @@ class PlayerControls extends ConsumerWidget {
                 behavior: HitTestBehavior.opaque,
                 child: Row(
                   children: [
-                    // Album Artwork (BitChord spec: 31x31 with 6px rounded corners)
+                    // Album Artwork (Apple Music spec: 31x31 with 6px rounded corners)
                     Padding(
                       padding: const EdgeInsets.only(right: 9),
                       child: Hero(
@@ -416,7 +416,7 @@ class PlayerControls extends ConsumerWidget {
             ),
             const SizedBox(width: 4),
 
-            // Skip Next Button (Fast Forward - BitChord spec: 40x40 touch target, 22pt glyph, 70% white)
+            // Skip Next Button (Fast Forward - Apple Music spec: 40x40 touch target, 22pt glyph, 70% white)
             GestureDetector(
               onTap: () {
                 HapticFeedback.lightImpact();

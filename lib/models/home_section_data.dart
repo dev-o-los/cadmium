@@ -3,7 +3,7 @@ import 'playlist_item.dart';
 import 'song_item.dart';
 import 'video_item.dart';
 
-/// Layout style of an InnerTube home section matching the BitChord UI/UX.
+/// Layout style of an InnerTube home section matching the Wavify UI/UX.
 enum HomeSectionLayout {
   /// 4-item vertical columns with horizontal paging (Recents, Quick picks, Trending, Listen again, etc.)
   songColumns,

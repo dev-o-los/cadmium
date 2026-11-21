@@ -85,7 +85,7 @@ abstract final class AppleTypography {
     height: 1.2,
   );
 
-  /// Mini-Player Song Title (BitChord Apple Music spec: 13pt, Semibold/W700, 0.15 tracking)
+  /// Mini-Player Song Title (Apple Music spec: 13pt, Semibold/W700, 0.15 tracking)
   /// Used in the floating mini player above the bottom navigation bar
   static const TextStyle miniPlayerTitle = TextStyle(
     color: Colors.white,
@@ -95,7 +95,7 @@ abstract final class AppleTypography {
     height: 1.2,
   );
 
-  /// Mini-Player Compact Inline Title (BitChord Apple Music spec: 13pt, W700, 0.15 tracking)
+  /// Mini-Player Compact Inline Title (Apple Music spec: 13pt, W700, 0.15 tracking)
   static const TextStyle miniPlayerInlineTitle = TextStyle(
     color: Colors.white,
     fontSize: 13,
@@ -104,7 +104,7 @@ abstract final class AppleTypography {
     height: 1.2,
   );
 
-  /// Mini-Player Artist (BitChord Apple Music spec: 12pt, Regular/W400, 0.35 tracking, 70% white)
+  /// Mini-Player Artist (Apple Music spec: 12pt, Regular/W400, 0.35 tracking, 70% white)
   static const TextStyle miniPlayerArtist = TextStyle(
     color: Color(0xB3FFFFFF),
     fontSize: 12,
@@ -113,7 +113,7 @@ abstract final class AppleTypography {
     height: 1.2,
   );
 
-  /// Mini-Player Compact Inline Artist (BitChord Apple Music spec: 11.5pt, Regular, 0.35 tracking, 70% white)
+  /// Mini-Player Compact Inline Artist (Apple Music spec: 11.5pt, Regular, 0.35 tracking, 70% white)
   static const TextStyle miniPlayerInlineArtist = TextStyle(
     color: Color(0xB3FFFFFF),
     fontSize: 11.5,

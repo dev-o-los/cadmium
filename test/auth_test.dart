@@ -49,11 +49,11 @@ void main() {
       expect(fromJson.isPersonalizedEnabled, isTrue);
     });
 
-    test('UserAccount serializes and deserializes BitChord session metadata', () {
+    test('UserAccount serializes and deserializes session metadata', () {
       final now = DateTime.now();
       final account = UserAccount(
-        id: 'user_bitchord_1',
-        displayName: 'BitChord Listener',
+        id: 'user_auth_1',
+        displayName: 'Wavify Listener',
         email: 'listener@youtube.com',
         avatarUrl: 'https://lh3.googleusercontent.com/a/sample_avatar',
         cookies: '__Secure-3PAPISID=token_3papisid_val; SID=sid_token;',
@@ -300,7 +300,7 @@ void main() {
     });
   });
 
-  group('InnerTube Account Menu Parser Tests (BitChord Engine)', () {
+  group('InnerTube Account Menu Parser Tests', () {
     test('MusicService.extractSapisid retrieves SAPISID from various cookie formats', () {
       expect(
         MusicService.extractSapisid('SAPISID=auth_token_123; SID=sid_123;'),

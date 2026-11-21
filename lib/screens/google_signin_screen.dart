@@ -36,7 +36,7 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
     return 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36';
   }
 
-  // ytcfg & DOM extraction probe adapted from BitChord with deep avatar detection
+  // ytcfg & DOM extraction probe with deep avatar detection
   static const String _sessionProbeScript = '''
 (function () {
   try {
@@ -325,7 +325,7 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
       setState(() => _pageReady = true);
     }
 
-    // Check if YouTube page has finished initializing LOGGED_IN state (BitChord pattern)
+    // Check if YouTube page has finished initializing LOGGED_IN state
     bool isPageLoggedIn = false;
     try {
       if (_webViewController != null) {
@@ -378,7 +378,7 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
     Map<String, String> cookieJar,
     String cookiesString,
   ) async {
-    // 1. Probe ytcfg & DOM for session metadata (BitChord probe)
+    // 1. Probe ytcfg & DOM for session metadata
     String? pageId;
     String? dataSyncId;
     String? authUser;
@@ -527,7 +527,7 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
                     ),
             ),
 
-            // Bottom interactive confirmation bar once YouTube Music is reachable (BitChord flow)
+            // Bottom interactive confirmation bar once YouTube Music is reachable
             if (_pageReady && !_isAuthorizing)
               Positioned(
                 left: 16,
