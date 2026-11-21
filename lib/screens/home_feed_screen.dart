@@ -16,6 +16,7 @@ import '../models/song_item.dart';
 import '../models/video_item.dart';
 import '../providers/home_data_provider.dart';
 import '../providers/player_provider.dart';
+import '../services/artwork_color_service.dart';
 import '../utils/playback_utils.dart';
 import '../widgets/animated_cupertino_icon.dart';
 import '../widgets/animated_equalizer_bars.dart';
@@ -629,9 +630,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                     child: WavifyLogo(size: 20),
                   ),
 
-                // 4. Light frosted bottom blur (seamlessly starts without any straight line, lighter tint)
-                // When it's a solid colour (similarArtists, userStation, discoveryStation, moodForYou):
-                // NO blur! Solid colour remains intact with crisp white text.
+                // 4. Simple blur at the bottom of the artwork that fades away upward into the album
                 if (hero.style == 'fullBleed' ||
                     (hero.style != 'mixWithBadge' &&
                         hero.style != 'similarArtists' &&
@@ -643,7 +642,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    height: cardHeight * 0.42,
+                    height: cardHeight * 0.40,
                     child: ClipRRect(
                       borderRadius: const BorderRadius.only(
                         bottomLeft: Radius.circular(18),
@@ -656,17 +655,14 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                             end: Alignment.bottomCenter,
                             colors: [
                               Colors.transparent,
-                              Color(0x08000000), // near-invisible start
-                              Color(0x28000000), // very faint
-                              Color(0x72000000), // building
-                              Colors.black,      // fully visible at base
+                              Colors.black,
                             ],
-                            stops: [0.0, 0.25, 0.48, 0.72, 1.0],
+                            stops: [0.0, 0.40],
                           ).createShader(bounds);
                         },
                         blendMode: BlendMode.dstIn,
                         child: BackdropFilter(
-                          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
                           child: Container(
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
@@ -674,10 +670,10 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                                 end: Alignment.bottomCenter,
                                 colors: [
                                   Colors.transparent,
-                                  Colors.black.withValues(alpha: 0.06),
-                                  Colors.black.withValues(alpha: 0.14),
+                                  Colors.black.withValues(alpha: 0.20),
+                                  Colors.black.withValues(alpha: 0.50),
                                 ],
-                                stops: const [0.0, 0.55, 1.0],
+                                stops: const [0.0, 0.40, 1.0],
                               ),
                             ),
                           ),
@@ -686,7 +682,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                     ),
                   ),
 
-                // 5. White Typography floating at bottom matching reference images
+                // 5. Crisp white typography imposed directly on artwork with NO shadow
                 Positioned(
                   left: 16,
                   right: 16,
@@ -699,23 +695,11 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                         hero.subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white.withValues(alpha: 0.82),
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
                           letterSpacing: 0.1,
-                          shadows: hero.style == 'similarArtists' ||
-                                  hero.style == 'userStation' ||
-                                  hero.style == 'discoveryStation' ||
-                                  hero.style == 'moodForYou'
-                              ? null
-                              : [
-                                  Shadow(
-                                    color: Colors.black.withValues(alpha: 0.6),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 1),
-                                  ),
-                                ],
                         ),
                       ),
                       const SizedBox(height: 3),
@@ -723,24 +707,12 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                         hero.title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w700,
                           color: Colors.white,
                           letterSpacing: -0.2,
                           height: 1.15,
-                          shadows: hero.style == 'similarArtists' ||
-                                  hero.style == 'userStation' ||
-                                  hero.style == 'discoveryStation' ||
-                                  hero.style == 'moodForYou'
-                              ? null
-                              : [
-                                  Shadow(
-                                    color: Colors.black.withValues(alpha: 0.7),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 1),
-                                  ),
-                                ],
                         ),
                       ),
                       if (hero.caption.isNotEmpty &&
@@ -756,7 +728,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w400,
-                            color: Colors.white.withValues(alpha: 0.75),
+                            color: Colors.white.withValues(alpha: 0.85),
                           ),
                         ),
                       ],
@@ -780,20 +752,37 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
   ) {
     switch (hero.style) {
       case 'similarArtists':
-        // Warm amber / burnt-orange gradient matching the Apple Music reference image
-        final Color topColor;
-        final Color botColor;
-        if (hero.primaryColor != null &&
-            hero.primaryColor != 0xFFD81B60 &&
-            hero.primaryColor != 0xFFC04B02) {
-          final c = Color(hero.primaryColor!);
-          topColor = Color.lerp(c, Colors.black, 0.25)!;
-          botColor = Color.lerp(c, Colors.orange, 0.40)!;
-        } else {
-          // Exact colors extracted from Apple Music reference image
-          topColor = const Color(0xFF904100);
-          botColor = const Color(0xFFFC690F);
-        }
+        // Dynamically choose rich, artist-tailored background colors:
+        // Ensures the artist's circular images and bright white typography
+        // are both clearly visible with optimal contrast. Never fixed permanently.
+        final artistSeed = hero.artist?.name ??
+            (hero.artistAvatars.isNotEmpty ? hero.artistAvatars.first : hero.title);
+        final dynamicColor = (hero.artistAvatars.isNotEmpty
+                ? ArtworkColorService.instance.getCachedColor(hero.artistAvatars.first)
+                : null) ??
+            (hero.primaryColor != null &&
+                    hero.primaryColor != 0xFFD81B60 &&
+                    hero.primaryColor != 0xFFC04B02
+                ? Color(hero.primaryColor!)
+                : ArtworkColorService.instance.getFallbackAttractiveColor(artistSeed));
+
+        // Tune HSL dynamically so:
+        // 1. Text is bright white and crystal clear (lightness <= 0.28)
+        // 2. Artist circle images pop cleanly with vibrant contrast (rich saturation, not muddy black)
+        final hsl = HSLColor.fromColor(dynamicColor);
+        final tunedSat = hsl.saturation.clamp(0.55, 0.85);
+        final topTone = HSLColor.fromAHSL(
+          1.0,
+          hsl.hue,
+          tunedSat,
+          (hsl.lightness * 0.70).clamp(0.12, 0.22),
+        ).toColor();
+        final botTone = HSLColor.fromAHSL(
+          1.0,
+          hsl.hue,
+          tunedSat,
+          (hsl.lightness * 1.30).clamp(0.24, 0.35),
+        ).toColor();
 
         final hdUrl = hero.hdImageUrl ?? hero.imageUrl;
         return Container(
@@ -802,51 +791,51 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                topColor,
-                Color.lerp(topColor, botColor, 0.35)!,
-                Color.lerp(topColor, botColor, 0.70)!,
-                botColor,
+                topTone,
+                Color.lerp(topTone, botTone, 0.35)!,
+                Color.lerp(topTone, botTone, 0.70)!,
+                botTone,
               ],
               stops: const [0.0, 0.35, 0.70, 1.0],
             ),
           ),
           child: Stack(
             children: [
-              // 2. Medium right circular avatar (rendered behind Circle 1)
+              // 1. Large top-left circular avatar (Dominant main artist)
               Positioned(
-                top: cardHeight * 0.28,
-                right: 14,
+                top: 12,
+                left: 10,
+                child: _buildAvatarCircle(
+                  avatarUrl: hero.artistAvatars.isNotEmpty
+                      ? hero.artistAvatars[0]
+                      : hdUrl,
+                  size: cardWidth * 0.52,
+                ),
+              ),
+              // 2. Medium right circular avatar (Snug & close to circle 1)
+              Positioned(
+                top: 12 + cardWidth * 0.52 * 0.44,
+                right: 10,
                 child: _buildAvatarCircle(
                   avatarUrl: hero.artistAvatars.length > 1
                       ? hero.artistAvatars[1]
                       : (hero.artistAvatars.isNotEmpty
                             ? hero.artistAvatars[0]
                             : null),
-                  size: cardWidth * 0.38,
+                  size: cardWidth * 0.36,
                 ),
               ),
-              // 1. Large top-left circular avatar (in front, dominant, matching Apple Music reference)
+              // 3. Small circular avatar nestled close directly beneath circle 1
               Positioned(
-                top: 14,
-                left: 14,
-                child: _buildAvatarCircle(
-                  avatarUrl: hero.artistAvatars.isNotEmpty
-                      ? hero.artistAvatars[0]
-                      : hdUrl,
-                  size: cardWidth * 0.56,
-                ),
-              ),
-              // 3. Small circular avatar nestled below circle 1's bottom-right curve
-              Positioned(
-                top: cardHeight * 0.45,
-                left: cardWidth * 0.34,
+                top: 12 + cardWidth * 0.52 + 5,
+                left: cardWidth * 0.28,
                 child: _buildAvatarCircle(
                   avatarUrl: hero.artistAvatars.length > 2
                       ? hero.artistAvatars[2]
                       : (hero.artistAvatars.isNotEmpty
                             ? hero.artistAvatars[0]
                             : null),
-                  size: cardWidth * 0.29,
+                  size: cardWidth * 0.28,
                 ),
               ),
             ],
