@@ -503,8 +503,8 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
     if (heroCards.isEmpty) return const SizedBox.shrink();
 
     final screenWidth = MediaQuery.of(context).size.width;
-    final cardWidth = (screenWidth * 0.58).clamp(215.0, 240.0);
-    const cardHeight = 305.0;
+    final cardWidth = (screenWidth * 1.12).clamp(215.0, 255.0);
+    const cardHeight = 345.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -654,10 +654,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                           return const LinearGradient(
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black,
-                            ],
+                            colors: [Colors.transparent, Colors.black],
                             stops: [0.0, 0.40],
                           ).createShader(bounds);
                         },
@@ -756,16 +753,24 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
         // Dynamically choose rich, artist-tailored background colors:
         // Ensures the artist's circular images and bright white typography
         // are both clearly visible with optimal contrast. Never fixed permanently.
-        final artistSeed = hero.artist?.name ??
-            (hero.artistAvatars.isNotEmpty ? hero.artistAvatars.first : hero.title);
-        final dynamicColor = (hero.artistAvatars.isNotEmpty
-                ? ArtworkColorService.instance.getCachedColor(hero.artistAvatars.first)
+        final artistSeed =
+            hero.artist?.name ??
+            (hero.artistAvatars.isNotEmpty
+                ? hero.artistAvatars.first
+                : hero.title);
+        final dynamicColor =
+            (hero.artistAvatars.isNotEmpty
+                ? ArtworkColorService.instance.getCachedColor(
+                    hero.artistAvatars.first,
+                  )
                 : null) ??
             (hero.primaryColor != null &&
                     hero.primaryColor != 0xFFD81B60 &&
                     hero.primaryColor != 0xFFC04B02
                 ? Color(hero.primaryColor!)
-                : ArtworkColorService.instance.getFallbackAttractiveColor(artistSeed));
+                : ArtworkColorService.instance.getFallbackAttractiveColor(
+                    artistSeed,
+                  ));
 
         // Tune HSL dynamically so:
         // 1. Text is bright white and crystal clear (lightness <= 0.28)
@@ -810,12 +815,12 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                   avatarUrl: hero.artistAvatars.isNotEmpty
                       ? hero.artistAvatars[0]
                       : hdUrl,
-                  size: cardWidth * 0.56,
+                  size: cardWidth * 0.60,
                 ),
               ),
               // 2. Medium right circular avatar (Snug & close to circle 1, non-overlapping)
               Positioned(
-                top: 92,
+                top: 125,
                 right: 12,
                 child: _buildAvatarCircle(
                   avatarUrl: hero.artistAvatars.length > 1
@@ -828,8 +833,8 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
               ),
               // 3. Small-medium circular avatar nestled close beneath circle 1 & left of circle 2 (non-overlapping)
               Positioned(
-                top: 144,
-                left: cardWidth * 0.29,
+                top: 180,
+                left: cardWidth * 0.28,
                 child: _buildAvatarCircle(
                   avatarUrl: hero.artistAvatars.length > 2
                       ? hero.artistAvatars[2]

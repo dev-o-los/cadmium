@@ -428,73 +428,73 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
                                 ],
 
                                 // Top Songs Section
-                              _buildTopSongsSection(),
+                                _buildTopSongsSection(),
 
-                              const SizedBox(height: 28),
-
-                              // Albums Carousel (Screenshot 3 & 4)
-                              if (_artistDetails?.albums.isNotEmpty ==
-                                  true) ...[
-                                _buildAlbumsSection(_artistDetails!.albums),
                                 const SizedBox(height: 28),
+
+                                // Albums Carousel (Screenshot 3 & 4)
+                                if (_artistDetails?.albums.isNotEmpty ==
+                                    true) ...[
+                                  _buildAlbumsSection(_artistDetails!.albums),
+                                  const SizedBox(height: 28),
+                                ],
+
+                                // Singles & EPs Carousel (Screenshot 3 & 4)
+                                if (_artistDetails?.singles.isNotEmpty ==
+                                    true) ...[
+                                  _buildSinglesSection(_artistDetails!.singles),
+                                  const SizedBox(height: 28),
+                                ],
+
+                                // Music Videos Carousel (Screenshot 3 & 5)
+                                if (_artistDetails?.videos.isNotEmpty ==
+                                    true) ...[
+                                  _buildVideosSection(_artistDetails!.videos),
+                                  const SizedBox(height: 28),
+                                ],
+
+                                // From Your Library Section (Screenshot 3 & 5)
+                                if (matchingLibraryAlbums.isNotEmpty) ...[
+                                  _buildLibrarySection(matchingLibraryAlbums),
+                                  const SizedBox(height: 28),
+                                ],
+
+                                // Featured On Carousel (Screenshot 5 & 1)
+                                if (_artistDetails?.featuredOn.isNotEmpty ==
+                                    true) ...[
+                                  _buildFeaturedOnSection(
+                                    _artistDetails!.featuredOn,
+                                  ),
+                                  const SizedBox(height: 28),
+                                ],
+
+                                // Playlists by Artist Carousel (Screenshot 1 & 5)
+                                if (_artistDetails
+                                        ?.playlistsByArtist
+                                        .isNotEmpty ==
+                                    true) ...[
+                                  _buildPlaylistsByArtistSection(
+                                    _artistDetails!.playlistsByArtist,
+                                  ),
+                                  const SizedBox(height: 28),
+                                ],
+
+                                // Fans Might Also Like Carousel (Screenshot 1 & 2)
+                                if (_artistDetails?.similarArtists.isNotEmpty ==
+                                    true) ...[
+                                  _buildFansMightLikeSection(
+                                    _artistDetails!.similarArtists,
+                                  ),
+                                  const SizedBox(height: 28),
+                                ],
+
+                                // About the Artist Description & Stat Pills (Screenshot 1 & 2)
+                                _buildAboutArtistSection(),
+
+                                const SizedBox(height: 48),
                               ],
-
-                              // Singles & EPs Carousel (Screenshot 3 & 4)
-                              if (_artistDetails?.singles.isNotEmpty ==
-                                  true) ...[
-                                _buildSinglesSection(_artistDetails!.singles),
-                                const SizedBox(height: 28),
-                              ],
-
-                              // Music Videos Carousel (Screenshot 3 & 5)
-                              if (_artistDetails?.videos.isNotEmpty ==
-                                  true) ...[
-                                _buildVideosSection(_artistDetails!.videos),
-                                const SizedBox(height: 28),
-                              ],
-
-                              // From Your Library Section (Screenshot 3 & 5)
-                              if (matchingLibraryAlbums.isNotEmpty) ...[
-                                _buildLibrarySection(matchingLibraryAlbums),
-                                const SizedBox(height: 28),
-                              ],
-
-                              // Featured On Carousel (Screenshot 5 & 1)
-                              if (_artistDetails?.featuredOn.isNotEmpty ==
-                                  true) ...[
-                                _buildFeaturedOnSection(
-                                  _artistDetails!.featuredOn,
-                                ),
-                                const SizedBox(height: 28),
-                              ],
-
-                              // Playlists by Artist Carousel (Screenshot 1 & 5)
-                              if (_artistDetails
-                                      ?.playlistsByArtist
-                                      .isNotEmpty ==
-                                  true) ...[
-                                _buildPlaylistsByArtistSection(
-                                  _artistDetails!.playlistsByArtist,
-                                ),
-                                const SizedBox(height: 28),
-                              ],
-
-                              // Fans Might Also Like Carousel (Screenshot 1 & 2)
-                              if (_artistDetails?.similarArtists.isNotEmpty ==
-                                  true) ...[
-                                _buildFansMightLikeSection(
-                                  _artistDetails!.similarArtists,
-                                ),
-                                const SizedBox(height: 28),
-                              ],
-
-                              // About the Artist Description & Stat Pills (Screenshot 1 & 2)
-                              _buildAboutArtistSection(),
-
-                              const SizedBox(height: 48),
-                            ],
+                            ),
                           ),
-                        ),
                   ),
                 ),
               ],
@@ -1106,7 +1106,9 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
               return ApplePressable(
                 onTap: () {
                   final idx = songs.indexWhere((s) => s.id == song.id);
-                  final history = idx > 0 ? songs.sublist(0, idx) : const <SongItem>[];
+                  final history = idx > 0
+                      ? songs.sublist(0, idx)
+                      : const <SongItem>[];
                   final queue = (idx >= 0 && idx < songs.length - 1)
                       ? songs.sublist(idx + 1)
                       : const <SongItem>[];
@@ -1825,13 +1827,12 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen> {
 
   bool _isExplicitSong(SongItem song) {
     if (song.isExplicit || song.hasExplicitContent) return true;
-    final lower = '${song.title} ${song.artist} ${song.album ?? ''}'.toLowerCase();
+    final lower = '${song.title} ${song.artist} ${song.album ?? ''}'
+        .toLowerCase();
     return lower.contains('explicit') ||
         lower.contains('dirty') ||
         lower.contains('parental') ||
-        lower.contains('uncensored') ||
-        lower.contains('feat') ||
-        lower.contains('hell yeah');
+        lower.contains('uncensored');
   }
 
   Widget _buildExplicitBadge() {
