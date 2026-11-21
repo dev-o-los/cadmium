@@ -27,8 +27,8 @@ class AppShimmer extends StatelessWidget {
     final isTest = Platform.environment.containsKey('FLUTTER_TEST');
 
     return Shimmer.fromColors(
-      baseColor: baseColor ?? const Color(0xFF1C1C1E),
-      highlightColor: highlightColor ?? const Color(0xFF2C2C2E),
+      baseColor: baseColor ?? Colors.white.withValues(alpha: 0.12),
+      highlightColor: highlightColor ?? Colors.white.withValues(alpha: 0.26),
       period: period,
       direction: direction,
       enabled: enabled ?? !isTest,
@@ -391,6 +391,8 @@ class TrackListSkeleton extends StatelessWidget {
   final bool showIndex;
   final bool showArtwork;
   final EdgeInsetsGeometry padding;
+  final Color? baseColor;
+  final Color? highlightColor;
 
   const TrackListSkeleton({
     super.key,
@@ -398,11 +400,15 @@ class TrackListSkeleton extends StatelessWidget {
     this.showIndex = true,
     this.showArtwork = false,
     this.padding = const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+    this.baseColor,
+    this.highlightColor,
   });
 
   @override
   Widget build(BuildContext context) {
     return AppShimmer(
+      baseColor: baseColor ?? Colors.white.withValues(alpha: 0.12),
+      highlightColor: highlightColor ?? Colors.white.withValues(alpha: 0.26),
       child: Padding(
         padding: padding,
         child: Column(

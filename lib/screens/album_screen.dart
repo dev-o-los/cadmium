@@ -483,6 +483,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                       fit: BoxFit.cover,
                       borderRadius: BorderRadius.circular(8),
                       placeholder: const AppShimmer(
+                        baseColor: Color(0x22FFFFFF),
+                        highlightColor: Color(0x44FFFFFF),
                         child: ShimmerBox(
                           width: 50,
                           height: 50,
@@ -989,6 +991,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                           child: _isLoading && _allTracks.isEmpty
                               ? const AppShimmer(
                                   key: ValueKey('album-meta-shimmer'),
+                                  baseColor: Color(0x22FFFFFF),
+                                  highlightColor: Color(0x44FFFFFF),
                                   child: ShimmerBox(
                                     width: 190,
                                     height: 14,
@@ -1171,6 +1175,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                         _album.description == null)
                                     ? const AppShimmer(
                                         key: ValueKey('album-desc-shimmer'),
+                                        baseColor: Color(0x22FFFFFF),
+                                        highlightColor: Color(0x44FFFFFF),
                                         child: Column(
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
@@ -1253,6 +1259,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                         itemCount: 8,
                         showIndex: !isLikedMusic,
                         showArtwork: isLikedMusic,
+                        baseColor: const Color(0x22FFFFFF),
+                        highlightColor: const Color(0x44FFFFFF),
                       ),
                     ),
                   )
@@ -1302,6 +1310,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                         fit: BoxFit.cover,
                                         borderRadius: BorderRadius.circular(8),
                                         placeholder: const AppShimmer(
+                                          baseColor: Color(0x22FFFFFF),
+                                          highlightColor: Color(0x44FFFFFF),
                                           child: ShimmerBox(
                                             width: 44,
                                             height: 44,
@@ -1647,6 +1657,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       alignment: Alignment.center,
       children: [
         AppShimmer(
+          baseColor: const Color(0x22FFFFFF),
+          highlightColor: const Color(0x44FFFFFF),
           child: ShimmerBox(
             width: size,
             height: size,
@@ -1655,7 +1667,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         ),
         Icon(
           CupertinoIcons.music_albums,
-          color: Colors.white.withValues(alpha: 0.22),
+          color: Colors.white.withValues(alpha: 0.35),
           size: size * 0.32,
         ),
       ],

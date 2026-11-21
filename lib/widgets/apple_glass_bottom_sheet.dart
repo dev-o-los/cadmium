@@ -61,15 +61,29 @@ class AppleGlassBottomSheetContainer extends StatelessWidget {
         child: ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            filter: ui.ImageFilter.blur(sigmaX: 30, sigmaY: 30),
             child: Container(
               decoration: BoxDecoration(
-                color: const Color(0xFF1C1C22).withValues(alpha: 0.80),
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xD924242A),
+                    Color(0xF016161B),
+                  ],
+                ),
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
                 border: Border.all(
                   color: Colors.white.withValues(alpha: 0.22),
-                  width: 0.7,
+                  width: 0.75,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    blurRadius: 36,
+                    offset: const Offset(0, -6),
+                  ),
+                ],
               ),
             child: SafeArea(
               top: false,
@@ -87,7 +101,7 @@ class AppleGlassBottomSheetContainer extends StatelessWidget {
                           width: 38,
                           height: 4.5,
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.32),
+                            color: Colors.white.withValues(alpha: 0.35),
                             borderRadius: BorderRadius.circular(2.25),
                           ),
                         ),
@@ -103,6 +117,109 @@ class AppleGlassBottomSheetContainer extends StatelessWidget {
           ),
         ),
       ),
+      ),
+    );
+  }
+}
+
+/// Displays an authentic Apple frosted glass dialog with background optical blur,
+/// highlight specular borders, and tactile bouncy buttons.
+Future<T?> showAppleFrostedDialog<T>({
+  required BuildContext context,
+  required Widget child,
+  bool barrierDismissible = true,
+  Color? barrierColor,
+}) {
+  return showGeneralDialog<T>(
+    context: context,
+    barrierDismissible: barrierDismissible,
+    barrierLabel: 'AppleFrostedDialog',
+    barrierColor: barrierColor ?? Colors.black.withValues(alpha: 0.40),
+    transitionDuration: const Duration(milliseconds: 220),
+    pageBuilder: (dialogContext, animation, secondaryAnimation) {
+      return SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            child: Material(
+              color: Colors.transparent,
+              child: child,
+            ),
+          ),
+        ),
+      );
+    },
+    transitionBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.92, end: 1.0).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
+/// Frosted glass container for dialogs with optical blur, specular borders, and Apple styling.
+class AppleFrostedDialogCard extends StatelessWidget {
+  final Widget child;
+  final double maxWidth;
+  final double? maxHeight;
+  final EdgeInsetsGeometry padding;
+
+  const AppleFrostedDialogCard({
+    super.key,
+    required this.child,
+    this.maxWidth = 320,
+    this.maxHeight,
+    this.padding = const EdgeInsets.all(20),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: maxWidth,
+          maxHeight: maxHeight ?? MediaQuery.sizeOf(context).height * 0.85,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xD924242A),
+                    Color(0xEE18181E),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.22),
+                  width: 0.75,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    blurRadius: 36,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              padding: padding,
+              child: child,
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -42,12 +41,6 @@ void showTrackOptionsModal(
       return Stack(
         fit: StackFit.expand,
         children: [
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-              child: const SizedBox.expand(),
-            ),
-          ),
           SafeArea(
             child: Center(
               child: Padding(
